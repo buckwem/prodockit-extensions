@@ -38,9 +38,14 @@ def test_surrey_publishing_stage_has_only_surrey_gitlab_tabs() -> None:
 def test_surrey_pages_setup_is_a_numbered_checklist() -> None:
     stage = _publishing_stage(is_surrey=True)
     step = stage.split("//// step | Enable repo for Pages", 1)[1].split("\n////", 1)[0]
-    assert re.findall(r"^    (\d+)\. ", step, re.MULTILINE) == ["1", "2", "3", "4", "5"]
+    assert re.findall(r"^    (\d+)\. ", step, re.MULTILINE) == [
+        "1", "2", "3", "4", "5", "6"
+    ]
     assert "**Settings > General**" in step
     assert "**Pages** is" in step
+    assert "**Save changes**" in step
+    assert "`pages:` setting" in step
+    assert "`public/` directory" in step
     assert "`.gitlab-ci.yml`" in step
     assert "`.gitlab-pdk.yml`" in step
     assert "GitLab publishing workflow setup" in step
@@ -52,6 +57,22 @@ def test_public_publishing_stage_keeps_both_host_choices() -> None:
     assert stage.count('=== ":fontawesome-brands-gitlab: GitLab"') == 2
     assert '=== ":fontawesome-brands-gitlab: Surrey GitLab"' not in stage
     assert "Surrey Login" not in stage
+
+
+def test_public_pages_setup_has_detailed_steps_for_both_hosts() -> None:
+    stage = _publishing_stage(is_surrey=False)
+    step = stage.split("//// step | Enable repo for Pages", 1)[1].split("\n////", 1)[0]
+    for label in (
+        '=== ":fontawesome-brands-github: GitHub"',
+        '=== ":fontawesome-brands-gitlab: GitLab"',
+    ):
+        host = step.split(label, 1)[1].split("\n=== ", 1)[0]
+        assert re.findall(r"^    (\d+)\. ", host, re.MULTILINE) == [
+            "1", "2", "3", "4", "5", "6"
+        ]
+    assert "**Source** to **GitHub Actions**" in step
+    assert "`pages:` setting" in step
+    assert "**Save changes**" in step
 
 
 def test_route_overview_names_the_rendered_host() -> None:
