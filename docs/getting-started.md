@@ -730,13 +730,21 @@ Use your host's tab. Skip settings that are already correct.
 {% if is_surrey %}
 === ":fontawesome-brands-gitlab: Surrey GitLab"
 
-    Sign in to [Surrey GitLab](https://gitlab.surrey.ac.uk) using
-    **Surrey Login**, then open your project. Keep its existing Pages job in
-    `.gitlab-ci.yml`. If Adopt created `.gitlab-pdk.yml`, first follow
-    [Merge the build instructions](#merge-adopt-build-instructions).
-    If the project has no Pages job, follow
-    [the GitLab publishing workflow setup](devcons/continuous-integration.md)
-    before continuing. Adopt does not create an active GitLab pipeline.
+    1. Sign in to [Surrey GitLab](https://gitlab.surrey.ac.uk) with
+       **Surrey Login** and open the project that will publish your site.
+    2. In the project sidebar, open **Settings > General** and expand
+       **Visibility, project features, permissions**. Check that **Pages** is
+       enabled. If you cannot change this setting, ask the project owner;
+       do not make the repository public to enable Pages.
+    3. At the root of the project repository, open `.gitlab-ci.yml` and look
+       for an existing Pages deployment job. Keep that job and its existing
+       settings; do not replace the entire file.
+    4. If Adopt created `.gitlab-pdk.yml`, follow
+       [Merge the build instructions](#merge-adopt-build-instructions) to bring
+       its proposed build commands into `.gitlab-ci.yml`.
+    5. If `.gitlab-ci.yml` has no Pages job, follow
+       [the GitLab publishing workflow setup](devcons/continuous-integration.md)
+       before continuing. Adopt does not create an active GitLab pipeline.
 
 {% else %}
 === ":fontawesome-brands-github: GitHub"
