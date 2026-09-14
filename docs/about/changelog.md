@@ -19,6 +19,11 @@ only when it adds or changes behaviour that matters to a user, or requires an
 upgrade action. Defect-by-defect history belongs in GitHub issues and pull
 requests rather than here.
 
+## 0.65.6 (2026-09-14)
+
+- Clarify the clean-install, Surrey GitLab, GitHub, and GitLab publishing steps
+  in the installation guide, including how to find the published Pages site.
+
 ## 0.65.5 (2026-09-13)
 
 - Getting started now gives University of Surrey readers the Surrey GitLab
