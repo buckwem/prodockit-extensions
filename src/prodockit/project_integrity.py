@@ -356,7 +356,7 @@ def renderer_requirements(config: ProjectConfig) -> tuple[bool, bool]:
         for markdown in sorted(config.docs_dir.rglob("*.md")):
             try:
                 sources.append(markdown.read_text(encoding="utf-8"))
-            except OSError:
+            except (OSError, UnicodeDecodeError):
                 continue
     return _renderer_requirements_from_sources(config, sources)
 
@@ -393,6 +393,11 @@ def inspect_project(config: ProjectConfig) -> tuple[ProjectProblem, ...]:
     for markdown in markdown_files:
         try:
             source = markdown.read_text(encoding="utf-8")
+        except UnicodeDecodeError:
+            problems.append(
+                ProjectProblem(_display(config, markdown), "cannot read page as UTF-8")
+            )
+            continue
         except OSError as error:
             problems.append(
                 ProjectProblem(_display(config, markdown), f"cannot read page: {error}")

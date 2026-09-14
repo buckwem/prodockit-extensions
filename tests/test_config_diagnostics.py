@@ -237,6 +237,20 @@ def test_check_reports_missing_project_inputs(tmp_path: Path) -> None:
     assert "styles/missing.css" in result.output
 
 
+def test_check_reports_invalid_utf8_markdown_without_traceback(tmp_path: Path) -> None:
+    path = _config(tmp_path)
+    invalid = tmp_path / "writing" / "invalid-utf8.md"
+    invalid.parent.mkdir()
+    invalid.write_bytes(b"\x89PNG\r\n\x1a\n")
+
+    result = _run(path, check=True)
+
+    assert result.exit_code == 1
+    expected_path = str(Path("writing") / "invalid-utf8.md")
+    assert f"{expected_path}: cannot read page as UTF-8" in result.output
+    assert "Traceback" not in result.output
+
+
 def test_diagnostic_registry_covers_every_registered_prodockit_extension() -> None:
     root = Path(__file__).resolve().parent.parent
     package = read_config((root / "pyproject.toml").read_text(encoding="utf-8"))

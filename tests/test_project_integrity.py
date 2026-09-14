@@ -12,6 +12,7 @@ from prodockit.project_config import load_project_config
 from prodockit.project_integrity import (
     assert_project_integrity,
     inspect_project,
+    renderer_requirements,
 )
 
 
@@ -110,6 +111,17 @@ def test_every_nav_page_must_exist(tmp_path: Path) -> None:
     config = _project(tmp_path, 'nav = [{"Missing" = "missing.md"}]\n')
 
     assert _messages(config) == ["project.nav: page does not exist: docs/missing.md"]
+
+
+def test_invalid_utf8_markdown_is_reported_as_a_project_problem(tmp_path: Path) -> None:
+    config = _project(tmp_path, "")
+    invalid = tmp_path / "docs" / "invalid-utf8.md"
+    invalid.parent.mkdir()
+    invalid.write_bytes(b"\x89PNG\r\n\x1a\n")
+
+    expected_path = str(Path("docs") / "invalid-utf8.md")
+    assert _messages(config) == [f"{expected_path}: cannot read page as UTF-8"]
+    assert renderer_requirements(load_project_config(config)) == (False, False)
 
 
 def test_nav_urls_and_page_fragments_do_not_create_false_missing_pages(tmp_path: Path) -> None:
