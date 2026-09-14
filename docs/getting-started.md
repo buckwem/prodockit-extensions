@@ -849,11 +849,14 @@ Wait for a successful deployment, then open the published site:
 {% if is_surrey %}
 === ":fontawesome-brands-gitlab: Surrey GitLab"
 
-    1. Open the project's **Build > Pipelines** page on
-       [Surrey GitLab](https://gitlab.surrey.ac.uk) and check that the Pages
-       job for your latest commit succeeds.
-    2. Return to the project's front page and click its **GitLab Pages**
-       link to open the website.
+    1. Open your project on [Surrey GitLab](https://gitlab.surrey.ac.uk), then
+       select **Build > Pipelines** in the project sidebar.
+    2. Open the pipeline for the commit you just pushed.
+    3. Check that its Pages job completed successfully. If it failed, open the
+       job log and resolve the reported error before continuing.
+    4. Select **Deploy > Pages** in the project sidebar to find the published
+       website address.
+    5. Open that address in a new browser tab and check the site.
 
 {% else %}
 === ":fontawesome-brands-github: GitHub"
@@ -866,9 +869,14 @@ Wait for a successful deployment, then open the published site:
 
 === ":fontawesome-brands-gitlab: GitLab"
 
-    1. Open the project's **Build > Pipelines** page.
-    2. Open the pipeline for your latest commit and check that its Pages job succeeds.
-    3. Return to the repository's front page and click the **GitLab Pages** link to open your site.
+    1. Open your project on GitLab, then select **Build > Pipelines** in the
+       project sidebar.
+    2. Open the pipeline for the commit you just pushed.
+    3. Check that its Pages job completed successfully. If it failed, open the
+       job log and resolve the reported error before continuing.
+    4. Select **Deploy > Pages** in the project sidebar to find the published
+       website address.
+    5. Open that address in a new browser tab and check the site.
 {% endif %}
 
 Check the pages, navigation and any diagrams or maths. If publishing fails,

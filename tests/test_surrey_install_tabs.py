@@ -75,6 +75,28 @@ def test_public_pages_setup_has_detailed_steps_for_both_hosts() -> None:
     assert "**Save changes**" in step
 
 
+def test_published_website_tabs_share_the_same_numbered_format() -> None:
+    for is_surrey in (True, False):
+        stage = _publishing_stage(is_surrey=is_surrey)
+        step = stage.split("//// step | Open the published website", 1)[1].split("\n////", 1)[0]
+        labels = (
+            ('=== ":fontawesome-brands-gitlab: Surrey GitLab"',)
+            if is_surrey
+            else (
+                '=== ":fontawesome-brands-github: GitHub"',
+                '=== ":fontawesome-brands-gitlab: GitLab"',
+            )
+        )
+        for label in labels:
+            tab = step.split(label, 1)[1].split("\n=== ", 1)[0]
+            assert re.findall(r"^    (\d+)\. ", tab, re.MULTILINE) == [
+                "1", "2", "3", "4", "5"
+            ]
+            if "GitLab" in label:
+                assert "**Build > Pipelines**" in tab
+                assert "**Deploy > Pages**" in tab
+
+
 def test_route_overview_names_the_rendered_host() -> None:
     surrey = _render(GETTING_STARTED, is_surrey=True)
     public = _render(GETTING_STARTED, is_surrey=False)
