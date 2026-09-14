@@ -71,6 +71,24 @@ def test_home_page_hero_title_is_not_numbered() -> None:
     assert '{: .cover-hero-title .unnumbered }' in home
 
 
+def test_git_host_content_tabs_use_brand_icons() -> None:
+    checked = 0
+    for page in (ROOT / "docs").rglob("*.md"):
+        for line in page.read_text(encoding="utf-8").splitlines():
+            match = re.match(r'^\s*=== "([^"]+)"$', line)
+            if match is None:
+                continue
+            label = match.group(1)
+            for host, icon in (
+                ("GitHub", ":fontawesome-brands-github:"),
+                ("GitLab", ":fontawesome-brands-gitlab:"),
+            ):
+                if host in label:
+                    checked += 1
+                    assert label.startswith(icon), (page, label)
+    assert checked > 10
+
+
 def test_home_page_hero_does_not_force_a_full_viewport() -> None:
     stylesheet = _text("docs/stylesheets/pdk.css")
     hero = stylesheet.split(".cover-hero {", 1)[1].split("}", 1)[0]

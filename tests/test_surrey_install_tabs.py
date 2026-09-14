@@ -37,8 +37,8 @@ def test_surrey_publishing_stage_has_only_surrey_gitlab_tabs() -> None:
 
 def test_public_publishing_stage_keeps_both_host_choices() -> None:
     stage = _publishing_stage(is_surrey=False)
-    assert stage.count('=== "GitHub"') == 2
-    assert stage.count('=== "GitLab"') == 2
+    assert stage.count('=== ":fontawesome-brands-github: GitHub"') == 2
+    assert stage.count('=== ":fontawesome-brands-gitlab: GitLab"') == 2
     assert '=== ":fontawesome-brands-gitlab: Surrey GitLab"' not in stage
     assert "Surrey Login" not in stage
 
@@ -85,9 +85,9 @@ def test_public_review_and_manual_install_keep_host_choices() -> None:
     manual = _render(MANUAL_INSTALL, is_surrey=False)
     assert '=== ":fontawesome-brands-github: GitHub"' in review
     assert '=== ":fontawesome-brands-gitlab: GitLab"' in review
-    assert manual.count('=== "GitHub"') == 4
-    assert manual.count('=== "GitLab"') == 2
-    assert manual.count('=== "GitLab.com"') == 2
+    assert manual.count('=== ":fontawesome-brands-github: GitHub"') == 4
+    assert manual.count('=== ":fontawesome-brands-gitlab: GitLab"') == 2
+    assert manual.count('=== ":fontawesome-brands-gitlab: GitLab.com"') == 2
     assert '=== ":fontawesome-brands-gitlab: Surrey GitLab"' not in manual
 
 

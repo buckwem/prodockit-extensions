@@ -739,7 +739,7 @@ Use your host's tab. Skip settings that are already correct.
     before continuing. Adopt does not create an active GitLab pipeline.
 
 {% else %}
-=== "GitHub"
+=== ":fontawesome-brands-github: GitHub"
 
     1. Open your repository on GitHub.
     2. Open **Settings > Pages**.
@@ -751,7 +751,7 @@ Use your host's tab. Skip settings that are already correct.
     If it is missing or Pages settings are unavailable, follow
     [GitHub Pages setup](https://docs.github.com/en/pages/getting-started-with-github-pages/configuring-a-publishing-source-for-your-github-pages-site).
 
-=== "GitLab"
+=== ":fontawesome-brands-gitlab: GitLab"
 
     Keep your existing Pages job in `.gitlab-ci.yml`. If none exists, follow
     [the GitLab publishing workflow setup](devcons/continuous-integration.md)
@@ -820,7 +820,7 @@ Wait for a successful deployment, then open the published site:
        link to open the website.
 
 {% else %}
-=== "GitHub"
+=== ":fontawesome-brands-github: GitHub"
 
     1. Open the repository's **Actions** tab.
     2. Open the documentation run for your latest commit and wait for success.
@@ -828,7 +828,7 @@ Wait for a successful deployment, then open the published site:
     4. Tick **Use your GitHub Pages website** and save the change.
     5. Click the website link now shown in the **About** panel to open your site.
 
-=== "GitLab"
+=== ":fontawesome-brands-gitlab: GitLab"
 
     1. Open the project's **Build > Pipelines** page.
     2. Open the pipeline for your latest commit and check that its Pages job succeeds.

@@ -337,12 +337,12 @@ they install.
 Do not stop at a green deployment job. Open the public website, follow its PDF
 download, and check a page changed by this publication.
 
-=== "GitHub Pages"
+=== ":fontawesome-brands-github: GitHub Pages"
 
     Open the repository's **Actions** page, select the documentation workflow,
     and confirm both its deploy and live-verification jobs passed.
 
-=== "GitLab Pages"
+=== ":fontawesome-brands-gitlab: GitLab Pages"
 
     Open **Build > Pipelines**, inspect the `pages` job, then use
     **Deploy > Pages** to open the published address.

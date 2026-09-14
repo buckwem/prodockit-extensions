@@ -79,13 +79,13 @@ reproducible in the checkout.
 
 //// step | Confirm the publishing file is present
 
-=== "GitHub Pages"
+=== ":fontawesome-brands-github: GitHub Pages"
 
     Confirm `.github/workflows/docs.yml` exists. It should run when the
     repository's default branch changes and should allow a manual run for
     recovery.
 
-=== "GitLab Pages"
+=== ":fontawesome-brands-gitlab: GitLab Pages"
 
     Confirm `.gitlab-ci.yml` contains a `pages` job. GitLab reserves the name
     `public/` for the directory that job publishes.
@@ -109,12 +109,12 @@ complete, merge it into the branch the publishing workflow watches—normally
 
 //// step | Watch the publishing job
 
-=== "GitHub Pages"
+=== ":fontawesome-brands-github: GitHub Pages"
 
     Open **Actions**, select **Documentation**, and open the run for the merged
     commit. Check both the deployment and later live-verification result.
 
-=== "GitLab Pages"
+=== ":fontawesome-brands-gitlab: GitLab Pages"
 
     Open **Build > Pipelines**, select the pipeline for the merged commit, and
     inspect its `pages` job. Then use **Deploy > Pages** to find the published

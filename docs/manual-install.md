@@ -540,7 +540,7 @@ Visual Studio Code use the same Git installation.
         1. Open [Surrey GitLab](https://gitlab.surrey.ac.uk){target="_blank" rel="noopener"}, select
            **Surrey Login**, and sign in with your university credentials.
 {% else %}
-    === "GitLab"
+    === ":fontawesome-brands-gitlab: GitLab"
 
         1. Log in to your **GitLab** account in a web browser.
 {% endif %}
@@ -561,7 +561,7 @@ Visual Studio Code use the same Git installation.
             expired one. If pushing suddenly fails having worked for months, check
             this date first.
 {% if not is_surrey %}
-    === "GitHub"
+    === ":fontawesome-brands-github: GitHub"
 
         1. Log in to your **GitHub** account in a web browser.
         2. In the top-right corner, click on your **profile avatar** and select **Settings**.
@@ -704,13 +704,13 @@ or GitHub{% endif %} repository.
         untick **Initialize repository with a README**.
 
 {% else %}
-    === "GitLab"
+    === ":fontawesome-brands-gitlab: GitLab"
 
         On the GitLab website, select **New project > Create blank project**.
         Give it the required name, set its visibility to **Private**, and
         untick **Initialize repository with a README**.
 
-    === "GitHub"
+    === ":fontawesome-brands-github: GitHub"
 
         On the GitHub website, select **New repository**. Give it the required
         name, set it to **Private**, and leave every **Initialize this
@@ -800,13 +800,13 @@ or GitHub{% endif %} repository.
         git remote add origin git@gitlab.surrey.ac.uk:comm058-2026/report-az1234.git
         ```
 {% else %}
-    === "GitLab.com"
+    === ":fontawesome-brands-gitlab: GitLab.com"
 
         ``` bash
         git remote add origin git@gitlab.com:your-namespace/report-az1234.git
         ```
 
-    === "GitHub"
+    === ":fontawesome-brands-github: GitHub"
 
         ``` bash
         git remote add origin git@github.com:your-username/report-az1234.git
@@ -848,13 +848,13 @@ the same place.
         git clone git@gitlab.surrey.ac.uk:comm058-2026/report-az1234.git
         ```
 {% else %}
-    === "GitLab.com"
+    === ":fontawesome-brands-gitlab: GitLab.com"
 
         ``` bash
         git clone git@gitlab.com:your-namespace/report-az1234.git
         ```
 
-    === "GitHub"
+    === ":fontawesome-brands-github: GitHub"
 
         ``` bash
         git clone git@github.com:your-username/report-az1234.git
