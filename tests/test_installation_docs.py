@@ -31,6 +31,32 @@ MANUAL_INSTALL = REPO / "docs" / "manual-install.md"
 POWERSHELL_POLICY = "Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned"
 
 
+def test_project_structure_trees_are_alphabetical() -> None:
+    """The Adopt and template trees should match a normal directory listing."""
+    page = INSTALLATION.read_text(encoding="utf-8")
+    headings = (
+        "### The site after adding Prodockit",
+        "### A site created from prodockit-template",
+    )
+    for heading in headings:
+        section = page.split(heading, 1)[1]
+        tree = section.split("/// tree\n", 1)[1].split("\n///", 1)[0]
+        siblings: dict[tuple[str, ...], list[str]] = {}
+        path: list[str] = []
+        for line in tree.splitlines():
+            depth = len(line) - len(line.lstrip(" "))
+            assert depth % 2 == 0
+            level = depth // 2
+            assert level <= len(path)
+            path = path[:level]
+            label = line.strip().split(" - ", 1)[0]
+            assert not path or path[-1].endswith("/")
+            siblings.setdefault(tuple(path), []).append(label)
+            path.append(label)
+        for labels in siblings.values():
+            assert labels == sorted(labels, key=lambda name: (not name.endswith("/"), name.casefold()))
+
+
 def test_adoption_routes_refresh_environment_between_apply_and_build():
     for page in (FIRST_SITE, ADOPTION):
         text = page.read_text(encoding="utf-8")

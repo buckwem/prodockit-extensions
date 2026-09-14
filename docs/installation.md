@@ -267,17 +267,17 @@ the website and PDF stylesheets in their intended override order.
     docs.yml - original Zensical workflow
 docs/ - original Markdown source pages and Prodockit assets
   javascripts/ - Prodockit and project website behaviour
-    pdk.js - managed Prodockit website behaviour
-    mathjax.js - generated Prodockit configuration when maths is selected
     vendor/
       mathjax/
-        tex-svg-full.js - vendor MathJax browser bundle
         LICENSE - vendor licence supplied with MathJax
+        tex-svg-full.js - vendor MathJax browser bundle
     extra.js - USER-MANAGED website behaviour
+    mathjax.js - generated Prodockit configuration when maths is selected
+    pdk.js - managed Prodockit website behaviour
   stylesheets/
-    pdk.css - managed Prodockit website and component styles
     extra.css - USER-MANAGED website overrides
     pdk-pdf.css - managed Prodockit PDF styles
+    pdk.css - managed Prodockit website and component styles
     print.css - USER-MANAGED PDF-only overrides
   index.md - original starter home page
   markdown.md - original starter Markdown example
@@ -310,8 +310,26 @@ Zensical site because Bootstrap is preparing a complete working project rather
 than adding selected components to an existing one.
 
 /// tree
+.github/ - GitHub repository configuration
+  workflows/ - GitHub Actions workflows
+    docs.yml - GitHub Pages build and deployment
+    release-redeploy.yml - rebuild after a template release
 docs/ - content and appearance
-  index.md - report cover
+  assets/ - cover, branding, and report images
+  javascripts/ - Prodockit and project website behaviour
+    vendor/
+      mathjax/
+        LICENSE - vendor licence supplied with MathJax
+        tex-svg-full.js - vendor MathJax browser bundle
+    extra.js - USER-MANAGED website behaviour
+    mathjax.js - generated Prodockit MathJax configuration
+    pdk.js - managed Prodockit website behaviour
+  stylesheets/ - website and PDF presentation
+    extra.css - USER-MANAGED website overrides
+    pdk-pdf.css - managed Prodockit PDF styles
+    pdk.css - managed Prodockit website and component styles
+    print.css - USER-MANAGED PDF-only overrides
+    template.css - template-specific website presentation
   1-originality.md - originality and AI-use statement
   2-executive-summary.md - starter executive summary
   3-requirements.md - requirements section
@@ -320,40 +338,22 @@ docs/ - content and appearance
   6-operations.md - operations section
   7-examples.md - extension examples
   acronyms.md - acronym list
-  glossary.md - glossary
   bibliography.md - generated bibliography page
+  glossary.md - glossary
+  index.md - report cover
   references.md - formatted reference list
-  assets/ - cover, branding, and report images
-  javascripts/ - Prodockit and project website behaviour
-    pdk.js - managed Prodockit website behaviour
-    mathjax.js - generated Prodockit MathJax configuration
-    vendor/
-      mathjax/
-        tex-svg-full.js - vendor MathJax browser bundle
-        LICENSE - vendor licence supplied with MathJax
-    extra.js - USER-MANAGED website behaviour
-  stylesheets/ - website and PDF presentation
-    pdk.css - managed Prodockit website and component styles
-    template.css - template-specific website presentation
-    extra.css - USER-MANAGED website overrides
-    pdk-pdf.css - managed Prodockit PDF styles
-    print.css - USER-MANAGED PDF-only overrides
-zensical.toml - site, navigation, extensions, and PDF settings
-requirements.txt - Python build dependencies
-.python-version - supported project Python
-.prodockit-shared-files.toml - managed shared-file checksums
-.gitignore - generated and local files excluded from Git
-README.md - project summary and publishing badges
-bibliography.bib - example bibliography source
-references.bib - example hand-written reference source
-tools/ - pinned Mermaid and MathJax Node tooling
 overrides/ - Zensical theme customisations
-macros.py - shared template macros
-.github/ - GitHub repository configuration
-  workflows/ - GitHub Actions workflows
-    docs.yml - GitHub Pages build and deployment
-    release-redeploy.yml - rebuild after a template release
+tools/ - pinned Mermaid and MathJax Node tooling
+.gitignore - generated and local files excluded from Git
 .gitlab-ci.yml - GitLab Pages build and deployment
+.prodockit-shared-files.toml - managed shared-file checksums
+.python-version - supported project Python
+bibliography.bib - example bibliography source
+macros.py - shared template macros
+README.md - project summary and publishing badges
+references.bib - example hand-written reference source
+requirements.txt - Python build dependencies
+zensical.toml - site, navigation, extensions, and PDF settings
 ///
 
 This is the useful project-facing structure rather than every file in the
