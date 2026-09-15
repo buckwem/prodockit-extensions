@@ -8,7 +8,13 @@ from pathlib import Path
 import pytest
 
 import prodockit.pdf.mermaid as mermaid_module
-from prodockit.pdf.mermaid import MmdcMermaidRenderer, render_mermaid_diagram
+from prodockit.pdf.mermaid import (
+    MermaidBackend,
+    MermaidBackendUnavailableError,
+    MmdcMermaidRenderer,
+    create_mermaid_renderer,
+    render_mermaid_diagram,
+)
 
 
 def test_returns_none_when_mmdc_binary_does_not_exist(tmp_path: Path) -> None:
@@ -104,3 +110,57 @@ def test_mmdc_renderer_close_is_idempotent() -> None:
 
     renderer.close()
     renderer.close()
+
+
+def test_factory_constructs_the_current_adapter_for_a_resolved_mmdc(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    created = []
+
+    class RecordingRenderer:
+        def __init__(self, mmdc_bin: str, output_dir: str) -> None:
+            created.append((mmdc_bin, output_dir))
+
+        def render_source(self, source: str) -> str | None:
+            return source
+
+        def close(self) -> None:
+            pass
+
+    monkeypatch.setattr(mermaid_module, "MmdcMermaidRenderer", RecordingRenderer)
+    output_dir = tmp_path / "diagrams"
+
+    renderer = create_mermaid_renderer(
+        MermaidBackend.MMDC,
+        mmdc_bin="resolved-mmdc",
+        output_dir=str(output_dir),
+    )
+
+    assert isinstance(renderer, RecordingRenderer)
+    assert created == [("resolved-mmdc", str(output_dir))]
+
+
+def test_factory_returns_none_when_mmdc_is_missing(tmp_path: Path) -> None:
+    output_dir = tmp_path / "diagrams"
+
+    renderer = create_mermaid_renderer(
+        MermaidBackend.MMDC,
+        mmdc_bin=None,
+        output_dir=str(output_dir),
+    )
+
+    assert renderer is None
+    assert not output_dir.exists()
+
+
+def test_standalone_backend_fails_closed_before_phase_3(tmp_path: Path) -> None:
+    output_dir = tmp_path / "diagrams"
+
+    with pytest.raises(MermaidBackendUnavailableError, match=r"Phase 3.*--swap.*mmdc"):
+        create_mermaid_renderer(
+            MermaidBackend.STANDALONE,
+            mmdc_bin="resolved-mmdc",
+            output_dir=str(output_dir),
+        )
+
+    assert not output_dir.exists()

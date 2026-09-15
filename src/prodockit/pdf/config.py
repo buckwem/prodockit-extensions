@@ -30,7 +30,7 @@ from prodockit.pdf.icons import (
     discover_icon_dirs,
     discover_legacy_icon_dirs,
 )
-from prodockit.pdf.mermaid import MermaidRenderer, MmdcMermaidRenderer
+from prodockit.pdf.mermaid import MermaidBackend, MermaidRenderer, create_mermaid_renderer
 from prodockit.pdf.release import get_latest_release_tag
 from prodockit.pdf.site import (
     page_html,
@@ -261,6 +261,7 @@ def build_pdf_from_zensical_config(
         markdown_file=markdown_file,
         on_stage=on_stage,
         built_site=False,
+        mermaid_backend=MermaidBackend.MMDC,
     )
 
 
@@ -269,6 +270,7 @@ def build_pdf_from_built_site(
     *,
     markdown_file: str | None = None,
     on_stage: StageReporter | None = None,
+    mermaid_backend: MermaidBackend = MermaidBackend.MMDC,
 ) -> str:
     """Build from the output of Zensical's documented build command.
 
@@ -281,6 +283,7 @@ def build_pdf_from_built_site(
         markdown_file=markdown_file,
         on_stage=on_stage,
         built_site=True,
+        mermaid_backend=mermaid_backend,
     )
 
 
@@ -290,6 +293,7 @@ def _build_pdf_from_config(
     markdown_file: str | None = None,
     on_stage: StageReporter | None = None,
     built_site: bool,
+    mermaid_backend: MermaidBackend = MermaidBackend.MMDC,
 ) -> str:
     """Builds a PDF entirely from `config_path` (a Zensical config file)
     and returns the path it was written to.
@@ -459,11 +463,16 @@ def _build_pdf_from_config(
         with open(full_css_path, encoding="utf-8") as f:
             extra_css += _inline_css_urls(f.read(), os.path.dirname(full_css_path)) + "\n"
 
-    mmdc_bin = _find_mmdc_bin(extra.get("pdf_mmdc_bin"))
-    mermaid_renderer: MermaidRenderer | None = None
-    if mmdc_bin:
-        mermaid_dir = os.path.join(source_docs_dir, ".prodockit-pdf-mermaid")
-        mermaid_renderer = MmdcMermaidRenderer(mmdc_bin, mermaid_dir)
+    mmdc_bin = (
+        _find_mmdc_bin(extra.get("pdf_mmdc_bin"))
+        if mermaid_backend is MermaidBackend.MMDC
+        else None
+    )
+    mermaid_renderer: MermaidRenderer | None = create_mermaid_renderer(
+        mermaid_backend,
+        mmdc_bin=mmdc_bin,
+        output_dir=os.path.join(source_docs_dir, ".prodockit-pdf-mermaid"),
+    )
     render_mermaid: Callable[[str], str | None] | None = (
         mermaid_renderer.render_source if mermaid_renderer is not None else None
     )

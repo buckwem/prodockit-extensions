@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 from zensical.config import parse_config as parse_zensical_config
 
+import prodockit.pdf.mermaid as mermaid_module
 from prodockit.pdf import config
 from prodockit.pdf.config import (
     _find_mmdc_bin,
@@ -18,6 +19,7 @@ from prodockit.pdf.config import (
     build_pdf_from_zensical_config,
     build_source_bundle_from_zensical_config,
 )
+from prodockit.pdf.mermaid import MermaidBackend, MermaidBackendUnavailableError
 from prodockit.pdf.web_render import WebRenderError
 from prodockit.settings import SettingError
 
@@ -1482,7 +1484,7 @@ def test_mermaid_renderer_created_from_mmdc_and_closed_after_build(
         return renderer
 
     monkeypatch.setattr(config, "_find_mmdc_bin", lambda _configured: str(root / "mmdc"))
-    monkeypatch.setattr(config, "MmdcMermaidRenderer", renderer_factory)
+    monkeypatch.setattr(mermaid_module, "MmdcMermaidRenderer", renderer_factory)
     monkeypatch.setattr(config, "validate_built_site", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(config, "page_html", lambda _project, source: f"<h1>{source}</h1>")
     monkeypatch.setattr(config, "publish_pdf_to_built_site", lambda *_args: None)
@@ -1513,7 +1515,7 @@ def test_mermaid_renderer_is_closed_when_build_pdf_raises(
         return renderer
 
     monkeypatch.setattr(config, "_find_mmdc_bin", lambda _configured: str(root / "mmdc"))
-    monkeypatch.setattr(config, "MmdcMermaidRenderer", renderer_factory)
+    monkeypatch.setattr(mermaid_module, "MmdcMermaidRenderer", renderer_factory)
     monkeypatch.setattr(config, "validate_built_site", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(config, "page_html", lambda _project, source: f"<h1>{source}</h1>")
 
@@ -1547,3 +1549,27 @@ def test_mermaid_renderer_is_absent_when_mmdc_is_not_found(
     build_pdf_from_built_site(str(root / "zensical.toml"))
 
     assert captured["render_mermaid"] is None
+
+
+def test_standalone_backend_fails_closed_without_mmdc_discovery_or_pdf_build(
+    project, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = project()
+
+    def no_discovery(_configured):
+        raise AssertionError("standalone selection must not discover mmdc")
+
+    def no_build(*_args, **_kwargs):
+        raise AssertionError("standalone selection must not reach build_pdf")
+
+    monkeypatch.setattr(config, "_find_mmdc_bin", no_discovery)
+    monkeypatch.setattr(config, "build_pdf", no_build)
+
+    with pytest.raises(MermaidBackendUnavailableError, match="Phase 3"):
+        build_pdf_from_built_site(
+            str(root / "zensical.toml"),
+            mermaid_backend=MermaidBackend.STANDALONE,
+        )
+
+    assert not (root / "docs" / ".prodockit-pdf-mermaid").exists()
+    assert not (root / "docs" / "site_documentation.pdf").exists()

@@ -19,6 +19,7 @@ from __future__ import annotations
 import json
 import os
 import subprocess
+from enum import Enum
 from typing import Any, Protocol
 
 # Forces plain SVG text labels instead of the <foreignObject>-based default
@@ -135,3 +136,31 @@ class MmdcMermaidRenderer:
 
     def close(self) -> None:
         """No-op: the current backend owns no persistent resources."""
+
+
+class MermaidBackend(str, Enum):
+    """A Mermaid renderer selectable by the PDF configuration layer."""
+
+    MMDC = "mmdc"
+    STANDALONE = "standalone"
+
+
+class MermaidBackendUnavailableError(RuntimeError):
+    """The selected Mermaid backend is unavailable in this release."""
+
+
+def create_mermaid_renderer(
+    backend: MermaidBackend,
+    *,
+    mmdc_bin: str | None,
+    output_dir: str,
+) -> MermaidRenderer | None:
+    """Creates the selected backend without silently falling back."""
+    if backend is MermaidBackend.MMDC:
+        if mmdc_bin is None:
+            return None
+        return MmdcMermaidRenderer(mmdc_bin, output_dir)
+    raise MermaidBackendUnavailableError(
+        "The standalone Mermaid backend arrives in Phase 3. Remove --swap to "
+        "render with the current mermaid-cli (mmdc) backend."
+    )

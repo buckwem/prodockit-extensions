@@ -116,6 +116,7 @@ from prodockit.pdf.config import (
     build_pdf_from_zensical_config,
     build_source_bundle_from_zensical_config,
 )
+from prodockit.pdf.mermaid import MermaidBackend, MermaidBackendUnavailableError
 from prodockit.pdf.site import BuiltSiteError
 from prodockit.pdf.source_bundle import SourceBundleError
 from prodockit.project_config import ProjectConfigError, load_project_config
@@ -2746,9 +2747,9 @@ def _run_pdf_command(
     markdown_file: str | None,
     *,
     legacy: bool,
+    mermaid_backend: MermaidBackend = MermaidBackend.MMDC,
 ) -> None:
     """Shared presentation for the public and legacy PDF renderers."""
-    builder = build_pdf_from_zensical_config if legacy else build_pdf_from_built_site
     if markdown_file:
         click.echo(f"Building PDF from {config_file} using {markdown_file}...")
     else:
@@ -2775,12 +2776,23 @@ def _run_pdf_command(
 
     started = time.monotonic()
     try:
-        output_path = builder(config_file, markdown_file=markdown_file, on_stage=say)
+        if legacy:
+            output_path = build_pdf_from_zensical_config(
+                config_file, markdown_file=markdown_file, on_stage=say
+            )
+        else:
+            output_path = build_pdf_from_built_site(
+                config_file,
+                markdown_file=markdown_file,
+                on_stage=say,
+                mermaid_backend=mermaid_backend,
+            )
     except (
         BuiltSiteError,
         PdfBuildError,
         RevisionDateError,
         SourceBundleError,
+        MermaidBackendUnavailableError,
         ValueError,
         OSError,
     ) as error:
@@ -2812,8 +2824,13 @@ def _pdf_options(command: Callable[_P, _R]) -> Callable[_P, _R]:
 
 
 @main.command()
+@click.option(
+    "--swap",
+    is_flag=True,
+    help="Use the standalone Mermaid backend instead of mermaid-cli (mmdc).",
+)
 @_pdf_options
-def pdf(config_file: str, markdown_file: str | None) -> None:
+def pdf(config_file: str, markdown_file: str | None, swap: bool) -> None:
     """Check website maths and diagrams, then build a PDF from the completed
     Zensical site. CONFIG_FILE supplies nav, docs directory, fonts, page
     size, and other PDF settings."""
@@ -2821,7 +2838,12 @@ def pdf(config_file: str, markdown_file: str | None) -> None:
         check_pdf_environment(config_file)
     except BuildEnvironmentError as error:
         raise click.ClickException(str(error)) from error
-    _run_pdf_command(config_file, markdown_file, legacy=False)
+    _run_pdf_command(
+        config_file,
+        markdown_file,
+        legacy=False,
+        mermaid_backend=MermaidBackend.STANDALONE if swap else MermaidBackend.MMDC,
+    )
 
 
 @main.command("pdf-legacy", hidden=True)
