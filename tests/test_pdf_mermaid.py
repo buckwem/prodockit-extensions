@@ -5,7 +5,10 @@ import os
 import stat
 from pathlib import Path
 
-from prodockit.pdf.mermaid import render_mermaid_diagram
+import pytest
+
+import prodockit.pdf.mermaid as mermaid_module
+from prodockit.pdf.mermaid import MmdcMermaidRenderer, render_mermaid_diagram
 
 
 def test_returns_none_when_mmdc_binary_does_not_exist(tmp_path: Path) -> None:
@@ -71,3 +74,33 @@ def test_disables_html_labels_in_the_generated_mermaid_config(tmp_path: Path) ->
     render_mermaid_diagram("graph TD; A-->B;", mmdc_bin, str(output_dir), 1)
     config_path = output_dir / "diagram_1_mermaid_config.json"
     assert '"htmlLabels": false' in config_path.read_text(encoding="utf-8")
+
+
+def test_mmdc_renderer_assigns_monotonic_indexes_and_forwards_timeout(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    calls: list[tuple[str, str, str, int, int]] = []
+    output_dir = str(tmp_path / "diagrams")
+
+    def fake_render(
+        source: str, mmdc_bin: str, rendered_dir: str, index: int, timeout: int = 60
+    ) -> str:
+        calls.append((source, mmdc_bin, rendered_dir, index, timeout))
+        return os.path.join(rendered_dir, f"diagram_{index}.svg")
+
+    monkeypatch.setattr(mermaid_module, "render_mermaid_diagram", fake_render)
+    renderer = MmdcMermaidRenderer("mmdc", output_dir, timeout=45)
+
+    assert renderer.render_source("one") == os.path.join(output_dir, "diagram_1.svg")
+    assert renderer.render_source("two") == os.path.join(output_dir, "diagram_2.svg")
+    assert calls == [
+        ("one", "mmdc", output_dir, 1, 45),
+        ("two", "mmdc", output_dir, 2, 45),
+    ]
+
+
+def test_mmdc_renderer_close_is_idempotent() -> None:
+    renderer = MmdcMermaidRenderer("mmdc", "diagrams")
+
+    renderer.close()
+    renderer.close()

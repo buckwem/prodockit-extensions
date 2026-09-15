@@ -64,6 +64,19 @@ def _fake_pandoc(bin_dir: Path, script: str) -> None:
     pandoc_path.chmod(pandoc_path.stat().st_mode | stat.S_IEXEC)
 
 
+class _RecordingMermaidRenderer:
+    def __init__(self, mmdc_bin: str, output_dir: str) -> None:
+        self.mmdc_bin = mmdc_bin
+        self.output_dir = output_dir
+        self.closed = False
+
+    def render_source(self, source: str) -> str | None:
+        return source
+
+    def close(self) -> None:
+        self.closed = True
+
+
 @pytest.fixture()
 def project(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     def _make(*, extra: str = "", pandoc_script: str = 'echo "%PDF-1.4 stub" > "$3"') -> Path:
@@ -1454,3 +1467,83 @@ def test_no_warning_when_neither_source_has_a_release(monkeypatch, capsys) -> No
     monkeypatch.setattr("prodockit.pdf.config._get_release", lambda: "")
     assert _warn_if_release_sources_disagree("") is None
     assert capsys.readouterr().out == ""
+
+
+def test_mermaid_renderer_created_from_mmdc_and_closed_after_build(
+    project, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = project()
+    instances: list[_RecordingMermaidRenderer] = []
+    captured = {}
+
+    def renderer_factory(mmdc_bin: str, output_dir: str) -> _RecordingMermaidRenderer:
+        renderer = _RecordingMermaidRenderer(mmdc_bin, output_dir)
+        instances.append(renderer)
+        return renderer
+
+    monkeypatch.setattr(config, "_find_mmdc_bin", lambda _configured: str(root / "mmdc"))
+    monkeypatch.setattr(config, "MmdcMermaidRenderer", renderer_factory)
+    monkeypatch.setattr(config, "validate_built_site", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(config, "page_html", lambda _project, source: f"<h1>{source}</h1>")
+    monkeypatch.setattr(config, "publish_pdf_to_built_site", lambda *_args: None)
+
+    def _spy(_pages, _output_path, **kwargs):
+        captured["render_mermaid"] = kwargs["render_mermaid"]
+
+    monkeypatch.setattr(config, "build_pdf", _spy)
+
+    build_pdf_from_built_site(str(root / "zensical.toml"))
+
+    renderer = instances[0]
+    assert renderer.mmdc_bin == str(root / "mmdc")
+    assert renderer.output_dir == str(root / "docs" / ".prodockit-pdf-mermaid")
+    assert captured["render_mermaid"].__self__ is renderer
+    assert renderer.closed is True
+
+
+def test_mermaid_renderer_is_closed_when_build_pdf_raises(
+    project, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = project()
+    instances: list[_RecordingMermaidRenderer] = []
+
+    def renderer_factory(mmdc_bin: str, output_dir: str) -> _RecordingMermaidRenderer:
+        renderer = _RecordingMermaidRenderer(mmdc_bin, output_dir)
+        instances.append(renderer)
+        return renderer
+
+    monkeypatch.setattr(config, "_find_mmdc_bin", lambda _configured: str(root / "mmdc"))
+    monkeypatch.setattr(config, "MmdcMermaidRenderer", renderer_factory)
+    monkeypatch.setattr(config, "validate_built_site", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(config, "page_html", lambda _project, source: f"<h1>{source}</h1>")
+
+    def _fail(*_args, **_kwargs):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(config, "build_pdf", _fail)
+
+    with pytest.raises(RuntimeError, match="boom"):
+        build_pdf_from_built_site(str(root / "zensical.toml"))
+
+    assert instances[0].closed is True
+
+
+def test_mermaid_renderer_is_absent_when_mmdc_is_not_found(
+    project, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = project()
+    captured = {}
+
+    monkeypatch.setattr(config, "_find_mmdc_bin", lambda _configured: None)
+    monkeypatch.setattr(config, "validate_built_site", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(config, "page_html", lambda _project, source: f"<h1>{source}</h1>")
+    monkeypatch.setattr(config, "publish_pdf_to_built_site", lambda *_args: None)
+
+    def _spy(_pages, _output_path, **kwargs):
+        captured["render_mermaid"] = kwargs["render_mermaid"]
+
+    monkeypatch.setattr(config, "build_pdf", _spy)
+
+    build_pdf_from_built_site(str(root / "zensical.toml"))
+
+    assert captured["render_mermaid"] is None

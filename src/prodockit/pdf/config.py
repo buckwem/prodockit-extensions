@@ -19,6 +19,7 @@ import base64
 import os
 import re
 import shutil
+from collections.abc import Callable
 from pathlib import Path
 
 from prodockit._zensical import _installed_zensical_version
@@ -29,7 +30,7 @@ from prodockit.pdf.icons import (
     discover_icon_dirs,
     discover_legacy_icon_dirs,
 )
-from prodockit.pdf.mermaid import render_mermaid_diagram
+from prodockit.pdf.mermaid import MermaidRenderer, MmdcMermaidRenderer
 from prodockit.pdf.release import get_latest_release_tag
 from prodockit.pdf.site import (
     page_html,
@@ -459,14 +460,13 @@ def _build_pdf_from_config(
             extra_css += _inline_css_urls(f.read(), os.path.dirname(full_css_path)) + "\n"
 
     mmdc_bin = _find_mmdc_bin(extra.get("pdf_mmdc_bin"))
-    mermaid_state = {"count": 0}
-    render_mermaid = None
+    mermaid_renderer: MermaidRenderer | None = None
     if mmdc_bin:
         mermaid_dir = os.path.join(source_docs_dir, ".prodockit-pdf-mermaid")
-
-        def render_mermaid(source: str) -> str | None:
-            mermaid_state["count"] += 1
-            return render_mermaid_diagram(source, mmdc_bin, mermaid_dir, mermaid_state["count"])
+        mermaid_renderer = MmdcMermaidRenderer(mmdc_bin, mermaid_dir)
+    render_mermaid: Callable[[str], str | None] | None = (
+        mermaid_renderer.render_source if mermaid_renderer is not None else None
+    )
 
     tex2svg_script = _find_tex2svg_script(extra.get("pdf_tex2svg_script"))
     math_dir = extra.get("pdf_math_dir")
@@ -603,70 +603,74 @@ def _build_pdf_from_config(
     if project_config is not None and not Path(output_path).is_absolute():
         build_output_path = str(project_config.root / output_path)
 
-    build_pdf(
-        page_objects,
-        build_output_path,
-        docs_dir=source_docs_dir if project_config is not None else docs_dir,
-        project_root=str(
-            project_config.root
-            if project_config is not None
-            else Path(config_path).resolve().parent
-        ),
-        source_page_paths=[page["url"] for page in flatten_nav(config.get("nav") or [])],
-        extra_css=extra_css,
-        repo_url=config.get("repo_url") or "",
-        admonition_icon_config=admonition_icon_config,
-        icon_registry=icon_registry,
-        render_mermaid=render_mermaid,
-        # Zensical supplies these documented Material-theme defaults in its
-        # resolved configuration even when a source config has no ``font``
-        # table.  The direct reader deliberately does not call that private
-        # resolver, so carry the same public defaults here.  Prodockit-based
-        # projects still use Inter/JetBrains Mono because their configs name
-        # those fonts explicitly.
-        main_font=font.get("text") or "Roboto",
-        mono_font=font.get("code") or "Roboto Mono",
-        copyright_text=(extra.get("pdf_copyright") or config.get("copyright") or "").strip(),
-        site_name=_css_escape_content_string(config.get("site_name") or ""),
-        page_size=extra.get("pdf_page_size") or extra_default("pdf_page_size"),
-        margin_top=extra.get("pdf_margin_top") or extra_default("pdf_margin_top"),
-        margin_right=extra.get("pdf_margin_right") or extra_default("pdf_margin_right"),
-        # 2.5cm, not 2cm like the others: the running footer lives in this
-        # margin and a two-line one came within 6.1mm of the paper edge -
-        # see prodockit.pdf.css's own margin_bottom.
-        margin_bottom=extra.get("pdf_margin_bottom") or extra_default("pdf_margin_bottom"),
-        margin_left=extra.get("pdf_margin_left") or extra_default("pdf_margin_left"),
-        double_sided=bool(
-            extra.get("pdf_double_sided", extra_default("pdf_double_sided"))
-        ),
-        margin_inner=extra.get("pdf_margin_inner") or extra_default("pdf_margin_inner"),
-        margin_outer=extra.get("pdf_margin_outer") or extra_default("pdf_margin_outer"),
-        header_footer_font_size=extra.get("pdf_header_footer_font_size")
-        or extra_default("pdf_header_footer_font_size"),
-        header_footer_color=extra.get("pdf_header_footer_color")
-        or extra_default("pdf_header_footer_color"),
-        header_footer_divider_color=extra.get("pdf_header_footer_divider_color")
-        or extra_default("pdf_header_footer_divider_color"),
-        reference_style_global=reference_style == "global",
-        reference_spacing_european=reference_spacing_european,
-        reference_indent_global=reference_indent_global,
-        reference_spacing_global=reference_spacing_global,
-        heading_numbering_enabled=heading_numbering_enabled(extra),
-        mathjax_available=tex2svg_script is not None,
-        math_dir=math_dir,
-        tex2svg_script=tex2svg_script or "",
-        include_table_of_contents=bool(
-            extra.get(
-                "pdf_include_table_of_contents",
-                extra_default("pdf_include_table_of_contents"),
-            )
-        ),
-        table_of_contents_title=extra.get("pdf_table_of_contents_title")
-        or extra_default("pdf_table_of_contents_title"),
-        include_index=index_settings.include,
-        index_title=index_settings.title,
-        on_stage=on_stage,
-    )
+    try:
+        build_pdf(
+            page_objects,
+            build_output_path,
+            docs_dir=source_docs_dir if project_config is not None else docs_dir,
+            project_root=str(
+                project_config.root
+                if project_config is not None
+                else Path(config_path).resolve().parent
+            ),
+            source_page_paths=[page["url"] for page in flatten_nav(config.get("nav") or [])],
+            extra_css=extra_css,
+            repo_url=config.get("repo_url") or "",
+            admonition_icon_config=admonition_icon_config,
+            icon_registry=icon_registry,
+            render_mermaid=render_mermaid,
+            # Zensical supplies these documented Material-theme defaults in its
+            # resolved configuration even when a source config has no ``font``
+            # table.  The direct reader deliberately does not call that private
+            # resolver, so carry the same public defaults here.  Prodockit-based
+            # projects still use Inter/JetBrains Mono because their configs name
+            # those fonts explicitly.
+            main_font=font.get("text") or "Roboto",
+            mono_font=font.get("code") or "Roboto Mono",
+            copyright_text=(extra.get("pdf_copyright") or config.get("copyright") or "").strip(),
+            site_name=_css_escape_content_string(config.get("site_name") or ""),
+            page_size=extra.get("pdf_page_size") or extra_default("pdf_page_size"),
+            margin_top=extra.get("pdf_margin_top") or extra_default("pdf_margin_top"),
+            margin_right=extra.get("pdf_margin_right") or extra_default("pdf_margin_right"),
+            # 2.5cm, not 2cm like the others: the running footer lives in this
+            # margin and a two-line one came within 6.1mm of the paper edge -
+            # see prodockit.pdf.css's own margin_bottom.
+            margin_bottom=extra.get("pdf_margin_bottom") or extra_default("pdf_margin_bottom"),
+            margin_left=extra.get("pdf_margin_left") or extra_default("pdf_margin_left"),
+            double_sided=bool(
+                extra.get("pdf_double_sided", extra_default("pdf_double_sided"))
+            ),
+            margin_inner=extra.get("pdf_margin_inner") or extra_default("pdf_margin_inner"),
+            margin_outer=extra.get("pdf_margin_outer") or extra_default("pdf_margin_outer"),
+            header_footer_font_size=extra.get("pdf_header_footer_font_size")
+            or extra_default("pdf_header_footer_font_size"),
+            header_footer_color=extra.get("pdf_header_footer_color")
+            or extra_default("pdf_header_footer_color"),
+            header_footer_divider_color=extra.get("pdf_header_footer_divider_color")
+            or extra_default("pdf_header_footer_divider_color"),
+            reference_style_global=reference_style == "global",
+            reference_spacing_european=reference_spacing_european,
+            reference_indent_global=reference_indent_global,
+            reference_spacing_global=reference_spacing_global,
+            heading_numbering_enabled=heading_numbering_enabled(extra),
+            mathjax_available=tex2svg_script is not None,
+            math_dir=math_dir,
+            tex2svg_script=tex2svg_script or "",
+            include_table_of_contents=bool(
+                extra.get(
+                    "pdf_include_table_of_contents",
+                    extra_default("pdf_include_table_of_contents"),
+                )
+            ),
+            table_of_contents_title=extra.get("pdf_table_of_contents_title")
+            or extra_default("pdf_table_of_contents_title"),
+            include_index=index_settings.include,
+            index_title=index_settings.title,
+            on_stage=on_stage,
+        )
+    finally:
+        if mermaid_renderer is not None:
+            mermaid_renderer.close()
 
     if project_config is not None:
         publish_pdf_to_built_site(project_config, build_output_path)

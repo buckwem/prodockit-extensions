@@ -19,7 +19,7 @@ from __future__ import annotations
 import json
 import os
 import subprocess
-from typing import Any
+from typing import Any, Protocol
 
 # Forces plain SVG text labels instead of the <foreignObject>-based default
 # WeasyPrint can't render (see module docstring).
@@ -96,3 +96,42 @@ def render_mermaid_diagram(
         print(f"⚠️  Mermaid render failed for diagram {index}: {detail}")
         return None
     return svg_path
+
+
+class MermaidRenderer(Protocol):
+    """Backend boundary used by the PDF configuration layer."""
+
+    def render_source(self, source: str) -> str | None:
+        """Renders one diagram and returns its image path, or None."""
+        ...
+
+    def close(self) -> None:
+        """Releases resources owned by the renderer."""
+        ...
+
+
+class MmdcMermaidRenderer:
+    """Adapts the existing one-shot mmdc renderer to the boundary.
+
+    The adapter owns the per-build diagram counter, preserving the existing
+    diagram_1, diagram_2, ... filenames in document order.
+    """
+
+    def __init__(self, mmdc_bin: str, output_dir: str, *, timeout: int = 60) -> None:
+        self._mmdc_bin = mmdc_bin
+        self._output_dir = output_dir
+        self._timeout = timeout
+        self._next_index = 0
+
+    def render_source(self, source: str) -> str | None:
+        self._next_index += 1
+        return render_mermaid_diagram(
+            source,
+            self._mmdc_bin,
+            self._output_dir,
+            self._next_index,
+            timeout=self._timeout,
+        )
+
+    def close(self) -> None:
+        """No-op: the current backend owns no persistent resources."""
