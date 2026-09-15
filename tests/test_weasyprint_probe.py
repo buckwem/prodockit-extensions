@@ -111,6 +111,15 @@ def test_recent_success_is_reused_for_a_second_non_render_check(monkeypatch) -> 
     assert len(calls) == 1
 
 
+def test_cache_key_retains_the_runner_to_prevent_identity_reuse() -> None:
+    def run(arguments, **_kwargs):
+        return subprocess.CompletedProcess(arguments, 0, "", "")
+
+    key = probe._cache_key({"PATH": "test"}, run)
+
+    assert key[-1] is run
+
+
 def test_render_retry_requires_the_alternative_command_to_create_a_pdf(
     tmp_path: Path, monkeypatch
 ) -> None:

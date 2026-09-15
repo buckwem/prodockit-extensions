@@ -33,7 +33,10 @@ WEASYPRINT_PROBE_TIMEOUT = 60.0
 WEASYPRINT_PROBE_RETRY_DELAYS = (2.0,)
 _PENDING = "PDK_PYTHON_PACKAGE_PENDING"
 _SUCCESS_CACHE_SECONDS = 120.0
-_SUCCESS_CACHE: dict[tuple[str, str, str, int], tuple[float, ProbeResult]] = {}
+_SUCCESS_CACHE: dict[
+    tuple[str, str, str, Callable[..., subprocess.CompletedProcess[str]]],
+    tuple[float, ProbeResult],
+] = {}
 
 
 @dataclass(frozen=True)
@@ -119,7 +122,7 @@ def _weasyprint_command() -> Path | None:
 
 def _cache_key(
     environment: Mapping[str, str], run: Callable[..., subprocess.CompletedProcess[str]]
-) -> tuple[str, str, str, int]:
+) -> tuple[str, str, str, Callable[..., subprocess.CompletedProcess[str]]]:
     try:
         installed = version("weasyprint")
     except PackageNotFoundError:
@@ -128,7 +131,10 @@ def _cache_key(
         environment.get(name, "")
         for name in ("PATH", "WEASYPRINT_DLL_DIRECTORIES", "DYLD_FALLBACK_LIBRARY_PATH")
     )
-    return sys.executable, installed, loader_paths, id(run)
+    # Retain the callable itself. An integer id can be reused after a
+    # short-lived runner is collected, allowing stale success evidence to
+    # leak into a later probe that happens to receive the same id.
+    return sys.executable, installed, loader_paths, run
 
 
 def clear_probe_cache() -> None:
