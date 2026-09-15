@@ -26,7 +26,7 @@ import time
 import urllib.error
 import urllib.request
 import zipfile
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -45,6 +45,7 @@ from prodockit.pins import (
 )
 from prodockit.renderer_resilience import (
     DEFAULT_RETRY_DELAYS,
+    RetryNotice,
     RetryReporter,
     failure_with_history,
     run_with_retries,
@@ -55,6 +56,9 @@ WHEELHOUSE_ENV = "PDK_WHEELHOUSE"
 PYPI_MIRROR_ENV = "PDK_PYPI_MIRROR"
 PANDOC_MIRROR_ENV = "PDK_PANDOC_MIRROR"
 DOWNLOAD_CACHE_ENV = "PDK_NATIVE_DOWNLOAD_CACHE"
+PANDOC_REPLACEMENT_REPORT_ENV = "PDK_PANDOC_REPLACEMENT_REPORT"
+PANDOC_REPLACEMENT_RETRY_DELAYS = (0.25, 0.5, 1.0)
+TRANSIENT_WINDOWS_REPLACE_ERRORS = frozenset({5, 32})
 
 PYTHON_PACKAGES = (
     "zensical",
@@ -76,6 +80,32 @@ DISPLAY_NAMES: Mapping[str, str] = {
 
 class ToolchainError(RuntimeError):
     """The supported toolchain could not be planned, installed or verified."""
+
+
+@dataclass(frozen=True)
+class PandocReplacementResult:
+    """Evidence from one bounded atomic executable replacement."""
+
+    attempts: int
+    windows_error_codes: tuple[int, ...]
+    transient_failures: tuple[str, ...]
+
+
+class PandocReplacementError(ToolchainError):
+    """A Pandoc replacement failed after applying the Windows lock policy."""
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        attempts: int,
+        windows_error_codes: Sequence[int],
+        retained_temporary_path: Path | None,
+    ) -> None:
+        super().__init__(message)
+        self.attempts = attempts
+        self.windows_error_codes = tuple(windows_error_codes)
+        self.retained_temporary_path = retained_temporary_path
 
 
 @dataclass(frozen=True)
@@ -526,6 +556,18 @@ def _run_resilient(
     reporter: RetryReporter | None,
     offline: bool,
 ) -> None:
+    # Keep Pandoc replacement in this process so the user sees its precise,
+    # bounded file-lock retries. Retrying the surrounding command could repeat
+    # download and extraction work after the staged executable is already ready.
+    if len(command) >= 6 and tuple(command[1:4]) == (
+        "-m",
+        "prodockit.toolchain",
+        "install-pandoc",
+    ):
+        version_index = command.index("--version") + 1
+        install_pandoc(command[version_index], offline=offline, reporter=reporter)
+        return
+
     def invoke() -> subprocess.CompletedProcess[str]:
         try:
             return run_installer(
@@ -764,19 +806,84 @@ def _extract_pandoc(archive: Path, output: Path) -> Path:
     return matches[0]
 
 
-def _replace_pandoc_executable(staged: Path, target: Path) -> None:
-    """Replace Pandoc after bounded retries for transient Windows locks."""
+def _windows_error_code(error: OSError) -> int | None:
+    value = getattr(error, "winerror", None)
+    return value if isinstance(value, int) else None
 
-    for delay in (*DEFAULT_RETRY_DELAYS, 0.0):
+
+def _remove_staged_pandoc(staged: Path) -> tuple[Path | None, str | None]:
+    try:
+        staged.unlink(missing_ok=True)
+    except OSError as error:
+        return staged, str(error)
+    return None, None
+
+
+def _replace_pandoc_executable(
+    staged: Path,
+    target: Path,
+    *,
+    retry_delays: Sequence[float] = PANDOC_REPLACEMENT_RETRY_DELAYS,
+    reporter: RetryReporter | None = None,
+    sleeper: Callable[[float], None] = time.sleep,
+) -> PandocReplacementResult:
+    """Atomically replace Pandoc, retrying only transient Windows file locks."""
+
+    failures: list[str] = []
+    codes: list[int] = []
+    maximum_attempts = len(retry_delays) + 1
+    for attempt in range(1, maximum_attempts + 1):
         try:
             staged.replace(target)
-            return
-        except PermissionError as error:
-            if not _running_on_windows() or not delay:
-                raise ToolchainError(
-                    f"could not replace {target}; close programs using Pandoc and retry: {error}"
-                ) from error
-            time.sleep(delay)
+            return PandocReplacementResult(attempt, tuple(codes), tuple(failures))
+        except OSError as error:
+            code = _windows_error_code(error)
+            transient = _running_on_windows() and code in TRANSIENT_WINDOWS_REPLACE_ERRORS
+            detail = (
+                f"attempt {attempt}: WinError {code}: {error}"
+                if code
+                else f"attempt {attempt}: {error}"
+            )
+            if transient:
+                assert code is not None
+                codes.append(code)
+            if transient and attempt < maximum_attempts:
+                failures.append(detail)
+                delay = float(retry_delays[attempt - 1])
+                if reporter is not None:
+                    reporter(
+                        RetryNotice(
+                            f"Pandoc executable replacement (WinError {code})",
+                            attempt,
+                            maximum_attempts,
+                            delay,
+                            detail,
+                        )
+                    )
+                sleeper(delay)
+                continue
+
+            retained, cleanup_error = _remove_staged_pandoc(staged)
+            history = " | ".join((*failures, detail))
+            cleanup = (
+                f" Staged replacement retained at {retained}; cleanup failed: {cleanup_error}."
+                if retained is not None
+                else " Staged replacement removed."
+            )
+            guidance = (
+                " Close programs using Pandoc, then rerun Adopt."
+                if transient
+                else " The error is not a transient Windows executable lock, so it was not retried."
+            )
+            raise PandocReplacementError(
+                f"could not replace {target} after {attempt} attempt(s). "
+                "The existing executable was left in place. "
+                f"Retry history: {history}.{cleanup}{guidance}",
+                attempts=attempt,
+                windows_error_codes=codes,
+                retained_temporary_path=retained,
+            ) from error
+    raise AssertionError("unreachable")
 
 
 def _running_on_windows() -> bool:
@@ -785,12 +892,47 @@ def _running_on_windows() -> bool:
     return sys.platform == "win32"
 
 
-def install_pandoc(version: str, *, offline: bool = False) -> Path:
+def _pandoc_version_at(executable: Path) -> str | None:
+    if not executable.is_file():
+        return None
+    try:
+        result = subprocess.run(
+            [str(executable), "--version"],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=30,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    return _pandoc_version(result.stdout) if result.returncode == 0 else None
+
+
+def _record_pandoc_replacement(event: Mapping[str, object]) -> None:
+    destination = os.environ.get(PANDOC_REPLACEMENT_REPORT_ENV, "").strip()
+    if not destination:
+        return
+    path = Path(destination)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a", encoding="utf-8", newline="\n") as report:
+        report.write(json.dumps(event, sort_keys=True) + "\n")
+
+
+def install_pandoc(
+    version: str,
+    *,
+    offline: bool = False,
+    reporter: RetryReporter | None = None,
+) -> Path:
     """Install an exact Pandoc executable into the active environment."""
 
     scripts = Path(sys.prefix) / ("Scripts" if sys.platform == "win32" else "bin")
     scripts.mkdir(parents=True, exist_ok=True)
     target = scripts / ("pandoc.exe" if sys.platform == "win32" else "pandoc")
+    source_version = _pandoc_version_at(target)
+    replacement: PandocReplacementResult | None = None
     with tempfile.TemporaryDirectory(prefix="prodockit-pandoc-") as temporary:
         work = Path(temporary)
         archive = work / _pandoc_asset(version)
@@ -800,17 +942,36 @@ def install_pandoc(version: str, *, offline: bool = False) -> Path:
         shutil.copy2(executable, staged)
         if sys.platform != "win32":
             staged.chmod(staged.stat().st_mode | 0o755)
-        _replace_pandoc_executable(staged, target)
-    result = subprocess.run(
-        [str(target), "--version"],
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        timeout=30,
-        check=False,
+        try:
+            replacement = _replace_pandoc_executable(staged, target, reporter=reporter)
+        except PandocReplacementError as error:
+            _record_pandoc_replacement(
+                {
+                    "source_version": source_version,
+                    "target_version": version,
+                    "replacement_attempts": error.attempts,
+                    "windows_error_codes": list(error.windows_error_codes),
+                    "final_version": _pandoc_version_at(target),
+                    "retained_temporary_path": str(error.retained_temporary_path)
+                    if error.retained_temporary_path
+                    else None,
+                    "success": False,
+                }
+            )
+            raise
+    observed = _pandoc_version_at(target)
+    assert replacement is not None
+    _record_pandoc_replacement(
+        {
+            "source_version": source_version,
+            "target_version": version,
+            "replacement_attempts": replacement.attempts,
+            "windows_error_codes": list(replacement.windows_error_codes),
+            "final_version": observed,
+            "retained_temporary_path": None,
+            "success": observed == version,
+        }
     )
-    observed = _pandoc_version(result.stdout) if result.returncode == 0 else None
     if observed != version:
         raise ToolchainError(
             "installed Pandoc verification failed: "

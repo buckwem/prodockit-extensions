@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import json
 import subprocess
 import sys
 import urllib.error
@@ -365,8 +366,41 @@ def test_toolchain_subprocess_failure_includes_command_output(
         toolchain._run_resilient(("pip", "install"), root=tmp_path, reporter=None, offline=False)
 
 
-def test_windows_pandoc_replacement_retries_transient_file_locks(
+def test_pandoc_command_is_installed_in_process_without_whole_command_retry(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    calls: list[tuple[str, bool, object]] = []
+
+    def reporter(_notice: object) -> None:
+        pass
+
+    command = toolchain.pandoc_install_command("3.10.1", offline=True)
+
+    monkeypatch.setattr(
+        toolchain,
+        "install_pandoc",
+        lambda version, *, offline, reporter: calls.append((version, offline, reporter)),
+    )
+    monkeypatch.setattr(
+        toolchain,
+        "run_installer",
+        lambda *_args, **_kwargs: pytest.fail("the complete installer command was retried"),
+    )
+
+    toolchain._run_resilient(command, root=tmp_path, reporter=reporter, offline=True)
+
+    assert calls == [("3.10.1", True, reporter)]
+
+
+def _windows_error(code: int, message: str) -> PermissionError:
+    error = PermissionError(13, message)
+    error.winerror = code  # type: ignore[attr-defined]
+    return error
+
+
+@pytest.mark.parametrize("failures", (1, 3))
+def test_windows_pandoc_replacement_retries_only_the_atomic_operation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, failures: int
 ) -> None:
     staged = tmp_path / "pandoc.exe.tmp"
     target = tmp_path / "pandoc.exe"
@@ -375,24 +409,38 @@ def test_windows_pandoc_replacement_retries_transient_file_locks(
     original = Path.replace
     attempts = 0
     delays: list[float] = []
+    notices = []
 
     def replace(path: Path, destination: Path) -> Path:
         nonlocal attempts
         attempts += 1
-        if attempts < 3:
-            raise PermissionError("temporarily locked")
+        assert target.read_bytes() == b"old"
+        assert path.read_bytes() == b"new"
+        if attempts <= failures:
+            raise _windows_error(5 if attempts == 1 else 32, "temporarily locked")
         return original(path, destination)
 
     monkeypatch.setattr(toolchain.sys, "platform", "win32")
-    monkeypatch.setattr(toolchain, "DEFAULT_RETRY_DELAYS", (0.1, 0.2))
     monkeypatch.setattr(Path, "replace", replace)
-    monkeypatch.setattr(toolchain.time, "sleep", delays.append)
 
-    toolchain._replace_pandoc_executable(staged, target)
+    result = toolchain._replace_pandoc_executable(
+        staged,
+        target,
+        retry_delays=(0.1, 0.2, 0.3),
+        reporter=notices.append,
+        sleeper=delays.append,
+    )
 
-    assert attempts == 3
-    assert delays == [0.1, 0.2]
+    assert result.attempts == failures + 1
+    assert attempts == failures + 1
+    assert delays == [0.1, 0.2, 0.3][:failures]
+    assert len(notices) == failures
+    assert all(
+        notice.operation.startswith("Pandoc executable replacement (WinError ")
+        for notice in notices
+    )
     assert target.read_bytes() == b"new"
+    assert not staged.exists()
 
 
 def test_windows_pandoc_replacement_reports_a_persistent_file_lock(
@@ -403,12 +451,136 @@ def test_windows_pandoc_replacement_reports_a_persistent_file_lock(
     staged.write_bytes(b"new")
     target.write_bytes(b"old")
     monkeypatch.setattr(toolchain.sys, "platform", "win32")
-    monkeypatch.setattr(toolchain, "DEFAULT_RETRY_DELAYS", (0.0,))
+    attempts = 0
+
+    def locked(*_args: object) -> None:
+        nonlocal attempts
+        attempts += 1
+        assert target.read_bytes() == b"old"
+        raise _windows_error(32, "still locked")
+
     monkeypatch.setattr(
         Path,
         "replace",
-        lambda *_args: (_ for _ in ()).throw(PermissionError("still locked")),
+        locked,
     )
 
-    with pytest.raises(toolchain.ToolchainError, match="close programs using Pandoc"):
-        toolchain._replace_pandoc_executable(staged, target)
+    with pytest.raises(toolchain.PandocReplacementError) as raised:
+        toolchain._replace_pandoc_executable(
+            staged, target, retry_delays=(0.0, 0.0), sleeper=lambda _delay: None
+        )
+
+    assert attempts == 3
+    assert raised.value.attempts == 3
+    assert raised.value.windows_error_codes == (32, 32, 32)
+    assert "attempt 1: WinError 32" in str(raised.value)
+    assert "attempt 3: WinError 32" in str(raised.value)
+    assert "Close programs using Pandoc" in str(raised.value)
+    assert target.read_bytes() == b"old"
+    assert not staged.exists()
+
+
+def test_pandoc_replacement_does_not_retry_a_nontransient_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    staged = tmp_path / "pandoc.exe.tmp"
+    target = tmp_path / "pandoc.exe"
+    staged.write_bytes(b"new")
+    target.write_bytes(b"old")
+    attempts = 0
+
+    def denied(*_args: object) -> None:
+        nonlocal attempts
+        attempts += 1
+        raise _windows_error(87, "invalid parameter")
+
+    monkeypatch.setattr(toolchain.sys, "platform", "win32")
+    monkeypatch.setattr(Path, "replace", denied)
+
+    with pytest.raises(toolchain.PandocReplacementError, match="was not retried") as raised:
+        toolchain._replace_pandoc_executable(
+            staged, target, retry_delays=(0.0, 0.0), sleeper=lambda _delay: None
+        )
+
+    assert attempts == 1
+    assert raised.value.windows_error_codes == ()
+    assert target.read_bytes() == b"old"
+    assert not staged.exists()
+
+
+def test_pandoc_replacement_reports_a_temporary_file_that_cannot_be_cleaned(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    staged = tmp_path / "pandoc.exe.tmp"
+    target = tmp_path / "pandoc.exe"
+    staged.write_bytes(b"new")
+    target.write_bytes(b"old")
+
+    monkeypatch.setattr(toolchain.sys, "platform", "win32")
+    monkeypatch.setattr(
+        Path,
+        "replace",
+        lambda *_args: (_ for _ in ()).throw(_windows_error(5, "locked")),
+    )
+    monkeypatch.setattr(
+        Path,
+        "unlink",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(_windows_error(5, "cleanup locked")),
+    )
+
+    with pytest.raises(toolchain.PandocReplacementError) as raised:
+        toolchain._replace_pandoc_executable(staged, target, retry_delays=())
+
+    assert raised.value.retained_temporary_path == staged
+    assert f"retained at {staged}" in str(raised.value)
+    assert staged.read_bytes() == b"new"
+    assert target.read_bytes() == b"old"
+
+
+@pytest.mark.parametrize(
+    ("source_version", "target_version"),
+    (("3.10.1", "3.10.2"), ("3.10.2", "3.10.1")),
+)
+def test_install_pandoc_verifies_the_exact_version_after_upgrade_or_downgrade(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    source_version: str,
+    target_version: str,
+) -> None:
+    prefix = tmp_path / "venv"
+    report = tmp_path / "pandoc-replacements.jsonl"
+    target = prefix / "bin" / "pandoc"
+    target.parent.mkdir(parents=True)
+    target.write_text(source_version, encoding="utf-8")
+
+    def extract(_archive: Path, output: Path) -> Path:
+        output.mkdir(parents=True)
+        executable = output / "pandoc"
+        executable.write_text(target_version, encoding="utf-8")
+        return executable
+
+    def run(command: list[str], **_kwargs: object) -> subprocess.CompletedProcess[str]:
+        version = Path(command[0]).read_text(encoding="utf-8")
+        return subprocess.CompletedProcess(command, 0, stdout=f"pandoc {version}\n", stderr="")
+
+    monkeypatch.setattr(toolchain.sys, "prefix", str(prefix))
+    monkeypatch.setattr(toolchain.sys, "platform", "darwin")
+    monkeypatch.setattr(toolchain, "_download_pandoc", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(toolchain, "_extract_pandoc", extract)
+    monkeypatch.setattr(toolchain.subprocess, "run", run)
+    monkeypatch.setenv(toolchain.PANDOC_REPLACEMENT_REPORT_ENV, str(report))
+
+    installed = toolchain.install_pandoc(target_version)
+
+    assert installed == target
+    assert toolchain._pandoc_version_at(target) == target_version
+    evidence = json.loads(report.read_text(encoding="utf-8"))
+    assert evidence == {
+        "final_version": target_version,
+        "replacement_attempts": 1,
+        "retained_temporary_path": None,
+        "source_version": source_version,
+        "success": True,
+        "target_version": target_version,
+        "windows_error_codes": [],
+    }

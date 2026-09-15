@@ -21,6 +21,7 @@ import prodockit
 from prodockit import diagnostics
 from prodockit.pins import DEFAULT_PACKAGES, TESTED_VERSIONS, discover
 from prodockit.toolchain import (
+    PANDOC_REPLACEMENT_REPORT_ENV,
     PYTHON_PACKAGES,
     TOOLCHAIN_MANIFEST,
     installed_pandoc_version,
@@ -58,6 +59,8 @@ def _distribution_fingerprint(package: str) -> dict[str, str | int]:
 
 
 def _pandoc_fingerprint() -> dict[str, str]:
+    # subprocess.run waits for Pandoc and closes its captured pipes before the
+    # executable is hashed or a later acceptance step attempts replacement.
     executable = shutil.which("pandoc")
     version = installed_pandoc_version()
     if executable is None or version is None:
@@ -205,6 +208,9 @@ def exercise(
         )
     before = {**before_versions, "pandoc": before_pandoc["version"]}
     write_fixture(project)
+    replacement_report = project / "pandoc-replacements.jsonl"
+    replacement_report.unlink(missing_ok=True)
+    os.environ[PANDOC_REPLACEMENT_REPORT_ENV] = str(replacement_report)
     os.chdir(project)
     dry_run = _run_cli(
         project,
@@ -318,6 +324,32 @@ def exercise(
     repeated_output = _output(repeated)
     if repeated.returncode or "already configured" not in repeated_output:
         raise AcceptanceError(f"Adopt rerun was not idempotent:\n{repeated_output}")
+    replacement_events = [
+        json.loads(line)
+        for line in replacement_report.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    supported_replacements = [
+        event
+        for event in replacement_events
+        if event.get("target_version") == TESTED_VERSIONS["pandoc"]
+    ]
+    if not supported_replacements:
+        raise AcceptanceError("Pandoc replacement evidence was not retained")
+    for event in replacement_events:
+        required = {
+            "source_version",
+            "target_version",
+            "replacement_attempts",
+            "windows_error_codes",
+            "final_version",
+            "retained_temporary_path",
+            "success",
+        }
+        if not required.issubset(event):
+            raise AcceptanceError(f"Pandoc replacement evidence is incomplete: {event}")
+        if event["success"] and event["final_version"] != event["target_version"]:
+            raise AcceptanceError(f"Pandoc replacement evidence is inconsistent: {event}")
     return {
         "passed": True,
         "scenario": scenario,
@@ -329,6 +361,7 @@ def exercise(
             "after": {**after_code, "pandoc": after_pandoc},
         },
         "offline_cache_hit": True,
+        "pandoc_replacements": replacement_events,
         "declarations": {name: states[name].versions for name in DEFAULT_PACKAGES},
         "duration_seconds": round(time.perf_counter() - started, 3),
     }
