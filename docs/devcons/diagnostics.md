@@ -175,6 +175,17 @@ Environment and installation diagnostics
 
 ## Project configuration and inputs
 
+`project.text-encoding` reads the project files that Prodockit consumes and
+checks that their bytes are valid UTF-8. It covers every Markdown page below
+the configured `docs_dir`, the active site configuration (including recognized
+legacy-compatible filenames), and
+recognized supporting files such as `.prodockit-*.toml`, requirements files,
+renderer package manifests, and GitHub or GitLab workflow YAML. Generated
+sites, virtual environments, dependency directories, caches, Git metadata and
+Adopt backups are excluded. Each failure names the file and its one-based line
+and byte column; correct or re-save that file as UTF-8, then rerun the command.
+This is an encoding and readability check, not a security scan.
+
 `project.configuration` loads the same project model used by Prodockit's PDF
 pipeline and reuses the complete `pdk config --check` integrity inspection. It
 does not replace Zensical's own strict build.

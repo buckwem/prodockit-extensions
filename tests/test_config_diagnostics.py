@@ -103,6 +103,31 @@ def test_reports_explicit_and_default_resolved_values(tmp_path: Path) -> None:
     assert "Title: Index" in result.output
 
 
+def test_config_check_reports_invalid_utf8_in_supporting_configuration(
+    tmp_path: Path,
+) -> None:
+    path = _config(tmp_path)
+    supporting = tmp_path / ".prodockit-components.toml"
+    supporting.write_bytes(b"mermaid = \xff\n")
+
+    result = _run(path, check=True)
+
+    assert result.exit_code == 1
+    assert ".prodockit-components.toml:1:11" in result.output
+    assert "invalid UTF-8 byte sequence" in result.output
+
+
+def test_config_reports_invalid_utf8_in_active_configuration(tmp_path: Path) -> None:
+    path = tmp_path / "zensical.toml"
+    path.write_bytes(b'[project]\nsite_name = "\xff"\n')
+
+    result = _run(path, check=True)
+
+    assert result.exit_code == 1
+    assert "zensical.toml:2:14: invalid UTF-8 byte sequence" in result.output
+    assert "Traceback" not in result.output
+
+
 def test_check_rejects_obsolete_index_settings(tmp_path: Path) -> None:
     path = _config(
         tmp_path,
@@ -247,7 +272,7 @@ def test_check_reports_invalid_utf8_markdown_without_traceback(tmp_path: Path) -
 
     assert result.exit_code == 1
     expected_path = str(Path("writing") / "invalid-utf8.md")
-    assert f"{expected_path}: cannot read page as UTF-8" in result.output
+    assert f"{expected_path}:1:1: invalid UTF-8 byte sequence" in result.output
     assert "Traceback" not in result.output
 
 

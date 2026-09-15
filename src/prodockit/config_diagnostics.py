@@ -112,7 +112,9 @@ def _display_default(config: ProjectConfig, key: str, default: object) -> object
     return default
 
 
-def inspect_config(config: ProjectConfig) -> ConfigReport:
+def inspect_config(
+    config: ProjectConfig, *, include_text_encoding: bool = True
+) -> ConfigReport:
     """Resolve and validate only configuration Prodockit owns."""
     settings: list[ResolvedSetting] = []
     diagnostics: list[Diagnostic] = []
@@ -209,7 +211,10 @@ def inspect_config(config: ProjectConfig) -> ConfigReport:
     # first rather than letting a malformed setting trigger an exception.
     if not invalid_extra:
         diagnostics.extend(
-            Diagnostic(problem.path, problem.message) for problem in inspect_project(config)
+            Diagnostic(problem.path, problem.message)
+            for problem in inspect_project(
+                config, include_text_encoding=include_text_encoding
+            )
         )
 
     return ConfigReport(

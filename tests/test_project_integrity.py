@@ -120,7 +120,9 @@ def test_invalid_utf8_markdown_is_reported_as_a_project_problem(tmp_path: Path) 
     invalid.write_bytes(b"\x89PNG\r\n\x1a\n")
 
     expected_path = str(Path("docs") / "invalid-utf8.md")
-    assert _messages(config) == [f"{expected_path}: cannot read page as UTF-8"]
+    assert _messages(config) == [
+        f"{expected_path}:1:1: invalid UTF-8 byte sequence"
+    ]
     assert renderer_requirements(load_project_config(config)) == (False, False)
 
 

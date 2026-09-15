@@ -44,6 +44,7 @@ from prodockit.renderer_resilience import RetryReporter, run_npm_with_retries, r
 from prodockit.shared_files import SharedFileError
 from prodockit.shared_files import apply as apply_shared_files
 from prodockit.shared_files import inspect as inspect_shared_files
+from prodockit.text_encoding import inspect_project_text_encoding
 from prodockit.windows_pango import inspect_windows_pango, pango_spec, repair_script
 
 if sys.version_info >= (3, 11):
@@ -70,6 +71,7 @@ DIAGNOSTIC_IDS = frozenset(
         "installation.metadata",
         "installation.inspection",
         "project.configuration",
+        "project.text-encoding",
         "dependencies.pins",
         "dependencies.shared-files",
         "dependencies.inspection",
@@ -267,6 +269,12 @@ REPAIR_REGISTRY: dict[str, RepairPolicy] = {
         "ambiguous",
         "Configuration findings may have several author-valid remediations.",
         "Use `pdk config --check`; prefer Adoption for independent Prodockit integration repairs.",
+    ),
+    "project.text-encoding": RepairPolicy(
+        "manual",
+        "Prodockit cannot safely guess which invalid bytes the author intended.",
+        "Open each reported file, replace or re-save the affected text as UTF-8, "
+        "then rerun diagnostics.",
     ),
     "dependencies.pins": RepairPolicy(
         "ambiguous",
@@ -2932,14 +2940,28 @@ def _installation_checks(root: Path) -> list[DiagnosticResult]:
 def _configuration_check(config_file: Path) -> tuple[ProjectConfig | None, DiagnosticResult]:
     try:
         config = load_project_config(config_file)
-        report = inspect_config(config)
+        report = inspect_config(config, include_text_encoding=False)
     except ProjectConfigError as error:
+        load_details = (
+            (
+                "correct the problem reported by project.text-encoding before loading "
+                "the configuration",
+            )
+            if any(
+                marker in str(error)
+                for marker in ("invalid UTF-8 byte sequence", "cannot read file:")
+            )
+            else (
+                str(error),
+                "run `pdk config --check` for the detailed configuration report",
+            )
+        )
         return None, DiagnosticResult(
             "project.configuration",
             "Project configuration and inputs",
             "fail",
             "Project configuration could not be loaded",
-            (str(error), "run `pdk config --check` for the detailed configuration report"),
+            load_details,
         )
     details = tuple(f"{item.path}: {item.message}" for item in report.diagnostics)
     repairable = _configuration_repairable_problems(config, report.diagnostics)
@@ -2957,6 +2979,32 @@ def _configuration_check(config_file: Path) -> tuple[ProjectConfig | None, Diagn
             "repair_fingerprint": _content_sha256(report.path),
             "repairable_problems": repairable,
         },
+    )
+
+
+def _text_encoding_check(
+    root: Path, config_file: Path, docs_dir: Path
+) -> DiagnosticResult:
+    problems = inspect_project_text_encoding(root, config_file, docs_dir)
+    details = tuple(
+        f"{problem.location(root)}: {problem.message}" for problem in problems
+    )
+    return DiagnosticResult(
+        "project.text-encoding",
+        "Project configuration and inputs",
+        "fail" if details else "pass",
+        f"{len(details)} text encoding problem(s) found"
+        if details
+        else "Markdown and project configuration files use UTF-8",
+        details
+        + (
+            (
+                "open each reported file, correct or re-save it as UTF-8, then rerun `pdk diag`",
+            )
+            if details
+            else ()
+        ),
+        {"problem_count": len(details)},
     )
 
 
@@ -4090,6 +4138,18 @@ def inspect(
         "Environment and installation",
         "The active installation",
         lambda: _installation_checks(root),
+    )
+    collect(
+        "project.text-encoding",
+        "Project configuration and inputs",
+        "Project text encoding",
+        lambda: [
+            _text_encoding_check(
+                root,
+                requested,
+                config.docs_dir if config is not None else root / "docs",
+            )
+        ],
     )
     checks.append(config_check)
     if config is not None:

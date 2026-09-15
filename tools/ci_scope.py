@@ -155,6 +155,7 @@ _COMPONENT_FILES: dict[str, frozenset[str]] = {
     "docs/stylesheets/pdk.css": frozenset({"adopt", "pdf"}),
     "docs/stylesheets/pdk-pdf.css": frozenset({"pdf"}),
     "src/prodockit/project_config.py": frozenset({"adopt", "pdf", "diagnostics"}),
+    "src/prodockit/text_encoding.py": frozenset({"adopt", "pdf", "diagnostics"}),
     "src/prodockit/config_diagnostics.py": frozenset({"diagnostics"}),
     "src/prodockit/csl.py": frozenset({"adopt", "diagnostics"}),
     "src/prodockit/init_tools.py": frozenset({"adopt", "bootstrap", "diagnostics"}),

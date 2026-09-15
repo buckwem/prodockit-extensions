@@ -22,6 +22,8 @@ from typing import Any
 
 import yaml  # type: ignore[import-untyped, unused-ignore]
 
+from prodockit.text_encoding import CONFIG_FILENAMES, inspect_utf8_file
+
 if sys.version_info >= (3, 11):
     import tomllib
 else:  # pragma: no cover - exercised by Python 3.10 CI
@@ -31,14 +33,6 @@ else:  # pragma: no cover - exercised by Python 3.10 CI
 class ProjectConfigError(ValueError):
     """A project configuration cannot be read without guessing."""
 
-
-CONFIG_FILENAMES = (
-    "zensical.toml",
-    "zensical.yml",
-    "zensical.yaml",
-    "mkdocs.yml",
-    "mkdocs.yaml",
-)
 
 # A staged build must let the Markdown extensions find the exact temporary
 # configuration Zensical was given, rather than rediscovering the author's
@@ -229,6 +223,12 @@ def load_project_config(path: str | Path = "zensical.toml") -> ProjectConfig:
     if not config_path.is_file():
         raise ProjectConfigError(f"project configuration not found: {config_path}")
     try:
+        encoding_problems = inspect_utf8_file(config_path)
+        if encoding_problems:
+            problem = encoding_problems[0]
+            raise ProjectConfigError(
+                f"{problem.location(config_path.parent)}: {problem.message}"
+            )
         source = config_path.read_text(encoding="utf-8")
         if config_path.suffix.lower() == ".toml":
             raw = tomllib.loads(source)

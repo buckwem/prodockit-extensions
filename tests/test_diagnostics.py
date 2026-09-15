@@ -1902,7 +1902,9 @@ def test_diag_does_not_change_project_files(
     monkeypatch.setattr(diagnostics, "_environment_checks", lambda _root: [])
     monkeypatch.setattr(diagnostics, "_installation_checks", lambda _root: [])
     monkeypatch.setattr(diagnostics, "_pin_checks", lambda _root, _online: [])
-    monkeypatch.setattr(diagnostics, "_renderer_checks", lambda _config, _root: [])
+    monkeypatch.setattr(
+        diagnostics, "_renderer_checks", lambda _config, _root, **_kwargs: []
+    )
     monkeypatch.setattr(diagnostics, "_node_security_checks", lambda _root, _online: [])
     monkeypatch.setattr(diagnostics, "_repository_checks", lambda _root, _online: [])
     before = {
@@ -1919,6 +1921,77 @@ def test_diag_does_not_change_project_files(
         if path.is_file()
     }
     assert after == before
+
+
+def test_diag_has_a_named_utf8_check_with_all_affected_files(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config = tmp_path / "zensical.toml"
+    docs = tmp_path / "docs"
+    docs.mkdir()
+    config.write_text('[project]\nsite_name = "Example"\n', encoding="utf-8")
+    (docs / "first.md").write_bytes(b"line one\ninvalid \xff\n")
+    (tmp_path / ".github" / "workflows").mkdir(parents=True)
+    (tmp_path / ".github" / "workflows" / "docs.yml").write_bytes(b"name: \xfe\n")
+    monkeypatch.setattr(diagnostics, "_environment_checks", lambda _root: [])
+    monkeypatch.setattr(diagnostics, "_installation_checks", lambda _root: [])
+    monkeypatch.setattr(diagnostics, "_pin_checks", lambda _root, _online: [])
+    monkeypatch.setattr(diagnostics, "_renderer_checks", lambda _config, _root: [])
+    monkeypatch.setattr(diagnostics, "_node_security_checks", lambda _root, _online: [])
+    monkeypatch.setattr(diagnostics, "_repository_checks", lambda _root, _online: [])
+    monkeypatch.setattr(diagnostics, "_adopt_readiness_checks", lambda *_args, **_kwargs: [])
+
+    report = diagnostics.inspect(config)
+
+    check = next(item for item in report.checks if item.id == "project.text-encoding")
+    assert check.status == "fail"
+    assert check.summary == "2 text encoding problem(s) found"
+    assert check.details[:2] == (
+        ".github/workflows/docs.yml:1:7: invalid UTF-8 byte sequence",
+        "docs/first.md:2:9: invalid UTF-8 byte sequence",
+    )
+    configuration = next(item for item in report.checks if item.id == "project.configuration")
+    assert not any("invalid UTF-8" in detail for detail in configuration.details)
+
+
+def test_diag_reports_invalid_active_config_location_only_once(tmp_path: Path) -> None:
+    config = tmp_path / "zensical.toml"
+    config.write_bytes(b'[project]\nsite_name = "\xff"\n')
+
+    _loaded, configuration = diagnostics._configuration_check(config)
+    encoding = diagnostics._text_encoding_check(tmp_path, config, tmp_path / "docs")
+
+    assert encoding.details[0] == (
+        "zensical.toml:2:14: invalid UTF-8 byte sequence"
+    )
+    assert not any("zensical.toml:" in detail for detail in configuration.details)
+
+
+def test_diag_cli_reports_invalid_markdown_without_traceback(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config = tmp_path / "zensical.toml"
+    docs = tmp_path / "docs"
+    docs.mkdir()
+    config.write_text('[project]\nsite_name = "Example"\n', encoding="utf-8")
+    (docs / "bad.md").write_bytes(b"first\ninvalid \xff\n")
+    monkeypatch.setattr(diagnostics, "_environment_checks", lambda _root: [])
+    monkeypatch.setattr(diagnostics, "_installation_checks", lambda _root: [])
+    monkeypatch.setattr(diagnostics, "_pin_checks", lambda _root, _online: [])
+    monkeypatch.setattr(
+        diagnostics, "_renderer_checks", lambda _config, _root, **_kwargs: []
+    )
+    monkeypatch.setattr(diagnostics, "_node_security_checks", lambda _root, _online: [])
+    monkeypatch.setattr(diagnostics, "_repository_checks", lambda _root, _online: [])
+    monkeypatch.setattr(diagnostics, "_adopt_readiness_checks", lambda *_args, **_kwargs: [])
+
+    result = CliRunner().invoke(main, ["diag", "-f", str(config)])
+
+    assert result.exit_code == 1
+    assert "FAIL 2 text encoding problem(s) found" not in result.output
+    assert "FAIL 1 text encoding problem(s) found" in result.output
+    assert "docs/bad.md:2:9: invalid UTF-8 byte sequence" in result.output
+    assert "Traceback" not in result.output
 
 
 def test_pdk_diag_reports_local_assets_omitted_from_zensical_toml(tmp_path: Path) -> None:
@@ -2419,6 +2492,7 @@ def test_author_guide_documents_every_stable_check_id() -> None:
         "installation.metadata",
         "installation.inspection",
         "project.configuration",
+        "project.text-encoding",
         "dependencies.pins",
         "dependencies.shared-files",
         "dependencies.inspection",

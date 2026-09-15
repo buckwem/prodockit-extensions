@@ -16,6 +16,7 @@ from prodockit.csl import CslError
 from prodockit.csl import validate as validate_csl
 from prodockit.project_config import ProjectConfig, load_project_config
 from prodockit.renderer_health import probe_mathjax, probe_mermaid
+from prodockit.text_encoding import inspect_project_text_encoding
 
 
 @dataclass(frozen=True)
@@ -361,9 +362,21 @@ def renderer_requirements(config: ProjectConfig) -> tuple[bool, bool]:
     return _renderer_requirements_from_sources(config, sources)
 
 
-def inspect_project(config: ProjectConfig) -> tuple[ProjectProblem, ...]:
+def inspect_project(
+    config: ProjectConfig, *, include_text_encoding: bool = True
+) -> tuple[ProjectProblem, ...]:
     """Return missing inputs and integrations for a configured project."""
     problems: list[ProjectProblem] = []
+    encoding_problem_paths: set[Path] = set()
+    if include_text_encoding:
+        encoding_problems = inspect_project_text_encoding(
+            config.root, config.path, config.docs_dir
+        )
+        encoding_problem_paths = {problem.path for problem in encoding_problems}
+        problems.extend(
+            ProjectProblem(problem.location(config.root), problem.message)
+            for problem in encoding_problems
+        )
 
     for setting, value in _configured_local_files(config):
         target = _local_target(config, value)
@@ -391,14 +404,17 @@ def inspect_project(config: ProjectConfig) -> tuple[ProjectProblem, ...]:
     markdown_sources: list[str] = []
     enabled = set(config.markdown_extensions)
     for markdown in markdown_files:
+        if markdown in encoding_problem_paths:
+            continue
         try:
             source = markdown.read_text(encoding="utf-8")
         except UnicodeDecodeError:
-            problems.append(
-                ProjectProblem(_display(config, markdown), "cannot read page as UTF-8")
-            )
+            if not include_text_encoding:
+                continue
             continue
         except OSError as error:
+            if not include_text_encoding:
+                continue
             problems.append(
                 ProjectProblem(_display(config, markdown), f"cannot read page: {error}")
             )
