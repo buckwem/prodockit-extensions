@@ -74,7 +74,9 @@ def test_native_pdf_plan_provisions_manager_before_runtime(monkeypatch):
     from prodockit import adopt_pdf_runtime
 
     monkeypatch.setattr(adopt_pdf_runtime, "_context", lambda: SimpleNamespace(platform=WINDOWS))
-    monkeypatch.setattr(adopt_pdf_runtime, "_probe", lambda context: "Pango unavailable")
+    monkeypatch.setattr(
+        adopt_pdf_runtime, "_probe", lambda context, **kwargs: "Pango unavailable"
+    )
     monkeypatch.setattr(
         adopt_pdf_runtime,
         "_plan_pandoc",

@@ -1584,7 +1584,7 @@ def assess(
     toolchain = supported_toolchain.plan(root, offline=offline)
     from prodockit import adopt_pdf_runtime
 
-    native = adopt_pdf_runtime.plan(offline=offline)
+    native = adopt_pdf_runtime.plan(offline=offline, reporter=retry_reporter)
     configured = _extensions(parsed)
     missing = _missing_core_extensions(parsed)
     style_paths = _stylesheet_paths(root, parsed)

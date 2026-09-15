@@ -44,6 +44,27 @@ def test_offline_missing_native_dependency_blocks(tmp_path, monkeypatch):
     assert "online run" in runtime.plan(offline=True).blocked
 
 
+def test_probe_timeout_does_not_trigger_a_reinstall(tmp_path, monkeypatch):
+    monkeypatch.setattr(runtime, "_context", lambda: context(tmp_path, WINDOWS))
+    monkeypatch.setattr(
+        runtime,
+        "_probe",
+        lambda *args, **kwargs: (
+            "WeasyPrint health check timed out after 2 bounded attempts on Windows ARM64"
+        ),
+    )
+    monkeypatch.setattr(
+        runtime.adopt_package_manager,
+        "plan",
+        lambda *_args, **_kwargs: pytest.fail("a timeout must not trigger system installation"),
+    )
+
+    planned = runtime.plan()
+
+    assert planned.commands == ()
+    assert "timed out after 2 bounded attempts" in planned.blocked
+
+
 @pytest.mark.parametrize("offline", [False, True])
 def test_windows_assessment_refreshes_persisted_paths_before_probe(tmp_path, monkeypatch, offline):
     monkeypatch.setattr(runtime, "_context", lambda: context(tmp_path, WINDOWS))
@@ -54,7 +75,7 @@ def test_windows_assessment_refreshes_persisted_paths_before_probe(tmp_path, mon
         monkeypatch.setenv("WEASYPRINT_DLL_DIRECTORIES", "installed-pdf-libraries")
         monkeypatch.setenv("PATH", "session-tools;installed-font-tools")
 
-    def probe(ctx):
+    def probe(ctx, **_kwargs):
         assert runtime.os.environ["WEASYPRINT_DLL_DIRECTORIES"] == "installed-pdf-libraries"
         assert "installed-font-tools" in runtime.os.environ["PATH"]
         return ""
@@ -139,25 +160,6 @@ def test_verification_generates_pdf_not_just_import(tmp_path, monkeypatch):
     assert not REAL_PROBE(context(tmp_path, UBUNTU), render=True)
     assert "write_pdf()" in calls[0][2]
     assert "b'%PDF'" in calls[0][2]
-
-
-@pytest.mark.parametrize("recovers", [True, False])
-def test_pdf_probe_retries_timeout_once(tmp_path, monkeypatch, recovers):
-    calls = []
-
-    def probe(command, **kwargs):
-        calls.append(command)
-        if len(calls) == 1 or not recovers:
-            raise runtime.subprocess.TimeoutExpired(command, 60)
-        return SimpleNamespace(returncode=0, stdout="", stderr="")
-
-    monkeypatch.setattr(runtime.subprocess, "run", probe)
-    monkeypatch.setattr(runtime, "inspect_fonts", lambda run: SimpleNamespace(status="available"))
-    result = REAL_PROBE(context(tmp_path, WINDOWS))
-    assert len(calls) == 2
-    assert (result == "") is recovers
-    if not recovers:
-        assert "could not be verified" in result
 
 
 def test_probe_reports_the_actual_library_error(tmp_path, monkeypatch):

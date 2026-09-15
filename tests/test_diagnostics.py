@@ -1045,7 +1045,7 @@ def test_missing_renderers_warn_when_unused_and_fail_when_content_uses_them(
     monkeypatch.setattr(
         diagnostics,
         "_probe_weasyprint_import",
-        lambda: subprocess.CompletedProcess([], 1, "", "ImportError: not found"),
+        lambda *_args: subprocess.CompletedProcess([], 1, "", "ImportError: not found"),
     )
 
     optional = diagnostics._renderer_checks(_project(tmp_path, required=False), tmp_path)
@@ -1516,7 +1516,7 @@ def test_weasyprint_import_banner_never_corrupts_diagnostic_output(
     monkeypatch.setattr(
         diagnostics,
         "_probe_weasyprint_import",
-        lambda: subprocess.CompletedProcess(
+        lambda *_args: subprocess.CompletedProcess(
             [],
             1,
             "third-party stdout banner",
@@ -1536,6 +1536,41 @@ def test_weasyprint_import_banner_never_corrupts_diagnostic_output(
     captured = capsys.readouterr()
     assert captured.out == ""
     assert captured.err == ""
+
+
+def test_weasyprint_timeout_reports_bounded_probe_evidence(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from prodockit.weasyprint_probe import ProbeAttempt, ProbeResult
+
+    attempts = (
+        ProbeAttempt("Python import", 60.0, 60.0, None, True),
+        ProbeAttempt("WeasyPrint command", 60.0, 60.0, None, True),
+    )
+    monkeypatch.setattr(
+        diagnostics,
+        "_probe_weasyprint_import",
+        lambda *_args: ProbeResult(
+            None,
+            attempts,
+            "WeasyPrint health check timed out after 2 bounded attempts",
+        ),
+    )
+    monkeypatch.setattr(
+        diagnostics,
+        "_command",
+        lambda name: diagnostics.CommandInfo(name, None, None, "not found"),
+    )
+    monkeypatch.setattr(diagnostics.shutil, "which", lambda _name: None)
+
+    checks = diagnostics._renderer_checks(_project(tmp_path, required=True), tmp_path)
+    result = next(check for check in checks if check.id == "renderer.weasyprint")
+
+    assert result.status == "fail"
+    assert "2 bounded attempts" in " ".join(result.details)
+    assert result.data["health_probe"]["attempts"] == [
+        attempt.as_dict() for attempt in attempts
+    ]
 
 
 def test_diag_dry_run_is_structured_read_only_and_filterable(

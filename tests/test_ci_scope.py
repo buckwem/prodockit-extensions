@@ -117,6 +117,7 @@ def test_shared_packaging_and_command_files_select_every_matrix() -> None:
         "src/prodockit/cli.py",
         "src/prodockit/renderer_health.py",
         "src/prodockit/renderer_resilience.py",
+        "src/prodockit/weasyprint_probe.py",
         "requirements.txt",
     ):
         scope = classify([path])

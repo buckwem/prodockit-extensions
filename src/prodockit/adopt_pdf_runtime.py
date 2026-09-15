@@ -33,6 +33,7 @@ from prodockit.bootstrap.stages import (
 from prodockit.pdf_fonts import inspect_fonts
 from prodockit.renderer_resilience import RetryReporter
 from prodockit.toolchain import ToolchainError
+from prodockit.weasyprint_probe import clear_probe_cache, run_probe
 
 
 @dataclass(frozen=True)
@@ -69,38 +70,20 @@ def _environment(context: Context) -> dict[str, str]:
     return env
 
 
-def _probe(context: Context, *, render: bool = False) -> str:
-    code = (
-        "import importlib.util, sys; "
-        "missing = importlib.util.find_spec('weasyprint') is None; "
-        "print('PDK_PYTHON_PACKAGE_PENDING' if missing else ''); "
-        "sys.exit(0) if missing else None; import weasyprint"
-    )
-    if render:
-        code += (
-            "; data=weasyprint.HTML(string='<p>PDF runtime test</p>').write_pdf(); "
-            "assert data.startswith(b'%PDF')"
-        )
+def _probe(
+    context: Context,
+    *,
+    render: bool = False,
+    reporter: RetryReporter | None = None,
+) -> str:
     try:
-        for attempt in range(2):
-            try:
-                result = subprocess.run(
-                    [sys.executable, "-c", code],
-                    capture_output=True,
-                    text=True,
-                    encoding="utf-8",
-                    errors="replace",
-                    timeout=60,
-                    env=_environment(context),
-                    check=False,
-                )
-                break
-            except subprocess.TimeoutExpired:
-                # subprocess.run has killed and waited for this read-only probe.
-                # Retry once for transient loader/font-cache contention, never
-                # treating a timeout as proof that software needs reinstalling.
-                if attempt:
-                    raise
+        result = run_probe(
+            environment=_environment(context),
+            render=render,
+            reporter=reporter,
+        )
+        if result.error:
+            return result.error
         if result.returncode:
             if "ModuleNotFoundError:" in result.stderr:
                 return "WeasyPrint Python package is pending"
@@ -109,7 +92,7 @@ def _probe(context: Context, *, render: bool = False) -> str:
                 "no error detail",
             )
             return f"WeasyPrint library/PDF health check failed: {detail[-400:]}"
-        if "PDK_PYTHON_PACKAGE_PENDING" in result.stdout:
+        if result.pending:
             return "WeasyPrint Python package is pending"
 
         def run_font_probe(command: list[str]) -> tuple[int, str]:
@@ -142,7 +125,9 @@ def _loader_missing(context: Context) -> bool:
     return _macos_loader_line(context) not in activate.read_text(encoding="utf-8")
 
 
-def plan(*, offline: bool = False) -> NativePlan:
+def plan(
+    *, offline: bool = False, reporter: RetryReporter | None = None
+) -> NativePlan:
     try:
         context = _context()
     except UnsupportedHostError as error:
@@ -153,7 +138,7 @@ def plan(*, offline: bool = False) -> NativePlan:
         # Discover persisted paths before deciding another install is needed,
         # including during an offline assessment.
         refresh_windows_path()
-    problem = _probe(context)
+    problem = _probe(context, reporter=reporter)
     if problem == "WeasyPrint Python package is pending":
         return NativePlan(
             environment_repair=True,
@@ -166,6 +151,8 @@ def plan(*, offline: bool = False) -> NativePlan:
             environment_repair=True,
             detail="save the Homebrew library path in the active environment",
         )
+    if problem.startswith("WeasyPrint health check timed out"):
+        return NativePlan(blocked=problem)
     if offline:
         return NativePlan(blocked=f"{problem}; native installation requires an online run")
     manager = adopt_package_manager.plan(context.platform, offline=offline)
@@ -217,9 +204,10 @@ def _persist_loader(context: Context) -> None:
 
 
 def apply(root: Path, *, offline: bool = False, reporter: RetryReporter | None = None) -> None:
+    clear_probe_cache()
     context = _context()
     _refresh(context)
-    pending = plan(offline=offline)
+    pending = plan(offline=offline, reporter=reporter)
     if pending.blocked:
         raise ToolchainError(pending.blocked)
     commands = pending.commands
@@ -241,7 +229,8 @@ def apply(root: Path, *, offline: bool = False, reporter: RetryReporter | None =
             refresh=lambda: _refresh(context),
             label="font cache",
         )
-    problem = _probe(context, render=True)
+    clear_probe_cache()
+    problem = _probe(context, render=True, reporter=reporter)
     if problem:
         raise ToolchainError(
             "PDF runtime verification failed: "

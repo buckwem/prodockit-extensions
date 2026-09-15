@@ -45,6 +45,7 @@ from prodockit.shared_files import SharedFileError
 from prodockit.shared_files import apply as apply_shared_files
 from prodockit.shared_files import inspect as inspect_shared_files
 from prodockit.text_encoding import inspect_project_text_encoding
+from prodockit.weasyprint_probe import ProbeResult, run_probe
 from prodockit.windows_pango import inspect_windows_pango, pango_spec, repair_script
 
 if sys.version_info >= (3, 11):
@@ -3357,17 +3358,32 @@ def _renderer_checks(
         if not evidence.environment_current:
             pango_details.append("WEASYPRINT_DLL_DIRECTORIES is not active in the current process")
 
+    imported: ProbeResult | subprocess.CompletedProcess[str] | None = None
     try:
         # A fresh interpreter proves that DLL discovery works without relying on
         # an already-imported module. Capturing it also keeps JSON output clean
         # when WeasyPrint emits its native-library help banner (#722).
-        imported = _probe_weasyprint_import()
+        imported = _probe_weasyprint_import(retry_reporter)
         if imported.returncode != 0:
             detail = "\n".join(
                 part.strip() for part in (imported.stdout, imported.stderr) if part.strip()
             )
             raise RuntimeError(detail or f"fresh interpreter exited {imported.returncode}")
-        version = imported.stdout.strip().splitlines()[-1] if imported.stdout.strip() else "unknown"
+        if isinstance(imported, ProbeResult) and imported.pending:
+            raise RuntimeError("WeasyPrint Python package is not installed")
+        if isinstance(imported, ProbeResult):
+            version = imported.version or "unknown"
+        else:
+            version = (
+                imported.stdout.strip().splitlines()[-1]
+                if imported.stdout.strip()
+                else "unknown"
+            )
+        probe_details = (
+            (f"health check recovered after {len(imported.attempts)} attempts",)
+            if isinstance(imported, ProbeResult) and len(imported.attempts) > 1
+            else ()
+        )
         if pango_details:
             raise RuntimeError("; ".join(pango_details))
         checks.append(
@@ -3376,10 +3392,15 @@ def _renderer_checks(
                 "Rendering toolchain",
                 "pass",
                 f"WeasyPrint {version} imports with its native libraries",
-                tuple(pango_details),
+                (*pango_details, *probe_details),
                 {
                     "required": pdf_required,
                     "version": version,
+                    **(
+                        {"health_probe": imported.evidence()}
+                        if isinstance(imported, ProbeResult)
+                        else {}
+                    ),
                     **({"windows_pango": pango_data} if pango_data is not None else {}),
                 },
             )
@@ -3396,6 +3417,11 @@ def _renderer_checks(
                 (*pango_details, safe_error),
                 {
                     "required": pdf_required,
+                    **(
+                        {"health_probe": imported.evidence()}
+                        if isinstance(imported, ProbeResult)
+                        else {}
+                    ),
                     **({"windows_pango": pango_data} if pango_data is not None else {}),
                 },
             )
@@ -3575,17 +3601,13 @@ def _renderer_checks(
     return checks
 
 
-def _probe_weasyprint_import() -> subprocess.CompletedProcess[str]:
+def _probe_weasyprint_import(
+    reporter: RetryReporter | None = None,
+) -> ProbeResult | subprocess.CompletedProcess[str]:
     """Import WeasyPrint in a fresh process with the current discovery environment."""
-    return subprocess.run(
-        [sys.executable, "-c", "import weasyprint; print(weasyprint.__version__)"],
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        timeout=30,
-        check=False,
-        env=dict(os.environ),
+    return run_probe(
+        environment=dict(os.environ),
+        reporter=reporter,
     )
 
 
