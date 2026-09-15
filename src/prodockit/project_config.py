@@ -22,7 +22,8 @@ from typing import Any
 
 import yaml  # type: ignore[import-untyped, unused-ignore]
 
-from prodockit.text_encoding import CONFIG_FILENAMES, inspect_utf8_file
+from prodockit.text_encoding import CONFIG_FILENAMES as CONFIG_FILENAMES
+from prodockit.text_encoding import inspect_utf8_file
 
 if sys.version_info >= (3, 11):
     import tomllib
