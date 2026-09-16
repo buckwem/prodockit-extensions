@@ -252,6 +252,29 @@ def _front_matter_flag(text: str, key: str) -> bool:
 _SETEXT_H1_UNDERLINE_RE = re.compile(r"^ {0,3}=+[ \t]*$")
 _ATX_H1_RE = re.compile(r"^#\s+\S")
 _ANY_ATX_HEADING_RE = re.compile(r"^#{1,6}\s")
+_FENCE_OPEN_RE = re.compile(r"^ {0,3}(?P<marker>`{3,}|~{3,})(?P<info>.*)$")
+_FENCE_CLOSE_RE = re.compile(r"^ {0,3}(?P<marker>`{3,}|~{3,})[ \t]*$")
+
+
+def _opening_fence(line: str) -> tuple[str, int] | None:
+    """Returns a valid Markdown fence's marker character and length."""
+    match = _FENCE_OPEN_RE.match(line)
+    if match is None:
+        return None
+    marker = match.group("marker")
+    # CommonMark does not allow a backtick in a backtick fence's info string.
+    if marker[0] == "`" and "`" in match.group("info"):
+        return None
+    return marker[0], len(marker)
+
+
+def _closes_fence(line: str, marker_char: str, marker_length: int) -> bool:
+    """Whether ``line`` closes the active Markdown fence."""
+    match = _FENCE_CLOSE_RE.match(line)
+    if match is None:
+        return False
+    marker = match.group("marker")
+    return marker[0] == marker_char and len(marker) >= marker_length
 
 
 def _is_numbered_atx_h1(line: str) -> bool:
@@ -312,7 +335,8 @@ def _count_top_level_headings(text: str) -> int:
     the underline, so that's where it's checked.
     """
     count = 0
-    in_fence = False
+    fence_char = ""
+    fence_length = 0
     in_comment = False
     # The previous line, and whether the line before *it* was blank - a
     # setext underline is only a heading if its text line stands alone.
@@ -320,11 +344,14 @@ def _count_top_level_headings(text: str) -> int:
     line_before_previous_was_blank = True
     for line in text.splitlines():
         stripped = line.strip()
-        if not in_comment and (stripped.startswith("```") or stripped.startswith("~~~")):
-            in_fence = not in_fence
+        if fence_char:
+            if _closes_fence(line, fence_char, fence_length):
+                fence_char = ""
+                fence_length = 0
             previous_line, line_before_previous_was_blank = "", True
             continue
-        if in_fence:
+        if not in_comment and (opening := _opening_fence(line)) is not None:
+            fence_char, fence_length = opening
             previous_line, line_before_previous_was_blank = "", True
             continue
         if not in_comment and "<!--" in stripped:
@@ -549,17 +576,21 @@ def _scan_page_numberables(
     """
     items: list[tuple[str, int, str, str | None, bool]] = []
     lines = _strip_front_matter(text).splitlines()
-    in_fence = False
+    fence_char = ""
+    fence_length = 0
     in_comment = False
     index = 0
     while index < len(lines):
         line = lines[index]
         stripped = line.strip()
-        if not in_comment and (stripped.startswith("```") or stripped.startswith("~~~")):
-            in_fence = not in_fence
+        if fence_char:
+            if _closes_fence(line, fence_char, fence_length):
+                fence_char = ""
+                fence_length = 0
             index += 1
             continue
-        if in_fence:
+        if not in_comment and (opening := _opening_fence(line)) is not None:
+            fence_char, fence_length = opening
             index += 1
             continue
         if not in_comment and "<!--" in stripped:

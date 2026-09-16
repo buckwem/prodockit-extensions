@@ -502,6 +502,34 @@ def test_preseed_ignores_headings_inside_fenced_examples(
     assert '<a class="prodockit-ref prodockit-ref-unresolved">??</a>' in html
 
 
+def test_preseed_respects_longer_fences_containing_shorter_fence_examples(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A shorter fence inside a longer literal example cannot close it.
+
+    The heading shown between the inner three-backtick markers is code, while
+    the heading after the four-backtick close is real page content.
+    """
+    docs_dir = tmp_path / "docs"
+    docs_dir.mkdir()
+    (docs_dir / "guide.md").write_text(
+        "# Guide\n\n"
+        "````markdown\n"
+        "```markdown\n"
+        "## Not A Real Heading {: #not-real }\n"
+        "```\n"
+        "````\n\n"
+        "## Real Heading {: #real-heading }\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(prodockit_zensical, "nav_pages", lambda: (str(docs_dir), ["guide.md"]))
+
+    html = _convert_as_zensical_page("See \\ref{not-real} and \\ref{real-heading}.\n", "other.md")
+
+    assert '<a class="prodockit-ref prodockit-ref-unresolved">??</a>' in html
+    assert '<a class="prodockit-ref" href="guide.md#real-heading">1.1 Real Heading</a>' in html
+
+
 def _convert_as_zensical_page_with_attr_list(text: str, path: str) -> str:
     """As _convert_as_zensical_page, plus 'attr_list' - which every prodockit
     project enables (it's what makes `{: #id }`/`{: .unnumbered }` mean
@@ -835,6 +863,29 @@ def test_continuous_numbering_seeds_from_earlier_nav_pages(
     registry = prodockit_headings._ZENSICAL_SHARED_REGISTRY
     assert registry.get("one").number == "1"  # type: ignore[union-attr]
     assert registry.get("sub").number == "1.1"  # type: ignore[union-attr]
+    assert registry.get("two").number == "2"  # type: ignore[union-attr]
+
+
+def test_continuous_numbering_ignores_h1_inside_a_longer_fence(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A fenced example must not consume a continuous chapter number."""
+    docs_dir = tmp_path / "docs"
+    docs_dir.mkdir()
+    (docs_dir / "page1.md").write_text(
+        "# One\n\n````markdown\n```markdown\n# Fake\n```\n````\n",
+        encoding="utf-8",
+    )
+    (docs_dir / "page2.md").write_text("# Two\n", encoding="utf-8")
+    monkeypatch.setattr(
+        prodockit_zensical,
+        "nav_pages",
+        lambda: (str(docs_dir), ["page1.md", "page2.md"]),
+    )
+
+    _convert_as_zensical_page_with_continuous_headings("# Two\n", "page2.md")
+
+    registry = prodockit_headings._ZENSICAL_SHARED_REGISTRY
     assert registry.get("two").number == "2"  # type: ignore[union-attr]
 
 
