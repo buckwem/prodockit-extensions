@@ -11,16 +11,18 @@ from __future__ import annotations
 import re
 import warnings
 import xml.etree.ElementTree as etree
-from collections.abc import Iterator
+from collections.abc import Iterator, Sequence
 from importlib.metadata import PackageNotFoundError, version
 
 from markdown import Markdown
 from markdown.extensions import Extension
 from markdown.extensions.toc import TocExtension
 from markdown.treeprocessors import Treeprocessor
+from markdown.util import HTML_PLACEHOLDER_RE
 
 from prodockit._markdown_toc import MarkdownTocAPIError, toc_slugging
 from prodockit._zensical import (
+    _plain_html_text,
     nav_signature,
     page_source,
     prescan_headings,
@@ -214,6 +216,21 @@ def _heading_text(el: etree.Element) -> Iterator[str]:
             yield child.tail
 
 
+def _restore_heading_stash_text(text: str, stash: Sequence[str | etree.Element]) -> str:
+    """Replace page-local HTML placeholders with their visible plain text."""
+
+    def replace(match: re.Match[str]) -> str:
+        index = int(match.group(1))
+        if index >= len(stash):
+            return ""
+        fragment = stash[index]
+        if isinstance(fragment, str):
+            return _plain_html_text(fragment)
+        return "".join(fragment.itertext())
+
+    return HTML_PLACEHOLDER_RE.sub(replace, text)
+
+
 class HeadingsTreeprocessor(Treeprocessor):
     """Records every h1-h6 element's id, and its hierarchical section number,
     in a shared :class:`IdRegistry`, keyed by the current document's source
@@ -341,7 +358,14 @@ class HeadingsTreeprocessor(Treeprocessor):
                 continue
             if el.tag not in HEADING_TAGS:
                 continue
-            text = "".join(_heading_text(el))
+            # Resolve page-local stash placeholders before storing a shared
+            # label. Tags disappear, while visible entities such as ``&amp;``
+            # remain text and cannot be reinterpreted through another page's
+            # unrelated stash entries.
+            assert self.md is not None
+            text = _restore_heading_stash_text(
+                "".join(_heading_text(el)), self.md.htmlStash.rawHtmlBlocks
+            )
             heading_id = el.get("id")
             if not heading_id:
                 heading_id = _slugify(text)

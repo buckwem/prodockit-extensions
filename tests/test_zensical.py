@@ -103,6 +103,27 @@ def test_scan_page_headings_recognises_setext_levels_and_attributes() -> None:
     ]
 
 
+@pytest.mark.parametrize(
+    ("autolink", "label"),
+    [
+        ("https://example.com", "https://example.com"),
+        ("FTP://example.com/report", "FTP://example.com/report"),
+    ],
+)
+def test_scan_page_headings_preserves_markdown_autolink_text(
+    autolink: str, label: str
+) -> None:
+    assert _scan_page_headings(f"## Visit <{autolink}>\n") == [
+        (2, f"Visit {label}", None, False)
+    ]
+
+
+def test_scan_page_headings_preserves_literal_html_inside_code() -> None:
+    assert _scan_page_headings("## Use `<span>` token\n") == [
+        (2, "Use <span> token", None, False)
+    ]
+
+
 def test_front_matter_flag_is_case_insensitive() -> None:
     text = "---\nis_appendix: TRUE\n---\n\n# Heading\n"
     assert _front_matter_flag(text, "is_appendix") is True

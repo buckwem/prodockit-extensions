@@ -22,6 +22,7 @@ import re
 import subprocess
 import warnings
 from collections.abc import Callable
+from html.parser import HTMLParser
 from pathlib import Path
 from typing import Protocol, TypeVar
 
@@ -386,7 +387,6 @@ _HEADING_LINE_RE = re.compile(r"^(#{1,6})\s+(\S.*?)\s*$")
 _SETEXT_UNDERLINE_RE = re.compile(r"^ {0,3}(?P<marker>=+|-+)[ \t]*$")
 _SETEXT_TEXT_RE = re.compile(r"^ {0,3}(?P<text>\S.*?)\s*$")
 _TRAILING_ATTR_RE = re.compile(r"\s*\{:\s*([^}]*?)\s*\}\s*$")
-_INLINE_MARKUP_RE = re.compile(r"\[([^\]]*)\]\([^)]*\)|[*_`~]")
 _CAPTION_OPEN_RE = re.compile(
     r"^(?P<indent>[ \t]*)///[ \t]+(?P<kind>figure-caption|table-caption)"
     r"(?:[ \t]*\|[ \t]*(.*?))?[ \t]*$"
@@ -410,13 +410,28 @@ def _strip_front_matter(text: str) -> str:
     return parts[2].lstrip("\n") if len(parts) >= 3 else text
 
 
+class _HeadingHtmlTextParser(HTMLParser):
+    """Collect visible heading text while dropping raw inline HTML tags."""
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.parts: list[str] = []
+
+    def handle_data(self, data: str) -> None:
+        self.parts.append(data)
+
+
+def _plain_html_text(raw: str) -> str:
+    """Return text displayed by one raw inline-HTML fragment."""
+    parser = _HeadingHtmlTextParser()
+    parser.feed(raw)
+    parser.close()
+    return "".join(parser.parts)
+
+
 def _heading_display_text(raw: str) -> str:
-    """Approximates the rendered text of a heading line - what
-    ``HeadingsTreeprocessor`` sees via ``itertext()`` once Python-Markdown
-    has parsed it - by unwrapping links and dropping emphasis/code markers.
-    Best-effort: it only has to be good enough to slugify a heading that
-    has no explicit ``{: #id }`` of its own."""
-    return _INLINE_MARKUP_RE.sub(lambda m: m.group(1) or "", raw).strip()
+    """Return the stable plain-text label produced by Markdown inline syntax."""
+    return _plain_html_text(Markdown().convert(raw)).strip()
 
 
 def _heading_details(
