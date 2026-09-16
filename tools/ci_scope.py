@@ -181,6 +181,7 @@ _COMPONENT_FILES: dict[str, frozenset[str]] = {
     "tools/_adopt_toolchain_acceptance_driver.py": frozenset({"diagnostics"}),
     "tools/check_shared_file_wheel.py": frozenset({"pdf"}),
     "tools/pdf_from_site_acceptance.py": frozenset({"pdf"}),
+    "tools/verify_mermaid_provenance.py": frozenset({"pdf"}),
     "tools/zensical_compatibility.py": frozenset({"pdf"}),
     "tools/compatibility/checks.py": frozenset({"pdf"}),
     "tools/compatibility/redirect_browser.cjs": frozenset({"pdf"}),

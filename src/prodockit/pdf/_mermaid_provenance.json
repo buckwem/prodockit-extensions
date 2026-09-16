@@ -1,0 +1,32 @@
+{
+  "schema": 1,
+  "verified_at": "2026-09-16",
+  "runtime_asset": {
+    "name": "mermaid.min.js",
+    "sha256": "74d7c46dabca328c2294733910a8aa1ed0c37451776e8d5295da38a2b758fb9b",
+    "size": 3565102
+  },
+  "mermaidx_source": {
+    "repository": "https://github.com/MohammadRaziei/mermaidx.git",
+    "tag": "v0.9.5",
+    "commit": "d4b83e7ec3ea82235f7fb0ad834ec68e1147a569",
+    "asset_path": "mermaidx/assets/mermaid.js"
+  },
+  "mermaidx_distribution": {
+    "name": "mermaidx",
+    "version": "0.9.5",
+    "wheel_filename": "mermaidx-0.9.5-py3-none-any.whl",
+    "wheel_sha256": "46dfbdc7c101bd5395f05bca2f0917c467b9c5d5c3cbec1fbe238c546b673039",
+    "asset_path": "mermaidx/assets/mermaid.js"
+  },
+  "upstream_npm": {
+    "name": "mermaid",
+    "version": "11.16.0",
+    "tarball_url": "https://registry.npmjs.org/mermaid/-/mermaid-11.16.0.tgz",
+    "tarball_sha1": "dc946bc84bde9d093ba14940d49df1d9f7d8c32f",
+    "tarball_sha256": "ff48c94a0a0458b377a5187ad01407184d2a182e6476c2015b7068ff58355fae",
+    "tarball_sha512": "66f9b791bb2d81da6f2093cf22d94bedfa69219de489bbdcd686481b176f93db7a505cfa7e5bfe270ec5b5118ac1f708f0e724987d382ea1ba2e54ba5f8075a4",
+    "integrity": "sha512-Zvm3kbstgdpvIJPPItlL7fppIZ3kibvc1oZIGxdvk9t6UFz6flv+Jw7FtRGKwfcI8OckmH04LqG6LlS6X4B1pA==",
+    "asset_path": "package/dist/mermaid.min.js"
+  }
+}

@@ -85,6 +85,7 @@ def test_component_acceptance_and_workflow_files_select_their_own_matrix() -> No
         ("src/prodockit/template_sync.py", "adopt"),
         ("src/prodockit/template_prerequisites.py", "adopt"),
         ("tools/pdf_from_site_acceptance.py", "pdf"),
+        ("tools/verify_mermaid_provenance.py", "pdf"),
         ("tools/bootstrap_acceptance.py", "bootstrap"),
         ("tools/bootstrap_live_provider_read_only.py", "bootstrap"),
         ("tools/bootstrap_live_provider_read_write.py", "bootstrap"),
