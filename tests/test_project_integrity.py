@@ -8,6 +8,9 @@ from types import SimpleNamespace
 
 import pytest
 
+from prodockit.pdf._standalone_quickjs import (
+    StandaloneBackendUnavailableError as StandaloneRuntimeUnavailableError,
+)
 from prodockit.project_config import load_project_config
 from prodockit.project_integrity import (
     assert_project_integrity,
@@ -31,6 +34,10 @@ def _messages(config: Path) -> list[str]:
         f"{problem.path}: {problem.message}"
         for problem in inspect_project(load_project_config(config))
     ]
+
+
+def _standalone_unavailable() -> None:
+    raise StandaloneRuntimeUnavailableError("audited runtime unavailable")
 
 
 def test_missing_local_css_and_javascript_are_reported_but_urls_are_allowed(
@@ -309,6 +316,9 @@ def test_configured_mermaid_is_optional_until_a_diagram_uses_it(
     tmp_path: Path, monkeypatch
 ) -> None:
     monkeypatch.setenv("PATH", "")
+    monkeypatch.setattr(
+        "prodockit.project_integrity.require_standalone_runtime", _standalone_unavailable
+    )
     config = _project(
         tmp_path,
         "[project.markdown_extensions.pymdownx.superfences]\n"
@@ -320,12 +330,12 @@ def test_configured_mermaid_is_optional_until_a_diagram_uses_it(
         },
     )
 
-    assert not any("mmdc renderer" in message for message in _messages(config))
+    assert not any("standalone runtime" in message for message in _messages(config))
 
     (tmp_path / "docs" / "index.md").write_text(
         "# Diagram\n\n```mermaid\ngraph LR\n  A --> B\n```\n", encoding="utf-8"
     )
-    assert any("mmdc renderer" in message for message in _messages(config))
+    assert any("standalone runtime is unavailable" in message for message in _messages(config))
 
 
 @pytest.mark.parametrize(
@@ -354,6 +364,9 @@ def test_real_mermaid_fence_beside_quoted_example_still_requires_a_renderer(
     tmp_path: Path, monkeypatch
 ) -> None:
     monkeypatch.setenv("PATH", "")
+    monkeypatch.setattr(
+        "prodockit.project_integrity.require_standalone_runtime", _standalone_unavailable
+    )
     config = _project(
         tmp_path,
         "[project.markdown_extensions.pymdownx.superfences]\n"
@@ -367,11 +380,14 @@ def test_real_mermaid_fence_beside_quoted_example_still_requires_a_renderer(
         },
     )
 
-    assert any("mmdc renderer" in message for message in _messages(config))
+    assert any("standalone runtime is unavailable" in message for message in _messages(config))
 
 
 def test_mermaid_renderer_must_run_not_merely_exist(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setenv("PATH", "")
+    monkeypatch.setattr(
+        "prodockit.project_integrity.require_standalone_runtime", _standalone_unavailable
+    )
     config = _project(
         tmp_path,
         '[project.extra]\npdf_mmdc_bin = "tools/mermaid/mmdc"\n'
@@ -387,7 +403,8 @@ def test_mermaid_renderer_must_run_not_merely_exist(tmp_path: Path, monkeypatch)
         lambda path: SimpleNamespace(path=path, ok=False, error="ERR_MODULE_NOT_FOUND"),
     )
 
-    assert any("cannot run: ERR_MODULE_NOT_FOUND" in message for message in _messages(config))
+    assert any("no usable external mmdc" in message for message in _messages(config))
+    assert any("ERR_MODULE_NOT_FOUND" in message for message in _messages(config))
 
 
 def test_configured_maths_is_optional_until_notation_uses_it(tmp_path: Path) -> None:

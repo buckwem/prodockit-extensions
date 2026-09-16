@@ -12,7 +12,6 @@ import pytest
 from click.testing import CliRunner
 
 import prodockit
-import prodockit.renderer_resilience as renderer_resilience
 from prodockit import diagnostics
 from prodockit import shared_files as shared_file_module
 from prodockit.cli import main
@@ -1042,6 +1041,11 @@ def test_missing_renderers_warn_when_unused_and_fail_when_content_uses_them(
     )
     monkeypatch.setattr("prodockit.diagnostics.shutil.which", lambda _name: None)
 
+    def unavailable() -> None:
+        raise diagnostics.StandaloneRuntimeUnavailableError("runtime unavailable")
+
+    monkeypatch.setattr(diagnostics, "require_standalone_runtime", unavailable)
+
     monkeypatch.setattr(
         diagnostics,
         "_probe_weasyprint_import",
@@ -1071,27 +1075,19 @@ def test_missing_renderers_warn_when_unused_and_fail_when_content_uses_them(
     }
 
 
-def test_mermaid_diagnostic_rejects_an_unusable_local_cli(
+def test_mermaid_diagnostic_rejects_an_unavailable_standalone_runtime(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     config = _project(tmp_path, required=True)
-    binary = tmp_path / "tools" / "mermaid" / "node_modules" / ".bin" / "mmdc"
-    binary.parent.mkdir(parents=True)
-    binary.write_text("incomplete", encoding="utf-8")
     monkeypatch.setattr(
         diagnostics,
         "_command",
         lambda name: diagnostics.CommandInfo(name, "/usr/bin/tool", "1.0"),
     )
-    monkeypatch.setattr(
-        "prodockit.diagnostics.probe_mermaid",
-        lambda path: SimpleNamespace(
-            path=path,
-            ok=False,
-            version=None,
-            error="ERR_MODULE_NOT_FOUND",
-        ),
-    )
+    def unavailable() -> None:
+        raise diagnostics.StandaloneRuntimeUnavailableError("audited runtime unavailable")
+
+    monkeypatch.setattr(diagnostics, "require_standalone_runtime", unavailable)
 
     check = next(
         item
@@ -1100,45 +1096,31 @@ def test_mermaid_diagnostic_rejects_an_unusable_local_cli(
     )
 
     assert check.status == "fail"
-    assert check.summary == "Mermaid CLI is unusable but required by this project"
-    assert "health probe: ERR_MODULE_NOT_FOUND" in check.details
-    assert check.data["error"] == "ERR_MODULE_NOT_FOUND"
+    assert check.summary == "Standalone Mermaid runtime is unavailable but required by this project"
+    assert check.details == ("audited runtime unavailable",)
+    assert check.data["error"] == "audited runtime unavailable"
 
 
-def test_mermaid_diagnostic_warns_when_a_transient_probe_recovers(
+def test_mermaid_diagnostic_accepts_the_standalone_runtime(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     config = _project(tmp_path, required=True)
-    binary = tmp_path / "tools" / "mermaid" / "node_modules" / ".bin" / "mmdc"
-    binary.parent.mkdir(parents=True)
-    binary.write_text("installed", encoding="utf-8")
     monkeypatch.setattr(
         diagnostics,
         "_command",
         lambda name: diagnostics.CommandInfo(name, "/usr/bin/tool", "1.0"),
     )
-    notices = []
-    monkeypatch.setattr(
-        "prodockit.diagnostics.probe_mermaid",
-        lambda path, **_kwargs: SimpleNamespace(
-            path=path,
-            ok=True,
-            version="11.12.0",
-            error=None,
-            attempts=2,
-            transient_failures=("ensure slot is connected",),
-        ),
-    )
+    monkeypatch.setattr(diagnostics, "require_standalone_runtime", lambda: None)
 
     check = next(
         item
-        for item in diagnostics._renderer_checks(config, tmp_path, retry_reporter=notices.append)
+        for item in diagnostics._renderer_checks(config, tmp_path)
         if item.id == "renderer.mermaid"
     )
 
-    assert check.status == "warn"
-    assert check.summary == "Mermaid CLI recovered after a transient failure"
-    assert "health probe: recovered after 2 attempts" in check.details
+    assert check.status == "pass"
+    assert check.summary == "Standalone Mermaid runtime is available"
+    assert check.data["backend"] == "standalone"
 
 
 def test_mathjax_diagnostic_rejects_inputs_that_cannot_render(
@@ -1226,101 +1208,6 @@ def test_browser_diagnostic_does_not_launch_a_configured_browser(
         "version": None,
         "error": None,
     }
-
-
-def test_successful_mermaid_render_proves_its_bundled_browser(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    binary = tmp_path / "tools" / "mermaid" / "node_modules" / ".bin" / "mmdc"
-    binary.parent.mkdir(parents=True)
-    binary.write_text("installed", encoding="utf-8")
-    monkeypatch.setattr(diagnostics, "find_browser", lambda: None)
-    monkeypatch.setattr(
-        diagnostics,
-        "_command",
-        lambda name: diagnostics.CommandInfo(name, "/usr/bin/tool", "1.0"),
-    )
-    monkeypatch.setattr(
-        diagnostics,
-        "probe_mermaid",
-        lambda path: SimpleNamespace(path=path, ok=True, version="11.16.0", error=None, attempts=1),
-    )
-
-    check = next(
-        item
-        for item in diagnostics._renderer_checks(_project(tmp_path, required=True), tmp_path)
-        if item.id == "renderer.browser"
-    )
-
-    assert check.status == "pass"
-    assert check.summary == "Mermaid bundled browser rendered successfully"
-    assert check.data["bundled"] is True
-    assert check.data["path"] is None
-
-
-def test_mermaid_security_audit_is_explicitly_skipped_offline(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    lockfile = tmp_path / "tools" / "mermaid" / "package-lock.json"
-    lockfile.parent.mkdir(parents=True)
-    lockfile.write_text("{}\n", encoding="utf-8")
-    monkeypatch.setattr(
-        diagnostics,
-        "_run",
-        lambda *_args, **_kwargs: pytest.fail("offline diagnostics ran npm audit"),
-    )
-
-    check = diagnostics._node_security_checks(tmp_path, online=False)[0]
-
-    assert check.status == "pass"
-    assert check.summary == "Mermaid security audit skipped in offline mode"
-    assert check.data == {"checked": False, "reason": "offline", "level": "moderate"}
-
-
-def test_online_mermaid_security_audit_reports_advisories(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    tool_root = tmp_path / "tools" / "mermaid"
-    tool_root.mkdir(parents=True)
-    (tool_root / "package-lock.json").write_text("{}\n", encoding="utf-8")
-    monkeypatch.setattr("prodockit.diagnostics.shutil.which", lambda name: f"/bin/{name}")
-
-    def audit(
-        command: list[str], *, cwd: Path | None = None, timeout: float = 10.0
-    ) -> subprocess.CompletedProcess[str]:
-        assert command == [
-            "/bin/npm",
-            "audit",
-            "--omit=dev",
-            "--audit-level=moderate",
-            "--json",
-        ]
-        assert cwd == tool_root
-        assert timeout == 60
-        payload = {
-            "metadata": {
-                "vulnerabilities": {
-                    "low": 1,
-                    "moderate": 2,
-                    "high": 1,
-                    "critical": 0,
-                }
-            }
-        }
-        return subprocess.CompletedProcess(command, 1, json.dumps(payload), "")
-
-    monkeypatch.setattr(diagnostics, "_run", audit)
-
-    check = diagnostics._node_security_checks(tmp_path, online=True)[0]
-
-    assert check.status == "warn"
-    assert check.summary == "Mermaid dependencies have 3 moderate-or-higher advisories"
-    assert check.details == (
-        "low: 1",
-        "moderate: 2",
-        "high: 1",
-        "run `npm audit --omit=dev` in tools/mermaid for remediation detail",
-    )
 
 
 def test_diag_json_is_stable_and_failures_set_the_exit_status(
@@ -1495,7 +1382,7 @@ def test_independent_project_repairs_never_use_template_sync() -> None:
         if choice.internal_operation is not None
     ]
 
-    assert "renderer.mermaid.install-locked" in operations
+    assert "renderer.mermaid.install-locked" not in operations
     assert "renderer.mathjax.install-locked" in operations
     assert not any(operation and "template-sync" in operation for operation in operations)
     template = next(
@@ -1648,8 +1535,8 @@ def test_diag_dry_run_text_says_commands_could_run(
 
     assert result.exit_code == 1
     assert "nothing will be changed" in result.output
-    assert "--online --apply --apply-check renderer.mermaid" in result.output
-    assert "MANUAL — online" in result.output
+    assert "Repair the declared Python requirements" in result.output
+    assert "REFUSED — prohibited" in result.output
     assert "Apply this repair?" not in result.output
 
 
@@ -1678,7 +1565,7 @@ def test_diag_repair_output_uses_bootstrap_phases_stages_and_colours(
     assert "Phase 2/2 — Summary" in result.output
     assert "\x1b[94m" in result.output  # bootstrap bright-blue phase boundary
     assert "\x1b[34m" in result.output  # bootstrap blue activity boundary
-    assert "\x1b[38;2;230;159;0m" in result.output  # amber warning/action styling
+    assert "\x1b[95m" in result.output  # prohibited repair styling
 
 
 def test_diag_rejects_incompatible_or_unknown_dry_run_options(
@@ -2225,130 +2112,26 @@ def test_stage5_refuses_yaml_and_unknown_local_assets(tmp_path: Path) -> None:
     assert check.data["repairable_problems"] == []
 
 
-def test_stage4_requires_online_mode_and_rejects_custom_renderer_paths() -> None:
-    base_checks = (
-        DiagnosticResult("renderer.node", "Rendering toolchain", "pass", "Node available"),
-        DiagnosticResult("renderer.npm", "Rendering toolchain", "pass", "npm available"),
-        DiagnosticResult(
-            "renderer.mermaid",
-            "Rendering toolchain",
-            "fail",
-            "Mermaid missing",
-            data={"repair_refusal": "project.extra.pdf_mmdc_bin selects a custom path"},
+def test_mermaid_runtime_failures_are_not_offered_an_npm_repair() -> None:
+    report = DiagnosticReport(
+        "zensical.toml",
+        ".",
+        True,
+        (
+            DiagnosticResult(
+                "renderer.mermaid",
+                "Rendering toolchain",
+                "fail",
+                "Standalone Mermaid runtime is unavailable",
+            ),
         ),
     )
 
-    offline = diagnostics.build_repair_dry_run(
-        DiagnosticReport("zensical.toml", ".", False, base_checks)
-    )
-    online = diagnostics.build_repair_dry_run(
-        DiagnosticReport("zensical.toml", ".", True, base_checks)
-    )
+    candidate = diagnostics.build_repair_dry_run(report).candidates[0]
 
-    assert (
-        next(c for c in offline.candidates if c.check_id == "renderer.mermaid").status == "manual"
-    )
-    assert (
-        next(c for c in online.candidates if c.check_id == "renderer.mermaid").status == "refused"
-    )
-
-
-def test_stage4_locked_mermaid_repair_uses_npm_ci_and_verifies(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    config = tmp_path / "zensical.toml"
-    config.write_text('[project]\nsite_name = "Example"\n', encoding="utf-8")
-    expected = diagnostics._renderer_plan_fingerprint(tmp_path, "mermaid")
-    monkeypatch.setattr(
-        "prodockit.diagnostics.shutil.which",
-        lambda name: f"/usr/bin/{name}" if name in {"node", "npm"} else None,
-    )
-    monkeypatch.setattr(
-        diagnostics,
-        "_command",
-        lambda name: diagnostics.CommandInfo(name, f"/usr/bin/{name}", "1.0"),
-    )
-    commands: list[list[str]] = []
-
-    def npm_ci(command: list[str], **kwargs):
-        commands.append(command)
-        binary = tmp_path / "tools/mermaid/node_modules/.bin/mmdc"
-        binary.parent.mkdir(parents=True)
-        binary.write_text("installed", encoding="utf-8")
-        return subprocess.CompletedProcess(command, 0, "", "")
-
-    monkeypatch.setattr("prodockit.renderer_resilience.run_installer", npm_ci)
-    monkeypatch.setattr(
-        "prodockit.diagnostics.probe_mermaid",
-        lambda path: SimpleNamespace(ok=True, error=None, version="11.0", path=path),
-    )
-
-    result = diagnostics.repair_locked_renderer(
-        tmp_path,
-        "mermaid",
-        expected_fingerprint=expected,
-        timestamp="stage4-mermaid",
-    )
-
-    assert result.status == "applied"
-    assert commands[0][1] == "ci"
-    assert (tmp_path / "tools/mermaid/package-lock.json").is_file()
-
-
-def test_stage4_renderer_repair_retries_transient_npm_inside_one_transaction(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    (tmp_path / "zensical.toml").write_text('[project]\nsite_name = "Example"\n', encoding="utf-8")
-    expected = diagnostics._renderer_plan_fingerprint(tmp_path, "mermaid")
-    monkeypatch.setattr(
-        "prodockit.diagnostics.shutil.which",
-        lambda name: f"/usr/bin/{name}" if name in {"node", "npm"} else None,
-    )
-    monkeypatch.setattr(
-        diagnostics,
-        "_command",
-        lambda name: diagnostics.CommandInfo(name, f"/usr/bin/{name}", "1.0"),
-    )
-    attempts = []
-
-    def npm_ci(command: list[str], **_kwargs):
-        attempts.append(command)
-        modules = tmp_path / "tools/mermaid/node_modules"
-        if len(attempts) == 1:
-            modules.mkdir(parents=True)
-            (modules / "partial").write_text("partial", encoding="utf-8")
-            return subprocess.CompletedProcess(command, 1, "", "npm ERR! code EAI_AGAIN")
-        assert not modules.exists()
-        binary = modules / ".bin/mmdc"
-        binary.parent.mkdir(parents=True)
-        binary.write_text("installed", encoding="utf-8")
-        return subprocess.CompletedProcess(command, 0, "", "")
-
-    monkeypatch.setattr("prodockit.renderer_resilience.run_installer", npm_ci)
-    monkeypatch.setattr(renderer_resilience.time, "sleep", lambda _delay: None)
-    monkeypatch.setattr(
-        "prodockit.diagnostics.probe_mermaid",
-        lambda path, **_kwargs: SimpleNamespace(ok=True, error=None, version="11.0", path=path),
-    )
-    notices = []
-
-    result = diagnostics.repair_locked_renderer(
-        tmp_path,
-        "mermaid",
-        expected_fingerprint=expected,
-        timestamp="stage4-mermaid-retry",
-        retry_reporter=notices.append,
-    )
-
-    assert result.status == "applied"
-    assert len(attempts) == 2
-    assert len(notices) == 1
-    manifest = json.loads(
-        (
-            tmp_path / ".prodockit-quarantine/diagnostics/stage4-mermaid-retry/manifest.json"
-        ).read_text(encoding="utf-8")
-    )
-    assert manifest["status"] == "applied"
+    assert candidate.status == "refused"
+    assert candidate.disposition == "prohibited"
+    assert candidate.choices == ()
 
 
 def test_stage4_mathjax_repair_regenerates_browser_assets(
@@ -2398,11 +2181,11 @@ def test_stage4_failed_install_restores_generated_content(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     (tmp_path / "zensical.toml").write_text('[project]\nsite_name = "Example"\n', encoding="utf-8")
-    diagnostics.init_tools(tmp_path / "tools", components=("mermaid",))
-    marker = tmp_path / "tools/mermaid/node_modules/author-marker"
+    diagnostics.init_tools(tmp_path / "tools", components=("mathjax",))
+    marker = tmp_path / "tools/mathjax/node_modules/author-marker"
     marker.parent.mkdir(parents=True)
     marker.write_text("restore me", encoding="utf-8")
-    expected = diagnostics._renderer_plan_fingerprint(tmp_path, "mermaid")
+    expected = diagnostics._renderer_plan_fingerprint(tmp_path, "mathjax")
     monkeypatch.setattr(
         "prodockit.diagnostics.shutil.which",
         lambda name: f"/usr/bin/{name}" if name in {"node", "npm"} else None,
@@ -2422,7 +2205,7 @@ def test_stage4_failed_install_restores_generated_content(
     with pytest.raises(diagnostics.RepairTransactionError, match="rolled back"):
         diagnostics.repair_locked_renderer(
             tmp_path,
-            "mermaid",
+            "mathjax",
             expected_fingerprint=expected,
             timestamp="stage4-rollback",
         )
@@ -2443,7 +2226,7 @@ def test_stage4_refuses_author_package_scripts(tmp_path: Path) -> None:
         nav_pages=(),
         markdown_extensions={},
     )
-    tools = tmp_path / "tools/mermaid"
+    tools = tmp_path / "tools/mathjax"
     tools.mkdir(parents=True)
     (tools / "package.json").write_text(
         '{"scripts":{"postinstall":"do-something"},"dependencies":{}}',
@@ -2453,7 +2236,7 @@ def test_stage4_refuses_author_package_scripts(tmp_path: Path) -> None:
         '{"packages":{"":{"dependencies":{}}}}', encoding="utf-8"
     )
 
-    refusal = diagnostics._locked_renderer_refusal(tmp_path, config, "mermaid")
+    refusal = diagnostics._locked_renderer_refusal(tmp_path, config, "mathjax")
 
     assert refusal == "package.json contains author lifecycle scripts"
 
@@ -2637,7 +2420,6 @@ def test_author_guide_documents_every_stable_check_id() -> None:
         "renderer.browser",
         "renderer.mathjax",
         "renderer.inspection",
-        "renderer.mermaid-security",
         "renderer.security-inspection",
         "repository.git",
         "repository.template-metadata",
@@ -2649,23 +2431,20 @@ def test_author_guide_documents_every_stable_check_id() -> None:
     assert not {check_id for check_id in check_ids if f"`{check_id}`" not in guide}
 
 
-@pytest.mark.parametrize("component", ["mermaid", "mathjax"])
-def test_each_managed_renderer_security_lookup_is_explicit_offline(tmp_path, monkeypatch, component):
-    tool_root = tmp_path / "tools" / component
+def test_managed_mathjax_security_lookup_is_explicit_offline(tmp_path, monkeypatch):
+    tool_root = tmp_path / "tools/mathjax"
     tool_root.mkdir(parents=True)
     (tool_root / "package-lock.json").write_text("{}")
     monkeypatch.setattr(diagnostics, "_run", lambda *a, **kw: pytest.fail("offline network request"))
     checks = {check.id: check for check in diagnostics._node_security_checks(tmp_path, False)}
-    assert checks[f"renderer.{component}-security"].data["reason"] == "offline"
-    other = "mathjax" if component == "mermaid" else "mermaid"
-    assert checks[f"renderer.{other}-security"].data["reason"] == "not-configured"
+    assert checks["renderer.mathjax-security"].data["reason"] == "offline"
+    assert "renderer.mermaid-security" not in checks
 
 
-def test_mathjax_advisories_are_reported_separately_from_clean_mermaid(tmp_path, monkeypatch):
-    for component in ("mermaid", "mathjax"):
-        tool_root = tmp_path / "tools" / component
-        tool_root.mkdir(parents=True)
-        (tool_root / "package-lock.json").write_text("{}")
+def test_mathjax_advisories_are_reported(tmp_path, monkeypatch):
+    tool_root = tmp_path / "tools/mathjax"
+    tool_root.mkdir(parents=True)
+    (tool_root / "package-lock.json").write_text("{}")
     calls = []
     monkeypatch.setattr(diagnostics.shutil, "which", lambda name: "/bin/npm")
 
@@ -2678,8 +2457,7 @@ def test_mathjax_advisories_are_reported_separately_from_clean_mermaid(tmp_path,
 
     monkeypatch.setattr(diagnostics, "_run", audit)
     checks = {check.id: check for check in diagnostics._node_security_checks(tmp_path, True)}
-    assert calls == ["mermaid", "mathjax"]
-    assert checks["renderer.mermaid-security"].status == "pass"
+    assert calls == ["mathjax"]
     mathjax = checks["renderer.mathjax-security"]
     assert mathjax.status == "warn"
     assert mathjax.summary == "MathJax dependencies have 2 moderate-or-higher advisories"

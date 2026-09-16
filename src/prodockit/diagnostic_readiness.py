@@ -107,7 +107,6 @@ def checks(config: ProjectConfig) -> list[DiagnosticResult]:
         candidates = [
             ".venv/pyvenv.cfg",
             "__pycache__/probe.pyc",
-            "tools/mermaid/node_modules/probe",
             "tools/mathjax/node_modules/probe",
         ]
         for path in (config.site_dir, config.docs_dir / ".prodockit-pdf-mermaid"):
@@ -129,9 +128,8 @@ def checks(config: ProjectConfig) -> list[DiagnosticResult]:
             "ls-files",
             "--",
             ".venv",
-            "tools/mermaid/node_modules",
             "tools/mathjax/node_modules",
-            *[p.removesuffix("/probe") for p in candidates[4:]],
+            *[p.removesuffix("/probe") for p in candidates[3:]],
         )
         problems = []
         if any(code not in {0, 1} for code in ignore_results.values()):

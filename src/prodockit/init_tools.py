@@ -1,27 +1,12 @@
 # Copyright (c) 2026 Mark Buckwell and contributors
 # SPDX-License-Identifier: MIT
 
-"""Scaffold Node tooling for TeX maths and optional legacy Mermaid rendering.
+"""Scaffold the remaining Node tooling used for TeX maths.
 
-WeasyPrint has no JS engine. The default Mermaid PDF backend uses the audited
-Python runtime, while TeX maths still uses a `tex2svg` script. The Mermaid
-scaffold remains available for the explicit ``prodockit pdf --swap`` rollback.
-The maths scaffold also includes Puppeteer Core so a maths-only project can
-verify browser output without installing the Mermaid renderer.
-`prodockit.pdf.config` looks for those in a specific place
-(`tools/mermaid/node_modules/.bin/mmdc` and `tools/mathjax/tex2svg.js`),
-and until now the library required that layout without providing it - every
-consuming project hand-wrote the same two `package.json` files, their
-lockfiles, and the same `tex2svg.js`.
-
-That went wrong independently in all three projects using it: one had no
-`tools/` directory at all and shipped PDFs full of raw `flowchart LR ...`
-source, two set the pre-rename `PUPPETEER_SKIP_CHROMIUM_DOWNLOAD` (which
-puppeteer 25.x, what mermaid-cli 11.x resolves to, ignores - so every CI
-run downloaded a Chrome build it then discarded), and one committed two
-config files nothing reads. Hence `prodockit init-tools`: the canonical
-copies live here, pinned in one place. Shipping the matching lockfiles lets
-callers use deterministic `npm ci` installs and reuse npm's download cache.
+Mermaid PDF rendering is Python-only by default. The explicit ``--swap``
+compatibility path may use an author-supplied ``mmdc``, but ProDockit no
+longer creates or owns a Mermaid npm installation. MathJax still uses a
+project-local ``tex2svg`` script and Puppeteer Core.
 
 The scaffold stops at writing files. Running `npm ci` is left to the
 caller - it is the step that needs the network, and a build tool silently
@@ -38,13 +23,11 @@ from pathlib import Path
 
 #: Files copied for each component, relative to that component's directory.
 COMPONENT_FILES: dict[str, tuple[str, ...]] = {
-    "mermaid": ("package.json", "package-lock.json"),
     "mathjax": ("package.json", "package-lock.json", "tex2svg.js"),
 }
 
 #: What each component is for, in the words the CLI reports.
 COMPONENT_PURPOSE: dict[str, str] = {
-    "mermaid": "Mermaid diagrams (```mermaid fences)",
     "mathjax": "TeX maths ($...$ / $$...$$)",
 }
 
@@ -72,7 +55,7 @@ class InitToolsResult:
 def init_tools(
     tools_dir: str | Path = "tools",
     *,
-    components: tuple[str, ...] = ("mermaid", "mathjax"),
+    components: tuple[str, ...] = ("mathjax",),
     force: bool = False,
 ) -> InitToolsResult:
     """Copies the packaged tooling templates into `tools_dir`.
@@ -138,7 +121,6 @@ def gitignore_lines(result: InitToolsResult) -> list[str]:
         for component in result.components
     ]
 
-
 def install_commands(result: InitToolsResult) -> list[str]:
     """The `npm` commands that turn the scaffold into a working install."""
     return [
@@ -147,18 +129,3 @@ def install_commands(result: InitToolsResult) -> list[str]:
         + "--no-audit --no-fund --prefer-offline"
         for component in result.components
     ]
-
-
-def ci_environment() -> dict[str, str]:
-    """Environment variables a CI run wants when installing mermaid-cli.
-
-    `PUPPETEER_SKIP_DOWNLOAD` is deliberately spelled out here because the
-    older `PUPPETEER_SKIP_CHROMIUM_DOWNLOAD` is what everyone reaches for
-    and puppeteer 25.x - what mermaid-cli 11.x resolves to - silently
-    ignores it, downloading a full Chrome build on every run before falling
-    back to whatever `PUPPETEER_EXECUTABLE_PATH` points at anyway.
-    """
-    return {
-        "PUPPETEER_SKIP_DOWNLOAD": "true",
-        "PUPPETEER_EXECUTABLE_PATH": "/usr/bin/google-chrome-stable",
-    }

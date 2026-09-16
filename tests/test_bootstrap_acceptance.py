@@ -66,60 +66,6 @@ def test_real_software_keeps_the_same_machine_and_repository_scope() -> None:
         assert stages[stage_id].check.__module__ != bootstrap_acceptance_driver.__name__
 
 
-def test_real_mermaid_probe_retries_the_ubuntu_snap_content_race(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    transient = bootstrap_acceptance_driver.CommandResult(
-        1,
-        stderr=(
-            "Content snap GPU wrapper '/snap/chromium/gpu-2404/bin/"
-            "gpu-2404-provider-wrapper' not found: ensure slot is connected"
-        ),
-    )
-    passed = bootstrap_acceptance_driver.CommandResult(0)
-    system = SequentialSystemRunner((transient, passed))
-    runner = bootstrap_acceptance_driver.HarnessRunner(
-        {}, "git@example.invalid:group/project.git", home=tmp_path, real_software=True
-    )
-    runner.system = system
-    delays = []
-    monkeypatch.setattr(bootstrap_acceptance_driver.time, "sleep", delays.append)
-    command = ["bash", "-c", "exec \"$@\"", "prodockit-mermaid-probe", "mmdc"]
-
-    result = runner.run(command, timeout=30)
-
-    assert result.returncode == 0
-    assert len(system.calls) == 2
-    assert delays == [5]
-    assert runner.calls == [command, command]
-
-
-def test_real_mermaid_probe_does_not_retry_a_deterministic_failure(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    failure = bootstrap_acceptance_driver.CommandResult(
-        1, stderr="Error: Mermaid syntax is invalid"
-    )
-    system = SequentialSystemRunner((failure,))
-    runner = bootstrap_acceptance_driver.HarnessRunner(
-        {}, "git@example.invalid:group/project.git", home=tmp_path, real_software=True
-    )
-    runner.system = system
-    monkeypatch.setattr(
-        bootstrap_acceptance_driver.time,
-        "sleep",
-        lambda _delay: pytest.fail("a deterministic failure was retried"),
-    )
-
-    result = runner.run(
-        ["bash", "-c", "exec \"$@\"", "prodockit-mermaid-probe", "mmdc"],
-        timeout=30,
-    )
-
-    assert result.returncode == 1
-    assert len(system.calls) == 1
-
-
 def test_real_software_repository_fixture_has_actual_toolchain_locks(
     tmp_path: Path,
 ) -> None:
@@ -127,12 +73,10 @@ def test_real_software_repository_fixture_has_actual_toolchain_locks(
         tmp_path, marker="Native upgrade", real_toolchains=True
     )
 
-    assert (tmp_path / "tools" / "mermaid" / "package.json").is_file()
-    assert (tmp_path / "tools" / "mermaid" / "package-lock.json").is_file()
+    assert not (tmp_path / "tools" / "mermaid").exists()
     assert (tmp_path / "tools" / "mathjax" / "package.json").is_file()
     assert (tmp_path / "tools" / "mathjax" / "package-lock.json").is_file()
     assert (tmp_path / "tools" / "mathjax" / "tex2svg.js").is_file()
-    assert not (tmp_path / "tools" / "mermaid" / "node_modules").exists()
 
 
 def test_real_windows_software_uses_the_native_user_application_home(tmp_path: Path) -> None:
@@ -386,45 +330,3 @@ def test_driver_never_imports_the_source_bootstrap_test_harness() -> None:
     assert "tests.bootstrap_cli_harness" not in driver
     assert "git clone" not in driver, "repository commands go through argument lists"
     assert "gitlab.surrey.ac.uk" not in driver, "host addresses come from the wheel"
-
-
-def test_ubuntu_npm_commands_install_toolchains_before_resolving_chromium(
-    tmp_path: Path,
-) -> None:
-    runner = bootstrap_acceptance_driver.HarnessRunner(
-        {},
-        "git@example.invalid:group/project.git",
-        home=tmp_path,
-        old_software=True,
-    )
-    prefix = tmp_path / "project" / "tools" / "mermaid"
-    command = [
-        "bash",
-        "-c",
-        (
-            "export PUPPETEER_EXECUTABLE_PATH=$(which chromium-browser || "
-            f"which chromium); cd {prefix} && npm ci"
-        ),
-    ]
-
-    result = runner.run(command)
-
-    assert result.returncode == 0
-    assert (prefix / "node_modules" / ".bin" / "mmdc").is_file()
-
-
-def test_old_software_runner_accepts_the_mermaid_health_render(tmp_path: Path) -> None:
-    runner = bootstrap_acceptance_driver.HarnessRunner(
-        {},
-        "git@example.invalid:group/project.git",
-        home=tmp_path,
-        old_software=True,
-    )
-    source = tmp_path / "health.mmd"
-    output = tmp_path / "health.svg"
-    source.write_text("graph LR\n  A --> B\n", encoding="utf-8")
-
-    result = runner.run([str(tmp_path / "mmdc"), "-i", str(source), "-o", str(output)])
-
-    assert result.returncode == 0
-    assert output.read_text(encoding="utf-8") == "<svg></svg>\n"

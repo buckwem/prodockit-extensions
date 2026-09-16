@@ -34,7 +34,7 @@ OLD_PRODOCKIT_VERSION = "0.47.0"
 
 
 def renderer_versions(project: Path) -> dict[str, str]:
-    packages = {"mermaid": "@mermaid-js/mermaid-cli", "mathjax": "mathjax-full"}
+    packages = {"mathjax": "mathjax-full"}
     result = {}
     for component, package in packages.items():
         path = project / "tools" / component / "node_modules" / package / "package.json"
@@ -216,8 +216,7 @@ def main(arguments: list[str] | None = None) -> int:
                     str(python),
                     "-c",
                     "import json; from prodockit.adopt_renderers import expected_version; "
-                    "print(json.dumps({name: expected_version(name) "
-                    "for name in ('mermaid', 'mathjax')}))",
+                    "print(json.dumps({'mathjax': expected_version('mathjax')}))",
                 ],
                 cwd=project,
             ).stdout

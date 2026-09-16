@@ -15,7 +15,6 @@ import click
 import pytest
 from click.testing import CliRunner
 
-import prodockit.renderer_resilience as renderer_resilience
 from prodockit import __version__
 from prodockit.adopt import (
     CORE_EXTENSIONS,
@@ -26,12 +25,12 @@ from prodockit.adopt import (
     AdoptOptions,
     Step,
     _mermaid_bin,
+    apply_step,
     assess,
     ensure_javascripts,
     ensure_requirement,
     ensure_stylesheet,
     ensure_stylesheets,
-    ensure_tools,
     ensure_zensical_config,
     install_tool,
     load_manifest,
@@ -42,6 +41,9 @@ from prodockit.adopt import (
     apply as apply_adoption,
 )
 from prodockit.cli import main
+from prodockit.pdf._standalone_quickjs import (
+    StandaloneBackendUnavailableError as StandaloneRuntimeUnavailableError,
+)
 from prodockit.pins import TESTED_VERSIONS
 from prodockit.project_config import load_project_config
 from prodockit.shared_files import resource_bytes
@@ -55,16 +57,9 @@ def _supported_toolchain(monkeypatch: pytest.MonkeyPatch) -> None:
     tests describe an already-supported active environment.
     """
 
-    from prodockit.adopt_browser import BrowserPlan
     from prodockit.adopt_node import NodePlan
 
     monkeypatch.setattr("prodockit.adopt_node.plan", lambda **kwargs: NodePlan())
-    monkeypatch.setattr("prodockit.adopt_browser.plan", lambda *args, **kwargs: BrowserPlan())
-    monkeypatch.setattr(
-        "prodockit.adopt_browser.prepare",
-        lambda *args, **kwargs: {"PUPPETEER_SKIP_DOWNLOAD": "true"},
-    )
-    monkeypatch.setattr("prodockit.adopt_browser.complete", lambda *args, **kwargs: None)
     monkeypatch.setattr(
         "prodockit.toolchain.installed_python_version",
         lambda: TESTED_VERSIONS["python"],
@@ -264,7 +259,7 @@ def test_renderer_blocker_summary_is_prominently_coloured(tmp_path, monkeypatch)
 
     result = CliRunner().invoke(
         main,
-        ["adopt", "--apply", "--mermaid", "--no-maths"],
+        ["adopt", "--apply", "--no-mermaid", "--maths"],
         color=True,
     )
 
@@ -1224,40 +1219,20 @@ custom_fences = [{ name = "mermaid" }]
     assert f"Will save: {project / MANIFEST}" in verbose.output
 
 
-@pytest.mark.parametrize("offline", [True, False])
-def test_mermaid_install_uses_only_the_selected_node_project(
-    tmp_path: Path, monkeypatch, offline: bool
+def test_mermaid_adoption_does_not_own_or_modify_node_project(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     project = _project(tmp_path)
-    monkeypatch.setattr("prodockit.adopt.shutil.which", lambda _name: "/usr/bin/npm")
+    author_file = project / "tools/mermaid/package.json"
+    author_file.parent.mkdir(parents=True)
+    author_file.write_text('{"name": "author-owned"}\n', encoding="utf-8")
+    monkeypatch.setattr("prodockit.adopt.require_standalone_runtime", lambda: None)
 
-    def npm(command, **kwargs):
-        assert command[0] == "/usr/bin/npm"
-        assert command == [
-            "/usr/bin/npm",
-            "ci",
-            "--no-audit",
-            "--no-fund",
-            "--offline" if offline else "--prefer-offline",
-        ]
-        assert kwargs["cwd"] == project / "tools" / "mermaid"
-        binary = project / "tools" / "mermaid" / "node_modules" / ".bin" / "mmdc"
-        binary.parent.mkdir(parents=True)
-        binary.write_text("renderer", encoding="utf-8")
-        return SimpleNamespace(returncode=0, stdout="", stderr="")
+    written = apply_step(project, AdoptOptions(mermaid=True), "mermaid")
 
-    monkeypatch.setattr("prodockit.renderer_resilience.run_installer", npm)
-    monkeypatch.setattr(
-        "prodockit.adopt.probe_mermaid",
-        lambda path: SimpleNamespace(path=path, ok=True, version="11.0.0", error=None),
-    )
-
-    written = install_tool(project, "mermaid", offline=offline)
-
-    lock = project / "tools" / "mermaid" / "package-lock.json"
-    assert written.count(lock) == 1
-    assert (project / "tools" / "mermaid" / "node_modules" / ".bin" / "mmdc").is_file()
-    assert not (project / "tools" / "mathjax").exists()
+    assert author_file.read_text(encoding="utf-8") == '{"name": "author-owned"}\n'
+    assert not (project / "tools/mermaid/package-lock.json").exists()
+    assert all("tools/mermaid" not in path.as_posix() for path in written)
 
 
 def test_mermaid_health_prefers_the_runnable_windows_command_shim(
@@ -1338,128 +1313,25 @@ def test_maths_install_rejects_npm_success_when_renderer_probe_fails(
         install_tool(project, "mathjax")
 
 
-def test_custom_node_manifest_is_backed_up_before_locked_install(
-    tmp_path: Path, monkeypatch
-) -> None:
-    project = _project(tmp_path)
-    manifest = project / "tools" / "mermaid" / "package.json"
-    manifest.parent.mkdir(parents=True)
-    manifest.write_text('{"name": "author-owned"}\n', encoding="utf-8")
-    monkeypatch.setattr("prodockit.adopt.shutil.which", lambda _name: "/usr/bin/npm")
-
-    def npm(command, **kwargs):
-        assert command == [
-            "/usr/bin/npm",
-            "ci",
-            "--no-audit",
-            "--no-fund",
-            "--prefer-offline",
-        ]
-        binary = project / "tools" / "mermaid" / "node_modules" / ".bin" / "mmdc"
-        binary.parent.mkdir(parents=True)
-        binary.write_text("renderer", encoding="utf-8")
-        return SimpleNamespace(returncode=0, stdout="", stderr="")
-
-    monkeypatch.setattr("prodockit.renderer_resilience.run_installer", npm)
-    monkeypatch.setattr(
-        "prodockit.adopt.probe_mermaid",
-        lambda path: SimpleNamespace(path=path, ok=True, version="11.0.0", error=None),
-    )
-
-    install_tool(project, "mermaid")
-
-    assert (manifest.parent / "package-lock.json").exists()
-    backups = list((project / ".prodockit-adopt-backups").rglob("package.json"))
-    assert len(backups) == 1
-    assert backups[0].read_text() == '{"name": "author-owned"}\n'
-
-
-def test_mermaid_install_rejects_npm_success_when_cli_probe_fails(
-    tmp_path: Path, monkeypatch
-) -> None:
-    project = _project(tmp_path)
-    monkeypatch.setattr("prodockit.adopt.shutil.which", lambda _name: "/usr/bin/npm")
-
-    def npm(_command, **_kwargs):
-        binary = project / "tools" / "mermaid" / "node_modules" / ".bin" / "mmdc"
-        binary.parent.mkdir(parents=True)
-        binary.write_text("incomplete", encoding="utf-8")
-        return SimpleNamespace(returncode=0, stdout="", stderr="")
-
-    monkeypatch.setattr("prodockit.renderer_resilience.run_installer", npm)
-    monkeypatch.setattr(
-        "prodockit.adopt.probe_mermaid",
-        lambda path: SimpleNamespace(
-            path=path,
-            ok=False,
-            version=None,
-            error="ERR_MODULE_NOT_FOUND",
-        ),
-    )
-
-    with pytest.raises(AdoptError, match="npm completed but Mermaid CLI is unusable"):
-        install_tool(project, "mermaid")
-
-
-def test_mermaid_install_retries_a_completed_transient_npm_failure(
+def test_adoption_readiness_rejects_unavailable_standalone_mermaid(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    project = _project(tmp_path)
-    monkeypatch.setattr("prodockit.adopt.shutil.which", lambda _name: "/usr/bin/npm")
-    attempts = []
-
-    def npm(command, **_kwargs):
-        attempts.append(command)
-        modules = project / "tools/mermaid/node_modules"
-        if len(attempts) == 1:
-            modules.mkdir(parents=True)
-            (modules / "partial").write_text("partial", encoding="utf-8")
-            return subprocess.CompletedProcess(command, 1, "", "npm ERR! code ECONNRESET")
-        assert not modules.exists()
-        binary = modules / ".bin/mmdc"
-        binary.parent.mkdir(parents=True)
-        binary.write_text("renderer", encoding="utf-8")
-        return subprocess.CompletedProcess(command, 0, "", "")
-
-    monkeypatch.setattr("prodockit.renderer_resilience.run_installer", npm)
-    monkeypatch.setattr(renderer_resilience.time, "sleep", lambda _delay: None)
-    monkeypatch.setattr(
-        "prodockit.adopt.probe_mermaid",
-        lambda path, **_kwargs: SimpleNamespace(path=path, ok=True, version="11.0.0", error=None),
-    )
-    notices = []
-
-    install_tool(project, "mermaid", retry_reporter=notices.append)
-
-    assert len(attempts) == 2
-    assert len(notices) == 1
-    assert notices[0].attempt == 1
-
-
-def test_adoption_readiness_rejects_an_unusable_mermaid_cli(tmp_path: Path, monkeypatch) -> None:
     project = _project(tmp_path)
     options = AdoptOptions(mermaid=True, maths=False)
     ensure_requirement(project)
     ensure_stylesheet(project)
     ensure_zensical_config(project, options)
-    ensure_tools(project, options)
-    binary = project / "tools" / "mermaid" / "node_modules" / ".bin" / "mmdc"
-    binary.parent.mkdir(parents=True)
-    binary.write_text("incomplete", encoding="utf-8")
-    monkeypatch.setattr(
-        "prodockit.adopt.probe_mermaid",
-        lambda path: SimpleNamespace(
-            path=path,
-            ok=False,
-            version=None,
-            error="ERR_MODULE_NOT_FOUND",
-        ),
-    )
+    monkeypatch.setattr("prodockit.adopt.shutil.which", lambda _name: None)
+
+    def unavailable() -> None:
+        raise StandaloneRuntimeUnavailableError("audited runtime unavailable")
+
+    monkeypatch.setattr("prodockit.adopt.require_standalone_runtime", unavailable)
 
     steps = {step.id: step for step in assess(project, options)}
 
     assert steps["mermaid"].status == "missing"
-    assert "health check failed: ERR_MODULE_NOT_FOUND" in steps["mermaid"].detail
+    assert "audited runtime unavailable" in steps["mermaid"].detail
     assert steps["verify"].status == "wait"
 
 
@@ -1701,9 +1573,8 @@ markdown_extensions:
     assert config.count("pymdownx.superfences:") == 1
 
 
-@pytest.mark.parametrize("renderer_usable", [True, False])
 def test_apply_mapping_form_mermaid_is_transactional(
-    tmp_path: Path, monkeypatch, renderer_usable: bool
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     project = _project(
         tmp_path,
@@ -1719,17 +1590,9 @@ markdown_extensions:
     (project / "requirements.txt").write_text("mkdocs-material==9.7.7\n", encoding="utf-8")
     monkeypatch.chdir(project)
     monkeypatch.setattr("prodockit.adopt._in_venv", lambda: True)
-    installed = set()
-
-    def install(root, component, **_kwargs):
-        if renderer_usable:
-            installed.add(component)
-        return []
-
-    monkeypatch.setattr("prodockit.adopt.install_tool", install)
     monkeypatch.setattr(
         "prodockit.adopt._tool_health",
-        lambda root, component, **_kwargs: (component in installed, "test renderer"),
+        lambda root, component, **_kwargs: (True, "test renderer"),
     )
 
     preview = CliRunner().invoke(main, ["adopt", "--dry-run", "--mermaid", "--no-maths"])
@@ -1741,10 +1604,7 @@ markdown_extensions:
         input="y\ny\ny\ny\ny\n",
     )
 
-    assert result.exit_code == (0 if renderer_usable else 1), result.output
-    if not renderer_usable:
-        assert "ADOPTION IS INCOMPLETE" in result.output
-        assert "Adoption configuration verified" not in result.output
+    assert result.exit_code == 0, result.output
     config = (project / "mkdocs.yml").read_text(encoding="utf-8")
     assert "  pymdownx.superfences:\n    custom_fences:" in config
     assert "      - name: mermaid" in config

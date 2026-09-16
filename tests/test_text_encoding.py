@@ -50,7 +50,6 @@ def test_inventory_covers_supported_inputs_and_excludes_generated_trees(
         ".github/workflows/docs.yml",
         ".gitlab/pipelines/docs.yaml",
         ".gitlab-ci.yml",
-        "tools/mermaid/package.json",
         "tools/mathjax/package-lock.json",
         "docs/index.md",
     )
@@ -58,7 +57,7 @@ def test_inventory_covers_supported_inputs_and_excludes_generated_trees(
         "site/generated.md",
         "public/generated.md",
         ".venv/generated.md",
-        "tools/mermaid/node_modules/generated.md",
+        "tools/mathjax/node_modules/generated.md",
         ".prodockit-adopt-backups/generated.md",
     )
     for relative in wanted + unwanted:
@@ -104,7 +103,6 @@ def test_project_scan_continues_across_files(tmp_path: Path) -> None:
         ".python-version",
         "requirements-dev.txt",
         "requirements/docs.txt",
-        "tools/mermaid/package.json",
         "tools/mathjax/package-lock.json",
         ".github/workflows/docs.yml",
         ".gitlab-ci.yml",

@@ -176,7 +176,6 @@ def _find_mmdc_bin(configured: str | None) -> str | None:
     if found:
         return found
     for base in (
-        os.path.join("tools", "mermaid", "node_modules", ".bin", "mmdc"),
         os.path.join("node_modules", ".bin", "mmdc"),
     ):
         for candidate in _runnable_spellings(base):

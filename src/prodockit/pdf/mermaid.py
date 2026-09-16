@@ -67,9 +67,9 @@ def render_mermaid_diagram(
     diagram can't fail an entire build).
 
     `mmdc_bin` is the caller's resolved path to mermaid-cli's own `mmdc`
-    executable (e.g. under a local ``tools/mermaid/node_modules/.bin/mmdc``
-    install) - not discovered here, since where a project chooses to
-    install mermaid-cli is a caller concern, not this package's.
+    executable supplied by the caller or found on ``PATH``. It is not
+    discovered here because installing mermaid-cli is a caller concern,
+    not this package's.
 
     `index` distinguishes this diagram's own working files
     (``diagram_{index}.mmd``/``.svg``) from any other diagram rendered into

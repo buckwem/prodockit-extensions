@@ -170,7 +170,7 @@ prodockit update-dates
 
 The PDF consumes the completed Zensical site and does not invoke the site
 builder. Mermaid diagrams use the installed Python-only renderer by default;
-`--swap` selects the legacy project-local `mermaid-cli` path. Maths still uses
+`--swap` selects a legacy externally supplied `mermaid-cli` path. Maths still uses
 the installed browser tooling from `prodockit init-tools`/`npm ci` for website
 verification. `prodockit update-dates` post-processes the
 generated HTML and does not edit the files you author or call the site builder.

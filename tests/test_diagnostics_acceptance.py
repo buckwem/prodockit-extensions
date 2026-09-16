@@ -249,7 +249,7 @@ def test_all_failures_fixture_contains_every_repair_shape(
     assert "\\ref{target}" in (project / "docs/index.md").read_text(encoding="utf-8")
     assert (project / "docs/stylesheets/pdk.css").is_file()
     assert not (project / "docs/stylesheets/pdk-pdf.css").exists()
-    for component in ("mermaid", "mathjax"):
+    for component in ("mathjax",):
         assert (project / "tools" / component / "package.json").is_file()
         assert (project / "tools" / component / "package-lock.json").is_file()
         assert not (project / "tools" / component / "node_modules").exists()

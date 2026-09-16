@@ -1490,11 +1490,12 @@ You should get two version numbers. Compare the Node.js result with the current
 
 ////
 
-//// step | Install the diagram and maths toolchains
+//// step | Install the maths toolchain
 
-Your cloned template already contains the manifests and lockfiles for both tools, in `tools/mermaid` and `tools/mathjax` - so you only need to install them.
+Your cloned template contains the MathJax manifest and lockfile in
+`tools/mathjax`. Mermaid is already supplied through the Python requirements.
 
-If you're on Linux, install a native Chromium and point Puppeteer at it **before** running `npm ci` below, rather than letting `tools/mermaid`'s own `npm ci` download one for you - Puppeteer's download is not guaranteed to match your CPU's architecture. This matters most on ARM64 machines (an Apple Silicon Linux VM, an AWS Graviton instance, a Raspberry Pi), where `npm ci` would otherwise silently fetch an x86_64 Chrome build it can never run, but it costs nothing to do on any Ubuntu install:
+If you're on Linux, install a native Chromium for MathJax website verification:
 
 ``` bash
 sudo apt update
@@ -1502,13 +1503,13 @@ sudo apt install -y chromium-browser
 which chromium-browser || which chromium
 ```
 
-The second command should print a path such as `/usr/bin/chromium-browser` or `/usr/bin/chromium` - that's what the next step needs. Point Puppeteer at it, and skip its own download entirely, for this session, then make both permanent so every future session picks them up too:
+The second command should print a path such as `/usr/bin/chromium-browser` or
+`/usr/bin/chromium`. Point Puppeteer Core at it for this session, then make the
+selection permanent:
 
 ``` bash
 export PUPPETEER_EXECUTABLE_PATH=$(which chromium-browser || which chromium)
-export PUPPETEER_SKIP_DOWNLOAD=true
 echo 'export PUPPETEER_EXECUTABLE_PATH=$(which chromium-browser || which chromium)' >> ~/.bashrc
-echo 'export PUPPETEER_SKIP_DOWNLOAD=true' >> ~/.bashrc
 source ~/.bashrc
 ```
 
@@ -1540,21 +1541,15 @@ Then activate the project's virtual environment as a separate step:
     source .venv/bin/activate
     ```
 
-Install Mermaid's locked dependencies if the project uses diagrams:
-
-``` bash
-npm ci --prefix tools/mermaid
-```
-
 Install MathJax's locked dependencies if the project uses mathematical notation:
 
 ``` bash
 npm ci --prefix tools/mathjax
 ```
 
-`npm ci` installs the exact versions recorded in each lockfile, which is what the automated builds use too - so your PDF is rendered by the same versions as the published one.
+`npm ci` installs the exact versions recorded in the MathJax lockfile.
 
-This creates a `node_modules` folder inside each, which is deliberately not committed (see `.gitignore`). Run these two commands again if you ever re-clone the project.
+This creates `tools/mathjax/node_modules`, which is deliberately not committed.
 
 For mathematical notation, install the MathJax bundle and its matching configuration for the website:
 
@@ -1568,26 +1563,17 @@ successful website build can still display raw TeX. The generated files are
 deliberately excluded from Git, so run this command again after cloning the
 project onto another computer.
 
-!!! note "If npm reports vulnerabilities or an `allow-scripts` warning"
-    Read the warning before continuing. These messages describe different checks:
+!!! note "If npm reports vulnerabilities"
+    Read the warning before continuing:
 
     ``` text
     Run `npm audit` for details.
-    npm warn allow-scripts 1 package has install scripts not yet covered by allowScripts:
-    npm warn allow-scripts   puppeteer (postinstall: node install.mjs)
     ```
 
     A vulnerability warning needs review; it is not automatically harmless
     because the tools run locally. Check the audit details and report unresolved
     findings to the project maintainer. Do not run `npm audit fix` blindly:
     it can change the supported dependencies recorded in the lockfile.
-
-    The `allow-scripts` warning is different: recent npm versions skip Puppeteer's own setup step, which downloads the headless browser Mermaid draws diagrams with. The install still succeeds - if a later PDF build reports it cannot find a browser, approve the step and reinstall:
-
-    ``` bash
-    npm approve-scripts puppeteer --prefix tools/mermaid
-    npm ci --prefix tools/mermaid
-    ```
 
 !!! tip "Starting a project that isn't from the template?"
     Then you have no `tools/` directory to install from and need `prodockit

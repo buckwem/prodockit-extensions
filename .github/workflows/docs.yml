@@ -93,16 +93,7 @@ jobs:
       page_url: ${{ steps.deployment.outputs.page_url }}
       index_sha: ${{ steps.fingerprint.outputs.index_sha }}
     env:
-      # mermaid-cli drives Chrome through Puppeteer to rasterise diagrams.
-      # Point it at the apt-installed Chrome below rather than letting
-      # Puppeteer download its own, and skip that download entirely.
-      #
-      # PUPPETEER_SKIP_DOWNLOAD, not the older
-      # PUPPETEER_SKIP_CHROMIUM_DOWNLOAD - Puppeteer renamed it, and
-      # mermaid-cli ^11.4.2 resolves to puppeteer 25.x, which only honours
-      # the new name. Under the old name the skip silently does nothing and
-      # a full Chrome build is downloaded on every run.
-      PUPPETEER_SKIP_DOWNLOAD: "true"
+      # MathJax website verification uses Puppeteer Core with system Chrome.
       PUPPETEER_EXECUTABLE_PATH: /usr/bin/google-chrome-stable
     steps:
       - uses: actions/configure-pages@v5
@@ -178,10 +169,7 @@ jobs:
         run: |
           curl -fsSL --retry 5 --retry-all-errors --retry-delay 5 --connect-timeout 20 -o /tmp/pandoc.deb "https://github.com/jgm/pandoc/releases/download/${PANDOC_VERSION}/pandoc-${PANDOC_VERSION}-1-amd64.deb"
       - run: sudo apt install -y /tmp/pandoc.deb
-      # mermaid-cli, so the ```mermaid diagram in extensions/bibliography.md
-      # is pre-rendered to a static SVG for the PDF - WeasyPrint has no JS
-      # engine to run Mermaid.js the way the live site does, and without
-      # this the PDF shows raw `flowchart LR ...` source instead.
+      # Install Chrome for browser-based MathJax website verification.
       - run: curl -fsSL https://dl.google.com/linux/linux_signing_key.pub | gpg --dearmor | sudo tee /usr/share/keyrings/google-chrome.gpg > /dev/null
       - run: echo "deb [arch=amd64 signed-by=/usr/share/keyrings/google-chrome.gpg] http://dl.google.com/linux/chrome/deb/ stable main" | sudo tee /etc/apt/sources.list.d/google-chrome.list
       # A mirror that stalls must fail fast, not hold the runner: this
@@ -199,7 +187,6 @@ jobs:
       # this was first tried.
       - run: sudo apt-get -o Acquire::http::Timeout=10 update && sudo apt-get -o Acquire::http::Timeout=10 install -y google-chrome-stable
         timeout-minutes: 8
-      - run: npm ci --prefix tools/mermaid
       # MathJax, the same arrangement for TeX maths. These docs carry no
       # formulas today, so this renders nothing yet - it is here so that the
       # first page to add one is rendered rather than silently published as

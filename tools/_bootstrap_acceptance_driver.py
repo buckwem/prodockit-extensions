@@ -56,31 +56,6 @@ class AcceptanceError(RuntimeError):
     """One route did not leave the repository in its promised state."""
 
 
-_TRANSIENT_MERMAID_PROBE_MARKERS = (
-    "timed out",
-    "content snap gpu wrapper",
-    "ensure slot is connected",
-)
-
-
-def transient_mermaid_probe_failure(
-    command: Sequence[str], result: CommandResult
-) -> bool:
-    """Whether a real renderer probe is safe to repeat on the same fixture.
-
-    Keep this deliberately narrow. In particular, a generic browser launch or
-    Mermaid error can be a product regression and must fail on its first
-    occurrence. The accepted signatures are hosted-runner timing and Ubuntu
-    snap content-mount races observed in the release matrices.
-    """
-
-    rendered = " ".join(command).casefold()
-    if "prodockit-mermaid-probe" not in rendered and "mmdc" not in rendered:
-        return False
-    detail = f"{result.stdout}\n{result.stderr}".casefold()
-    return any(marker in detail for marker in _TRANSIENT_MERMAID_PROBE_MARKERS)
-
-
 def run(
     command: Sequence[str],
     *,
@@ -117,7 +92,7 @@ def write_project(path: Path, *, marker: str, real_toolchains: bool = False) -> 
     (path / "README.md").write_text(f"# {marker}\n", encoding="utf-8")
     (path / "requirements.txt").write_text("\n", encoding="utf-8")
     (path / ".gitignore").write_text(
-        ".venv/\nsite/\ntools/mermaid/node_modules/\ntools/mathjax/node_modules/\n",
+        ".venv/\nsite/\ntools/mathjax/node_modules/\n",
         encoding="utf-8",
     )
     (path / "zensical.toml").write_text(
@@ -139,7 +114,6 @@ repo = "fontawesome/brands/github"
         # need the same tracked manifests that a real template supplies.
         source = Path(__file__).resolve().parent
         for tool, names in {
-            "mermaid": ("package.json", "package-lock.json"),
             "mathjax": ("package.json", "package-lock.json", "tex2svg.js"),
         }.items():
             destination = path / "tools" / tool
@@ -299,21 +273,8 @@ class HarnessRunner:
         timeout: float | None,
         capture: bool,
     ) -> CommandResult:
-        """Run a real command, retrying only known transient renderer probes."""
-
+        """Run a real machine command for native acceptance."""
         result = self.system.run(words, cwd=cwd, timeout=timeout, capture=capture)
-        for attempt, delay in enumerate((5, 15), start=1):
-            if not transient_mermaid_probe_failure(words, result):
-                break
-            print(
-                "Transient Mermaid browser probe failure "
-                f"on attempt {attempt}/3; retrying in {delay}s.",
-                file=sys.stderr,
-                flush=True,
-            )
-            time.sleep(delay)
-            self.calls.append(list(words))
-            result = self.system.run(words, cwd=cwd, timeout=timeout, capture=capture)
         if result.returncode == 0:
             self._record_real_machine_install(words)
         return result
@@ -336,12 +297,6 @@ class HarnessRunner:
             self.upgraded.add("npm")
 
     def _install_toolchain(self, prefix: Path) -> None:
-        if prefix.name == "mermaid":
-            binary = prefix / "node_modules" / ".bin"
-            binary.mkdir(parents=True, exist_ok=True)
-            (binary / ("mmdc.cmd" if os.name == "nt" else "mmdc")).write_text(
-                "acceptance", encoding="utf-8"
-            )
         if prefix.name == "mathjax":
             # ``SOURCE`` is rooted at the project (``tools/mathjax/...``),
             # while npm's ``--prefix`` names ``tools/mathjax`` itself.
@@ -387,8 +342,6 @@ class HarnessRunner:
             "pandoc.exe",
             "pango-view",
             "pango-view.exe",
-            "mmdc",
-            "mmdc.cmd",
             "sudo",
             "winget",
             "winget.exe",
@@ -416,11 +369,6 @@ class HarnessRunner:
             return CommandResult(0, f"pango-view (pango) {self.versions['pango']}\n")
         if self.old_software and executable in {"node", "node.exe"}:
             return CommandResult(0, f"v{self.versions['node']}\n")
-        if self.old_software and executable in {"mmdc", "mmdc.cmd"}:
-            if "-o" in words:
-                output = Path(words[words.index("-o") + 1])
-                output.write_text("<svg></svg>\n", encoding="utf-8")
-            return CommandResult(0, "11.12.0\n" if "--version" in words else "")
         if self.old_software and executable in {"npm", "npm.cmd"} and "--version" in words:
             return CommandResult(0, f"{self.versions['npm']}\n")
         if self.old_software and executable == "fc-list":

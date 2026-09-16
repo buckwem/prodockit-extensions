@@ -131,10 +131,7 @@ def check_web_rendering(
         if not node:
             missing.append("Node.js")
         if not module:
-            missing.append(
-                "Puppeteer (run `npm ci --prefix tools/mermaid` or "
-                "`npm ci --prefix tools/mathjax` after updating the tools)"
-            )
+            missing.append("Puppeteer Core (run `npm ci --prefix tools/mathjax`)")
         if not browser or not Path(browser).is_file():
             missing.append("Chrome/Chromium (or PUPPETEER_EXECUTABLE_PATH)")
         raise WebRenderError(

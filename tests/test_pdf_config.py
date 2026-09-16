@@ -103,7 +103,7 @@ def _npm_bin_dir_as_windows_writes_it(root: Path) -> Path:
     """Builds a `node_modules/.bin` the way `npm` does on Windows: the
     extensionless POSIX shell script that Windows cannot start, alongside
     the `.cmd` and `.ps1` shims that it can (`.ps1` only via PowerShell)."""
-    bin_dir = root / "tools" / "mermaid" / "node_modules" / ".bin"
+    bin_dir = root / "node_modules" / ".bin"
     bin_dir.mkdir(parents=True)
     for name in ("mmdc", "mmdc.cmd", "mmdc.ps1"):
         (bin_dir / name).write_text("", encoding="utf-8")
@@ -148,7 +148,7 @@ def test_find_mmdc_bin_returns_none_when_nothing_is_found(
 ) -> None:
     # Both an empty PATH *and* an empty working directory: the local-install
     # fallbacks are CWD-relative, so running from a checkout that has its own
-    # tools/mermaid install would otherwise find that and fail this test for
+    # node_modules install would otherwise find that and fail this test for
     # reasons that have nothing to do with the code under test.
     monkeypatch.setenv("PATH", "")
     monkeypatch.chdir(tmp_path)

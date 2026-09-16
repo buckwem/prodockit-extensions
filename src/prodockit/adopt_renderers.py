@@ -14,7 +14,7 @@ from prodockit.init_tools import COMPONENT_FILES, TEMPLATE_DIR
 from prodockit.shared_files import same_text_content
 
 BACKUPS = ".prodockit-adopt-backups/renderers"
-PACKAGES = {"mermaid": "@mermaid-js/mermaid-cli", "mathjax": "mathjax-full"}
+PACKAGES = {"mathjax": "mathjax-full"}
 
 
 def expected_version(component: str) -> str:

@@ -2,7 +2,6 @@
 # SPDX-License-Identifier: MIT
 
 import json
-from types import SimpleNamespace
 
 import pytest
 
@@ -11,9 +10,9 @@ from prodockit import adopt_renderers as renderers
 from prodockit.init_tools import TEMPLATE_DIR
 
 
-@pytest.mark.parametrize("component", ["mermaid", "mathjax"])
 @pytest.mark.parametrize("old_version", ["0.1.0", "999.0.0"])
-def test_upgrade_and_downgrade_restore_locked_release(tmp_path, component, old_version):
+def test_upgrade_and_downgrade_restore_locked_release(tmp_path, old_version):
+    component = "mathjax"
     directory = tmp_path / "tools" / component
     directory.mkdir(parents=True)
     original = json.dumps({"dependencies": {renderers.PACKAGES[component]: old_version}})
@@ -30,7 +29,7 @@ def test_upgrade_and_downgrade_restore_locked_release(tmp_path, component, old_v
 
 
 def test_all_backups_precede_any_replacement(tmp_path):
-    directory = tmp_path / "tools" / "mermaid"
+    directory = tmp_path / "tools" / "mathjax"
     directory.mkdir(parents=True)
     for name in ("package.json", "package-lock.json"):
         (directory / name).write_text("old")
@@ -41,11 +40,11 @@ def test_all_backups_precede_any_replacement(tmp_path):
         adopt._atomic_write(path, content)
 
     with pytest.raises(OSError, match="disk full"):
-        renderers.align(tmp_path, "mermaid", write=fail_backup)
+        renderers.align(tmp_path, "mathjax", write=fail_backup)
     assert (directory / "package.json").read_text() == "old"
     assert (directory / "package-lock.json").read_text() == "old"
-    renderers.align(tmp_path, "mermaid", write=adopt._atomic_write)
-    assert not renderers.changes(tmp_path, "mermaid")
+    renderers.align(tmp_path, "mathjax", write=adopt._atomic_write)
+    assert not renderers.changes(tmp_path, "mathjax")
 
 
 def test_symlinked_renderer_directory_is_rejected(tmp_path):
@@ -53,21 +52,8 @@ def test_symlinked_renderer_directory_is_rejected(tmp_path):
     outside.mkdir()
     (tmp_path / "tools").symlink_to(outside, target_is_directory=True)
     with pytest.raises(ValueError, match="symbolic link"):
-        renderers.align(tmp_path, "mermaid", write=adopt._atomic_write)
+        renderers.align(tmp_path, "mathjax", write=adopt._atomic_write)
     assert list(outside.iterdir()) == []
-
-
-def test_healthy_but_wrong_mermaid_version_needs_alignment(tmp_path, monkeypatch):
-    renderers.align(tmp_path, "mermaid", write=adopt._atomic_write)
-    binary = tmp_path / "tools/mermaid/node_modules/.bin/mmdc"
-    binary.parent.mkdir(parents=True)
-    binary.write_text("test")
-    monkeypatch.setattr(
-        adopt, "probe_mermaid", lambda *args: SimpleNamespace(ok=True, version="0.1.0")
-    )
-    ok, detail = adopt._tool_health(tmp_path, "mermaid")
-    assert not ok
-    assert f"supported {renderers.expected_version('mermaid')}" in detail
 
 
 def test_line_endings_alone_do_not_trigger_alignment(tmp_path):
@@ -78,7 +64,7 @@ def test_line_endings_alone_do_not_trigger_alignment(tmp_path):
 
 
 def test_interrupted_pair_replacement_can_resume(tmp_path):
-    directory = tmp_path / "tools/mermaid"
+    directory = tmp_path / "tools/mathjax"
     directory.mkdir(parents=True)
     for name in ("package.json", "package-lock.json"):
         (directory / name).write_text("old " + name)
@@ -89,9 +75,9 @@ def test_interrupted_pair_replacement_can_resume(tmp_path):
         adopt._atomic_write(path, content)
 
     with pytest.raises(OSError, match="interrupted"):
-        renderers.align(tmp_path, "mermaid", write=interrupt)
-    renderers.align(tmp_path, "mermaid", write=adopt._atomic_write)
-    assert not renderers.changes(tmp_path, "mermaid")
+        renderers.align(tmp_path, "mathjax", write=interrupt)
+    renderers.align(tmp_path, "mathjax", write=adopt._atomic_write)
+    assert not renderers.changes(tmp_path, "mathjax")
     backups = list((tmp_path / renderers.BACKUPS).rglob("*.json"))
     assert sorted(path.read_text() for path in backups) == [
         "old package-lock.json",

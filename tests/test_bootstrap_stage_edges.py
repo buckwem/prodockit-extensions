@@ -269,24 +269,6 @@ def _installed_renderer_files(project: Path) -> None:
     bundle.write_text("bundle", encoding="utf-8")
 
 
-def test_node_stage_rejects_a_mermaid_install_that_cannot_render(tmp_path: Path) -> None:
-    project = tmp_path / "report"
-    _installed_renderer_files(project)
-    runner = CliFakeRunner(
-        {
-            "node --version": CommandResult(0, "v22.14.0"),
-            "npm --version": CommandResult(0, "10.9.2"),
-            "mmdc -i": CommandResult(1, stderr="browser failed to launch"),
-        }
-    )
-
-    result = stages._check_node(_context(tmp_path, runner=runner))
-
-    assert result.status is Status.WRONG
-    assert "Mermaid cannot render" in result.detail
-    assert "browser failed to launch" in result.detail
-
-
 def test_node_stage_rejects_incomplete_mathjax_modules(tmp_path: Path) -> None:
     project = tmp_path / "report"
     _installed_renderer_files(project)
@@ -646,23 +628,6 @@ def test_windows_node_repair_is_fully_non_interactive(tmp_path: Path) -> None:
     assert "--accept-source-agreements" in repair
     assert "--accept-package-agreements" in repair
     assert "--disable-interactivity" in repair
-
-
-@pytest.mark.parametrize("platform", [MACOS, UBUNTU, WINDOWS])
-def test_node_setup_recovers_puppeteer_omitted_by_legacy_peer_install(
-    tmp_path: Path, platform: str
-) -> None:
-    plan = stages._plan_node(_context(tmp_path, platform=platform))
-    mermaid = next(
-        " ".join(command) for command in plan.commands if "tools/mermaid" in " ".join(command)
-    )
-
-    assert "node_modules/puppeteer" in mermaid
-    assert "npm" in mermaid
-    assert "install --no-save --package-lock=false --legacy-peer-deps" in mermaid
-    assert stages.PUPPETEER_RUNTIME in mermaid
-    if platform != UBUNTU:
-        assert "puppeteer browsers install" in mermaid
 
 
 @pytest.mark.parametrize(

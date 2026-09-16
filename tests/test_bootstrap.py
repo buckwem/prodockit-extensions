@@ -2952,7 +2952,7 @@ def test_current_node_is_not_reinstalled_when_only_toolchains_are_missing(
     )
 
     assert not any(command[0] == "winget" for command in plan.commands)
-    assert len([command for command in plan.commands if "npm.cmd ci" in " ".join(command)]) == 2
+    assert len([command for command in plan.commands if "npm.cmd ci" in " ".join(command)]) == 1
 
 
 def test_old_windows_node_uses_an_upgrade_or_install_command(tmp_path: Path) -> None:
@@ -4166,25 +4166,6 @@ def test_ubuntu_reads_the_language_from_the_locale_command(tmp_path: Path) -> No
 # ---------------------------------------------------------------------------
 
 
-def test_npm_ci_is_told_not_to_fetch_its_own_chrome(tmp_path: Path) -> None:
-    """prodockit-userguide#102: `npm ci` in tools/mermaid triggers
-    Puppeteer's postinstall download, and that download is not guaranteed
-    to match the CPU it lands on. On ARM64 it fetches an x86_64 Chrome
-    that can never run - and nothing fails at install time, so the
-    symptom is a diagram that will not render, a long way from the
-    command that caused it."""
-    context = _context(tmp_path, platform=UBUNTU)
-    plan = next(s for s in STAGES if s.id == "node").plan(context)
-    flat = [" ".join(c) for c in plan.commands]
-
-    npm = [c for c in flat if "npm ci" in c]
-    assert npm, "the toolchains still have to be installed"
-    for command in npm:
-        assert "PUPPETEER_SKIP_DOWNLOAD=true" in command
-        assert "PUPPETEER_EXECUTABLE_PATH=" in command
-        assert "--legacy-peer-deps" in command
-
-
 def test_chromium_is_installed_before_npm_ci_runs(tmp_path: Path) -> None:
     """Ordering is the whole of the fix. Installing Chromium after
     `npm ci` leaves the wasted download already done."""
@@ -4210,16 +4191,14 @@ def test_the_puppeteer_exports_are_appended_only_once(tmp_path: Path) -> None:
 
 
 def test_other_platforms_are_left_alone(tmp_path: Path) -> None:
-    """macOS and Windows use Puppeteer's pinned browser, not system Chromium."""
+    """macOS and Windows install only the MathJax Node project."""
     for platform in (MACOS, WINDOWS):
         plan = next(s for s in STAGES if s.id == "node").plan(_context(tmp_path, platform=platform))
         flat = " ".join(" ".join(c) for c in plan.commands)
         assert "chromium" not in flat, platform
         assert "PUPPETEER" not in flat, platform
-        # Mermaid has one deterministic install plus a conditional recovery
-        # for older locks where legacy-peer mode omits Puppeteer; MathJax has one.
-        assert flat.count("--legacy-peer-deps") == 3, platform
-        assert flat.count("puppeteer browsers install") == 1, platform
+        assert flat.count("--legacy-peer-deps") == 1, platform
+        assert "puppeteer browsers install" not in flat, platform
 
 
 def test_the_pdf_fonts_are_installed_with_the_graphics_stack(tmp_path: Path) -> None:
@@ -4502,13 +4481,13 @@ def test_a_stage_that_installs_toolchains_notices_they_are_absent(tmp_path: Path
     result = next(s for s in STAGES if s.id == "node").check(_context(tmp_path, runner=runner))
 
     assert result.needs_work
-    assert "mermaid" in result.detail and "mathjax" in result.detail
+    assert "mathjax" in result.detail
+    assert "mermaid" not in result.detail
 
 
 def test_partial_node_modules_directories_are_not_complete_toolchains(tmp_path: Path) -> None:
     project = tmp_path / "GitLab" / "report-al01234"
-    for toolchain in ("mermaid", "mathjax"):
-        (project / "tools" / toolchain / "node_modules").mkdir(parents=True)
+    (project / "tools" / "mathjax" / "node_modules").mkdir(parents=True)
     save(tmp_path / "b.toml", _config())
     runner = FakeRunner(
         {"node": CommandResult(0, "v22.14.0\n"), "npm": CommandResult(0, "10.9.2\n")}
@@ -4517,7 +4496,8 @@ def test_partial_node_modules_directories_are_not_complete_toolchains(tmp_path: 
     result = next(s for s in STAGES if s.id == "node").check(_context(tmp_path, runner=runner))
 
     assert result.status is Status.WRONG
-    assert "mermaid" in result.detail and "mathjax" in result.detail
+    assert "mathjax" in result.detail
+    assert "mermaid" not in result.detail
 
 
 def test_ubuntu_notices_puppeteer_has_no_browser_to_point_at(tmp_path: Path) -> None:
@@ -4551,89 +4531,6 @@ def test_ubuntu_notices_puppeteer_has_no_browser_to_point_at(tmp_path: Path) -> 
         }
     )
     assert stage.check(_context(tmp_path, runner=both, platform=UBUNTU)).status is Status.OK
-
-
-def test_ubuntu_mermaid_probe_retries_a_transient_snap_mount_failure(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    transient = CommandResult(
-        1,
-        stderr="Content snap GPU wrapper is missing; ensure slot is connected",
-    )
-    responses = _ready_machine(tmp_path) | {
-        "command -v chromium-browser": CommandResult(0, f"Chromium {CHROMIUM_MIN_VERSION}\n"),
-        f"grep -q {PUPPETEER_SKIP_VAR}": CommandResult(0),
-    }
-    runner = SequentialMermaidRunner(
-        responses,
-        (transient, CommandResult(0)),
-    )
-    delays = []
-    monkeypatch.setattr(stages_module.time, "sleep", delays.append)
-
-    result = next(stage for stage in STAGES if stage.id == "node").check(
-        _context(tmp_path, runner=runner, platform=UBUNTU)
-    )
-
-    assert result.status is Status.WARNING
-    assert "attempt 1/3" in result.detail
-    assert "retry delayed by 2s" in result.detail
-    assert delays == [2.0]
-    probes = [call for call in runner.calls if "prodockit-mermaid-probe" in " ".join(call)]
-    assert len(probes) == 2
-
-
-def test_ubuntu_mermaid_probe_does_not_retry_a_deterministic_failure(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    runner = SequentialMermaidRunner(
-        _ready_machine(tmp_path),
-        (CommandResult(1, stderr="Mermaid syntax is invalid"),),
-    )
-    monkeypatch.setattr(
-        stages_module.time,
-        "sleep",
-        lambda _delay: pytest.fail("a deterministic failure was retried"),
-    )
-
-    result = next(stage for stage in STAGES if stage.id == "node").check(
-        _context(tmp_path, runner=runner, platform=UBUNTU)
-    )
-
-    assert result.status is Status.WRONG
-    probes = [call for call in runner.calls if "prodockit-mermaid-probe" in " ".join(call)]
-    assert len(probes) == 1
-
-
-def test_ubuntu_mermaid_probe_exhaustion_keeps_attempt_history(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    responses = _ready_machine(tmp_path) | {
-        "command -v chromium-browser": CommandResult(0, f"Chromium {CHROMIUM_MIN_VERSION}\n"),
-        f"grep -q {PUPPETEER_SKIP_VAR}": CommandResult(0),
-    }
-    runner = SequentialMermaidRunner(
-        responses,
-        (
-            CommandResult(1, stderr="EAI_AGAIN first"),
-            CommandResult(1, stderr="ECONNRESET second"),
-            CommandResult(1, stderr="ETIMEDOUT final"),
-        ),
-    )
-    delays = []
-    monkeypatch.setattr(stages_module.time, "sleep", delays.append)
-
-    result = next(stage for stage in STAGES if stage.id == "node").check(
-        _context(tmp_path, runner=runner, platform=UBUNTU)
-    )
-
-    assert result.status is Status.WRONG
-    assert "ETIMEDOUT final" in result.detail
-    assert "EAI_AGAIN first" in result.detail
-    assert "ECONNRESET second" in result.detail
-    assert "attempt 1/3" in result.detail
-    assert "retry delayed by 5s" in result.detail
-    assert delays == [2.0, 5.0]
 
 
 def test_ubuntu_rejects_chromium_older_than_the_puppeteer_floor(tmp_path: Path) -> None:
@@ -6374,20 +6271,15 @@ def test_windows_finds_npm_by_path_when_the_bare_name_will_not_run(tmp_path: Pat
     assert installs and all(c[0] == "powershell" for c in installs)
 
 
-def test_npm_ci_runs_from_each_tool_directory_without_prefix(tmp_path: Path) -> None:
-    """npm 12 rejects Mermaid's valid optional-peer lock entry when ``ci``
-    is combined with ``--prefix``. Running inside each package directory
-    avoids that upstream validation defect without relaxing the lockfile."""
+def test_npm_ci_runs_from_mathjax_directory_without_prefix(tmp_path: Path) -> None:
     for platform in (MACOS, WINDOWS, UBUNTU):
         plan = next(s for s in STAGES if s.id == "node").plan(_context(tmp_path, platform=platform))
         installs = [
             " ".join(c) for c in plan.commands if "npm" in " ".join(c) and " ci" in " ".join(c)
         ]
-        assert len(installs) == 2, platform
+        assert len(installs) == 1, platform
         assert all("--prefix" not in command for command in installs), platform
-        assert any(
-            "tools/mermaid" in command or "tools\\mermaid" in command for command in installs
-        )
+        assert all("tools/mathjax" in command for command in installs), platform
         assert any(
             "tools/mathjax" in command or "tools\\mathjax" in command for command in installs
         )

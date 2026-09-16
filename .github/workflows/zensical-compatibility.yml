@@ -141,7 +141,6 @@ jobs:
     - run: sudo apt-get -o Acquire::http::Timeout=10 update && sudo apt-get -o Acquire::http::Timeout=10 install
         -y google-chrome-stable
       timeout-minutes: 8
-    - run: npm ci --prefix tools/mermaid
     - run: npm ci --prefix tools/mathjax
     - name: Fetch shared template citation style
       run: curl -fsSL --retry 3 --max-time 60 https://www.zotero.org/styles/harvard-cite-them-right -o ../template/harvard-cite-them-right.csl

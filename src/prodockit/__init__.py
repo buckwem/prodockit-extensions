@@ -84,11 +84,10 @@ Zensical doesn't provide out of the box, each usable independently:
   ``<PACKAGE>_VERSION`` CI variables (``PANDOC_VERSION: "3.10.1"``) as well
   as pip specifiers - pandoc is managed by default alongside Zensical and
   WeasyPrint. Run ``prodockit pins`` from your project root.
-- ``prodockit.init_tools`` - scaffold the Node tooling ``prodockit.pdf``
-  needs to pre-render Mermaid diagrams and TeX maths into the PDF (neither
-  can be rendered client-side there, since WeasyPrint has no JS engine).
-  Run ``prodockit init-tools`` from your project root; a project using
-  neither feature needs none of it.
+- ``prodockit.init_tools`` - scaffold the remaining MathJax Node tooling
+  ``prodockit.pdf`` uses to pre-render TeX maths. Mermaid uses the installed
+  Python runtime by default. Run ``prodockit init-tools`` from your project
+  root when the project uses maths.
 - ``prodockit.template_sync`` - bring a project back into step with the
   template it came from, updating the template's own files and leaving the
   writing alone. Run ``prodockit template-sync`` from your project root;

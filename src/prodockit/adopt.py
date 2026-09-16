@@ -50,6 +50,10 @@ from prodockit.csl import (
 from prodockit.csl import validate as validate_csl
 from prodockit.init_tools import COMPONENT_FILES
 from prodockit.mathjax import MathJaxError, install_mathjax
+from prodockit.pdf._standalone_quickjs import (
+    StandaloneBackendUnavailableError as StandaloneRuntimeUnavailableError,
+)
+from prodockit.pdf._standalone_quickjs import require_standalone_runtime
 from prodockit.pins import TESTED_VERSIONS
 from prodockit.renderer_health import probe_mathjax, probe_mermaid
 from prodockit.renderer_resilience import DEFAULT_RETRY_DELAYS, RetryReporter, run_npm_with_retries
@@ -202,13 +206,13 @@ def resolve_options(root: Path) -> AdoptChoiceResolution:
     # A scaffold remains evidence even when an interrupted install has left
     # node_modules incomplete. Saved and explicit choices take precedence.
     detected = {}
-    for option, component in (("mermaid", "mermaid"), ("maths", "mathjax")):
+    for option, component in (("maths", "mathjax"),):
         directory = root / "tools" / component
         detected[option] = any(
             (directory / name).exists()
             for name in ("package.json", "package-lock.json", "node_modules")
         )
-    options = AdoptOptions(mermaid=detected["mermaid"], maths=detected["maths"])
+    options = AdoptOptions(mermaid=False, maths=detected["maths"])
     return AdoptChoiceResolution(
         options,
         "detected project renderer installation" if any(detected.values()) else "defaults",
@@ -1311,6 +1315,24 @@ def _tool_health(
     *,
     retry_reporter: RetryReporter | None = None,
 ) -> tuple[bool, str]:
+    if component == "mermaid":
+        try:
+            require_standalone_runtime()
+            return True, "standalone Python Mermaid runtime is available"
+        except StandaloneRuntimeUnavailableError as standalone_error:
+            binary = _mermaid_bin(root)
+            if binary is None and (found := shutil.which("mmdc")):
+                binary = Path(found)
+            if binary is None:
+                return False, str(standalone_error)
+            probe = (
+                probe_mermaid(binary, reporter=retry_reporter)
+                if retry_reporter is not None
+                else probe_mermaid(binary)
+            )
+            if probe.ok:
+                return True, f"external mmdc {probe.version or 'is available'} for --swap"
+            return False, f"external mmdc health check failed: {probe.error}"
     if not _tool_files_ok(root, component):
         return False, (
             "renderer scaffold is incomplete; restore release files, preserving existing "
@@ -1324,25 +1346,6 @@ def _tool_health(
             )
     except (OSError, ValueError) as error:
         return False, str(error)
-    if component == "mermaid":
-        binary = _mermaid_bin(root)
-        if binary is None:
-            return False, "mmdc executable is missing"
-        probe = (
-            probe_mermaid(binary, reporter=retry_reporter)
-            if retry_reporter is not None
-            else probe_mermaid(binary)
-        )
-        attempts = getattr(probe, "attempts", 1)
-        recovered = f" after {attempts} attempts" if attempts > 1 else ""
-        expected = adopt_renderers.expected_version(component)
-        if probe.ok and probe.version != expected:
-            return False, f"align Mermaid CLI {probe.version} to supported {expected}"
-        return (
-            (True, f"mmdc {probe.version or 'is available'}{recovered}")
-            if probe.ok
-            else (False, f"mmdc health check failed: {probe.error}")
-        )
     docs = root / _docs_dir(_config(root)[2])
     installed = (
         root / "tools" / "mathjax" / "node_modules" / "mathjax-full" / "es5" / "tex-svg-full.js"
@@ -1410,11 +1413,7 @@ def ensure_local_ignores(root: Path) -> list[Path]:
 
 
 def ensure_tools(root: Path, options: AdoptOptions) -> list[Path]:
-    components = tuple(
-        name
-        for name, selected in (("mermaid", options.mermaid), ("mathjax", options.maths))
-        if selected
-    )
+    components = ("mathjax",) if options.maths else ()
     if not components:
         return []
     written: list[Path] = []
@@ -1444,8 +1443,8 @@ def install_tool(
     retry_reporter: RetryReporter | None = None,
     offline: bool = False,
 ) -> list[Path]:
-    """Install one selected Node renderer after writing its scaffold."""
-    if component not in COMPONENT_FILES:
+    """Install the selected MathJax Node renderer after writing its scaffold."""
+    if component != "mathjax":
         raise AdoptError(f"unknown optional renderer: {component}")
     npm = shutil.which("npm")
     if npm is None:
@@ -1453,15 +1452,7 @@ def install_tool(
             f"{component} was selected but npm is not available. "
             "Rerun `prodockit adopt --apply` and approve the Node.js and npm runtime activity."
         )
-    options = AdoptOptions(mermaid=component == "mermaid", maths=component == "mathjax")
-    environment = None
-    if component == "mermaid":
-        from prodockit import adopt_browser
-
-        try:
-            environment = adopt_browser.prepare(root, offline=offline, reporter=retry_reporter)
-        except (OSError, subprocess.SubprocessError, supported_toolchain.ToolchainError) as error:
-            raise AdoptError(str(error)) from error
+    options = AdoptOptions(maths=True)
     written = ensure_tools(root, options)
     # On Windows npm is a command shim named npm.cmd. Passing the path found
     # by shutil avoids depending on PATHEXT handling inside subprocess.
@@ -1487,7 +1478,6 @@ def install_tool(
             timeout=600,
             reporter=retry_reporter,
             retry_delays=() if offline else DEFAULT_RETRY_DELAYS,
-            environment=environment,
         )
     except (OSError, subprocess.TimeoutExpired) as error:
         raise AdoptError(f"could not install {component}: {error}") from error
@@ -1495,40 +1485,15 @@ def install_tool(
     if completed.returncode != 0:
         detail = npm_result.failure_detail
         raise AdoptError(f"npm could not install {component}: {detail}")
-    if component == "mermaid":
-        try:
-            adopt_browser.complete(root, offline=offline, reporter=retry_reporter)
-        except (OSError, subprocess.SubprocessError, supported_toolchain.ToolchainError) as error:
-            raise AdoptError(str(error)) from error
-        binary = _mermaid_bin(root)
-        probe = (
-            (
-                probe_mermaid(binary, reporter=retry_reporter)
-                if retry_reporter is not None
-                else probe_mermaid(binary)
-            )
-            if binary
-            else None
+    node = shutil.which("node")
+    probe = probe_mathjax(node, tool_root / "tex2svg.js") if node else None
+    if probe is None or not probe.ok:
+        health_detail = probe.error or "health probe failed" if probe else "node is unavailable"
+        raise AdoptError(
+            "npm completed but MathJax is unusable: "
+            f"{health_detail}. Remove tools/mathjax/node_modules and rerun "
+            "`prodockit adopt --apply --maths`."
         )
-        if probe is None or not probe.ok:
-            health_detail = (
-                probe.error or "health probe failed" if probe else "mmdc executable is missing"
-            )
-            raise AdoptError(
-                "npm completed but Mermaid CLI is unusable: "
-                f"{health_detail}. Remove tools/mermaid/node_modules and rerun "
-                "`prodockit adopt --apply --mermaid`."
-            )
-    if component == "mathjax":
-        node = shutil.which("node")
-        probe = probe_mathjax(node, tool_root / "tex2svg.js") if node else None
-        if probe is None or not probe.ok:
-            health_detail = probe.error or "health probe failed" if probe else "node is unavailable"
-            raise AdoptError(
-                "npm completed but MathJax is unusable: "
-                f"{health_detail}. Remove tools/mathjax/node_modules and rerun "
-                "`prodockit adopt --apply --maths`."
-            )
     lock = root / "tools" / component / "package-lock.json"
     if lock.is_file() and lock not in written:
         written.append(lock)
@@ -1692,15 +1657,8 @@ def assess(
 
     node = (
         adopt_node.plan(offline=offline)
-        if options.mermaid or options.maths
+        if options.maths
         else adopt_node.NodePlan()
-    )
-    from prodockit import adopt_browser
-
-    browser = (
-        adopt_browser.plan(root, offline=offline)
-        if options.mermaid
-        else adopt_browser.BrowserPlan()
     )
     in_venv = _in_venv()
     project_environment_exists = (root.resolve() / ".venv").is_dir()
@@ -1715,7 +1673,6 @@ def assess(
         and csl.status == "ok"
         and choices_ok
         and not node.needs_work
-        and not browser.blocked
         and (not options.mermaid or mermaid_ok)
         and (not options.maths or maths_ok)
     )
@@ -1814,23 +1771,19 @@ def assess(
                 else "Node.js and npm meet the supported runtime requirements"
             ),
             commands=node.commands,
-            selected=options.mermaid or options.maths,
+            selected=options.maths,
         ),
         Step(
             "mermaid",
             "Optional renderers",
             "Mermaid diagrams",
-            "wrong" if browser.blocked else ("ok" if mermaid_ok else "missing"),
+            "ok" if mermaid_ok else "missing",
             (
-                f"selected; {browser.blocked or mermaid_detail}; {browser.detail}"
+                f"selected; {mermaid_detail}"
                 if options.mermaid
-                else "not selected; Node.js is not needed for Mermaid"
+                else "not selected; the Python runtime is not checked"
             ),
             selected=options.mermaid,
-            commands=browser.commands,
-            files=tuple(root / "tools" / "mermaid" / name for name in COMPONENT_FILES["mermaid"])
-            if options.mermaid and not mermaid_ok
-            else (),
         ),
         Step(
             "maths",
@@ -1895,7 +1848,7 @@ def apply_step(
         except (OSError, subprocess.SubprocessError, supported_toolchain.ToolchainError) as error:
             raise AdoptError(str(error)) from error
         return []
-    if step_id in {"mermaid", "maths"}:
+    if step_id == "maths":
         from prodockit import adopt_node
 
         if adopt_node.plan(offline=offline).needs_work:
@@ -1941,12 +1894,6 @@ def apply_step(
         return [
             ensure_zensical_config(root, options),
             write_manifest(root, options),
-            *install_tool(
-                root,
-                "mermaid",
-                retry_reporter=retry_reporter,
-                **({"offline": True} if offline else {}),
-            ),
         ]
     if step_id == "maths":
         return [

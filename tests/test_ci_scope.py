@@ -416,7 +416,7 @@ def test_adopt_matrix_caches_node_packages_and_keeps_full_windows_architecture_c
 
     assert "run-name: Adopt wheel installation and real project upgrades" in workflow
     assert "cache: npm" in workflow
-    assert "src/prodockit/_tools_template/mermaid/package-lock.json" in workflow
+    assert "src/prodockit/_tools_template/mermaid/package-lock.json" not in workflow
     assert "src/prodockit/_tools_template/mathjax/package-lock.json" in workflow
     assert workflow.count("scenario_args: --scenario toml-default --scenario toml-both") == 2
     assert workflow.count(

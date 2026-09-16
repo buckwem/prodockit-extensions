@@ -109,7 +109,7 @@ def test_assertions_fail_with_the_page_number_and_the_fix() -> None:
         assert_no_unrendered_mermaid(["clean", UNRENDERED_MERMAID])
     message = str(excinfo.value)
     assert "[1]" in message
-    assert "prodockit init-tools" in message, "the failure should name the fix"
+    assert "Python-only default renderer" in message, "the failure should name the fix"
 
     with pytest.raises(AssertionError, match="prodockit init-tools"):
         assert_no_unrendered_tex([UNRENDERED_TEX])

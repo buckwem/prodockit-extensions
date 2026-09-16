@@ -78,7 +78,6 @@ jobs:
           node-version: "22"
           cache: npm
           cache-dependency-path: |
-            src/prodockit/_tools_template/mermaid/package-lock.json
             src/prodockit/_tools_template/mathjax/package-lock.json
       - name: Install Chromium for Mermaid on Linux ARM64
         if: runner.os == 'Linux' && matrix.architecture == 'arm64'

@@ -138,8 +138,8 @@ def assert_no_unrendered_mermaid(page_texts: Sequence[str]) -> None:
     assert not pages, (
         f"Literal Mermaid source found on PDF page(s) {pages} (0-based) - the "
         "diagram reached the PDF as a code block instead of a rendered image. "
-        "Run `prodockit init-tools` and install the tooling, or set "
-        "`pdf_mmdc_bin` in your config."
+        "Use the Python-only default renderer, or install external `mmdc` "
+        "and select it with `--swap`."
     )
 
 

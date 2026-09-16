@@ -21,7 +21,8 @@ requests rather than here.
 
 ## Unreleased
 
-- Made the Python-only Mermaid renderer the PDF default; `--swap` now selects the legacy project-local `mermaid-cli` renderer.
+- Made the Python-only Mermaid renderer the PDF default; `--swap` now selects an externally supplied legacy `mermaid-cli` renderer.
+- Removed ProDockit-managed Mermaid npm, Puppeteer, browser provisioning, alignment, diagnostics repair, and CI installation while leaving MathJax tooling unchanged.
 
 ## 0.65.7 (2026-09-15)
 

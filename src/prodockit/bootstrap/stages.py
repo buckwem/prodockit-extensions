@@ -35,7 +35,6 @@ import shlex
 import socket
 import sys
 import tempfile
-import time
 from collections.abc import Callable, Sequence
 from pathlib import Path
 
@@ -56,13 +55,6 @@ from prodockit.bootstrap.model import (
     windows_system_ssh,
 )
 from prodockit.pdf_fonts import FontEvidence, inspect_fonts
-from prodockit.renderer_resilience import (
-    DEFAULT_RETRY_DELAYS,
-    RetryNotice,
-    RetryReporter,
-    failure_with_history,
-    run_with_retries,
-)
 from prodockit.windows_pango import pango_spec, repair_script
 
 #: The VS Code extensions the User Guide installs. Kept here rather than
@@ -112,22 +104,16 @@ WEASYPRINT_MIN_VERSION = "69.0"
 #: is not enough to call the machine ready.
 GIT_MIN_VERSION = "2.28.0"
 
-#: Minimum Node release used by the pinned Puppeteer toolchain. Puppeteer
-#: 25.4.0 declares Node 22.12.0 or later; checking only the major would accept
+#: Minimum Node release used by the remaining browser toolchain. Puppeteer Core
+#: declares Node 22.12.0 or later; checking only the major would accept
 #: an early 22.x release that npm then refuses to use.
 NODE_MIN_VERSION = "22.12.0"
 NODE_MAJOR = int(NODE_MIN_VERSION.split(".", 1)[0])
 
 #: ``package-lock.json`` uses lockfile version 3, which npm 7 introduced.
 #: A working ``node`` command with an older npm is still unable to install the
-#: pinned Mermaid and MathJax trees reproducibly.
+#: pinned MathJax tree reproducibly.
 NPM_MIN_VERSION = "7.0.0"
-
-#: Mermaid CLI declares Puppeteer as a peer. ``npm ci --legacy-peer-deps``
-#: deliberately omits that peer from older template lockfiles, leaving a
-#: successful install whose ``mmdc`` immediately fails with ERR_MODULE_NOT_FOUND.
-#: Install the compatible runtime without rewriting the author's manifest or lock.
-PUPPETEER_RUNTIME = "puppeteer@25.9.0"
 
 #: Browser revision used by the pinned Puppeteer runtime. Ubuntu deliberately
 #: uses its system Chromium instead of Puppeteer's downloaded binary so ARM64
@@ -3553,35 +3539,6 @@ def resolve_for_execution(context: Context, command: Sequence[str]) -> list[str]
     return [resolver(context), *command[1:]]
 
 
-def _run_mermaid_probe(
-    context: Context,
-    command: list[str],
-    *,
-    cwd: str,
-    reporter: RetryReporter | None = None,
-) -> tuple[CommandResult, int, tuple[str, ...]]:
-    """Run a read-only Mermaid probe with narrowly classified retries."""
-
-    result = run_with_retries(
-        "Mermaid browser health probe",
-        lambda: context.runner.run(command, cwd=cwd, timeout=30),
-        succeeded=lambda completed: completed.ok,
-        failure_detail=lambda completed: completed.stderr.strip() or completed.stdout.strip(),
-        retry_delays=DEFAULT_RETRY_DELAYS,
-        reporter=reporter,
-        sleeper=time.sleep,
-    )
-    return result.value, result.attempts, result.transient_failures
-
-
-def _mermaid_retry_warning(notice: RetryNotice) -> str:
-    return (
-        "transient Mermaid browser probe failure on attempt "
-        f"{notice.attempt}/{notice.maximum_attempts}; retry delayed "
-        f"by {notice.delay:g}s"
-    )
-
-
 def _check_node(context: Context) -> CheckResult:
     if (unknown := _needs_config(context, "project_name")) is not None:
         return unknown
@@ -3618,61 +3575,12 @@ def _check_node(context: Context) -> CheckResult:
     elif _version_is_older(npm_raw, NPM_MIN_VERSION):
         return _wrong(f"npm {npm_raw} is older than the {NPM_MIN_VERSION} the toolchains need")
 
-    # Everything above is about node itself; the rest of this stage's plan
-    # installs the two toolchains and, on Ubuntu, the browser Mermaid
-    # renders through. A check that stopped at `node --version` reported
-    # `ok` on a machine that had node and nothing else - so a reader who
-    # had installed Node themselves was told this stage was done, got no
-    # toolchains, and found out at the first diagram (#224).
+    # Everything above is about node itself; the rest of this stage checks
+    # the remaining MathJax toolchain and its browser support.
     if project.exists() and context.guided:
-        mermaid = project / "tools" / "mermaid" / "node_modules" / ".bin"
-        mermaid_cli = mermaid / ("mmdc.cmd" if context.platform == WINDOWS else "mmdc")
         mathjax_bundle = project.joinpath(*mathjax.SOURCE)
-        absent = []
-        if not mermaid_cli.is_file():
-            absent.append("mermaid")
         if not mathjax_bundle.is_file() or not mathjax_bundle.stat().st_size:
-            absent.append("mathjax")
-        if absent:
-            return _wrong(f"node {raw}, but {' and '.join(absent)} is not installed")
-        with tempfile.TemporaryDirectory(prefix="prodockit-bootstrap-mermaid-") as temporary:
-            source = Path(temporary) / "health.mmd"
-            output = Path(temporary) / "health.svg"
-            source.write_text("graph LR\n  A --> B\n", encoding="utf-8")
-            mermaid_command = [str(mermaid_cli), "-i", str(source), "-o", str(output)]
-            if context.platform == UBUNTU:
-                mermaid_command = [
-                    "bash",
-                    "-c",
-                    "browser=$(command -v chromium-browser || command -v chromium) || exit 1; "
-                    'export PUPPETEER_EXECUTABLE_PATH=$browser; exec "$@"',
-                    "prodockit-mermaid-probe",
-                    *mermaid_command,
-                ]
-            mermaid_retry_warnings: list[str] = []
-            mermaid_result, mermaid_attempts, mermaid_failures = _run_mermaid_probe(
-                context,
-                mermaid_command,
-                cwd=str(project / "tools" / "mermaid"),
-                reporter=lambda notice: mermaid_retry_warnings.append(
-                    _mermaid_retry_warning(notice)
-                ),
-            )
-        if not mermaid_result.ok:
-            detail = mermaid_result.stderr.strip() or mermaid_result.stdout.strip()
-            detail = failure_with_history(
-                detail,
-                mermaid_attempts,
-                mermaid_failures,
-            )
-            if mermaid_retry_warnings:
-                detail = f"{detail}\nRetry warnings: {' | '.join(mermaid_retry_warnings)}"
-            return _wrong(
-                f"node {raw}, but Mermaid cannot render a diagram"
-                + (" with system Chromium" if context.platform == UBUNTU else "")
-                + (f": {detail}" if detail else "")
-            )
-        warnings.extend(mermaid_retry_warnings)
+            return _wrong(f"node {raw}, but mathjax is not installed")
         # Loading the modules used by tex2svg catches partial npm extracts
         # without modifying the project or relying on shell input redirection.
         mathjax_result = context.runner.run(
@@ -3701,24 +3609,19 @@ def _check_node(context: Context) -> CheckResult:
                 + (f": {detail}" if detail else "")
             )
     elif project.exists():
-        absent = [
-            name
-            for name in ("mermaid", "mathjax")
-            if not (project / "tools" / name / "node_modules").exists()
-        ]
-        if absent:
-            return _wrong(f"node {raw}, but {' and '.join(absent)} is not installed")
+        if not (project / "tools" / "mathjax" / "node_modules").exists():
+            return _wrong(f"node {raw}, but mathjax is not installed")
     if context.platform == UBUNTU:
         chromium = _chromium_version_result(context)
         if not chromium.ok or not chromium.stdout.strip():
             return _wrong(
                 f"node {raw}, but Puppeteer has no system Chromium to use - it would "
-                "download one, which on ARM64 is a build that cannot run"
+                "download one, which on ARM64 may be a build that cannot run"
             )
         chromium_raw = chromium.stdout.strip()
         if _numeric_version(chromium_raw) is None:
             warnings.append(
-                "could not read Chromium's version; Mermaid may fail unless it is "
+                "could not read Chromium's version; MathJax verification may fail unless it is "
                 f"{CHROMIUM_MIN_VERSION} or later"
             )
         elif _version_is_older(chromium_raw, CHROMIUM_MIN_VERSION):
@@ -3934,10 +3837,9 @@ def node_runtime_install_plan(
 def _plan_node(context: Context) -> Plan:
     project = context.config.resolved_project_dir(context.home)
     install, upgrade, repair, upgrade_parts = node_runtime_install_plan(context)
-    mermaid = str(project / "tools" / "mermaid")
     mathjax = str(project / "tools" / "mathjax")
 
-    def npm_ci(directory: str, *, ensure_puppeteer: bool = False) -> list[str]:
+    def npm_ci(directory: str) -> list[str]:
         """Run npm from its package directory instead of using ``--prefix``.
 
         npm 12 currently rejects Mermaid's valid optional-peer lock entry when
@@ -3946,47 +3848,24 @@ def _plan_node(context: Context) -> Plan:
         """
         if context.platform == WINDOWS:
             literal = directory.replace("'", "''")
-            recovery = (
-                "; if (-not (Test-Path -LiteralPath 'node_modules/puppeteer')) { "
-                f"npm.cmd install --no-save --package-lock=false --legacy-peer-deps "
-                f"{PUPPETEER_RUNTIME}; "
-                "if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE } }"
-                if ensure_puppeteer
-                else ""
-            )
-            browser = (
-                "; npm.cmd exec -- puppeteer browsers install; exit $LASTEXITCODE"
-                if ensure_puppeteer
-                else ""
-            )
             return [
                 "powershell",
                 "-NoProfile",
                 "-Command",
                 f"Set-Location -LiteralPath '{literal}'; "
                 "npm.cmd ci --legacy-peer-deps; "
-                "if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }"
-                f"{recovery}{browser}",
+                "exit $LASTEXITCODE",
             ]
-        recovery = (
-            " && if [ ! -d node_modules/puppeteer ]; then "
-            "npm install --no-save --package-lock=false --legacy-peer-deps "
-            f"{PUPPETEER_RUNTIME}; fi"
-            if ensure_puppeteer
-            else ""
-        )
-        browser = " && npm exec -- puppeteer browsers install" if ensure_puppeteer else ""
         return [
             "bash",
             "-c",
-            f"cd {shlex.quote(directory)} && npm ci --legacy-peer-deps{recovery}{browser}",
+            f"cd {shlex.quote(directory)} && npm ci --legacy-peer-deps",
         ]
 
     if context.platform != UBUNTU:
         return Plan(
             commands=[
                 *install,
-                npm_ci(mermaid, ensure_puppeteer=True),
                 npm_ci(mathjax),
             ],
             describe=(
@@ -4007,15 +3886,7 @@ def _plan_node(context: Context) -> Plan:
             destructive=upgrade or repair,
         )
 
-    # Chromium first, and the exports before `npm ci` rather than after.
-    #
-    # `npm ci` in tools/mermaid triggers Puppeteer's own postinstall
-    # download, and that download is not guaranteed to match the CPU it
-    # lands on: on ARM64 - an Apple-silicon Linux VM, Graviton, a
-    # Raspberry Pi - it fetches an x86_64 Chrome that can never run.
-    # Nothing fails at install time. Mermaid simply cannot render a
-    # diagram later, a long way from the command that caused it
-    # (prodockit-userguide#102, prodockit-extensions#249).
+    # MathJax browser verification uses Puppeteer Core with system Chromium.
     exports = _puppeteer_exports()
     bashrc = context.home / ".bashrc"
     persist = (
@@ -4043,14 +3914,6 @@ def _plan_node(context: Context) -> Plan:
             # Appended once. Rerunning bootstrap should not leave a
             # profile with the same two exports in it four times over.
             ["bash", "-c", persist],
-            [
-                "bash",
-                "-c",
-                f"{exports}cd {shlex.quote(mermaid)} && npm ci --legacy-peer-deps"
-                " && if [ ! -d node_modules/puppeteer ]; then "
-                "npm install --no-save --package-lock=false --legacy-peer-deps "
-                f"{PUPPETEER_RUNTIME}; fi",
-            ],
             [
                 "bash",
                 "-c",

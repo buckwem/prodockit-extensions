@@ -7,14 +7,14 @@ icon: lucide/boxes
 # `pdk init-tools`
 
 `pdk init-tools` creates the locked project-local Node manifests and scripts
-used to render Mermaid diagrams and TeX mathematics into PDFs.
+used to render TeX mathematics into PDFs.
 
 Use [Prepare the PDF tools](../pdf.md#pdf-requirements) for the installation
 task and operating-system prerequisites.
 
 ## Synopsis {: #cmd-init-tools-synopsis }
 
-Use the default for both renderers or select either component explicitly.
+The default creates the remaining MathJax tooling.
 
 ```text
 pdk init-tools [OPTIONS]
@@ -27,7 +27,7 @@ to the current directory. A deliberate custom directory must also match the
 renderer paths configured in `zensical.toml`.
 
 There may be **no error** when it is run from the wrong directory: it can create
-new `tools/mermaid` and `tools/mathjax` trees there and report `Wrote ...`.
+new `tools/mathjax` tree there and report `Wrote ...`.
 If the paths are outside the project, remove the unintended files and rerun the
 command from the project root.
 
@@ -38,7 +38,6 @@ command from the project root.
 | Option {: width="38%" } | Behaviour |
 |---|---|
 | `--dir PATH` | Scaffold beneath another directory; defaults to `tools`. |
-| `--mermaid`, `--no-mermaid` | Include or omit Mermaid CLI tooling; included by default. |
 | `--mathjax`, `--no-mathjax` | Include or omit MathJax tooling; included by default. |
 | `--force` | Overwrite an existing scaffold file instead of preserving it. |
 | `-h`, `--help` | Show installed help and exit. |
@@ -64,4 +63,4 @@ Use these commands to populate or verify the generated tool directories:
 
 - [`pdk init-mathjax`](init-mathjax.md) copies the installed MathJax browser
   bundle into website assets.
-- [`pdk diag`](diag.md) verifies both project-local renderer installations.
+- [`pdk diag`](diag.md) verifies the MathJax installation and Python Mermaid runtime.

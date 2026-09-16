@@ -22,17 +22,10 @@ def test_the_upgrade_starts_from_a_published_adopt_release() -> None:
 
 
 def test_renderer_inventory_reads_installed_packages(tmp_path):
-    for component, package, version in (
-        ("mermaid", "@mermaid-js/mermaid-cli", "11.0.0"),
-        ("mathjax", "mathjax-full", "3.2.2"),
-    ):
-        path = tmp_path / "tools" / component / "node_modules" / package / "package.json"
-        path.parent.mkdir(parents=True)
-        path.write_text(json.dumps({"version": version}))
-    assert adopt_native_upgrade.renderer_versions(tmp_path) == {
-        "mermaid": "11.0.0",
-        "mathjax": "3.2.2",
-    }
+    path = tmp_path / "tools/mathjax/node_modules/mathjax-full/package.json"
+    path.parent.mkdir(parents=True)
+    path.write_text(json.dumps({"version": "3.2.2"}))
+    assert adopt_native_upgrade.renderer_versions(tmp_path) == {"mathjax": "3.2.2"}
 
 
 def test_architecture_requirements_are_mutually_exclusive() -> None:

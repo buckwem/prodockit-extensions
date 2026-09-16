@@ -123,7 +123,7 @@ def test_declined_node_activity_cannot_start_renderer_or_edit_config(tmp_path, m
         node, "plan", lambda **kwargs: node.NodePlan((("brew", "install", "node"),))
     )
     with pytest.raises(adopt.AdoptError, match=r"Complete the Node\.js"):
-        adopt.apply_step(tmp_path, adopt.AdoptOptions(mermaid=True), "mermaid")
+        adopt.apply_step(tmp_path, adopt.AdoptOptions(maths=True), "maths")
     assert list(tmp_path.iterdir()) == []
 
 

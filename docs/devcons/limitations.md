@@ -106,7 +106,8 @@ generated output rather than a place for hand-maintained files.
 **No JS engine (WeasyPrint can't run client-side JS)**
 
 - Mermaid diagrams: no JS engine to run Mermaid.js client-side → each
-  ` ```mermaid ` fence is pre-rendered to a static SVG via `mermaid-cli`
+  ` ```mermaid ` fence is pre-rendered to a static SVG by the isolated
+  Python-packaged Mermaid runtime
   before Pandoc ever sees it (see [PDF internal modules](pdf-internals.md#know-the-internal-modules)).
     - Mermaid's default node/edge labels are HTML `<foreignObject>`
       content, which WeasyPrint's SVG renderer can't display (text
@@ -123,13 +124,12 @@ generated output rather than a place for hand-maintained files.
       dedicated `Div()`/`Span()` Lua handlers instead of the `Math()`
       function.
 
-!!! warning "Both renderers are optional, and their absence is announced"
+!!! warning "Missing renderer dependencies are announced"
 
-    `mermaid-cli` and the `tex2svg` script are external Node tools, not
-    Python dependencies, so neither is guaranteed to be present. When one
-    is missing, the affected content is left exactly as it is rather than
-    failing the build - a document with no diagrams and no maths should
-    never need either tool installed.
+    The default Mermaid runtime is installed through Python requirements.
+    The MathJax `tex2svg` script remains an external Node tool. When a
+    required renderer is unavailable, the affected content is left exactly
+    as it is rather than being silently replaced with incorrect output.
 
     The catch is that a document which *does* use them then gets a PDF
     containing raw `flowchart LR ...` source or literal LaTeX, with

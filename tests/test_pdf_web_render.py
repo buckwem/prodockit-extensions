@@ -224,7 +224,7 @@ def test_real_browser_checks_both_renderers_and_navigation(
     module = Path(
         os.environ.get(
             "PDK_BROWSER_TEST_PUPPETEER",
-            str(Path(__file__).parents[1] / "tools/mermaid/node_modules/puppeteer"),
+                str(Path(__file__).parents[1] / "tools/mathjax/node_modules/puppeteer-core"),
         )
     )
     if not node or not browser or not module.is_dir():
@@ -308,7 +308,7 @@ def test_real_browser_visits_inactive_content_tabs(
     module = Path(
         os.environ.get(
             "PDK_BROWSER_TEST_PUPPETEER",
-            str(Path(__file__).parents[1] / "tools/mermaid/node_modules/puppeteer"),
+                str(Path(__file__).parents[1] / "tools/mathjax/node_modules/puppeteer-core"),
         )
     )
     if not node or not browser or not module.is_dir():
@@ -373,7 +373,7 @@ def test_real_browser_checks_zensical_closed_shadow_diagrams(tmp_path: Path) -> 
     module = Path(
         os.environ.get(
             "PDK_BROWSER_TEST_PUPPETEER",
-            str(Path(__file__).parents[1] / "tools/mermaid/node_modules/puppeteer"),
+                str(Path(__file__).parents[1] / "tools/mathjax/node_modules/puppeteer-core"),
         )
     )
     if not node or not browser or not module.is_dir():
@@ -422,7 +422,7 @@ def test_real_browser_mathjax_survives_zensical_instant_navigation(
     browser = find_browser()
     root = Path(__file__).parents[1]
     module = Path(os.environ.get(
-        "PDK_BROWSER_TEST_PUPPETEER", str(root / "tools/mermaid/node_modules/puppeteer")
+            "PDK_BROWSER_TEST_PUPPETEER", str(root / "tools/mathjax/node_modules/puppeteer-core")
     ))
     bundle = Path(os.environ.get(
         "PDK_BROWSER_TEST_MATHJAX",

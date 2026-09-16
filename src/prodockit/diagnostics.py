@@ -29,6 +29,10 @@ import prodockit
 from prodockit.config_diagnostics import inspect_config
 from prodockit.init_tools import COMPONENT_FILES, init_tools
 from prodockit.mathjax import MathJaxError, install_mathjax
+from prodockit.pdf._standalone_quickjs import (
+    StandaloneBackendUnavailableError as StandaloneRuntimeUnavailableError,
+)
+from prodockit.pdf._standalone_quickjs import require_standalone_runtime
 from prodockit.pins import (
     DEFAULT_PACKAGES,
     TESTED_VERSIONS,
@@ -39,7 +43,7 @@ from prodockit.pins import (
 )
 from prodockit.project_config import ProjectConfig, ProjectConfigError, load_project_config
 from prodockit.project_integrity import renderer_requirements
-from prodockit.renderer_health import find_browser, probe_mathjax, probe_mermaid
+from prodockit.renderer_health import find_browser, probe_mathjax
 from prodockit.renderer_resilience import RetryReporter, run_npm_with_retries, run_with_retries
 from prodockit.shared_files import SharedFileError
 from prodockit.shared_files import apply as apply_shared_files
@@ -83,7 +87,6 @@ DIAGNOSTIC_IDS = frozenset(
         "renderer.mermaid",
         "renderer.browser",
         "renderer.mathjax",
-        "renderer.mermaid-security",
         "renderer.mathjax-security",
         "renderer.inspection",
         "renderer.security-inspection",
@@ -315,9 +318,9 @@ REPAIR_REGISTRY: dict[str, RepairPolicy] = {
         "Repair or reinstall the selected Node distribution.",
     ),
     "renderer.mermaid": RepairPolicy(
-        "online",
-        "A valid project lockfile permits a bounded project-local reinstall.",
-        "Prefer Adoption or `pdk init-tools --mermaid`; no template is required.",
+        "prohibited",
+        "The standalone Mermaid runtime is part of the Python installation.",
+        "Repair the declared Python requirements and reinstall Prodockit.",
     ),
     "renderer.browser": RepairPolicy(
         "prohibited",
@@ -329,11 +332,6 @@ REPAIR_REGISTRY: dict[str, RepairPolicy] = {
         "Committed project inputs can rebuild project-local MathJax tooling and assets.",
         "Prefer Adoption, `pdk init-tools --mathjax`, or `pdk init-mathjax`; "
         "no template is required.",
-    ),
-    "renderer.mermaid-security": RepairPolicy(
-        "prohibited",
-        "Security upgrades require advisory and rendered-output review.",
-        "Review `npm audit --omit=dev` and update the lockfile explicitly.",
     ),
     "renderer.mathjax-security": RepairPolicy(
         "prohibited",
@@ -1210,7 +1208,7 @@ def _configuration_candidates(check: DiagnosticResult) -> list[RepairCandidate]:
 
 def _renderer_candidate(check: DiagnosticResult, report: DiagnosticReport) -> RepairCandidate:
     policy = REPAIR_REGISTRY[check.id]
-    component = "mermaid" if check.id == "renderer.mermaid" else "mathjax"
+    component = "mathjax"
     if not report.online:
         return RepairCandidate(
             f"{check.id}.online-required",
@@ -1235,11 +1233,7 @@ def _renderer_candidate(check: DiagnosticResult, report: DiagnosticReport) -> Re
             reason,
             policy.remediation,
         )
-    paths = (
-        ("tools/mermaid",)
-        if component == "mermaid"
-        else ("tools/mathjax", "docs/javascripts/mathjax.js", "docs/javascripts/vendor/mathjax")
-    )
+    paths = ("tools/mathjax", "docs/javascripts/mathjax.js", "docs/javascripts/vendor/mathjax")
     return RepairCandidate(
         f"{check.id}.install-locked",
         check.id,
@@ -1346,7 +1340,7 @@ def build_repair_dry_run(
             candidates.extend(_pin_candidates(check))
         elif check.id == "renderer.weasyprint":
             candidates.append(_windows_pango_candidate(check))
-        elif check.id in {"renderer.mermaid", "renderer.mathjax"}:
+        elif check.id == "renderer.mathjax":
             candidates.append(_renderer_candidate(check, report))
         elif check.id == "project.configuration" and check.data.get("repairable_problems"):
             candidates.extend(_configuration_candidates(check))
@@ -2114,7 +2108,7 @@ def _renderer_plan_fingerprint(root: Path, component: str) -> str:
 
 def repair_locked_renderer(
     root: Path,
-    component: Literal["mermaid", "mathjax"],
+    component: Literal["mathjax"],
     *,
     expected_fingerprint: str,
     timestamp: str | None = None,
@@ -2208,47 +2202,27 @@ def repair_locked_renderer(
             raise RepairTransactionError(f"npm ci failed: {_sanitise_text(detail, project)}")
         changed.append(_display_path(modules, project))
 
-        if component == "mermaid":
-            binary = _project_tool(
-                project,
-                None,
-                ("tools/mermaid/node_modules/.bin/mmdc",),
-            )
-            probe = (
-                (
-                    probe_mermaid(binary, reporter=retry_reporter)
-                    if retry_reporter is not None
-                    else probe_mermaid(binary)
-                )
-                if binary
-                else None
-            )
-            if probe is None or not probe.ok:
-                raise RepairTransactionError(
-                    f"Mermaid verification failed: {probe.error if probe else 'mmdc is missing'}"
-                )
-        else:
-            asset_paths = (
-                project / "docs" / "javascripts" / "mathjax.js",
-                project / "docs" / "javascripts" / "vendor" / "mathjax" / "tex-svg-full.js",
-                project / "docs" / "javascripts" / "vendor" / "mathjax" / "LICENSE",
-            )
-            for path in asset_paths:
-                if path.exists() or path.is_symlink():
-                    transaction.backup_path(path, backup_name=_display_path(path, project))
-                else:
-                    transaction.record_creation(path)
-            try:
-                installed = install_mathjax(project, update_gitignore=False)
-            except MathJaxError as error:
-                raise RepairTransactionError(str(error)) from error
-            changed.extend(
-                _display_path(path, project)
-                for path in (installed.config, installed.bundle, installed.license)
-            )
-            probe = probe_mathjax(node, tool_root / "tex2svg.js")
-            if not probe.ok:
-                raise RepairTransactionError(f"MathJax verification failed: {probe.error}")
+        asset_paths = (
+            project / "docs" / "javascripts" / "mathjax.js",
+            project / "docs" / "javascripts" / "vendor" / "mathjax" / "tex-svg-full.js",
+            project / "docs" / "javascripts" / "vendor" / "mathjax" / "LICENSE",
+        )
+        for path in asset_paths:
+            if path.exists() or path.is_symlink():
+                transaction.backup_path(path, backup_name=_display_path(path, project))
+            else:
+                transaction.record_creation(path)
+        try:
+            installed = install_mathjax(project, update_gitignore=False)
+        except MathJaxError as error:
+            raise RepairTransactionError(str(error)) from error
+        changed.extend(
+            _display_path(path, project)
+            for path in (installed.config, installed.bundle, installed.license)
+        )
+        probe = probe_mathjax(node, tool_root / "tex2svg.js")
+        if not probe.ok:
+            raise RepairTransactionError(f"MathJax verification failed: {probe.error}")
         transaction.commit()
     except (OSError, subprocess.SubprocessError, RepairTransactionError) as error:
         try:
@@ -3283,7 +3257,7 @@ def _locked_renderer_refusal(
         return "renderer manifests do not declare a locked dependency graph"
     if root_package.get("dependencies") != dependencies:
         return "package.json and package-lock.json dependency declarations do not match"
-    package_name = "@mermaid-js/mermaid-cli" if component == "mermaid" else "mathjax-full"
+    package_name = "mathjax-full"
     locked = (lock.get("packages") or {}).get(f"node_modules/{package_name}")
     if not isinstance(locked, dict) or not locked.get("version") or not locked.get("integrity"):
         return f"package-lock.json does not pin {package_name} with an integrity hash"
@@ -3336,7 +3310,7 @@ def _renderer_checks(
         )
     )
     mermaid_required, maths_required = renderer_requirements(config) if config else (False, False)
-    node_required = mermaid_required or maths_required
+    node_required = maths_required
     checks = [_tool_result("renderer.pandoc", "Pandoc", "pandoc", root=root, required=pdf_required)]
 
     pango_details: list[str] = []
@@ -3434,64 +3408,33 @@ def _renderer_checks(
         )
     )
 
-    mmdc = None
     tex2svg = None
     if config:
-        mmdc = _project_tool(
-            root,
-            config.extra.get("pdf_mmdc_bin"),
-            ("tools/mermaid/node_modules/.bin/mmdc", "node_modules/.bin/mmdc"),
-        ) or (Path(found) if (found := shutil.which("mmdc")) else None)
         tex2svg = _project_tool(
             root,
             config.extra.get("pdf_tex2svg_script"),
             ("tools/mathjax/tex2svg.js",),
         )
-    mmdc_probe = (
-        (
-            probe_mermaid(mmdc, reporter=retry_reporter)
-            if retry_reporter is not None
-            else probe_mermaid(mmdc)
-        )
-        if mmdc
-        else None
-    )
-    mmdc_ok = bool(mmdc_probe and mmdc_probe.ok)
-    mmdc_retried = bool(mmdc_ok and mmdc_probe and getattr(mmdc_probe, "attempts", 1) > 1)
-    mmdc_error = _sanitise_text(mmdc_probe.error, root) if mmdc_probe and mmdc_probe.error else None
+    standalone_error = None
+    try:
+        require_standalone_runtime()
+    except StandaloneRuntimeUnavailableError as error:
+        standalone_error = _sanitise_text(str(error), root)
+    standalone_ok = standalone_error is None
     checks.append(
         DiagnosticResult(
             "renderer.mermaid",
             "Rendering toolchain",
-            "warn"
-            if mmdc_retried
-            else ("pass" if mmdc_ok else ("fail" if mermaid_required else "warn")),
-            "Mermaid CLI recovered after a transient failure"
-            if mmdc_retried
-            else "Mermaid CLI is available"
-            if mmdc_ok
-            else ("Mermaid CLI is unusable" if mmdc else "Mermaid CLI is missing")
+            "pass" if standalone_ok else ("fail" if mermaid_required else "warn"),
+            "Standalone Mermaid runtime is available"
+            if standalone_ok
+            else "Standalone Mermaid runtime is unavailable"
             + (" but required by this project" if mermaid_required else " (optional)"),
-            tuple(
-                detail
-                for detail in (
-                    f"path: {_display_path(mmdc, root)}" if mmdc else None,
-                    (
-                        f"health probe: recovered after {mmdc_probe.attempts} attempts"
-                        if mmdc_retried and mmdc_probe
-                        else None
-                    ),
-                    f"health probe: {mmdc_error}" if mmdc_error else None,
-                )
-                if detail
-            ),
+            (standalone_error,) if standalone_error else (),
             {
                 "required": mermaid_required,
-                "path": _display_path(mmdc, root) if mmdc else None,
-                "version": mmdc_probe.version if mmdc_probe else None,
-                "error": mmdc_error,
-                "repair_refusal": _locked_renderer_refusal(root, config, "mermaid"),
-                "repair_fingerprint": _renderer_plan_fingerprint(root, "mermaid"),
+                "backend": "standalone",
+                "error": standalone_error,
             },
         )
     )
@@ -3509,20 +3452,15 @@ def _renderer_checks(
         except OSError as error:
             browser_error = _sanitise_text(str(error), root)
     browser_ok = bool(browser and not browser_error)
-    bundled_browser_ok = not browser and mmdc_ok
     browser_status: Status = (
-        "pass"
-        if browser_ok or bundled_browser_ok
-        else ("fail" if browser and mermaid_required else "warn")
+        "pass" if browser_ok else ("fail" if maths_required else "warn")
     )
     checks.append(
         DiagnosticResult(
             "renderer.browser",
             "Rendering toolchain",
             browser_status,
-            "Mermaid bundled browser rendered successfully"
-            if bundled_browser_ok
-            else "Browser executable found"
+            "Browser executable found"
             if browser_ok
             else (
                 "Browser executable is unusable"
@@ -3530,10 +3468,10 @@ def _renderer_checks(
                 else "No explicit Chrome/Chromium executable found"
             )
             + (
-                "; Mermaid CLI may use its bundled browser"
-                if not browser and mermaid_required
+                "; required for MathJax website verification"
+                if not browser and maths_required
                 else " (optional)"
-                if not mermaid_required
+                if not maths_required
                 else ""
             ),
             tuple(
@@ -3545,9 +3483,9 @@ def _renderer_checks(
                 if detail
             ),
             {
-                "required": mermaid_required,
+                "required": maths_required,
                 "path": _display_path(browser, root) if browser else None,
-                "bundled": bundled_browser_ok,
+                "bundled": False,
                 "version": None,
                 "error": browser_error,
             },
@@ -3612,12 +3550,8 @@ def _probe_weasyprint_import(
 
 
 def _node_security_checks(root: Path, online: bool) -> list[DiagnosticResult]:
-    """Audit each configured managed renderer independently of functional probes."""
-    return [
-        check
-        for component, name in (("mermaid", "Mermaid"), ("mathjax", "MathJax"))
-        for check in _node_security_check(root, online, component, name)
-    ]
+    """Audit the remaining managed Node renderer."""
+    return _node_security_check(root, online, "mathjax", "MathJax")
 
 
 def _node_security_check(

@@ -929,9 +929,7 @@ def test_warns_when_a_mermaid_diagram_has_no_renderer(
     build_pdf([_MERMAID_PAGE], str(tmp_path / "out.pdf"))
     out = capsys.readouterr().out
     assert "contains Mermaid diagrams" in out
-    assert "prodockit init-tools" in out, (
-        "the warning should name the fix, not just the symptom"
-    )
+    assert "Install `mmdc` outside ProDockit" in out
 
 
 def test_warns_when_maths_has_no_renderer(

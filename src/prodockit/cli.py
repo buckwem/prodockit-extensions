@@ -104,7 +104,6 @@ from prodockit.environment import BuildEnvironmentError, check_pdf_environment
 from prodockit.init_tools import (
     COMPONENT_PURPOSE,
     InitToolsError,
-    ci_environment,
     gitignore_lines,
     init_tools,
     install_commands,
@@ -2272,16 +2271,13 @@ def diag_command(
                     changed = pin_repair.changed
                     action_manifest = pin_repair.manifest
                     action_quarantine = pin_repair.quarantine
-                elif candidate.check_id in {"renderer.mermaid", "renderer.mathjax"}:
+                elif candidate.check_id == "renderer.mathjax":
                     renderer_check = next(
                         check for check in before.checks if check.id == candidate.check_id
                     )
-                    component: Literal["mermaid", "mathjax"] = (
-                        "mermaid" if candidate.check_id == "renderer.mermaid" else "mathjax"
-                    )
                     renderer_repair = repair_locked_renderer(
                         project_root,
-                        component,
+                        "mathjax",
                         expected_fingerprint=renderer_check.data["repair_fingerprint"],
                         retry_reporter=_renderer_retry_warning,
                     )
@@ -3089,12 +3085,6 @@ def init_mathjax_command(root: str, no_gitignore: bool) -> None:
     help="Directory to scaffold into. Must match what prodockit.pdf looks for.",
 )
 @click.option(
-    "--mermaid/--no-mermaid",
-    default=True,
-    show_default=True,
-    help="Scaffold the mermaid-cli tooling, for ```mermaid diagrams in the PDF.",
-)
-@click.option(
     "--mathjax/--no-mathjax",
     default=True,
     show_default=True,
@@ -3105,20 +3095,11 @@ def init_mathjax_command(root: str, no_gitignore: bool) -> None:
     is_flag=True,
     help="Overwrite files that already exist, instead of leaving them alone.",
 )
-def init_tools_command(tools_dir: str, mermaid: bool, mathjax: bool, force: bool) -> None:
-    """Set up the Node tooling needed to render Mermaid diagrams and TeX
-    maths in your PDF.
-
-    WeasyPrint has no JS engine, so both are pre-rendered to static images
-    by external tools before Pandoc sees them. This writes the manifests
-    `prodockit pdf` expects to find, and prints the commands to install
-    them. A project using neither feature doesn't need any of this.
-    """
-    components = tuple(
-        name for name, wanted in (("mermaid", mermaid), ("mathjax", mathjax)) if wanted
-    )
+def init_tools_command(tools_dir: str, mathjax: bool, force: bool) -> None:
+    """Set up the remaining Node tooling used to render TeX maths."""
+    components = ("mathjax",) if mathjax else ()
     if not components:
-        click.echo("Nothing to do: both --no-mermaid and --no-mathjax were given.", err=True)
+        click.echo("Nothing to do: --no-mathjax was given.", err=True)
         sys.exit(1)
 
     try:
@@ -3144,14 +3125,6 @@ def init_tools_command(tools_dir: str, mermaid: bool, mathjax: bool, force: bool
     for line in gitignore_lines(result):
         click.echo(f"  {line}")
 
-    if "mermaid" in result.components:
-        click.echo("\nIn CI, mermaid-cli drives Chrome through Puppeteer. Install Chrome and set:")
-        for name, value in ci_environment().items():
-            click.echo(f"  {name}: {value}")
-        click.echo(
-            "  (PUPPETEER_SKIP_DOWNLOAD, not the older "
-            "PUPPETEER_SKIP_CHROMIUM_DOWNLOAD, which puppeteer 25.x ignores)"
-        )
 
 
 _ADOPT_PHASES = (

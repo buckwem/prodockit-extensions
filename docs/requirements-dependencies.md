@@ -61,8 +61,8 @@ pip cannot install and the features that use them.
 | --- | --- |
 | \index{dependencies!`weasyprint`} (>= 69) | `prodockit.pdf`. A Python package, but not a dependency of prodockit - install it yourself. `prodockit.pdf` runs its command-line rather than importing it |
 | \index{dependencies!`pandoc`} (>= 3, builds pin 3.10.1) | `prodockit.pdf`, and `prodockit.bibliography` even without a PDF build. Genuinely not a Python package - there is nothing for `pip` to install |
-| \index{dependencies!`mermaid-cli`}, `mathjax-full` (Node >= 22) | only Mermaid diagrams and TeX maths in the PDF |
-| Chrome or Chromium | only Mermaid diagrams - `mermaid-cli` renders them through a headless browser |
+| `mathjax-full` (Node >= 22) | TeX maths in the PDF and website verification |
+| Chrome or Chromium | website verification for MathJax; default Mermaid PDF rendering does not use it |
 | A citation style (`.csl`) | only `prodockit.bibliography`. The standard style is fetched and validated by Bootstrap or Adopt; custom styles remain author-owned - see below |
 /// table-caption | <
     attrs: {id: tab-installation-not-installed-by-pip}

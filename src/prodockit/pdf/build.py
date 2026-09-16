@@ -122,9 +122,8 @@ def _warn_about_unrendered_content(
         warnings.append(
             "⚠️  This document contains Mermaid diagrams, but no `mmdc` "
             "(mermaid-cli) binary was found - they will appear in the PDF as "
-            "raw diagram source instead of rendered images. Run "
-            "`prodockit init-tools` to set it up, or set `pdf_mmdc_bin` in "
-            "your config to an existing install."
+            "raw diagram source instead of rendered images. Install `mmdc` "
+            "outside ProDockit or set `pdf_mmdc_bin` to an existing install."
         )
     if not mathjax_available and any(markup.maths for markup in detected):
         warnings.append(

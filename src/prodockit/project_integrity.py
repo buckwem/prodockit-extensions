@@ -16,6 +16,10 @@ from markdown import markdown as render_markdown
 
 from prodockit.csl import CslError
 from prodockit.csl import validate as validate_csl
+from prodockit.pdf._standalone_quickjs import (
+    StandaloneBackendUnavailableError as StandaloneRuntimeUnavailableError,
+)
+from prodockit.pdf._standalone_quickjs import require_standalone_runtime
 from prodockit.project_config import ProjectConfig, load_project_config
 from prodockit.renderer_health import probe_mathjax, probe_mermaid
 from prodockit.text_encoding import inspect_project_text_encoding
@@ -486,29 +490,21 @@ def inspect_project(
         config, markdown_sources
     )
     if mermaid_required:
-        configured = config.extra.get("pdf_mmdc_bin")
-        found = _tool_path(
-            config.root,
-            configured,
-            ("tools/mermaid/node_modules/.bin/mmdc", "node_modules/.bin/mmdc"),
-        )
-        if found is None and configured is None and (on_path := shutil.which("mmdc")):
-            found = Path(on_path)
-        if found is None:
-            problems.append(
-                ProjectProblem(
-                    "project.extra.pdf_mmdc_bin",
-                    "Mermaid diagrams are used but the mmdc renderer is not installed",
-                )
-            )
-        else:
-            probe = probe_mermaid(found)
-            if not probe.ok:
+        try:
+            require_standalone_runtime()
+        except StandaloneRuntimeUnavailableError as standalone_error:
+            configured = config.extra.get("pdf_mmdc_bin")
+            found = _tool_path(config.root, configured, ("node_modules/.bin/mmdc",))
+            if found is None and configured is None and (on_path := shutil.which("mmdc")):
+                found = Path(on_path)
+            probe = probe_mermaid(found) if found is not None else None
+            if probe is None or not probe.ok:
                 problems.append(
                     ProjectProblem(
                         "project.extra.pdf_mmdc_bin",
-                        "Mermaid diagrams are used but the mmdc renderer cannot run: "
-                        f"{probe.error}",
+                        "Mermaid diagrams are used but the standalone runtime is unavailable "
+                        "and no usable external mmdc was found for --swap: "
+                        f"{probe.error if probe else standalone_error}",
                     )
                 )
 

@@ -64,8 +64,7 @@ pdf_extra_css = ["stylesheets/pdk-pdf.css", "stylesheets/print.css"]
         adopt.ensure_zensical_config(tmp_path, adopt.AdoptOptions())
         adopt.ensure_stylesheets(tmp_path)
         adopt.ensure_javascripts(tmp_path)
-        for component in ("mermaid", "mathjax"):
-            adopt_renderers.align(tmp_path, component, write=adopt._atomic_write)
+        adopt_renderers.align(tmp_path, "mathjax", write=adopt._atomic_write)
 
     align()
     first = {p.relative_to(tmp_path): p.read_bytes() for p in tmp_path.rglob("*") if p.is_file()}

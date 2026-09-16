@@ -149,7 +149,6 @@ jobs:
       # this was first tried.
       - run: sudo apt-get -o Acquire::http::Timeout=10 update && sudo apt-get -o Acquire::http::Timeout=10 install -y google-chrome-stable
         timeout-minutes: 8
-      - run: npm ci --prefix tools/mermaid
       - run: npm ci --prefix tools/mathjax
 
       # Keep these in step with docs.yml's own install line - including

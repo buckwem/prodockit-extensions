@@ -43,7 +43,7 @@ _REQUIREMENT_FILES = (
 )
 _RENDERER_FILES = tuple(
     f"tools/{renderer}/{name}"
-    for renderer in ("mermaid", "mathjax")
+    for renderer in ("mathjax",)
     for name in ("package.json", "package-lock.json")
 )
 _MAX_PROBLEMS_PER_FILE = 100

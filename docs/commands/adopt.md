@@ -220,16 +220,15 @@ If an installer times out or you interrupt it, Adopt attempts to stop its proces
 tree. It does not automatically retry or delete files that a detached installer
 could still be using; check the recovery message before running Adopt again.
 
-Offline use requires an existing system browser or, on macOS/Windows, a usable
-Puppeteer cache. A missing explicitly configured `PUPPETEER_EXECUTABLE_PATH` is
-reported rather than silently replaced. Browser-file detection is only a
-prerequisite: the final Mermaid check must actually generate an SVG diagram.
+Offline MathJax website verification requires an existing system browser or a
+usable Puppeteer cache. A missing explicitly configured
+`PUPPETEER_EXECUTABLE_PATH` is reported rather than silently replaced.
 
-For selected Mermaid and maths components, Adopt aligns `tools/mermaid` and
-`tools/mathjax` with the renderer files shipped in the installed Prodockit
-release. It installs from that release's lockfile, allowing both upgrades and
-downgrades. A renderer that still works but has the wrong version is not
-reported as aligned. Unselected renderers are left alone.
+For the selected maths component, Adopt aligns `tools/mathjax` with the
+renderer files shipped in the installed Prodockit release. It installs from
+that release's lockfile, allowing both upgrades and downgrades. Mermaid uses
+the installed Python runtime; Adopt does not create, install, align, or delete
+`tools/mermaid`.
 
 The activity lists the tool files it may change. Before replacing existing
 manifests, lockfiles or the MathJax conversion script, Adopt saves their original
