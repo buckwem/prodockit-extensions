@@ -24,7 +24,7 @@ environment, and installs the checkout in editable mode.
     cd prodockit-extensions
     "$(brew --prefix python@3.14)/bin/python3.14" -m venv .venv
     source .venv/bin/activate
-    python -m pip install -e ".[dev]"
+    python -m pip install -r requirements-test.txt
     ```
 
 === ":fontawesome-brands-windows: Windows PowerShell"
@@ -35,7 +35,7 @@ environment, and installs the checkout in editable mode.
     py -3.14 -m venv .venv
     Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
     .\.venv\Scripts\Activate.ps1
-    python -m pip install -e ".[dev]"
+    python -m pip install -r requirements-test.txt
     ```
 
 === ":material-linux: Linux (Ubuntu)"
@@ -45,7 +45,7 @@ environment, and installs the checkout in editable mode.
     cd prodockit-extensions
     python3.14 -m venv .venv
     source .venv/bin/activate
-    python -m pip install -e ".[dev]"
+    python -m pip install -r requirements-test.txt
     ```
 
 The editable install provides `prodockit`, `pdk`, and Zensical while importing
