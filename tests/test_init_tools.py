@@ -111,6 +111,14 @@ def test_every_declared_template_file_is_packaged() -> None:
         assert (TEMPLATE_DIR / "mathjax" / filename).is_file()
 
 
+def test_documentation_mathjax_fixture_matches_the_packaged_template() -> None:
+    root = Path(__file__).resolve().parents[1]
+    for filename in COMPONENT_FILES["mathjax"]:
+        assert (root / "tools/mathjax" / filename).read_bytes() == (
+            TEMPLATE_DIR / "mathjax" / filename
+        ).read_bytes()
+
+
 def test_guidance_targets_only_mathjax(tmp_path: Path) -> None:
     result = init_tools(tmp_path / "tools")
     assert gitignore_lines(result) == [

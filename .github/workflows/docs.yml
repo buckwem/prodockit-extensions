@@ -192,9 +192,6 @@ jobs:
       # first page to add one is rendered rather than silently published as
       # raw LaTeX, the way the Mermaid diagram above once was. Needs no
       # browser: tex2svg.js is plain Node.
-      # Align the committed documentation fixture with the installed package
-      # before npm resolves it; init-mathjax below then publishes its assets.
-      - run: prodockit init-tools --mathjax --force
       - run: npm ci --prefix tools/mathjax
       # The [testing] extra brings pytest/pymupdf for the built-output
       # checks below. pymupdf is also what extra.pdf_include_index needs to
