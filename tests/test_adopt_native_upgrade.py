@@ -40,3 +40,11 @@ def test_architecture_requirements_are_mutually_exclusive() -> None:
         adopt_native_upgrade.parser().parse_args(
             ["--wheel", "candidate.whl", "--require-x64", "--require-arm64"]
         )
+
+
+def test_upgrade_accepts_the_legacy_pdf_backend_flag() -> None:
+    arguments = adopt_native_upgrade.parser().parse_args(
+        ["--wheel", "candidate.whl", "--pdf-swap"]
+    )
+
+    assert arguments.pdf_swap is True

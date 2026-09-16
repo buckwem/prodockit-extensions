@@ -73,8 +73,8 @@ jobs:
             runner: windows-11-arm
             architecture: arm64
             architecture_check: --require-arm64
-            scenario_args: --scenario toml-default --scenario toml-both
             pdf_args: --pdf-swap
+            scenario_args: --scenario toml-default --scenario toml-both
           - name: macOS 15
             runner: macos-15
             architecture: arm64
@@ -159,6 +159,7 @@ jobs:
             runner: windows-11-arm
             architecture: arm64
             architecture_check: --require-arm64
+            pdf_args: --pdf-swap
           - name: macOS 15
             runner: macos-15
             architecture: arm64
@@ -202,6 +203,7 @@ jobs:
           python tools/adopt_native_upgrade.py
           --wheel dist
           ${{ matrix.architecture_check }}
+          ${{ matrix.pdf_args }}
           --report adopt-native-upgrade-report.json
       - name: Keep the upgrade report
         if: always()
