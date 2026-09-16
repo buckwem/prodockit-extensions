@@ -315,14 +315,13 @@ def test_diagnostic_repair_workflow_has_six_repair_and_twelve_toolchain_environm
     assert 'pip install -e ".[dev]"' not in workflow
 
 
-def test_acceptance_requires_all_six_repairable_checks_and_seven_confirmations() -> None:
+def test_acceptance_requires_all_five_repairable_checks_and_six_confirmations() -> None:
     assert {
         "installation.metadata",
         "project.configuration",
         "dependencies.pins",
         "dependencies.shared-files",
-        "renderer.mermaid",
         "renderer.mathjax",
     } == diagnostics_acceptance_driver.REPAIRABLE_CHECKS
-    assert sum(diagnostics_acceptance_driver.EXPECTED_ACTIONS.values()) == 7
+    assert sum(diagnostics_acceptance_driver.EXPECTED_ACTIONS.values()) == 6
     assert diagnostics_acceptance_driver.EXPECTED_ACTIONS["dependencies.shared-files"] == 2
