@@ -25,7 +25,7 @@ def test_contributing_setup_is_copyable_and_names_external_pdf_tools() -> None:
         '"$(brew --prefix python@3.14)/bin/python3.14" -m venv .venv',
         "py -3.14 -m venv .venv",
         "python3.14 -m venv .venv",
-        'python -m pip install -e ".[dev]"',
+        "python -m pip install -r requirements-test.txt",
         "Pandoc",
         "WeasyPrint",
         "brew install pango",
@@ -79,5 +79,5 @@ def test_contributing_has_one_complete_ordered_setup_tab_per_platform() -> None:
             if "PowerShell" in tab
             else tab.index("source .venv/bin/activate")
         )
-        install = tab.index('python -m pip install -e ".[dev]"')
+        install = tab.index("python -m pip install -r requirements-test.txt")
         assert clone < enter < create < activate < install

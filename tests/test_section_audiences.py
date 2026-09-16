@@ -98,7 +98,7 @@ def test_internal_sections_are_not_embedded_in_author_pages() -> None:
 def test_moved_internal_topics_are_covered_in_contributor_pages() -> None:
     required = {
         "docs/devcons/development.md": (
-            "pip install -e \".[dev]\"",
+            "pip install -r requirements-test.txt",
             "sync_repo_metadata",
             "pytest plugin",
         ),
