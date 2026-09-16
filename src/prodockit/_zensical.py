@@ -415,10 +415,10 @@ _SETEXT_UNDERLINE_RE = re.compile(r"^ {0,3}(?P<marker>=+|-+)[ \t]*$")
 _SETEXT_TEXT_RE = re.compile(r"^ {0,3}(?P<text>\S.*?)\s*$")
 _TRAILING_ATTR_RE = re.compile(r"\s*\{:\s*([^}]*?)\s*\}\s*$")
 _CAPTION_OPEN_RE = re.compile(
-    r"^(?P<indent>[ \t]*)///[ \t]+(?P<kind>figure-caption|table-caption)"
-    r"(?:[ \t]*\|[ \t]*(.*?))?[ \t]*$"
+    r"^(?P<indent>[ \t]*)(?P<fence>/{3,})[ \t]+(?P<kind>figure-caption|table-caption)"
+    r"(?:[ \t]*\|[ \t]*(?P<argument>.*?))?[ \t]*$"
 )
-_CAPTION_CLOSE_RE = re.compile(r"^(?P<indent>[ \t]*)///[ \t]*$")
+_CAPTION_CLOSE_RE = re.compile(r"^(?P<indent>[ \t]*)(?P<fence>/{3,})[ \t]*$")
 _LIST_ITEM_RE = re.compile(r"^(?P<indent>[ \t]*)(?:[-+*]|\d+[.)])[ \t]+")
 _CAPTION_SELECTOR_ID_RE = re.compile(r"#([\w:.-]+)")
 _CAPTION_ATTR_ID_RE = re.compile(r"(?:^|[, {])[\"']?id[\"']?[ \t]*:[ \t]*[\"']?([\w:.-]+)")
@@ -605,10 +605,11 @@ def _scan_page_numberables(
             lines, index, caption_match.group("indent")
         ):
             caption_indent = _indent_width(caption_match.group("indent"))
+            caption_fence_length = len(caption_match.group("fence"))
             end = index + 1
             while end < len(lines):
                 close = _CAPTION_CLOSE_RE.match(lines[end])
-                if close is not None:
+                if close is not None and len(close.group("fence")) == caption_fence_length:
                     close_indent = _indent_width(close.group("indent"))
                     if (caption_indent <= 3 and close_indent <= 3) or (
                         caption_indent > 3 and close_indent == caption_indent
@@ -617,7 +618,7 @@ def _scan_page_numberables(
                 end += 1
             body = lines[index + 1 : end]
             kind = caption_match.group("kind")
-            caption_id = _caption_id(caption_match.group(3) or "", body)
+            caption_id = _caption_id(caption_match.group("argument") or "", body)
             items.append((kind, 0, "", caption_id, False))
             # Keep scanning the block's Markdown body: a heading inside a
             # caption is unusual, but the real treeprocessor sees and

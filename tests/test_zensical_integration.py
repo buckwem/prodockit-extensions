@@ -217,6 +217,31 @@ def _convert_as_zensical_page_with_captions(
     return md.convert(text)
 
 
+def _convert_as_zensical_page_with_steps_and_captions(text: str, path: str) -> str:
+    md = markdown.Markdown(
+        extensions=[
+            _page_context(path),
+            "attr_list",
+            "pymdownx.blocks.caption",
+            "prodockit.steps",
+            prodockit_headings.HeadingsExtension(numbering="continuous"),
+            "prodockit.refs",
+        ],
+        extension_configs={
+            "pymdownx.blocks.caption": {
+                "types": [
+                    {
+                        "name": "figure-caption",
+                        "prefix": "{}.",
+                        "classes": "prodockit-figure-caption",
+                    }
+                ]
+            }
+        },
+    )
+    return md.convert(text)
+
+
 def test_generated_caption_ids_do_not_collide_across_zensical_pages(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
@@ -282,6 +307,76 @@ Later table
     assert '<a class="prodockit-ref" href="later.md#fig-later">Figure 2.1</a>' in html
     assert '<a class="prodockit-ref" href="later.md#tab-later">Table 2.1</a>' in html
     assert "??" not in html
+
+
+def test_forward_references_resolve_to_captions_nested_in_steps(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Longer PyMdown block fences must participate in caption pre-seeding."""
+    docs_dir = tmp_path / "docs"
+    docs_dir.mkdir()
+    earlier = "# Earlier\n\nSee \\ref{nested-figure} and \\ref{ordinary-figure}.\n"
+    later = """# Later
+
+/// steps
+
+//// step | Capture the nested figure
+
+![Nested figure](nested.png)
+
+///// figure-caption | #nested-figure
+Nested figure inside a step.
+/////
+
+////
+
+///
+
+![Ordinary figure](ordinary.png)
+
+/// figure-caption | #ordinary-figure
+Ordinary figure after the steps block.
+///
+"""
+    (docs_dir / "earlier.md").write_text(earlier, encoding="utf-8")
+    (docs_dir / "later.md").write_text(later, encoding="utf-8")
+    monkeypatch.setattr(
+        prodockit_zensical,
+        "nav_pages",
+        lambda: (str(docs_dir), ["earlier.md", "later.md"]),
+    )
+
+    html = _convert_as_zensical_page_with_captions(earlier, "earlier.md", continuous=True)
+
+    assert '<a class="prodockit-ref" href="later.md#nested-figure">Figure 2.1</a>' in html
+    assert '<a class="prodockit-ref" href="later.md#ordinary-figure">Figure 2.2</a>' in html
+
+
+def test_steps_renderer_accepts_the_nested_caption_structure() -> None:
+    """Control: the syntax scanned above is active content to PyMdown Blocks."""
+    page = """# Later
+
+/// steps
+
+//// step | Capture the nested figure
+
+![Nested figure](nested.png)
+
+///// figure-caption | #nested-figure
+Nested figure inside a step.
+/////
+
+Same-page reference: \\ref{nested-figure}.
+
+////
+
+///
+"""
+
+    html = _convert_as_zensical_page_with_steps_and_captions(page, "later.md")
+
+    assert '<figure class="prodockit-figure-caption" id="nested-figure">' in html
+    assert '<a class="prodockit-ref" href="#nested-figure">Figure 1.1</a>' in html
 
 
 def test_forward_references_resolve_to_two_figures_nested_in_a_later_list_item(
