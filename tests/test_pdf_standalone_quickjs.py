@@ -12,6 +12,7 @@ from prodockit.pdf._standalone_quickjs import (
     QuickJSMermaidLimits,
     StandaloneBackendUnavailableError,
     StandaloneQuickJSMermaidEngine,
+    StandaloneRenderError,
     StandaloneResourceLimitError,
 )
 
@@ -60,7 +61,7 @@ def _fake_runtime(context: FakeContext) -> runtime_module._Runtime:
         mermaid_js="mermaid bundle",
         measure_text_js="glyph tables",
         path_bbox_js="path geometry",
-        patch_svg=lambda svg: f"patched:{svg}",
+        patch_svg=lambda svg: svg,
     )
 
 
@@ -83,7 +84,7 @@ def test_engine_configures_all_three_quickjs_limits_before_render(
     ]
     assert not any(call[0] == "time" for call in context.calls)
 
-    assert engine.render_svg("graph LR; A-->B") == "patched:<svg/>"
+    assert engine.render_svg("graph LR; A-->B") == "<svg/>"
     assert any(call[0] == "time" for call in context.calls)
 
 
@@ -145,6 +146,32 @@ def test_source_and_output_limits_fail_closed(monkeypatch: pytest.MonkeyPatch) -
     output_limited_engine.start()
     with pytest.raises(StandaloneResourceLimitError, match="output"):
         output_limited_engine.render_svg("1234")
+
+
+@pytest.mark.parametrize(
+    "svg",
+    [
+        '<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>',
+        '<svg xmlns="http://www.w3.org/2000/svg"><g onmouseover="alert(1)"/></svg>',
+        '<svg xmlns="http://www.w3.org/2000/svg"><a href="javascript:alert(1)"/></svg>',
+        '<svg xmlns="http://www.w3.org/2000/svg"><image href="https://example.test/a"/></svg>',
+        '<svg xmlns="http://www.w3.org/2000/svg"><style>.x{fill:url(https://example.test)}</style></svg>',
+        '<svg xmlns="http://www.w3.org/2000/svg"><foreignObject/></svg>',
+        '<!DOCTYPE svg><svg xmlns="http://www.w3.org/2000/svg"/>',
+        "not svg",
+    ],
+)
+def test_engine_rejects_active_or_external_svg(
+    monkeypatch: pytest.MonkeyPatch,
+    svg: str,
+) -> None:
+    context = FakeContext(svg=svg)
+    monkeypatch.setattr(runtime_module, "_load_runtime", lambda: _fake_runtime(context))
+    engine = StandaloneQuickJSMermaidEngine()
+    engine.start()
+
+    with pytest.raises(StandaloneRenderError):
+        engine.render_svg("graph LR; A-->B")
 
 
 def test_runtime_rejects_missing_or_wrong_dependency_versions(

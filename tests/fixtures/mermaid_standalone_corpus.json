@@ -1,0 +1,82 @@
+[
+  {
+    "id": "flowchart-basic",
+    "source": "flowchart LR\n  start[Receive] --> check{Valid?}\n  check -->|Yes| publish[Publish]\n  check -->|No| reject[Reject]",
+    "expected_text": ["Receive", "Valid?", "Publish", "Reject"]
+  },
+  {
+    "id": "flowchart-unicode-subgraph",
+    "source": "flowchart TB\n  subgraph pipeline[Data pipeline]\n    ingest[Ingest café ☕] --> transform[Transform Δ]\n  end\n  transform --> store[(Store)]",
+    "expected_text": ["Data pipeline", "Ingest café ☕", "Transform Δ", "Store"]
+  },
+  {
+    "id": "sequence",
+    "source": "sequenceDiagram\n  participant Client\n  participant API\n  participant Store\n  Client->>API: Submit request\n  activate API\n  API->>Store: Save record\n  Store-->>API: Saved\n  API-->>Client: Accepted\n  deactivate API",
+    "expected_text": ["Client", "API", "Store", "Submit request", "Accepted"]
+  },
+  {
+    "id": "class",
+    "source": "classDiagram\n  class Document {\n    +String title\n    +render()\n  }\n  class Page\n  Document \"1\" *-- \"many\" Page : contains",
+    "expected_text": ["Document", "Page", "title", "render", "contains"]
+  },
+  {
+    "id": "state",
+    "source": "stateDiagram-v2\n  [*] --> Draft\n  Draft --> Review : submit\n  Review --> Published : approve\n  Review --> Draft : revise\n  Published --> [*]",
+    "expected_text": ["Draft", "Review", "Published", "approve"]
+  },
+  {
+    "id": "entity-relationship",
+    "source": "erDiagram\n  USER ||--o{ DOCUMENT : owns\n  DOCUMENT ||--|{ REVISION : contains\n  USER {\n    int id PK\n    string name\n  }\n  DOCUMENT {\n    int id PK\n    string title\n  }",
+    "expected_text": ["USER", "DOCUMENT", "REVISION", "owns", "contains"]
+  },
+  {
+    "id": "gantt",
+    "source": "gantt\n  title Release plan\n  dateFormat YYYY-MM-DD\n  section Build\n  Implement :done, a1, 2026-09-01, 3d\n  Verify :active, a2, after a1, 2d\n  section Ship\n  Release :milestone, after a2, 0d",
+    "expected_text": ["Release plan", "Build", "Implement", "Verify", "Release"]
+  },
+  {
+    "id": "journey",
+    "source": "journey\n  title Documentation journey\n  section Author\n    Write content: 5: Author\n    Review preview: 4: Author, Reviewer\n  section Publish\n    Release site: 5: Maintainer",
+    "expected_text": ["Documentation journey", "Write content", "Review preview", "Release site"]
+  },
+  {
+    "id": "pie",
+    "source": "pie showData\n  title Build time\n  \"Render\" : 55\n  \"Test\" : 30\n  \"Package\" : 15",
+    "expected_text": ["Build time", "Render", "Test", "Package"]
+  },
+  {
+    "id": "mindmap",
+    "source": "mindmap\n  root((ProDockit))\n    Author\n      Markdown\n      Diagrams\n    Publish\n      HTML\n      PDF",
+    "expected_text": ["ProDockit", "Author", "Markdown", "Diagrams", "Publish", "PDF"]
+  },
+  {
+    "id": "timeline",
+    "source": "timeline\n  title Project history\n  2024 : Prototype\n  2025 : Adoption\n  2026 : Standalone rendering",
+    "expected_text": ["Project history", "Prototype", "Adoption", "Standalone rendering"]
+  },
+  {
+    "id": "requirement",
+    "source": "requirementDiagram\n  requirement render_req {\n    id: R1\n    text: Render diagrams offline\n    risk: medium\n    verifymethod: test\n  }\n  element worker {\n    type: process\n    docRef: worker.py\n  }\n  worker - satisfies -> render_req",
+    "expected_text": ["R1", "Render diagrams offline", "worker", "satisfies"]
+  },
+  {
+    "id": "git-graph",
+    "source": "gitGraph\n  commit id: \"Initial\"\n  branch feature\n  checkout feature\n  commit id: \"Worker\"\n  checkout main\n  merge feature id: \"Release\"",
+    "expected_text": ["Initial", "feature", "Worker", "Release"]
+  },
+  {
+    "id": "quadrant",
+    "source": "quadrantChart\n  title Reach and engagement\n  x-axis Low reach --> High reach\n  y-axis Low engagement --> High engagement\n  Campaign A: [0.30, 0.60]\n  Campaign B: [0.75, 0.80]",
+    "expected_text": ["Reach and engagement", "Low reach", "High reach", "Campaign A", "Campaign B"]
+  },
+  {
+    "id": "xy-chart",
+    "source": "xychart-beta\n  title \"Monthly builds\"\n  x-axis [Jan, Feb, Mar]\n  y-axis \"Builds\" 0 --> 100\n  bar [20, 55, 80]\n  line [10, 40, 70]",
+    "expected_text": ["Monthly builds", "Jan", "Feb", "Mar", "Builds"]
+  },
+  {
+    "id": "packet",
+    "source": "packet-beta\n  title Network header\n  0-15: \"Source Port\"\n  16-31: \"Destination Port\"\n  32-63: \"Sequence Number\"",
+    "expected_text": ["Network header", "Source Port", "Destination Port", "Sequence Number"]
+  }
+]

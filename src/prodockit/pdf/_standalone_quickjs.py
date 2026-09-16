@@ -14,12 +14,14 @@ import hashlib
 import importlib
 import importlib.metadata
 import json
+import re
 import threading
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, NoReturn, Protocol, cast
+from xml.etree import ElementTree
 
 from ._mermaid_provenance import load_mermaid_provenance
 
@@ -33,6 +35,9 @@ _ASSET_HASHES = {
     "fonts/DejaVuSans.ttf": "3fdf69cabf06049ea70a00b5919340e2ce1e6d02b0cc3c4b44fb6801bd1e0d22",
     "fonts/DejaVuSans-Bold.ttf": "b184b89e3c1075f22f6b71575b6fc20d4972b3cfd3b23322ca6fd596dcaef167",
 }
+
+_UNSAFE_SVG_ELEMENTS = {"foreignobject", "iframe", "object", "script"}
+_EXTERNAL_URL = re.compile(r"url\(\s*['\"]?(?!#)", re.IGNORECASE)
 
 _BOOTSTRAP_JS = """
 globalThis.__log = () => {};
@@ -105,6 +110,45 @@ def _require_range(
         raise TypeError(f"{name} must be a number")
     if not minimum <= value <= maximum:
         raise ValueError(f"{name} must be between {minimum} and {maximum}")
+
+
+def _validate_static_svg(svg: str) -> None:
+    """Reject active or externally loaded content before SVG leaves the worker."""
+    lowered = svg.lower()
+    if "<!doctype" in lowered or "<!entity" in lowered:
+        raise StandaloneRenderError("Mermaid SVG contains a prohibited declaration.")
+    try:
+        root = ElementTree.fromstring(svg)
+    except ElementTree.ParseError as exc:
+        raise StandaloneRenderError("Mermaid rendering produced invalid SVG.") from exc
+    if root.tag.rsplit("}", 1)[-1].lower() != "svg":
+        raise StandaloneRenderError("Mermaid rendering did not produce an SVG document.")
+
+    for element in root.iter():
+        element_name = element.tag.rsplit("}", 1)[-1].lower()
+        if element_name in _UNSAFE_SVG_ELEMENTS:
+            raise StandaloneRenderError(
+                f"Mermaid SVG contains prohibited <{element_name}> content."
+            )
+        if element_name == "style" and element.text and _EXTERNAL_URL.search(element.text):
+            raise StandaloneRenderError("Mermaid SVG CSS references an external resource.")
+        for raw_name, value in element.attrib.items():
+            name = raw_name.rsplit("}", 1)[-1].lower()
+            normalized_value = value.strip().lower()
+            if name.startswith("on"):
+                raise StandaloneRenderError(
+                    f"Mermaid SVG contains prohibited event attribute {name!r}."
+                )
+            if "javascript:" in normalized_value:
+                raise StandaloneRenderError("Mermaid SVG contains a prohibited JavaScript URL.")
+            if (
+                name in {"href", "src"}
+                and normalized_value
+                and not normalized_value.startswith("#")
+            ):
+                raise StandaloneRenderError("Mermaid SVG references an external resource.")
+            if name == "style" and _EXTERNAL_URL.search(value):
+                raise StandaloneRenderError("Mermaid SVG CSS references an external resource.")
 
 
 class _QuickJSContext(Protocol):
@@ -311,6 +355,7 @@ class StandaloneQuickJSMermaidEngine:
             self._limits.output_bytes,
             resource=True,
         )
+        _validate_static_svg(patched_svg)
         return patched_svg
 
     def _pump_jobs(self, context: _QuickJSContext, deadline: float) -> None:
