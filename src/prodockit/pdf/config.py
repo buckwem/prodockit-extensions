@@ -270,7 +270,7 @@ def build_pdf_from_built_site(
     *,
     markdown_file: str | None = None,
     on_stage: StageReporter | None = None,
-    mermaid_backend: MermaidBackend = MermaidBackend.MMDC,
+    mermaid_backend: MermaidBackend = MermaidBackend.STANDALONE,
 ) -> str:
     """Build from the output of Zensical's documented build command.
 
@@ -293,7 +293,7 @@ def _build_pdf_from_config(
     markdown_file: str | None = None,
     on_stage: StageReporter | None = None,
     built_site: bool,
-    mermaid_backend: MermaidBackend = MermaidBackend.MMDC,
+    mermaid_backend: MermaidBackend = MermaidBackend.STANDALONE,
 ) -> str:
     """Builds a PDF entirely from `config_path` (a Zensical config file)
     and returns the path it was written to.
@@ -338,11 +338,11 @@ def _build_pdf_from_config(
       `heading_numbering` (default `true`), `reference_style` (`"european"`
       - the default - or `"global"`), `reference_spacing_european`,
       `reference_indent_global`, `reference_spacing_global`,
-      `pdf_mmdc_bin` and `pdf_tex2svg_script` (both auto-detected if unset -
-      see `_find_mmdc_bin`/`_find_tex2svg_script` - Mermaid diagrams/math
-      formulas are left unrendered in the PDF if neither is found. The
-      built website is checked separately in a browser by default when
-      those elements appear), `pdf_math_dir`, `pdf_include_table_of_contents`
+      `pdf_mmdc_bin` (the legacy ``--swap`` path) and `pdf_tex2svg_script`
+      (both auto-detected if unset - see `_find_mmdc_bin`/
+      `_find_tex2svg_script`). The default Mermaid renderer uses the audited
+      Python runtime; maths remains browser-checked when it appears),
+      `pdf_math_dir`, `pdf_include_table_of_contents`
       (default `true`), `pdf_table_of_contents_title`, `pdf_extra_css` (a
       list of `docs_dir`-relative stylesheet paths, same
       shape as `project.extra_css` below, but meant *only* for the PDF -
@@ -548,6 +548,7 @@ def _build_pdf_from_config(
             project_config,
             page_objects,
             instant_navigation=not markdown_file and "navigation.instant" in theme_features,
+            verify_mermaid=mermaid_backend is MermaidBackend.MMDC,
         )
 
     # Cover-page markers (see this function's own docs below) - a

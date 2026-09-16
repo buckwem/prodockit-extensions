@@ -137,11 +137,11 @@ def test_public_pdf_command_routes_only_to_the_built_site_renderer(monkeypatch) 
     result = CliRunner().invoke(main, ["pdf"])
 
     assert result.exit_code == 0, result.output
-    assert calls == [("zensical.toml", None, MermaidBackend.MMDC)]
+    assert calls == [("zensical.toml", None, MermaidBackend.STANDALONE)]
     assert "Wrote built-site.pdf" in result.output
 
 
-def test_pdf_swap_selects_the_standalone_backend(monkeypatch) -> None:
+def test_pdf_swap_selects_the_legacy_mmdc_backend(monkeypatch) -> None:
     import prodockit.cli as cli_module
     from prodockit.pdf.mermaid import MermaidBackend
 
@@ -156,7 +156,7 @@ def test_pdf_swap_selects_the_standalone_backend(monkeypatch) -> None:
     result = CliRunner().invoke(main, ["pdf", "--swap"])
 
     assert result.exit_code == 0, result.output
-    assert calls == [("zensical.toml", None, MermaidBackend.STANDALONE)]
+    assert calls == [("zensical.toml", None, MermaidBackend.MMDC)]
 
 
 @pytest.mark.parametrize(
@@ -195,7 +195,7 @@ def test_hidden_legacy_command_does_not_advertise_or_accept_swap(monkeypatch) ->
     assert result.exit_code == 2, result.output
 
 
-def test_pdf_swap_reports_unavailable_backend_without_a_traceback(
+def test_pdf_default_reports_unavailable_backend_without_a_traceback(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     import prodockit.cli as cli_module
@@ -214,7 +214,7 @@ def test_pdf_swap_reports_unavailable_backend_without_a_traceback(
     monkeypatch.setattr(mermaid_module, "require_standalone_runtime", unavailable)
     monkeypatch.chdir(tmp_path)
 
-    result = CliRunner().invoke(main, ["pdf", "--swap"])
+    result = CliRunner().invoke(main, ["pdf"])
 
     assert result.exit_code == 1, result.output
     assert "requires mermaidx==0.9.5 and quickjs-ng==0.16.2.1" in result.output

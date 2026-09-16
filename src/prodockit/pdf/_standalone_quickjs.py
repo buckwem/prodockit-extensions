@@ -1,7 +1,7 @@
 # Copyright (c) 2026 Mark Buckwell and contributors
 # SPDX-License-Identifier: MIT
 
-"""Callback-free, resource-bounded runtime used by Mermaid ``--swap``.
+"""Callback-free, resource-bounded runtime used by default for Mermaid.
 
 This private module uses the exact audited mermaidx 0.9.5 assets and owns the
 QuickJS context so every untrusted render has memory, time, and stack limits.

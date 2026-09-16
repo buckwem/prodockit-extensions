@@ -329,7 +329,8 @@ def test_default_built_site_pdf_checks_browser_before_writing_output(
     )
     seen = []
 
-    def reject_rendering(project_config, pages, *, instant_navigation):
+    def reject_rendering(project_config, pages, *, instant_navigation, verify_mermaid):
+        assert verify_mermaid is False
         seen.append([page.docs_rel_path for page in pages])
         raise WebRenderError("browser-rendered equation is missing")
 
@@ -1494,7 +1495,10 @@ def test_mermaid_renderer_created_from_mmdc_and_closed_after_build(
 
     monkeypatch.setattr(config, "build_pdf", _spy)
 
-    build_pdf_from_built_site(str(root / "zensical.toml"))
+    build_pdf_from_built_site(
+        str(root / "zensical.toml"),
+        mermaid_backend=MermaidBackend.MMDC,
+    )
 
     renderer = instances[0]
     assert renderer.mmdc_bin == str(root / "mmdc")
@@ -1525,7 +1529,10 @@ def test_mermaid_renderer_is_closed_when_build_pdf_raises(
     monkeypatch.setattr(config, "build_pdf", _fail)
 
     with pytest.raises(RuntimeError, match="boom"):
-        build_pdf_from_built_site(str(root / "zensical.toml"))
+        build_pdf_from_built_site(
+            str(root / "zensical.toml"),
+            mermaid_backend=MermaidBackend.MMDC,
+        )
 
     assert instances[0].closed is True
 
@@ -1546,7 +1553,10 @@ def test_mermaid_renderer_is_absent_when_mmdc_is_not_found(
 
     monkeypatch.setattr(config, "build_pdf", _spy)
 
-    build_pdf_from_built_site(str(root / "zensical.toml"))
+    build_pdf_from_built_site(
+        str(root / "zensical.toml"),
+        mermaid_backend=MermaidBackend.MMDC,
+    )
 
     assert captured["render_mermaid"] is None
 
@@ -1578,10 +1588,7 @@ def test_standalone_backend_skips_mmdc_and_closes_after_pdf_build(
     monkeypatch.setattr(config, "publish_pdf_to_built_site", lambda *_args: None)
     monkeypatch.setattr(config, "build_pdf", build)
 
-    build_pdf_from_built_site(
-        str(root / "zensical.toml"),
-        mermaid_backend=MermaidBackend.STANDALONE,
-    )
+    build_pdf_from_built_site(str(root / "zensical.toml"))
 
     assert captured["render_mermaid"].__self__ is instances[0]
     assert instances[0].closed is True

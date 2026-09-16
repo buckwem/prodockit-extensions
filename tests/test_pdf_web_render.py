@@ -95,6 +95,37 @@ def test_comments_and_quoted_examples_do_not_require_rendering(tmp_path: Path) -
     check_web_rendering(config, [page])  # No browser prerequisite for examples only.
 
 
+def test_standalone_pdf_validates_mermaid_markup_without_requiring_browser(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config = _project(tmp_path, "```mermaid\ngraph LR\n  A --> B\n```\n")
+    page = Page("index.md", '<pre class="mermaid">graph LR</pre>')
+
+    def no_browser_lookup(_name: str) -> str | None:
+        raise AssertionError("browser lookup is not allowed")
+
+    monkeypatch.setattr("prodockit.pdf.web_render.shutil.which", no_browser_lookup)
+
+    assert static_render_targets(config, [page], verify_mermaid=False) == []
+    check_web_rendering(config, [page], verify_mermaid=False)
+
+
+def test_standalone_pdf_still_browser_checks_maths_on_a_mixed_page(tmp_path: Path) -> None:
+    config = _project(
+        tmp_path,
+        "$$x^2$$\n\n```mermaid\ngraph LR\n  A --> B\n```\n",
+    )
+    page = Page(
+        "index.md",
+        '<div class="arithmatex">\\[x^2\\]</div>'
+        '<pre class="mermaid">graph LR</pre>',
+    )
+
+    assert static_render_targets(config, [page], verify_mermaid=False) == [
+        RenderTarget("index.md", "/", maths=1, mermaid=0)
+    ]
+
+
 def test_front_matter_math_is_not_article_content(tmp_path: Path) -> None:
     config = _project(tmp_path, '---\ntitle: "$$metadata$$"\n---\n\n# Page\n')
     assert static_render_targets(config, [Page("index.md", "<h1>Page</h1>")]) == []

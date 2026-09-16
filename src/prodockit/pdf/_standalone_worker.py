@@ -1,7 +1,7 @@
 # Copyright (c) 2026 Mark Buckwell and contributors
 # SPDX-License-Identifier: MIT
 
-"""Killable one-render-per-process boundary for standalone Mermaid rendering.
+"""Killable one-render-per-process boundary for default Mermaid rendering.
 
 The parent exchanges bounded JSON bytes with a fresh spawned Python process,
 so it never unpickles data returned by the renderer process.

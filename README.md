@@ -95,7 +95,7 @@ supply:
   native Pango libraries;
 - install Pandoc for PDF generation and BibTeX/BibLaTeX bibliographies; and
 - install the optional Node tools and Chrome or Chromium only when the PDF
-  contains Mermaid diagrams or TeX maths.
+  contains TeX maths or deliberately uses the legacy Mermaid `--swap` path.
 
 Follow the complete, platform-specific
 [installation guide](https://prodockit.org/installation/)
@@ -149,10 +149,10 @@ The `pdk` executable is an exact shorter alias for `prodockit`; `boot` aliases
 | `prodockit config` | Show resolved Prodockit settings and check source-project integrity |
 | `prodockit adopt` | Add selected prodockit components to an existing Zensical document |
 | `prodockit bootstrap` | Check or prepare a machine and a project based on `prodockit-template` |
-| `prodockit init-tools` | Install the local Node tooling for Mermaid and maths rendering |
+| `prodockit init-tools` | Install local Node tooling for maths and the optional legacy Mermaid renderer |
 | `prodockit init-mathjax` | Copy the installed MathJax bundle into website assets |
 | `prodockit update-dates` | Add per-page revision dates to a completed website without changing Markdown source |
-| `prodockit pdf` | Check website maths/diagrams in a browser, then build one PDF from the Zensical navigation |
+| `prodockit pdf` | Validate built markup and website maths, then build one PDF from the Zensical navigation |
 | `prodockit source-bundle` | Bundle the Markdown source and configuration into a separate PDF |
 | `prodockit sync-repo` | Match repository links, branding, and managed README badges to `origin` |
 | `prodockit pins` | Check and update build-input versions across project files |
@@ -169,11 +169,10 @@ prodockit update-dates
 ```
 
 The PDF consumes the completed Zensical site and does not invoke the site
-builder. When included pages contain maths or Mermaid diagrams, it now checks
-the built HTML and verifies visible browser rendering before reporting a
-successful PDF. This requires Node.js, Chrome/Chromium and the installed
-Puppeteer tooling from `prodockit init-tools`/`npm ci`; pages without those
-features do not start a browser. `prodockit update-dates` post-processes the
+builder. Mermaid diagrams use the installed Python-only renderer by default;
+`--swap` selects the legacy project-local `mermaid-cli` path. Maths still uses
+the installed browser tooling from `prodockit init-tools`/`npm ci` for website
+verification. `prodockit update-dates` post-processes the
 generated HTML and does not edit the files you author or call the site builder.
 It is also a standalone
 capability: an existing Zensical project can use it after installing

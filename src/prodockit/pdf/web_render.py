@@ -54,7 +54,12 @@ def _route(config: ProjectConfig, source: str) -> str:
     return f"/{built.as_posix()}"
 
 
-def static_render_targets(config: ProjectConfig, pages: list[Page]) -> list[RenderTarget]:
+def static_render_targets(
+    config: ProjectConfig,
+    pages: list[Page],
+    *,
+    verify_mermaid: bool = True,
+) -> list[RenderTarget]:
     """Require active source notation to survive in the built article.
 
     Only pages included in this PDF are checked. HTML parsing ignores
@@ -83,13 +88,14 @@ def static_render_targets(config: ProjectConfig, pages: list[Page]) -> list[Rend
                 f"in Markdown but only {found_mermaid} pre.mermaid element(s) in the "
                 "built HTML; run `zensical build --clean --strict` and check this page"
             )
-        if found_maths or found_mermaid:
+        browser_mermaid = found_mermaid if verify_mermaid else 0
+        if found_maths or browser_mermaid:
             targets.append(
                 RenderTarget(
                     page.docs_rel_path,
                     _route(config, page.docs_rel_path),
                     found_maths,
-                    found_mermaid,
+                    browser_mermaid,
                 )
             )
     return targets
@@ -111,9 +117,10 @@ def check_web_rendering(
     pages: list[Page],
     *,
     instant_navigation: bool = False,
+    verify_mermaid: bool = True,
 ) -> None:
     """Fail if the built site's active maths/diagrams do not appear in Chrome."""
-    targets = static_render_targets(config, pages)
+    targets = static_render_targets(config, pages, verify_mermaid=verify_mermaid)
     if not targets:
         return
     node = shutil.which("node")

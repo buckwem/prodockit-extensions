@@ -2747,7 +2747,7 @@ def _run_pdf_command(
     markdown_file: str | None,
     *,
     legacy: bool,
-    mermaid_backend: MermaidBackend = MermaidBackend.MMDC,
+    mermaid_backend: MermaidBackend = MermaidBackend.STANDALONE,
 ) -> None:
     """Shared presentation for the public and legacy PDF renderers."""
     if markdown_file:
@@ -2827,13 +2827,13 @@ def _pdf_options(command: Callable[_P, _R]) -> Callable[_P, _R]:
 @click.option(
     "--swap",
     is_flag=True,
-    help="Use the standalone Mermaid backend instead of mermaid-cli (mmdc).",
+    help="Use the legacy mermaid-cli (mmdc) backend instead of standalone Mermaid.",
 )
 @_pdf_options
 def pdf(config_file: str, markdown_file: str | None, swap: bool) -> None:
-    """Check website maths and diagrams, then build a PDF from the completed
-    Zensical site. CONFIG_FILE supplies nav, docs directory, fonts, page
-    size, and other PDF settings."""
+    """Check built website markup and maths, then build a PDF from the
+    completed Zensical site. CONFIG_FILE supplies nav, docs directory, fonts,
+    page size, and other PDF settings."""
     try:
         check_pdf_environment(config_file)
     except BuildEnvironmentError as error:
@@ -2842,7 +2842,7 @@ def pdf(config_file: str, markdown_file: str | None, swap: bool) -> None:
         config_file,
         markdown_file,
         legacy=False,
-        mermaid_backend=MermaidBackend.STANDALONE if swap else MermaidBackend.MMDC,
+        mermaid_backend=MermaidBackend.MMDC if swap else MermaidBackend.STANDALONE,
     )
 
 

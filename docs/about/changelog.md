@@ -19,6 +19,10 @@ only when it adds or changes behaviour that matters to a user, or requires an
 upgrade action. Defect-by-defect history belongs in GitHub issues and pull
 requests rather than here.
 
+## Unreleased
+
+- Made the Python-only Mermaid renderer the PDF default; `--swap` now selects the legacy project-local `mermaid-cli` renderer.
+
 ## 0.65.7 (2026-09-15)
 
 - Made project checks report invalid UTF-8 Markdown, duplicate YAML keys, invalid extension options, missing bibliographies, and unsafe PDF paths directly.

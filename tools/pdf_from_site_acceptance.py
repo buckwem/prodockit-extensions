@@ -85,6 +85,10 @@ numbering = "continuous"
 [project.markdown_extensions."prodockit.tables"]
 [project.markdown_extensions."prodockit.steps"]
 [project.markdown_extensions."prodockit.tree"]
+[project.markdown_extensions.pymdownx.superfences]
+custom_fences = [
+    { name = "mermaid", class = "mermaid", format = "pymdownx.superfences.fence_code_format" },
+]
 [project.markdown_extensions.pymdownx.blocks.caption]
 types = [
     { name = "figure-caption", prefix = "{}.", classes = "prodockit-figure-caption" },
@@ -133,6 +137,11 @@ recto_title: Short guide
 ---
 
 # Guide
+
+``` mermaid
+flowchart LR
+  Installed --> PythonOnly
+```
 
 | Name | Value |
 | --- | --- |
@@ -204,13 +213,12 @@ assert metadata["is_appendix"] is True
 assert metadata["recto_title"] == "Short guide"
 """
 
-SWAP_CHECK = r"""
+DEFAULT_MERMAID_CHECK = r"""
 import os
 from pathlib import Path
 
 from prodockit.pdf import config as pdf_config
 from prodockit.pdf.config import build_pdf_from_built_site
-from prodockit.pdf.mermaid import MermaidBackend
 
 
 def main():
@@ -229,9 +237,7 @@ def main():
                 os.environ["PATH"] = original_path
         Path(output_path).write_bytes(b"%PDF-1.7 standalone acceptance")
     pdf_config.build_pdf = capture
-    build_pdf_from_built_site(
-        "zensical.toml", mermaid_backend=MermaidBackend.STANDALONE
-    )
+    build_pdf_from_built_site("zensical.toml")
     rendered = captured["rendered"]
     assert rendered is not None
     svg = Path(rendered).read_text(encoding="utf-8")
@@ -275,9 +281,9 @@ def main() -> None:
         if (project / "site" / "site_documentation.pdf").exists():
             raise AcceptanceError("the first Zensical build unexpectedly contained a PDF")
         run([str(python), "-c", CHECK], project)
-        swap_check = project / "standalone_mermaid_acceptance.py"
-        swap_check.write_text(SWAP_CHECK, encoding="utf-8")
-        run([str(python), str(swap_check)], project)
+        default_mermaid_check = project / "default_mermaid_acceptance.py"
+        default_mermaid_check.write_text(DEFAULT_MERMAID_CHECK, encoding="utf-8")
+        run([str(python), str(default_mermaid_check)], project)
 
     report = {
         "passed": True,

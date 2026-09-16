@@ -5,8 +5,9 @@
 
 WeasyPrint has no JS engine to run Mermaid.js client-side the way a live
 Zensical site does, so a ``<pre class="mermaid">``'s diagram source has to
-become an image before Pandoc ever sees it - via a local `mermaid-cli`
-install (https://github.com/mermaid-js/mermaid-cli).
+become an image before Pandoc ever sees it. The default renderer uses the
+audited Python-packaged Mermaid/QuickJS runtime; `mermaid-cli` remains an
+explicit rollback selected by ``--swap``.
 
 Mermaid's default node/edge labels are HTML ``<foreignObject>`` content,
 which WeasyPrint's SVG renderer can't display (text silently vanishes) -
