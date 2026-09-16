@@ -199,17 +199,25 @@ def test_pdf_swap_reports_unavailable_backend_without_a_traceback(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     import prodockit.cli as cli_module
+    import prodockit.pdf.mermaid as mermaid_module
+    from prodockit.pdf._standalone_quickjs import StandaloneBackendUnavailableError
 
     _write_project(tmp_path)
     monkeypatch.setattr(cli_module, "check_pdf_environment", lambda _config: None)
+
+    def unavailable() -> None:
+        raise StandaloneBackendUnavailableError(
+            "The standalone Mermaid backend requires mermaidx==0.9.5 and "
+            "quickjs-ng==0.16.2.1."
+        )
+
+    monkeypatch.setattr(mermaid_module, "require_standalone_runtime", unavailable)
     monkeypatch.chdir(tmp_path)
 
     result = CliRunner().invoke(main, ["pdf", "--swap"])
 
     assert result.exit_code == 1, result.output
-    assert "standalone Mermaid backend arrives in Phase 3" in result.output
-    assert "--swap" in result.output
-    assert "mmdc" in result.output
+    assert "requires mermaidx==0.9.5 and quickjs-ng==0.16.2.1" in result.output
     assert "Traceback" not in result.output
     assert not (tmp_path / "docs" / ".prodockit-pdf-mermaid").exists()
     assert not (tmp_path / "docs" / "site_documentation.pdf").exists()

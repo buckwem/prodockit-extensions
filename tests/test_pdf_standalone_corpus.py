@@ -19,7 +19,7 @@ from prodockit.pdf._standalone_quickjs import (
     StandaloneResourceLimitError,
 )
 from prodockit.pdf._standalone_worker import StandaloneMermaidWorker
-from prodockit.pdf.mermaid import render_mermaid_diagram
+from prodockit.pdf.mermaid import StandaloneMermaidRenderer, render_mermaid_diagram
 
 ROOT = Path(__file__).parents[1]
 CORPUS_PATH = Path(__file__).parent / "fixtures" / "mermaid_standalone_corpus.json"
@@ -90,8 +90,8 @@ def _runtime_available() -> bool:
 
 @pytest.fixture(scope="module")
 def worker() -> Iterator[StandaloneMermaidWorker]:
-    if os.environ.get("PRODOCKIT_RUN_MERMAID_CORPUS") != "1" or not _runtime_available():
-        pytest.skip("set PRODOCKIT_RUN_MERMAID_CORPUS=1 with the audited wheels")
+    if not _runtime_available():
+        pytest.skip("requires the audited standalone Mermaid wheels")
     renderer = StandaloneMermaidWorker(
         QuickJSMermaidLimits(execution_time_seconds=10.0),
         hard_timeout_seconds=20.0,
@@ -188,8 +188,8 @@ def test_malformed_render_does_not_poison_the_next_process(
 
 
 def test_child_output_limit_fails_closed_without_poisoning_worker() -> None:
-    if os.environ.get("PRODOCKIT_RUN_MERMAID_CORPUS") != "1" or not _runtime_available():
-        pytest.skip("set PRODOCKIT_RUN_MERMAID_CORPUS=1 with the audited wheels")
+    if not _runtime_available():
+        pytest.skip("requires the audited standalone Mermaid wheels")
     worker = StandaloneMermaidWorker(
         QuickJSMermaidLimits(output_bytes=1024, execution_time_seconds=10.0),
         hard_timeout_seconds=20.0,
@@ -212,3 +212,19 @@ def test_custom_css_is_data_not_executable_markup(
     semantics = _semantics(svg)
     assert "Styled" in semantics.text
     assert "Safe" in semantics.text
+
+
+def test_renderer_adapter_writes_svg_without_node_or_npm_on_path(
+    worker: StandaloneMermaidWorker,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("PATH", "")
+    renderer = StandaloneMermaidRenderer(str(tmp_path / "diagrams"), worker=worker)
+
+    rendered = renderer.render_source("flowchart LR\n  Python --> SVG")
+
+    assert rendered is not None
+    semantics = _semantics(Path(rendered).read_text(encoding="utf-8"))
+    assert "Python" in semantics.text
+    assert "SVG" in semantics.text

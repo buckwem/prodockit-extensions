@@ -1,11 +1,10 @@
 # Copyright (c) 2026 Mark Buckwell and contributors
 # SPDX-License-Identifier: MIT
 
-"""Killable one-render-per-process boundary for the standalone Mermaid spike.
+"""Killable one-render-per-process boundary for standalone Mermaid rendering.
 
-The module is private and intentionally not connected to ``--swap``.  The
-parent exchanges bounded JSON bytes with a fresh spawned Python process, so it
-never unpickles data returned by the renderer process.
+The parent exchanges bounded JSON bytes with a fresh spawned Python process,
+so it never unpickles data returned by the renderer process.
 """
 
 from __future__ import annotations

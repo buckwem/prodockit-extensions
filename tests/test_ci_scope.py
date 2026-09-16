@@ -337,6 +337,18 @@ def test_real_upgrade_workflow_caches_validated_old_software() -> None:
     assert "hashFiles('tools/bootstrap_native_upgrade.py')" in native_upgrade
 
 
+def test_standalone_pdf_wheel_matrix_uses_only_published_quickjs_architectures() -> None:
+    workflow = (ROOT / ".github" / "workflows" / "pdf-built-site-wheel.yml").read_text(
+        encoding="utf-8"
+    )
+
+    assert "runner: ubuntu-24.04" in workflow
+    assert "runner: ubuntu-24.04-arm" in workflow
+    assert "runner: windows-2025" in workflow
+    assert "runner: macos-15" in workflow
+    assert "runner: windows-11-arm" not in workflow
+
+
 def test_uncertain_release_detection_fails_closed() -> None:
     def failed(_command):  # type: ignore[no-untyped-def]
         return _completed(returncode=1)

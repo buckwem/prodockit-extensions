@@ -16,11 +16,28 @@ worked around here by forcing ``htmlLabels`` off, so Mermaid emits plain SVG
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import subprocess
 from enum import Enum
+from pathlib import Path
 from typing import Any, Protocol
+
+from ._standalone_quickjs import (
+    StandaloneBackendUnavailableError as StandaloneRuntimeUnavailableError,
+)
+from ._standalone_quickjs import (
+    StandaloneRenderError,
+    StandaloneResourceLimitError,
+    require_standalone_runtime,
+)
+from ._standalone_worker import (
+    StandaloneMermaidWorker,
+    StandaloneWorkerCrashError,
+    StandaloneWorkerProtocolError,
+    StandaloneWorkerTimeoutError,
+)
 
 # Forces plain SVG text labels instead of the <foreignObject>-based default
 # WeasyPrint can't render (see module docstring).
@@ -149,6 +166,67 @@ class MermaidBackendUnavailableError(RuntimeError):
     """The selected Mermaid backend is unavailable in this release."""
 
 
+class _StandaloneWorker(Protocol):
+    def render_svg(
+        self,
+        source: str,
+        *,
+        theme: str = "default",
+        config: dict[str, Any] | None = None,
+        css: str | None = None,
+    ) -> str: ...
+
+    def close(self) -> None: ...
+
+
+_STANDALONE_RENDER_ERRORS = (
+    OSError,
+    StandaloneRenderError,
+    StandaloneResourceLimitError,
+    StandaloneWorkerCrashError,
+    StandaloneWorkerProtocolError,
+    StandaloneWorkerTimeoutError,
+)
+
+
+class StandaloneMermaidRenderer:
+    """Writes static SVG returned by the isolated Python-only worker."""
+
+    def __init__(
+        self,
+        output_dir: str,
+        *,
+        worker: _StandaloneWorker | None = None,
+    ) -> None:
+        self._output_dir = Path(output_dir)
+        self._worker = worker or StandaloneMermaidWorker()
+        self._next_index = 0
+
+    def render_source(self, source: str) -> str | None:
+        self._next_index += 1
+        index = self._next_index
+        temporary_path: Path | None = None
+        try:
+            svg = self._worker.render_svg(source, config=_MERMAID_CONFIG)
+            self._output_dir.mkdir(parents=True, exist_ok=True)
+            svg_path = (self._output_dir / f"diagram_{index}.svg").resolve()
+            temporary_path = svg_path.with_suffix(".svg.tmp")
+            temporary_path.write_text(svg, encoding="utf-8")
+            os.replace(temporary_path, svg_path)
+            return str(svg_path)
+        except StandaloneRuntimeUnavailableError as error:
+            raise MermaidBackendUnavailableError(str(error)) from error
+        except _STANDALONE_RENDER_ERRORS as error:
+            if temporary_path is not None:
+                with contextlib.suppress(OSError):
+                    temporary_path.unlink(missing_ok=True)
+            print(f"⚠️  Mermaid render failed for diagram {index}: {error}")
+            return None
+
+    def close(self) -> None:
+        self._worker.close()
+
+
 def create_mermaid_renderer(
     backend: MermaidBackend,
     *,
@@ -160,7 +238,8 @@ def create_mermaid_renderer(
         if mmdc_bin is None:
             return None
         return MmdcMermaidRenderer(mmdc_bin, output_dir)
-    raise MermaidBackendUnavailableError(
-        "The standalone Mermaid backend arrives in Phase 3. Remove --swap to "
-        "render with the current mermaid-cli (mmdc) backend."
-    )
+    try:
+        require_standalone_runtime()
+    except StandaloneRuntimeUnavailableError as error:
+        raise MermaidBackendUnavailableError(str(error)) from error
+    return StandaloneMermaidRenderer(output_dir)

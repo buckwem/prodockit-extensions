@@ -19,7 +19,7 @@ from prodockit.pdf.config import (
     build_pdf_from_zensical_config,
     build_source_bundle_from_zensical_config,
 )
-from prodockit.pdf.mermaid import MermaidBackend, MermaidBackendUnavailableError
+from prodockit.pdf.mermaid import MermaidBackend
 from prodockit.pdf.web_render import WebRenderError
 from prodockit.settings import SettingError
 
@@ -1551,25 +1551,37 @@ def test_mermaid_renderer_is_absent_when_mmdc_is_not_found(
     assert captured["render_mermaid"] is None
 
 
-def test_standalone_backend_fails_closed_without_mmdc_discovery_or_pdf_build(
+def test_standalone_backend_skips_mmdc_and_closes_after_pdf_build(
     project, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     root = project()
+    instances: list[_RecordingMermaidRenderer] = []
+    captured = {}
 
     def no_discovery(_configured):
         raise AssertionError("standalone selection must not discover mmdc")
 
-    def no_build(*_args, **_kwargs):
-        raise AssertionError("standalone selection must not reach build_pdf")
+    def renderer_factory(backend, *, mmdc_bin, output_dir):
+        assert backend is MermaidBackend.STANDALONE
+        assert mmdc_bin is None
+        renderer = _RecordingMermaidRenderer("standalone", output_dir)
+        instances.append(renderer)
+        return renderer
+
+    def build(_pages, _output_path, **kwargs):
+        captured["render_mermaid"] = kwargs["render_mermaid"]
 
     monkeypatch.setattr(config, "_find_mmdc_bin", no_discovery)
-    monkeypatch.setattr(config, "build_pdf", no_build)
+    monkeypatch.setattr(config, "create_mermaid_renderer", renderer_factory)
+    monkeypatch.setattr(config, "validate_built_site", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(config, "page_html", lambda _project, source: f"<h1>{source}</h1>")
+    monkeypatch.setattr(config, "publish_pdf_to_built_site", lambda *_args: None)
+    monkeypatch.setattr(config, "build_pdf", build)
 
-    with pytest.raises(MermaidBackendUnavailableError, match="Phase 3"):
-        build_pdf_from_built_site(
-            str(root / "zensical.toml"),
-            mermaid_backend=MermaidBackend.STANDALONE,
-        )
+    build_pdf_from_built_site(
+        str(root / "zensical.toml"),
+        mermaid_backend=MermaidBackend.STANDALONE,
+    )
 
-    assert not (root / "docs" / ".prodockit-pdf-mermaid").exists()
-    assert not (root / "docs" / "site_documentation.pdf").exists()
+    assert captured["render_mermaid"].__self__ is instances[0]
+    assert instances[0].closed is True

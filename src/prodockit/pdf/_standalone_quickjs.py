@@ -1,11 +1,10 @@
 # Copyright (c) 2026 Mark Buckwell and contributors
 # SPDX-License-Identifier: MIT
 
-"""G0 candidate for a callback-free, resource-bounded Mermaid runtime.
+"""Callback-free, resource-bounded runtime used by Mermaid ``--swap``.
 
-This private module is intentionally not wired to ``--swap`` yet.  It uses
-the exact audited mermaidx 0.9.5 assets, but owns the QuickJS context so every
-untrusted render can run with memory, execution-time, and stack limits.
+This private module uses the exact audited mermaidx 0.9.5 assets and owns the
+QuickJS context so every untrusted render has memory, time, and stack limits.
 """
 
 from __future__ import annotations
@@ -258,6 +257,17 @@ def _load_runtime() -> _Runtime:
         path_bbox_js=path_bbox_js,
         patch_svg=patch_svg,
     )
+
+
+def require_standalone_runtime() -> None:
+    """Verifies the exact audited packages, symbols and assets are usable."""
+    try:
+        _load_runtime()
+    except StandaloneBackendUnavailableError as error:
+        raise StandaloneBackendUnavailableError(
+            "The standalone Mermaid backend requires mermaidx==0.9.5 and "
+            f"quickjs-ng==0.16.2.1; {error}"
+        ) from error
 
 
 class StandaloneQuickJSMermaidEngine:

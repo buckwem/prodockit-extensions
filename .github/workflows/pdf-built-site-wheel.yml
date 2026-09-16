@@ -50,10 +50,6 @@ jobs:
             runner: ubuntu-24.04-arm
             architecture: arm64
             architecture_check: --require-arm64
-          - name: Windows 11
-            runner: windows-11-arm
-            architecture: arm64
-            architecture_check: --require-arm64
           - name: macOS 15
             runner: macos-15
             architecture: arm64

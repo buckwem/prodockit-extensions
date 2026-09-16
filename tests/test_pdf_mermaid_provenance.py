@@ -47,6 +47,14 @@ def test_runtime_integrity_check_uses_the_provenance_manifest() -> None:
     assert quickjs_module._ASSET_HASHES["mermaid.js"] == provenance.asset_sha256
 
 
+def test_python_package_declares_the_exact_audited_runtime_dependencies() -> None:
+    pyproject = (Path(__file__).parents[1] / "pyproject.toml").read_text(encoding="utf-8")
+
+    assert '"mermaidx==0.9.5;' in pyproject
+    assert '"quickjs-ng==0.16.2.1;' in pyproject
+    assert "platform_machine != 'ARM64'" in pyproject
+
+
 def _tarball(tmp_path: Path, asset: bytes) -> tuple[Path, MermaidProvenance]:
     tarball = tmp_path / "mermaid.tgz"
     with tarfile.open(tarball, "w:gz") as archive:

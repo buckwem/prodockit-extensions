@@ -204,6 +204,46 @@ assert metadata["is_appendix"] is True
 assert metadata["recto_title"] == "Short guide"
 """
 
+SWAP_CHECK = r"""
+import os
+from pathlib import Path
+
+from prodockit.pdf import config as pdf_config
+from prodockit.pdf.config import build_pdf_from_built_site
+from prodockit.pdf.mermaid import MermaidBackend
+
+
+def main():
+    captured = {}
+    def capture(_pages, output_path, **kwargs):
+        original_path = os.environ.get("PATH")
+        os.environ["PATH"] = ""
+        try:
+            captured["rendered"] = kwargs["render_mermaid"](
+                "flowchart LR\n  Installed --> PythonOnly"
+            )
+        finally:
+            if original_path is None:
+                os.environ.pop("PATH", None)
+            else:
+                os.environ["PATH"] = original_path
+        Path(output_path).write_bytes(b"%PDF-1.7 standalone acceptance")
+    pdf_config.build_pdf = capture
+    build_pdf_from_built_site(
+        "zensical.toml", mermaid_backend=MermaidBackend.STANDALONE
+    )
+    rendered = captured["rendered"]
+    assert rendered is not None
+    svg = Path(rendered).read_text(encoding="utf-8")
+    assert "Installed" in svg
+    assert "PythonOnly" in svg
+    assert "foreignObject" not in svg
+
+
+if __name__ == "__main__":
+    main()
+"""
+
 
 def main() -> None:
     parser = argparse.ArgumentParser()
@@ -235,6 +275,9 @@ def main() -> None:
         if (project / "site" / "site_documentation.pdf").exists():
             raise AcceptanceError("the first Zensical build unexpectedly contained a PDF")
         run([str(python), "-c", CHECK], project)
+        swap_check = project / "standalone_mermaid_acceptance.py"
+        swap_check.write_text(SWAP_CHECK, encoding="utf-8")
+        run([str(python), str(swap_check)], project)
 
     report = {
         "passed": True,
