@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import hashlib
 import io
+import sys
 import tarfile
 from base64 import b64encode
 from dataclasses import replace
@@ -14,9 +15,9 @@ import pytest
 from packaging.markers import default_environment
 from packaging.requirements import Requirement
 
-try:
+if sys.version_info >= (3, 11):
     import tomllib
-except ModuleNotFoundError:  # pragma: no cover - Python 3.10
+else:  # pragma: no cover - exercised by the Python 3.10 CI job
     import tomli as tomllib
 
 import prodockit.pdf._standalone_quickjs as quickjs_module
