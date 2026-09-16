@@ -19,10 +19,14 @@ only when it adds or changes behaviour that matters to a user, or requires an
 upgrade action. Defect-by-defect history belongs in GitHub issues and pull
 requests rather than here.
 
-## Unreleased
+## 0.66.0 (2026-09-16)
 
 - Made the Python-only Mermaid renderer the PDF default; `--swap` now selects an externally supplied legacy `mermaid-cli` renderer.
 - Removed ProDockit-managed Mermaid npm, Puppeteer, browser provisioning, alignment, diagnostics repair, and CI installation while leaving MathJax tooling unchanged.
+- Corrected cross-page PDF references for long-form and Setext headings and repeated fragment destinations.
+- Corrected PDF repository links for non-main branches.
+- Preserved quoted YAML extension keys during adoption.
+- Blocked first-push repair while SSH is unavailable.
 
 ## 0.65.7 (2026-09-15)
 
