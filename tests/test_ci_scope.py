@@ -347,6 +347,7 @@ def test_standalone_pdf_wheel_matrix_uses_only_published_quickjs_architectures()
     assert "runner: windows-2025" in workflow
     assert "runner: macos-15" in workflow
     assert "runner: windows-11-arm" not in workflow
+    assert "runner: macos-15-intel" not in workflow
 
 
 def test_uncertain_release_detection_fails_closed() -> None:

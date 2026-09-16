@@ -80,9 +80,10 @@ dependencies = [
   "pypdf>=4.0",
   # Exact pins are part of the standalone Mermaid trust boundary: the
   # integration verifies private symbols and committed asset hashes from
-  # these audited distributions before --swap starts a PDF build.
-  "mermaidx==0.9.5; sys_platform != 'win32' or (platform_machine != 'ARM64' and platform_machine != 'arm64')",
-  "quickjs-ng==0.16.2.1; sys_platform != 'win32' or (platform_machine != 'ARM64' and platform_machine != 'arm64')",
+  # these audited distributions before --swap starts a PDF build. Platforms
+  # without an audited quickjs-ng wheel retain ordinary ProDockit support.
+  "mermaidx==0.9.5; (sys_platform != 'win32' or (platform_machine != 'ARM64' and platform_machine != 'arm64')) and (sys_platform != 'darwin' or (platform_machine != 'x86_64' and platform_machine != 'AMD64'))",
+  "quickjs-ng==0.16.2.1; (sys_platform != 'win32' or (platform_machine != 'ARM64' and platform_machine != 'arm64')) and (sys_platform != 'darwin' or (platform_machine != 'x86_64' and platform_machine != 'AMD64'))",
 ]
 classifiers = [
   "Development Status :: 3 - Alpha",

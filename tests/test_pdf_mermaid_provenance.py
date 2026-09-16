@@ -11,6 +11,13 @@ from dataclasses import replace
 from pathlib import Path
 
 import pytest
+from packaging.markers import default_environment
+from packaging.requirements import Requirement
+
+try:
+    import tomllib
+except ModuleNotFoundError:  # pragma: no cover - Python 3.10
+    import tomli as tomllib
 
 import prodockit.pdf._standalone_quickjs as quickjs_module
 from prodockit.pdf._mermaid_provenance import (
@@ -48,11 +55,34 @@ def test_runtime_integrity_check_uses_the_provenance_manifest() -> None:
 
 
 def test_python_package_declares_the_exact_audited_runtime_dependencies() -> None:
-    pyproject = (Path(__file__).parents[1] / "pyproject.toml").read_text(encoding="utf-8")
+    pyproject_path = Path(__file__).parents[1] / "pyproject.toml"
+    pyproject = pyproject_path.read_text(encoding="utf-8")
 
     assert '"mermaidx==0.9.5;' in pyproject
     assert '"quickjs-ng==0.16.2.1;' in pyproject
     assert "platform_machine != 'ARM64'" in pyproject
+    assert "platform_machine != 'x86_64'" in pyproject
+
+    dependencies = tomllib.loads(pyproject)["project"]["dependencies"]
+    runtime = {
+        requirement.name: requirement
+        for value in dependencies
+        if (requirement := Requirement(value)).name in {"mermaidx", "quickjs-ng"}
+    }
+    platforms = {
+        ("linux", "x86_64"): True,
+        ("linux", "aarch64"): True,
+        ("win32", "AMD64"): True,
+        ("darwin", "arm64"): True,
+        ("win32", "ARM64"): False,
+        ("darwin", "x86_64"): False,
+    }
+    for requirement in runtime.values():
+        assert requirement.marker is not None
+        for (system, machine), expected in platforms.items():
+            environment = default_environment()
+            environment.update(sys_platform=system, platform_machine=machine)
+            assert requirement.marker.evaluate(environment) is expected
 
 
 def _tarball(tmp_path: Path, asset: bytes) -> tuple[Path, MermaidProvenance]:
