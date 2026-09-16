@@ -21,12 +21,15 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, NoReturn, Protocol, cast
 
-_MERMAIDX_VERSION = "0.9.5"
+from ._mermaid_provenance import load_mermaid_provenance
+
+_PROVENANCE = load_mermaid_provenance()
+_MERMAIDX_VERSION = _PROVENANCE.mermaidx_version
 _QUICKJS_VERSION = "0.16.2.1"
 
 _ASSET_HASHES = {
     "dom_shim.js": "624a5c42b2d01d4eb5496969ddb856cab0f12975661ab660aad67f346ef2c24e",
-    "mermaid.js": "74d7c46dabca328c2294733910a8aa1ed0c37451776e8d5295da38a2b758fb9b",
+    "mermaid.js": _PROVENANCE.asset_sha256,
     "fonts/DejaVuSans.ttf": "3fdf69cabf06049ea70a00b5919340e2ce1e6d02b0cc3c4b44fb6801bd1e0d22",
     "fonts/DejaVuSans-Bold.ttf": "b184b89e3c1075f22f6b71575b6fc20d4972b3cfd3b23322ca6fd596dcaef167",
 }
