@@ -81,7 +81,7 @@ def _renderer_environment() -> dict[str, str]:
     return environment
 
 
-def _command(
+def renderer_command(
     path: Path, *arguments: str, platform: str | None = None
 ) -> list[str]:
     platform = os.name if platform is None else platform
@@ -89,7 +89,7 @@ def _command(
         for suffix in (".cmd", ".exe", ".bat", ".com"):
             sibling = Path(f"{path}{suffix}")
             if sibling.is_file():
-                return _command(sibling, *arguments, platform=platform)
+                return renderer_command(sibling, *arguments, platform=platform)
     command = [str(path), *arguments]
     if platform == "nt" and path.suffix.casefold() in {".bat", ".cmd"}:
         # npm's mmdc.cmd delegates to this JavaScript entry point. Calling it
@@ -116,7 +116,7 @@ def _probe_mermaid_once(path: str | Path, *, timeout: float) -> RendererProbe:
     environment = _renderer_environment()
     try:
         version_result = subprocess.run(
-            _command(executable, "--version"),
+            renderer_command(executable, "--version"),
             capture_output=True,
             text=True,
             encoding="utf-8",
@@ -155,7 +155,7 @@ def _probe_mermaid_once(path: str | Path, *, timeout: float) -> RendererProbe:
                 encoding="utf-8",
             )
             render_result = subprocess.run(
-                _command(
+                renderer_command(
                     executable,
                     "-i",
                     str(source),

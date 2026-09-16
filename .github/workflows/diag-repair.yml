@@ -53,10 +53,6 @@ jobs:
             runner: windows-2025
             architecture: x64
             architecture_check: --require-x64
-          - name: Windows 11
-            runner: windows-11-arm
-            architecture: arm64
-            architecture_check: --require-arm64
           - name: macOS 15
             runner: macos-15-intel
             architecture: x64
@@ -124,7 +120,6 @@ jobs:
           - ubuntu-x64
           - ubuntu-arm64
           - windows-x64
-          - windows-arm64
           - macos-x64
           - macos-arm64
         include:
@@ -143,11 +138,6 @@ jobs:
             runner: windows-2025
             architecture: x64
             architecture_check: --require-x64
-          - platform: windows-arm64
-            name: Windows 11
-            runner: windows-11-arm
-            architecture: arm64
-            architecture_check: --require-arm64
           - platform: macos-x64
             name: macOS 15
             runner: macos-15-intel

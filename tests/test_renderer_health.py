@@ -93,7 +93,7 @@ def test_mermaid_probe_uses_the_runnable_windows_shim(tmp_path: Path) -> None:
     binary.write_text("posix shim", encoding="utf-8")
     windows_shim = tmp_path / "mmdc.cmd"
     windows_shim.write_text("windows shim", encoding="utf-8")
-    assert renderer_health._command(binary, "--version", platform="nt") == [
+    assert renderer_health.renderer_command(binary, "--version", platform="nt") == [
         "cmd.exe",
         "/d",
         "/s",
@@ -113,7 +113,7 @@ def test_mermaid_probe_bypasses_cmd_for_npm_cli_in_path_with_spaces(tmp_path: Pa
     cli.parent.mkdir(parents=True)
     cli.write_text("// cli", encoding="utf-8")
 
-    assert renderer_health._command(binary, "--version", platform="nt") == [
+    assert renderer_health.renderer_command(binary, "--version", platform="nt") == [
         "node",
         str(cli),
         "--version",

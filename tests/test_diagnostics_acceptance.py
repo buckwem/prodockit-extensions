@@ -294,19 +294,19 @@ def test_online_update_notice_does_not_make_a_successful_pin_repair_fail() -> No
     assert not diagnostics_acceptance_driver._repair_cleared("dependencies.pins", check)
 
 
-def test_diagnostic_repair_workflow_has_six_repair_and_twelve_toolchain_environments() -> None:
+def test_diagnostic_repair_workflow_has_five_repair_and_ten_toolchain_environments() -> None:
     workflow = (ROOT / ".github/workflows/diag-repair.yml").read_text(encoding="utf-8")
     runners = {
         "ubuntu-24.04",
         "ubuntu-24.04-arm",
         "windows-2025",
-        "windows-11-arm",
         "macos-15-intel",
         "macos-15",
     }
 
-    assert sum(f"runner: {runner}" in workflow for runner in runners) == 6
-    assert workflow.count("architecture_check:") == 12
+    assert sum(f"runner: {runner}" in workflow for runner in runners) == 5
+    assert workflow.count("architecture_check:") == 10
+    assert "windows-11-arm" not in workflow
     assert "scenario: [upgrade, downgrade]" in workflow
     assert "python -m build --wheel" in workflow
     assert "tools/diagnostics_repair_acceptance.py" in workflow

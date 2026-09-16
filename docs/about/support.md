@@ -85,7 +85,7 @@ however:
 |---|---|---|
 | Ubuntu Linux | Scope-selected full test suite on every push and pull request using `ubuntu-24.04`; installed-wheel adoption and bootstrap on x64 and ARM64 | Both repository workflows on Surrey GitLab, GitHub.com, and GitLab.com |
 | macOS | The full test suite is also run locally; installed-wheel adoption and bootstrap run on hosted ARM64 | Both repository workflows on Surrey GitLab, GitHub.com, and GitLab.com |
-| Windows | Installed-wheel adoption and bootstrap on Windows 2025 x64 and Windows 11 ARM64; no hosted full-suite job | Both repository workflows on Surrey GitLab, GitHub.com, and GitLab.com |
+| Windows | Installed-wheel adoption and bootstrap on Windows 2025 x64; Windows ARM64 is excluded from automated testing | Both repository workflows on Surrey GitLab, GitHub.com, and GitLab.com |
 /// table-caption | <
     attrs: {id: tab-about-support-platforms-and-test-depth}
 
@@ -97,8 +97,8 @@ Windows x64, and macOS ARM64. Windows ARM64 and macOS Intel x64 remain supported
 for ordinary ProDockit use and may select the legacy `mermaid-cli` renderer with
 `--swap`, because the audited `quickjs-ng` version does not publish compatible
 wheels and normal installation must not compile or download another runtime.
-Installed-wheel adoption therefore exercises `prodockit pdf --swap` on Windows
-ARM64 while the supported standalone platforms exercise the default backend.
+Windows ARM64 is not part of the automated test matrix; the supported
+standalone platforms exercise the default backend.
 
 \ref{tab-about-support-platforms-and-test-depth} distinguishes automated
 regression coverage from manual bootstrap exercises. The installed-wheel

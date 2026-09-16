@@ -444,7 +444,7 @@ def verify_deliverables(
         )
         if command == "diag":
             allowed = {
-                "Mermaid CLI is missing (optional)",
+                "Standalone Mermaid runtime is unavailable (optional)",
                 "MathJax PDF renderer is incomplete (optional)",
                 "Project is not inside a Git repository",
                 # This local-only fixture deliberately has no hosting identity.

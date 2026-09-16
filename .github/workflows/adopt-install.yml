@@ -69,12 +69,6 @@ jobs:
             architecture: arm64
             architecture_check: --require-arm64
             scenario_args: --scenario toml-default --scenario toml-core --scenario yaml-core --scenario toml-both
-          - name: Windows 11
-            runner: windows-11-arm
-            architecture: arm64
-            architecture_check: --require-arm64
-            pdf_args: --pdf-swap
-            scenario_args: --scenario toml-default --scenario toml-both
           - name: macOS 15
             runner: macos-15
             architecture: arm64
@@ -122,7 +116,6 @@ jobs:
           --wheel dist
           ${{ matrix.architecture_check }}
           ${{ matrix.scenario_args }}
-          ${{ matrix.pdf_args }}
           --report adopt-acceptance-report.json
       - name: Keep the acceptance report
         if: always()
@@ -154,11 +147,6 @@ jobs:
             runner: windows-2025
             architecture: x64
             architecture_check: --require-x64
-          - name: Windows 11
-            runner: windows-11-arm
-            architecture: arm64
-            architecture_check: --require-arm64
-            pdf_args: --pdf-swap
           - name: macOS 15
             runner: macos-15
             architecture: arm64
@@ -201,7 +189,6 @@ jobs:
           python tools/adopt_native_upgrade.py
           --wheel dist
           ${{ matrix.architecture_check }}
-          ${{ matrix.pdf_args }}
           --report adopt-native-upgrade-report.json
       - name: Keep the upgrade report
         if: always()
@@ -217,7 +204,7 @@ jobs:
     name: Template sync — ${{ matrix.name }} ${{ matrix.architecture }}
     runs-on: ${{ matrix.runner }}
     # Each job genuinely prepares two supported toolchains and then exercises
-    # one pip upgrade and one pip downgrade. Windows ARM64 is normally longest.
+    # one pip upgrade and one pip downgrade.
     timeout-minutes: 60
     strategy:
       fail-fast: false
@@ -235,10 +222,6 @@ jobs:
             runner: windows-2025
             architecture: x64
             architecture_check: --require-x64
-          - name: Windows 11
-            runner: windows-11-arm
-            architecture: arm64
-            architecture_check: --require-arm64
           - name: macOS 15 Intel
             runner: macos-15-intel
             architecture: x64

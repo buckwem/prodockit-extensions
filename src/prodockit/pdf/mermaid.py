@@ -25,6 +25,8 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Protocol
 
+from prodockit.renderer_health import find_browser, renderer_command
+
 from ._standalone_quickjs import (
     StandaloneBackendUnavailableError as StandaloneRuntimeUnavailableError,
 )
@@ -91,19 +93,22 @@ def render_mermaid_diagram(
         f.write(diagram_source)
     with open(mmdc_config_path, "w", encoding="utf-8") as f:
         json.dump(_MERMAID_CONFIG, f)
+    puppeteer_config = dict(_PUPPETEER_CONFIG)
+    if browser := find_browser():
+        puppeteer_config["executablePath"] = browser
     with open(puppeteer_config_path, "w", encoding="utf-8") as f:
-        json.dump(_PUPPETEER_CONFIG, f)
+        json.dump(puppeteer_config, f)
 
     try:
         subprocess.run(
-            [
-                mmdc_bin,
+            renderer_command(
+                Path(mmdc_bin),
                 "-i", mmd_path,
                 "-o", svg_path,
                 "-b", "transparent",
                 "-c", mmdc_config_path,
                 "-p", puppeteer_config_path,
-            ],
+            ),
             check=True,
             capture_output=True,
             text=True,

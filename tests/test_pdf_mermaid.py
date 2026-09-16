@@ -88,6 +88,21 @@ def test_disables_html_labels_in_the_generated_mermaid_config(tmp_path: Path) ->
     assert '"htmlLabels": false' in config_path.read_text(encoding="utf-8")
 
 
+def test_selects_the_discovered_browser_for_external_mmdc(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    browser = tmp_path / "browser"
+    browser.touch()
+    monkeypatch.setattr(mermaid_module, "find_browser", lambda: str(browser))
+    output_dir = tmp_path / "out"
+    mmdc_bin = _fake_mmdc(tmp_path, 'echo "<svg></svg>" > "$4"')
+
+    render_mermaid_diagram("graph TD; A-->B;", mmdc_bin, str(output_dir), 1)
+
+    config = (output_dir / "diagram_1_puppeteer_config.json").read_text(encoding="utf-8")
+    assert f'"executablePath": "{browser}"' in config
+
+
 def test_mmdc_renderer_assigns_monotonic_indexes_and_forwards_timeout(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

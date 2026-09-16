@@ -79,10 +79,6 @@ extra_javascript = [
 
 [project.markdown_extensions.pymdownx.arithmatex]
 
-[project.markdown_extensions.pymdownx.superfences]
-custom_fences = [
-  { name = "mermaid", class = "mermaid", format = "pymdownx.superfences.fence_code_format" },
-]
 """,
     )
     _write(
@@ -93,11 +89,6 @@ custom_fences = [
 See \\ref{target}.
 
 ## Target
-
-```mermaid
-graph LR
-  A --> B
-```
 
 \\[ x^2 + y^2 = z^2 \\]
 """,

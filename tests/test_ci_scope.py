@@ -411,24 +411,24 @@ def test_every_artifact_workflow_uses_the_python_314_project_pin() -> None:
     assert not unpinned, f"setup-python does not use the 3.14 project pin: {unpinned}"
 
 
-def test_adopt_matrix_caches_node_packages_and_keeps_full_windows_architecture_coverage() -> None:
+def test_adopt_matrix_caches_node_packages_and_excludes_windows_arm64() -> None:
     workflow = (ROOT / ".github" / "workflows" / "adopt-install.yml").read_text(encoding="utf-8")
 
     assert "run-name: Adopt wheel installation and real project upgrades" in workflow
     assert "cache: npm" in workflow
     assert "src/prodockit/_tools_template/mermaid/package-lock.json" not in workflow
     assert "src/prodockit/_tools_template/mathjax/package-lock.json" in workflow
-    assert workflow.count("scenario_args: --scenario toml-default --scenario toml-both") == 2
+    assert workflow.count("scenario_args: --scenario toml-default --scenario toml-both") == 1
     assert workflow.count(
         "scenario_args: --scenario toml-default --scenario toml-core "
         "--scenario yaml-core --scenario toml-both"
     ) == 3
     assert "runner: windows-2025" in workflow
-    assert "runner: windows-11-arm" in workflow
+    assert "runner: windows-11-arm" not in workflow
     assert "timeout-minutes: 40" in workflow
 
 
-def test_template_sync_wheel_handoff_runs_on_all_six_environments() -> None:
+def test_template_sync_wheel_handoff_runs_on_all_five_environments() -> None:
     workflow = (ROOT / ".github" / "workflows" / "adopt-install.yml").read_text(
         encoding="utf-8"
     )
@@ -438,12 +438,11 @@ def test_template_sync_wheel_handoff_runs_on_all_six_environments() -> None:
     assert "Exercise real upgrade, downgrade and fresh-process handoff" in section
     assert "timeout-minutes: 60" in section
     assert section.count("architecture_check: --require-x64") == 3
-    assert section.count("architecture_check: --require-arm64") == 3
+    assert section.count("architecture_check: --require-arm64") == 2
     for runner in (
         "ubuntu-24.04",
         "ubuntu-24.04-arm",
         "windows-2025",
-        "windows-11-arm",
         "macos-15-intel",
         "macos-15",
     ):
@@ -477,7 +476,6 @@ def test_adopt_release_gate_upgrades_an_old_full_project_on_every_runner() -> No
         "ubuntu-24.04",
         "ubuntu-24.04-arm",
         "windows-2025",
-        "windows-11-arm",
         "macos-15",
     ):
         assert runner in workflow.split("native-upgrade:", 1)[1]
@@ -507,7 +505,6 @@ def test_bootstrap_release_gate_runs_real_installs_on_every_supported_runner() -
         "ubuntu-24.04",
         "ubuntu-24.04-arm",
         "windows-2025",
-        "windows-11-arm",
         "macos-15",
     ):
         assert runner in workflow
