@@ -97,6 +97,8 @@ Windows x64, and macOS ARM64. Windows ARM64 and macOS Intel x64 remain supported
 for ordinary ProDockit use and may select the legacy `mermaid-cli` renderer with
 `--swap`, because the audited `quickjs-ng` version does not publish compatible
 wheels and normal installation must not compile or download another runtime.
+Installed-wheel adoption therefore exercises `prodockit pdf --swap` on Windows
+ARM64 while the supported standalone platforms exercise the default backend.
 
 \ref{tab-about-support-platforms-and-test-depth} distinguishes automated
 regression coverage from manual bootstrap exercises. The installed-wheel

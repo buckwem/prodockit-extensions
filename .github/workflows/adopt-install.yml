@@ -74,6 +74,7 @@ jobs:
             architecture: arm64
             architecture_check: --require-arm64
             scenario_args: --scenario toml-default --scenario toml-both
+            pdf_args: --pdf-swap
           - name: macOS 15
             runner: macos-15
             architecture: arm64
@@ -122,6 +123,7 @@ jobs:
           --wheel dist
           ${{ matrix.architecture_check }}
           ${{ matrix.scenario_args }}
+          ${{ matrix.pdf_args }}
           --report adopt-acceptance-report.json
       - name: Keep the acceptance report
         if: always()

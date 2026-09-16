@@ -429,11 +429,17 @@ def build(python: Path, project: Path, config: Path, *, fixture_content: bool) -
             raise AcceptanceError("build lost prose, code highlighting or heading permalinks")
 
 
-def verify_deliverables(python: Path, project: Path, config: Path) -> None:
+def verify_deliverables(
+    python: Path, project: Path, config: Path, *, pdf_swap: bool = False
+) -> None:
     """Exercise the public diagnostics and both document-generation commands."""
     for command in ("diag", "pdf", "source-bundle"):
+        arguments = [str(python), "-m", "prodockit", command]
+        if command == "pdf" and pdf_swap:
+            arguments.append("--swap")
+        arguments.extend(("--config-file", config.name))
         completed = run(
-            [str(python), "-m", "prodockit", command, "--config-file", config.name],
+            arguments,
             cwd=project,
         )
         if command == "diag":
@@ -544,6 +550,7 @@ def exercise(
     maths: bool,
     fixture_content: bool = False,
     use_defaults: bool = False,
+    pdf_swap: bool = False,
 ) -> Result:
     started = time.perf_counter()
     config = find_config(project)
@@ -593,7 +600,7 @@ def exercise(
 
     if fixture_content:
         verify_authoring(python, project, config)
-    verify_deliverables(python, project, config)
+    verify_deliverables(python, project, config, pdf_swap=pdf_swap)
     stable = snapshot(project, exclude=output_directory)
     second_output = adopt(
         python, project, mermaid=mermaid, maths=maths, apply=True, use_defaults=use_defaults
@@ -619,6 +626,8 @@ def exercise_fixture(
     python: Path,
     root: Path,
     scenario: tuple[str, str, bool, bool],
+    *,
+    pdf_swap: bool = False,
 ) -> Result:
     """Create and exercise one isolated built-in fixture."""
     name, config_name, mermaid, maths = scenario
@@ -632,6 +641,7 @@ def exercise_fixture(
         mermaid=mermaid,
         maths=maths,
         fixture_content=True,
+        pdf_swap=pdf_swap,
     )
 
 
@@ -644,6 +654,11 @@ def parser() -> argparse.ArgumentParser:
     result.add_argument("--output", type=Path, help="New directory for the disposable project copy")
     result.add_argument("--mermaid", action="store_true", help="Select Mermaid for --project")
     result.add_argument("--maths", action="store_true", help="Select maths for --project")
+    result.add_argument(
+        "--pdf-swap",
+        action="store_true",
+        help="Exercise the legacy PDF Mermaid backend on unsupported runtime platforms",
+    )
     result.add_argument(
         "--scenario",
         action="append",
@@ -713,6 +728,7 @@ def main(arguments: list[str] | None = None) -> int:
                     name=source.name,
                     mermaid=args.mermaid,
                     maths=args.maths,
+                    pdf_swap=args.pdf_swap,
                 )
             )
             if snapshot(source) != original_source:
@@ -726,12 +742,18 @@ def main(arguments: list[str] | None = None) -> int:
             print(f"Scenario workers: {workers}")
             if workers == 1:
                 for scenario in scenarios:
-                    result_items.append(exercise_fixture(python, temporary_path, scenario))
+                    result_items.append(
+                        exercise_fixture(
+                            python, temporary_path, scenario, pdf_swap=args.pdf_swap
+                        )
+                    )
             else:
                 with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as executor:
                     result_items = list(
                         executor.map(
-                            lambda scenario: exercise_fixture(python, temporary_path, scenario),
+                            lambda scenario: exercise_fixture(
+                                python, temporary_path, scenario, pdf_swap=args.pdf_swap
+                            ),
                             scenarios,
                         )
                     )

@@ -129,6 +129,30 @@ def test_deliverables_reject_unexpected_diagnostics(tmp_path, monkeypatch, outpu
         adopt_acceptance.verify_deliverables(Path("python"), tmp_path, tmp_path / "zensical.toml")
 
 
+def test_deliverables_can_exercise_the_legacy_pdf_backend(tmp_path, monkeypatch):
+    calls = []
+
+    def run(command, **kwargs):
+        calls.append(command)
+        name = command[3]
+        if name == "diag":
+            output = "Result: PASS (1 passed)"
+        else:
+            filename = f"{name}.pdf"
+            (tmp_path / filename).write_bytes(b"%PDF-1.7\n")
+            output = f"Wrote {filename}" + (" in 1.2s" if name == "pdf" else "")
+        return subprocess.CompletedProcess(command, 0, stdout=output)
+
+    monkeypatch.setattr(adopt_acceptance, "run", run)
+    adopt_acceptance.verify_deliverables(
+        Path("python"), tmp_path, tmp_path / "zensical.toml", pdf_swap=True
+    )
+
+    assert "--swap" not in calls[0]
+    assert "--swap" in calls[1]
+    assert "--swap" not in calls[2]
+
+
 def test_an_ambiguous_wheel_directory_is_rejected(tmp_path: Path) -> None:
     (tmp_path / "prodockit-1-py3-none-any.whl").write_bytes(b"one")
     (tmp_path / "prodockit-2-py3-none-any.whl").write_bytes(b"two")
@@ -336,7 +360,7 @@ def test_a_failed_run_still_writes_an_acceptance_report(tmp_path: Path, monkeypa
     monkeypatch.setattr(
         adopt_acceptance,
         "exercise_fixture",
-        lambda *args: (_ for _ in ()).throw(
+        lambda *args, **kwargs: (_ for _ in ()).throw(
             adopt_acceptance.AcceptanceError("Mermaid mmdc timed out after two attempts")
         ),
     )
