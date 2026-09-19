@@ -5,8 +5,8 @@
 
 The User Guide's install instructions are long, sequential, and easy to
 get half-right in ways that only surface much later (a missing Pango that
-looks fine until the first `prodockit pdf`, a Node without npm that fails
-in an apparently unrelated step). This turns that sequence into twenty-three
+looks fine until the first `prodockit pdf`, or an outdated Node runtime that
+fails in an apparently unrelated step). This turns that sequence into twenty-two
 stages that can each be *checked*, and reapplied individually when a
 check fails (prodockit-extensions#217).
 
@@ -354,8 +354,8 @@ def apply_stage(
     """Runs an approved stage plan, then re-checks it.
 
     Stops at the first command that fails rather than pressing on: the
-    later commands in a plan generally depend on the earlier ones (a
-    `npm ci` into a directory the clone was supposed to create), and
+    later commands in a plan generally depend on the earlier ones (a package
+    install after its repository setup), and
     running them anyway turns one clear failure into several confusing
     ones.
 
@@ -374,10 +374,7 @@ def apply_stage(
     for command_number, planned in enumerate(plan.commands, start=1):
         # Resolved now rather than when the plan was written. A command
         # installed by an earlier line of the *same* plan cannot be found
-        # at planning time - `winget install` Node, then `npm ci` - and
-        # on Windows a bare `npm` can never work anyway, because
-        # `CreateProcess` appends `.exe` and npm is a `.cmd`
-        # (prodockit-extensions#405).
+        # at planning time because the current process retains its old PATH.
         command = resolve_for_execution(context, planned)
         # An install is allowed to be slow in a way a check is not: a
         # 100 MB download and an `apt install` behind it are ordinary

@@ -493,13 +493,14 @@ extra_javascript = ["javascripts/site.js", "javascripts/extra.js"]
     ordered = (
         '"javascripts/pdk.js"',
         '"javascripts/mathjax.js"',
-        '"javascripts/vendor/mathjax/tex-svg-full.js"',
+        '"https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js"',
         '"javascripts/site.js"',
         '"javascripts/extra.js"',
     )
     assert [config.index(value) for value in ordered] == sorted(
         config.index(value) for value in ordered
     )
+    assert (project / "docs/javascripts/mathjax.js").read_bytes() == resource_bytes("mathjax.js")
 
 
 def test_core_adoption_preserves_cache_versioned_assets_without_duplicates(
@@ -530,14 +531,50 @@ pdf_extra_css = ["stylesheets/pdk-pdf.css?v=4", "stylesheets/print.css?v=2"]
 
     assert second == first
     assert '"javascripts/mathjax.js",' not in second
-    assert '"javascripts/vendor/mathjax/tex-svg-full.js",' not in second
+    assert '"javascripts/vendor/mathjax/tex-svg-full.js' not in second
     assert second.count("javascripts/mathjax.js?v=config-2") == 1
-    assert second.count("javascripts/vendor/mathjax/tex-svg-full.js?v=3.2.2") == 1
+    assert second.count("https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js") == 1
     assert second.index('"javascripts/pdk.js"') < second.index(
         '"javascripts/mathjax.js?v=config-2"'
     )
     core = next(step for step in assess(project, AdoptOptions(maths=True)) if step.id == "core")
     assert core.status == "ok", core.detail
+
+
+def test_maths_adoption_removes_only_legacy_managed_website_assets(tmp_path: Path) -> None:
+    project = _project(
+        tmp_path,
+        """[project]
+site_name = "Legacy maths"
+extra_javascript = [
+  "javascripts/mathjax.js",
+  "javascripts/vendor/mathjax/tex-svg-full.js",
+]
+""",
+    )
+    legacy = project / "docs/javascripts/vendor/mathjax"
+    legacy.mkdir(parents=True)
+    legacy.joinpath("tex-svg-full.js").write_text("legacy bundle\n", encoding="utf-8")
+    legacy.joinpath("LICENSE").write_text("legacy licence\n", encoding="utf-8")
+    legacy.joinpath("README.txt").write_text("author file\n", encoding="utf-8")
+    project.joinpath(".gitignore").write_text(
+        "# keep\n"
+        "# Installed by `prodockit init-mathjax` - not committed\n"
+        "docs/javascripts/vendor/\n"
+        "docs/javascripts/mathjax.js\n",
+        encoding="utf-8",
+    )
+
+    ensure_zensical_config(project, AdoptOptions(maths=True))
+    ensure_javascripts(project)
+
+    assert not legacy.joinpath("tex-svg-full.js").exists()
+    assert not legacy.joinpath("LICENSE").exists()
+    assert legacy.joinpath("README.txt").read_text(encoding="utf-8") == "author file\n"
+    assert project.joinpath("docs/javascripts/mathjax.js").read_bytes() == resource_bytes(
+        "mathjax.js"
+    )
+    assert project.joinpath(".gitignore").read_text(encoding="utf-8") == "# keep\n"
 
 
 def test_mkdocs_adoption_preserves_cache_versioned_assets(tmp_path: Path) -> None:
@@ -563,9 +600,9 @@ extra:
     config = (project / "mkdocs.yml").read_text(encoding="utf-8")
 
     assert "- javascripts/mathjax.js\n" not in config
-    assert "- javascripts/vendor/mathjax/tex-svg-full.js\n" not in config
+    assert "javascripts/vendor/mathjax/tex-svg-full.js" not in config
     assert config.count("javascripts/mathjax.js?v=config-2") == 1
-    assert config.count("javascripts/vendor/mathjax/tex-svg-full.js?v=3.2.2") == 1
+    assert config.count("https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js") == 1
     assert config.index("- javascripts/pdk.js") < config.index(
         "- javascripts/mathjax.js?v=config-2"
     )
@@ -886,7 +923,8 @@ def test_maths_option_adds_generic_arithmatex_and_scripts(tmp_path: Path) -> Non
     assert "pymdownx.arithmatex" in config
     assert "generic = true" in config
     assert "javascripts/mathjax.js" in config
-    assert "javascripts/vendor/mathjax/tex-svg-full.js" in config
+    assert "https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js" in config
+    assert "javascripts/vendor/mathjax/tex-svg-full.js" not in config
     assert 'name = "mermaid"' not in config
 
 
@@ -1233,6 +1271,18 @@ def test_mermaid_adoption_does_not_own_or_modify_node_project(
     assert all("tools/author-renderer" not in path.as_posix() for path in written)
 
 
+def test_selected_renderers_are_configured_without_eager_tool_installation(tmp_path: Path) -> None:
+    project = _project(tmp_path)
+    options = AdoptOptions(mermaid=True, maths=True)
+
+    mermaid_written = apply_step(project, options, "mermaid")
+    maths_written = apply_step(project, options, "maths")
+
+    assert mermaid_written and maths_written
+    assert not (project / "tools").exists()
+    assert load_manifest(project) == options
+
+
 def test_maths_install_copies_the_browser_bundle_after_npm(tmp_path: Path, monkeypatch) -> None:
     project = _project(tmp_path)
     monkeypatch.setattr("prodockit.adopt.shutil.which", lambda _name: "/usr/bin/npm")
@@ -1297,7 +1347,7 @@ def test_maths_install_rejects_npm_success_when_renderer_probe_fails(
         install_tool(project, "mathjax")
 
 
-def test_adoption_readiness_rejects_unavailable_standalone_mermaid(
+def test_adoption_readiness_defers_mermaid_runtime_to_the_project_cache(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     project = _project(tmp_path)
@@ -1314,9 +1364,9 @@ def test_adoption_readiness_rejects_unavailable_standalone_mermaid(
 
     steps = {step.id: step for step in assess(project, options)}
 
-    assert steps["mermaid"].status == "missing"
-    assert "audited runtime unavailable" in steps["mermaid"].detail
-    assert steps["verify"].status == "wait"
+    assert steps["mermaid"].status == "ok"
+    assert "prepared automatically" in steps["mermaid"].detail
+    assert steps["verify"].status == "wait"  # choices are not saved yet
 
 
 def test_mkdocs_yaml_gets_the_same_core_components_without_conversion(tmp_path: Path) -> None:

@@ -30,9 +30,12 @@ from prodockit.pdf.icons import (
     discover_icon_dirs,
     discover_legacy_icon_dirs,
 )
+from prodockit.pdf.mathjax_runtime import adapter_path as mathjax_adapter_path
+from prodockit.pdf.mathjax_runtime import component_root as mathjax_component_root
 from prodockit.pdf.mermaid import MermaidRenderer, create_mermaid_renderer
 from prodockit.pdf.pandoc_runtime import executable_in_runtime as pandoc_executable_in_runtime
 from prodockit.pdf.release import get_latest_release_tag
+from prodockit.pdf.runtime_config import load_pdf_runtime_config
 from prodockit.pdf.runtime_prepare import (
     current_runtime_environment,
     prepare_runtime_components,
@@ -46,7 +49,6 @@ from prodockit.pdf.site import (
 )
 from prodockit.pdf.source_bundle import build_source_bundle, discover_markdown_and_config_files
 from prodockit.pdf.weasyprint_runtime import executable_in_runtime
-from prodockit.pdf.web_render import check_web_rendering
 from prodockit.project_config import load_project_config
 from prodockit.revision_dates import resolve_revision_dates
 from prodockit.settings import (
@@ -485,18 +487,52 @@ def _build_pdf_from_config(
     # for a document that does not contain the matching active markup.
     renderer_requirements = detect_renderer_requirements(page_objects)
 
+    runtime_policy = load_pdf_runtime_config(config_path)
+    legacy_tex2svg = (
+        _find_tex2svg_script(extra.get("pdf_tex2svg_script"))
+        if renderer_requirements.maths
+        else None
+    )
+    prepare_mathjax = (
+        runtime_policy.policy_for("mathjax").preload
+        or (renderer_requirements.maths and legacy_tex2svg is None)
+    )
+    prepare_mermaid = (
+        runtime_policy.policy_for("mermaid").preload or renderer_requirements.mermaid
+    )
+    prepared = {
+        result.component: result
+        for result in prepare_runtime_components(
+            config_path,
+            tuple(
+                component
+                for component, required in (
+                    ("mathjax", prepare_mathjax),
+                    ("mermaid", prepare_mermaid),
+                )
+                if required
+            ),
+        )
+    }
+    prepared_mathjax = prepared.get("mathjax")
+
     mermaid_renderer: MermaidRenderer | None = None
     render_mermaid: Callable[[str], str | None] | None = None
     if renderer_requirements.mermaid:
         mermaid_renderer = create_mermaid_renderer(
             output_dir=os.path.join(source_docs_dir, ".prodockit-pdf-mermaid"),
+            runtime_path=prepared["mermaid"].path,
         )
         render_mermaid = mermaid_renderer.render_source
 
-    tex2svg_script = None
+    tex2svg_script = legacy_tex2svg
+    mathjax_runtime = ""
     math_dir = None
     if renderer_requirements.maths:
-        tex2svg_script = _find_tex2svg_script(extra.get("pdf_tex2svg_script"))
+        if tex2svg_script is None:
+            assert prepared_mathjax is not None
+            tex2svg_script = str(mathjax_adapter_path())
+            mathjax_runtime = str(mathjax_component_root(prepared_mathjax.path))
         math_dir = extra.get("pdf_math_dir")
         if math_dir:
             # build_lua_filter()'s math_dir "must already exist or be creatable
@@ -504,15 +540,6 @@ def _build_pdf_from_config(
             # directory; the default (build_pdf()'s own work_dir) already
             # exists by the time the Lua filter needs it.
             os.makedirs(math_dir, exist_ok=True)
-
-    if project_config is not None:
-        theme_features = (config.get("theme") or {}).get("features") or []
-        check_web_rendering(
-            project_config,
-            page_objects,
-            instant_navigation=not markdown_file and "navigation.instant" in theme_features,
-            verify_mermaid=False,
-        )
 
     # Cover-page markers (see this function's own docs below) - a
     # nav-driven build's own cover page (its first page, if flagged
@@ -634,6 +661,7 @@ def _build_pdf_from_config(
             mathjax_available=tex2svg_script is not None,
             math_dir=math_dir,
             tex2svg_script=tex2svg_script or "",
+            mathjax_runtime=mathjax_runtime,
             include_table_of_contents=bool(
                 extra.get(
                     "pdf_include_table_of_contents",

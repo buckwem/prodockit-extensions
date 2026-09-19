@@ -35,6 +35,7 @@ def _manifest(root: Path, *, source: str = "pdk.css", target: str = "docs/styles
         ("pdk.css", "docs/stylesheets/pdk.css"),
         ("pdk-pdf.css", "docs/stylesheets/pdk-pdf.css"),
         ("pdk.js", "docs/javascripts/pdk.js"),
+        ("mathjax.js", "docs/javascripts/mathjax.js"),
     ],
 )
 def test_canonical_resources_are_the_extensions_assets(name: str, path: str) -> None:

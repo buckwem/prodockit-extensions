@@ -45,15 +45,18 @@ def build_lua_filter(
     mathjax_available: bool,
     math_dir: str,
     tex2svg_script: str,
+    mathjax_runtime: str = "",
 ) -> str:
     """Returns the complete Lua filter source for a PDF build.
 
     `math_dir` is where a pre-rendered formula's SVG is written (must
     already exist or be creatable by the caller); `tex2svg_script` is the
     path to a Node script that renders one TeX formula to SVG, invoked as
-    ``node tex2svg_script <display|inline>`` with the formula on stdin and
-    the SVG written to stdout. Both are ignored (no formula is rendered)
-    when `mathjax_available` is False - e.g. no local MathJax install.
+    ``node tex2svg_script [mathjax_runtime] <display|inline>`` with the formula
+    on stdin and the SVG written to stdout. ``mathjax_runtime`` is passed to
+    Prodockit's packaged MathJax 4 adapter; an empty value retains support
+    for a legacy author-owned script. All paths are ignored when
+    `mathjax_available` is False.
     """
     heading_numbering_lua = "true" if heading_numbering_enabled else "false"
     mathjax_available_lua = "true" if mathjax_available else "false"
@@ -72,7 +75,16 @@ def build_lua_filter(
         f"local mathjax_available = {mathjax_available_lua}\n"
         f"local math_dir = \"{_lua_string_escape(math_dir)}\"\n"
         f"local tex2svg_script = \"{_lua_string_escape(tex2svg_script)}\"\n"
+        f"local mathjax_runtime = \"{_lua_string_escape(mathjax_runtime)}\"\n"
         "local math_counter = 0\n\n"
+        "local function render_math(mode, source)\n"
+        "  local args = {tex2svg_script}\n"
+        "  if mathjax_runtime ~= '' then table.insert(args, mathjax_runtime) end\n"
+        "  table.insert(args, mode)\n"
+        "  local ok, svg = pcall(pandoc.pipe, 'node', args, source)\n"
+        "  if not ok or not svg or svg == '' then return nil end\n"
+        "  return svg\n"
+        "end\n\n"
         "-- Restore Zensical/Pygments token markup carried through Pandoc's\n"
         "-- HTML reader as a hex-encoded CodeBlock attribute. Raw HTML is\n"
         "-- emitted only here, on the writer side, so token spans cannot make\n"
@@ -167,8 +179,8 @@ def build_lua_filter(
         "    if not mathjax_available then return nil end\n"
         "    local text = pandoc.utils.stringify(el.content):gsub('^%s*\\\\%[%s*', ''):gsub('%s*\\\\%]%s*$', '')\n"
         "    math_counter = math_counter + 1\n"
-        "    local ok, svg = pcall(pandoc.pipe, 'node', {tex2svg_script, 'display'}, text)\n"
-        "    if not ok or not svg or svg == '' then return nil end\n"
+        "    local svg = render_math('display', text)\n"
+        "    if not svg then return nil end\n"
         "    local svg_path = math_dir .. '/formula_' .. math_counter .. '.svg'\n"
         "    local out = io.open(svg_path, 'w')\n"
         "    if not out then return nil end\n"
@@ -185,8 +197,8 @@ def build_lua_filter(
         "    if not mathjax_available then return nil end\n"
         "    local text = pandoc.utils.stringify(el.content):gsub('^%s*\\\\%(%s*', ''):gsub('%s*\\\\%)%s*$', '')\n"
         "    math_counter = math_counter + 1\n"
-        "    local ok, svg = pcall(pandoc.pipe, 'node', {tex2svg_script, 'inline'}, text)\n"
-        "    if not ok or not svg or svg == '' then return nil end\n"
+        "    local svg = render_math('inline', text)\n"
+        "    if not svg then return nil end\n"
         "    local svg_path = math_dir .. '/formula_' .. math_counter .. '.svg'\n"
         "    local out = io.open(svg_path, 'w')\n"
         "    if not out then return nil end\n"
@@ -271,8 +283,8 @@ def build_lua_filter(
         "  if not mathjax_available then return nil end\n"
         "  math_counter = math_counter + 1\n"
         "  local is_display = (el.mathtype == 'DisplayMath')\n"
-        "  local ok, svg = pcall(pandoc.pipe, 'node', {tex2svg_script, is_display and 'display' or 'inline'}, el.text)\n"
-        "  if not ok or not svg or svg == '' then return nil end\n"
+        "  local svg = render_math(is_display and 'display' or 'inline', el.text)\n"
+        "  if not svg then return nil end\n"
         "  local svg_path = math_dir .. '/formula_' .. math_counter .. '.svg'\n"
         "  local out = io.open(svg_path, 'w')\n"
         "  if not out then return nil end\n"

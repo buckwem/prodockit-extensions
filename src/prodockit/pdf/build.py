@@ -160,8 +160,8 @@ def _warn_about_unrendered_content(
         warnings.append(
             "⚠️  This document contains TeX maths, but no `tex2svg` script was "
             "found - formulas will appear in the PDF as raw LaTeX instead of "
-            "rendered images. Run `prodockit init-tools` to set it up, or set "
-            "`pdf_tex2svg_script` in your config to an existing install."
+            "rendered images. Run `pdk pdf --prepare mathjax` and confirm that "
+            "Node.js is on PATH."
         )
     for warning in warnings:
         print(warning)
@@ -228,6 +228,7 @@ def build_pdf(
     mathjax_available: bool = False,
     math_dir: str | None = None,
     tex2svg_script: str = "",
+    mathjax_runtime: str = "",
     include_table_of_contents: bool = True,
     table_of_contents_title: str = "Table of Contents",
     include_index: bool = False,
@@ -301,7 +302,8 @@ def build_pdf(
 
     `heading_numbering_enabled` turns chapter/appendix numbering on
     headings and captions on or off entirely. `mathjax_available`/
-    `math_dir`/`tex2svg_script` enable TeX math pre-rendering - see
+    `math_dir`/`tex2svg_script`/`mathjax_runtime` enable TeX math
+    pre-rendering - see
     `prodockit.pdf.lua.build_lua_filter` for what each does; leave
     `mathjax_available` False if your content has no math or you haven't
     set up a local MathJax/`tex2svg` install.
@@ -526,6 +528,7 @@ def build_pdf(
                     mathjax_available=mathjax_available,
                     math_dir=math_dir or resolved_work_dir,
                     tex2svg_script=tex2svg_script,
+                    mathjax_runtime=mathjax_runtime,
                 )
             )
 

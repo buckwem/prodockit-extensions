@@ -103,7 +103,8 @@ def test_deliverables_allow_only_expected_optional_warnings(tmp_path, monkeypatc
         name = command[3]
         if name == "diag":
             output = (
-                "  WARN Standalone Mermaid runtime is unavailable (optional)\n"
+                "  WARN Project-local Mermaid is not prepared (optional)\n"
+                "  WARN Project-local MathJax is not prepared (optional)\n"
                 "  WARN Project is not inside a Git repository\n"
                 "  WARN Publishing details need attention; local testing can continue\n"
                 "Result: WARN (1 passed)"
@@ -387,13 +388,19 @@ def test_site_snapshot_ignores_only_assets_added_by_adoption(tmp_path: Path) -> 
     after = tmp_path / "after"
     before.mkdir()
     after.mkdir()
-    original = b"<html><head></head><body><p>Same</p></body></html>"
+    original = (
+        b"<html><head></head><body><p>Same</p>"
+        b'<script src="./javascripts/vendor/mathjax/tex-svg-full.js"></script>'
+        b"</body></html>"
+    )
     adopted = (
         b'<html><head><link rel="stylesheet" href="./stylesheets/pdk.css">'
         b"</head><body><p>Same</p>"
         b'<script src="./javascripts/pdk.js"></script>'
         b'<script src="./javascripts/extra.js"></script>'
-        b'<script src="./javascripts/mathjax.js"></script></body></html>'
+        b'<script src="./javascripts/mathjax.js"></script>'
+        b'<script src="https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js"></script>'
+        b"</body></html>"
     )
     (before / "index.html").write_bytes(original)
     (after / "index.html").write_bytes(adopted)

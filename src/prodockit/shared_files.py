@@ -37,6 +37,7 @@ RESOURCES = {
     "pdk.css": ("assets", "pdk.css"),
     "pdk-pdf.css": ("assets", "pdk-pdf.css"),
     "pdk.js": ("assets", "pdk.js"),
+    "mathjax.js": ("assets", "mathjax.js"),
 }
 
 # An editable install imports directly from src/ and therefore does not see
@@ -49,6 +50,10 @@ DEVELOPMENT_SOURCES = {
     / "stylesheets"
     / "pdk-pdf.css",
     "pdk.js": Path(__file__).resolve().parents[2] / "docs" / "javascripts" / "pdk.js",
+    "mathjax.js": Path(__file__).resolve().parents[2]
+    / "docs"
+    / "javascripts"
+    / "mathjax.js",
 }
 
 

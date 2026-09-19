@@ -94,8 +94,8 @@ supply:
 - on Windows x64, let `pdk pdf` acquire its verified project-local WeasyPrint
   runtime; macOS and Linux currently use the Python package and native Pango;
 - let `pdk pdf` acquire verified project-local Pandoc and PDF fonts on first use; and
-- install the optional Node tools and Chrome or Chromium only when the PDF
-  contains TeX maths.
+- install Node.js only when a PDF contains TeX maths; ProDockit transparently
+  caches MathJax 4 without npm, while Mermaid remains Python-only.
 
 Follow the complete, platform-specific
 [installation guide](https://prodockit.org/installation/)
@@ -149,8 +149,6 @@ The `pdk` executable is an exact shorter alias for `prodockit`; `boot` aliases
 | `prodockit config` | Show resolved Prodockit settings and check source-project integrity |
 | `prodockit adopt` | Add selected prodockit components to an existing Zensical document |
 | `prodockit bootstrap` | Check or prepare a machine and a project based on `prodockit-template` |
-| `prodockit init-tools` | Install local Node tooling for maths |
-| `prodockit init-mathjax` | Copy the installed MathJax bundle into website assets |
 | `prodockit update-dates` | Add per-page revision dates to a completed website without changing Markdown source |
 | `prodockit pdf` | Validate built markup and website maths, then build one PDF from the Zensical navigation |
 | `prodockit source-bundle` | Bundle the Markdown source and configuration into a separate PDF |
@@ -169,9 +167,9 @@ prodockit update-dates
 ```
 
 The PDF consumes the completed Zensical site and does not invoke the site
-builder. Mermaid diagrams use the installed Python-only renderer. Maths still uses
-the installed browser tooling from `prodockit init-tools`/`npm ci` for website
-verification. `prodockit update-dates` post-processes the
+builder. Mermaid and MathJax PDF runtimes are prepared transparently in the
+project cache; maths currently needs Node.js but neither renderer needs npm or
+a browser. `prodockit update-dates` post-processes the
 generated HTML and does not edit the files you author or call the site builder.
 It is also a standalone
 capability: an existing Zensical project can use it after installing

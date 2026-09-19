@@ -25,11 +25,10 @@ def test_topic_owner_pages_define_their_principal_index_entries() -> None:
         "docs/command-line.md": (r"\index{command-line interface}",),
         "docs/update-dates.md": (r"\index{page update dates}",),
         "docs/stylesheets.md": (r"\index{stylesheets!stylesheet ownership}",),
-        "docs/pdf.md": (
-            r"\index{commands!`prodockit pdf`}",
-            r"\index{commands!`prodockit init-tools`}",
-            r"\index{commands!`prodockit source-bundle`}",
-        ),
+            "docs/pdf.md": (
+                r"\index{commands!`prodockit pdf`}",
+                r"\index{commands!`prodockit source-bundle`}",
+            ),
         "docs/project-maintenance.md": (r"\index{maintenance cycle}",),
         "docs/devcons/diagnostics.md": (r"\index{commands!`prodockit diag`}",),
         "docs/devcons/devcons.md": (r"\index{contributor internals}",),

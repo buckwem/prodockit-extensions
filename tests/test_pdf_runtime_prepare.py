@@ -100,7 +100,10 @@ def test_missing_provider_fails_before_creating_runtime_state(tmp_path: Path) ->
 
     with pytest.raises(RuntimeProviderUnavailableError, match="not available in this release"):
         prepare_runtime_components(
-            project / "zensical.toml", ["mermaid"], environment=environment
+            project / "zensical.toml",
+            ["mermaid"],
+            providers={},
+            environment=environment,
         )
 
     assert not (project / ".prodockit").exists()

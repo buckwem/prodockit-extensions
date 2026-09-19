@@ -16,18 +16,19 @@ from prodockit.bootstrap.model import MACOS, UBUNTU, WINDOWS
     "platform,manager", [(MACOS, "brew"), (UBUNTU, "apt"), (WINDOWS, "winget")]
 )
 @pytest.mark.parametrize(
-    "state", [(None, None, False), ("18.0.0", "8.0.0", True), ("24.0.0", None, False)]
+    "state,needs_work",
+    [((False, None), True), ((True, "18.0.0"), True), ((True, "24.0.0"), False)],
 )
 def test_platform_plan_installs_upgrades_or_repairs_only_node(
-    monkeypatch, platform, manager, state
+    monkeypatch, platform, manager, state, needs_work
 ):
     monkeypatch.setattr(node, "current_platform", lambda: platform)
     monkeypatch.setattr(node.adopt_package_manager.shutil, "which", lambda command: command)
     monkeypatch.setattr(stages, "_node_runtime_state", lambda context: state)
     monkeypatch.setattr(stages, "_windows_node_needs_architecture_handover", lambda context: False)
     planned = node.plan()
-    assert planned.commands
-    assert manager in str(planned.commands)
+    assert planned.needs_work is needs_work
+    assert (manager in str(planned.commands)) is needs_work
     assert not planned.blocked
     for forbidden in ("git clone", "ssh", "code --", "npm ci", "chromium"):
         assert forbidden not in str(planned.commands)
@@ -36,13 +37,13 @@ def test_platform_plan_installs_upgrades_or_repairs_only_node(
 def test_supported_runtime_does_not_need_a_package_manager_or_network(monkeypatch):
     monkeypatch.setattr(node, "current_platform", lambda: MACOS)
     monkeypatch.setattr(node.adopt_package_manager.shutil, "which", lambda command: None)
-    monkeypatch.setattr(stages, "_node_runtime_state", lambda context: ("24.0.0", "11.0.0", True))
+    monkeypatch.setattr(stages, "_node_runtime_state", lambda context: (True, "24.0.0"))
     assert not node.plan(offline=True).needs_work
 
 
 def test_offline_missing_runtime_is_blocked_before_install(monkeypatch):
     monkeypatch.setattr(node, "current_platform", lambda: UBUNTU)
-    monkeypatch.setattr(stages, "_node_runtime_state", lambda context: (None, None, False))
+    monkeypatch.setattr(stages, "_node_runtime_state", lambda context: (False, None))
     assert "offline" in node.plan(offline=True).blocked
 
 

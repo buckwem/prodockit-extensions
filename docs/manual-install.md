@@ -1314,31 +1314,21 @@ There are many other extensions available for Visual Studio Code that can help y
 
 ////
 
-//// step | Install the diagram and maths tooling
+//// step | Prepare optional PDF renderers
 
-Install diagram and maths tooling when the document contains
-\index{Zensical!diagrams} or mathematical notation; the earlier steps do not
-install these tools.
+Install nothing here for a website-only project. Website mathematics is owned
+by Zensical; configure it using the
+[Zensical MathJax instructions](https://zensical.org/docs/authoring/math/#mathjax){target="_blank"}.
 
-The website uses browser scripts; the PDF uses separate \index{Node.js}
-renderers to turn diagrams and equations into images. MathJax also needs its
-website bundle, installed below. Keep the existing project's component choices;
-if neither renderer is needed, skip the remaining steps in this stage.
+For PDFs, ProDockit downloads only the renderers that the completed document
+actually uses and keeps them in the project's `.prodockit/cache/pdf/` directory.
+Mermaid is a Python-only runtime and needs no Node.js, npm, browser or MSYS2.
 
-!!! warning "Check the PDF as well as the website"
-    A successful website build does not prove that PDF rendering is ready.
-    Run `pdk diag`, then open the generated PDF and check a diagram and an
-    equation if your project uses them.
-
-////
-
-//// step | Install Node.js
+MathJax 4 is also downloaded and cached automatically, but its small SVG
+adapter currently requires Node.js on `PATH`. It does not use npm or a
+`node_modules` directory. Install Node.js only when the PDF contains maths:
 
 <span id="install-nodejs"></span>
-
-The two tools are Node.js programs, so install Node.js first. Check the current
-[Extensions requirement](https://prodockit.org/installation/#installation-external){target="_blank"}
-if the installed release is rejected by the toolchain.
 
 === ":material-apple: macOS"
 
@@ -1352,154 +1342,40 @@ if the installed release is rejected by the toolchain.
     winget install OpenJS.NodeJS.LTS
     ```
 
-    Close and reopen PowerShell afterwards, so it picks up the new
-    `PATH`. The new window starts in your home directory. First change
-    back to the project:
-
-    ``` powershell
-    cd C:\path\to\your-project
-    ```
-
-    Then activate its virtual environment as a separate step:
-
-    ``` powershell
-    Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
-    .\.venv\Scripts\Activate.ps1
-    ```
-
-    Check the prompt starts with `(.venv)` again. The next step's `npm ci` commands are relative to your project folder, and every `prodockit` command after it lives inside the virtual environment - outside it, PowerShell reports `The term 'prodockit' is not recognized`.
+    Close and reopen PowerShell, return to the project, and reactivate its
+    virtual environment.
 
 === ":material-linux: Linux (Ubuntu)"
-
-    Install Node.js and npm from Ubuntu's package repository:
 
     ``` bash
     sudo apt update
-    sudo apt install -y nodejs npm
+    sudo apt install -y nodejs
     ```
 
-    If Ubuntu supplies an older release than prodockit currently supports,
-    look up the current requirement in the
-    [Extensions installation guide](https://prodockit.org/installation/#installation-external){target="_blank"},
-    then follow the
-    [NodeSource installation instructions](https://github.com/nodesource/distributions){target="_blank"}
-    for a supported release.
-
-
-Check it worked - **both** commands, not just the first. Node.js must be
-22.12.0 or later:
+Check Node.js when maths is used:
 
 ``` bash
 node --version
-npm --version
 ```
 
-You should get two version numbers. Compare the Node.js result with the current
-[Extensions requirement](https://prodockit.org/installation/#installation-external){target="_blank"}.
-
-!!! failure "`node` answers but `npm` is not found"
-    Re-run `sudo apt install -y nodejs npm` and review any error it reports.
-    The two packages should come from the same source so that they stay in
-    step.
-
-////
-
-//// step | Install the maths toolchain
-
-Your cloned template contains the MathJax manifest and lockfile in
-`tools/mathjax`. Mermaid is already supplied through the Python requirements.
-
-If you're on Linux, install a native Chromium for MathJax website verification:
+An ordinary `pdk pdf` prepares Mermaid or MathJax transparently on first use.
+To download and validate them ahead of time without building a site or PDF:
 
 ``` bash
-sudo apt update
-sudo apt install -y chromium-browser
-which chromium-browser || which chromium
+pdk pdf --prepare mermaid --prepare mathjax
 ```
 
-The second command should print a path such as `/usr/bin/chromium-browser` or
-`/usr/bin/chromium`. Point Puppeteer Core at it for this session, then make the
-selection permanent:
+Repeating the command against a healthy cache is a fast, network-free check.
+Do not run `npm ci`, `pdk init-tools` or `pdk init-mathjax` for this PDF path.
 
-``` bash
-export PUPPETEER_EXECUTABLE_PATH=$(which chromium-browser || which chromium)
-echo 'export PUPPETEER_EXECUTABLE_PATH=$(which chromium-browser || which chromium)' >> ~/.bashrc
-source ~/.bashrc
-```
-
-If you opened a new terminal, change back to the project first - the
-`--prefix` paths below are relative to wherever you run them from:
-
-``` bash
-cd path/to/your-project
-```
-
-Then activate the project's virtual environment as a separate step:
-
-=== ":material-apple: macOS"
-
-    ``` bash
-    source .venv/bin/activate
-    ```
-
-=== ":fontawesome-brands-windows: Windows"
-
-    ``` powershell
-    Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
-    .\.venv\Scripts\Activate.ps1
-    ```
-
-=== ":material-linux: Linux (Ubuntu)"
-
-    ``` bash
-    source .venv/bin/activate
-    ```
-
-Install MathJax's locked dependencies if the project uses mathematical notation:
-
-``` bash
-npm ci --prefix tools/mathjax
-```
-
-`npm ci` installs the exact versions recorded in the MathJax lockfile.
-
-This creates `tools/mathjax/node_modules`, which is deliberately not committed.
-
-For mathematical notation, install the MathJax bundle and its matching configuration for the website:
-
-``` bash
-prodockit init-mathjax
-```
-
-This copies the pinned browser bundle from `tools/mathjax` and writes the
-configuration before the bundle is loaded. Without that configuration, a
-successful website build can still display raw TeX. The generated files are
-deliberately excluded from Git, so run this command again after cloning the
-project onto another computer.
-
-!!! note "If npm reports vulnerabilities"
-    Read the warning before continuing:
-
-    ``` text
-    Run `npm audit` for details.
-    ```
-
-    A vulnerability warning needs review; it is not automatically harmless
-    because the tools run locally. Check the audit details and report unresolved
-    findings to the project maintainer. Do not run `npm audit fix` blindly:
-    it can change the supported dependencies recorded in the lockfile.
-
-!!! tip "Starting a project that isn't from the template?"
-    Then you have no `tools/` directory to install from and need `prodockit
-    init-tools` first to create it. Running it on a copy of the template is
-    harmless but unnecessary - it reports `Kept existing` for each manifest
-    already present. [Initialise renderer tools](commands/init-tools.md)
-    explains the generated files.
+!!! warning "Check the PDF as well as the website"
+    A successful website build does not prove that PDF rendering is ready.
+    Run `pdk diag`, then open the generated PDF and inspect a real diagram and
+    equation if the project uses them.
 
 ////
 
 ///
-
 ### Stage 6 — Verify and finish
 
 Check the local website and any PDFs you need, then complete only the path

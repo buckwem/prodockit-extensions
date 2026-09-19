@@ -1039,13 +1039,6 @@ def test_missing_renderers_warn_when_unused_and_fail_when_content_uses_them(
         "_command",
         lambda name: diagnostics.CommandInfo(name, None, None, "not found"),
     )
-    monkeypatch.setattr("prodockit.diagnostics.shutil.which", lambda _name: None)
-
-    def unavailable() -> None:
-        raise diagnostics.StandaloneRuntimeUnavailableError("runtime unavailable")
-
-    monkeypatch.setattr(diagnostics, "require_standalone_runtime", unavailable)
-
     monkeypatch.setattr(
         diagnostics,
         "_probe_weasyprint_import",
@@ -1059,7 +1052,6 @@ def test_missing_renderers_warn_when_unused_and_fail_when_content_uses_them(
     optional_by_id = {check.id: check for check in optional}
     for check_id in (
         "renderer.node",
-        "renderer.npm",
         "renderer.mermaid",
         "renderer.mathjax",
     ):
@@ -1069,38 +1061,25 @@ def test_missing_renderers_warn_when_unused_and_fail_when_content_uses_them(
         "renderer.pandoc",
         "renderer.weasyprint",
         "renderer.node",
-        "renderer.npm",
         "renderer.mermaid",
         "renderer.mathjax",
     }
 
 
-def test_mermaid_diagnostic_rejects_an_unavailable_standalone_runtime(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+def test_mermaid_diagnostic_reports_missing_project_cache(
+    tmp_path: Path,
 ) -> None:
-    config = _project(tmp_path, required=True)
-    monkeypatch.setattr(
-        diagnostics,
-        "_command",
-        lambda name: diagnostics.CommandInfo(name, "/usr/bin/tool", "1.0"),
-    )
-    monkeypatch.setattr(diagnostics.shutil, "which", lambda _name: None)
-
-    def unavailable() -> None:
-        raise diagnostics.StandaloneRuntimeUnavailableError("audited runtime unavailable")
-
-    monkeypatch.setattr(diagnostics, "require_standalone_runtime", unavailable)
-
-    check = next(
-        item
-        for item in diagnostics._renderer_checks(config, tmp_path)
-        if item.id == "renderer.mermaid"
+    check = diagnostics._project_cached_runtime_check(
+        _project(tmp_path, required=True),
+        tmp_path,
+        component="mermaid",
+        required=True,
     )
 
     assert check.status == "fail"
-    assert check.summary == "Standalone Mermaid runtime is unavailable but required by this project"
-    assert check.details == ("audited runtime unavailable",)
-    assert check.data["error"] == "audited runtime unavailable"
+    assert check.summary == "Project-local Mermaid is not prepared but is required by this project"
+    assert any("pdk pdf --prepare mermaid" in detail for detail in check.details)
+    assert check.data["backend"] == "project-cache"
 
 
 def test_windows_weasyprint_diagnostic_reports_a_healthy_project_cache(
@@ -1198,7 +1177,7 @@ def test_windows_weasyprint_diagnostic_does_not_prepare_a_missing_cache(
     assert "pdk pdf --prepare weasyprint" in candidate.remediation
 
 
-@pytest.mark.parametrize("component", ["pandoc", "fonts"])
+@pytest.mark.parametrize("component", ["pandoc", "fonts", "mathjax", "mermaid"])
 def test_project_runtime_diagnostic_is_read_only_when_cache_is_missing(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, component: str
 ) -> None:
@@ -1261,115 +1240,88 @@ def test_bibliography_configuration_requires_project_pandoc(
     assert fonts.data["required"] is False
 
 
-def test_mermaid_diagnostic_accepts_the_standalone_runtime(
+def test_mermaid_diagnostic_accepts_a_healthy_project_cache(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    config = _project(tmp_path, required=True)
-    monkeypatch.setattr(
-        diagnostics,
-        "_command",
-        lambda name: diagnostics.CommandInfo(name, "/usr/bin/tool", "1.0"),
-    )
-    monkeypatch.setattr(diagnostics, "require_standalone_runtime", lambda: None)
+    from prodockit.pdf.runtime_store import PreparationResult
 
-    check = next(
-        item
-        for item in diagnostics._renderer_checks(config, tmp_path)
-        if item.id == "renderer.mermaid"
+    prepared = PreparationResult(
+        "mermaid", tmp_path / ".prodockit/cache/pdf/mermaid", "0.9.5", "a" * 64, True
+    )
+
+    class Store:
+        def __init__(self, root: Path) -> None:
+            assert root == tmp_path
+
+        def active_for(self, descriptor):
+            assert descriptor.component == "mermaid"
+            return prepared
+
+        def active(self, component: str):
+            assert component == "mermaid"
+            return prepared
+
+    monkeypatch.setattr(diagnostics, "RuntimeStore", Store)
+    monkeypatch.setattr(diagnostics, "probe_mermaid_runtime", lambda path: None)
+
+    check = diagnostics._project_cached_runtime_check(
+        _project(tmp_path, required=True), tmp_path, component="mermaid", required=True
     )
 
     assert check.status == "pass"
-    assert check.summary == "Standalone Mermaid runtime is available"
-    assert check.data["backend"] == "standalone"
+    assert check.summary == "Project-local Mermaid 0.9.5 is healthy"
+    assert check.data["backend"] == "project-cache"
 
 
-def test_mathjax_diagnostic_rejects_inputs_that_cannot_render(
+def test_mathjax_diagnostic_rejects_a_cached_runtime_that_cannot_render(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    config = _project(tmp_path, required=True)
-    script = tmp_path / "tools" / "mathjax" / "tex2svg.js"
-    script.parent.mkdir(parents=True)
-    script.touch()
-    (script.parent / "node_modules" / "mathjax-full").mkdir(parents=True)
-    monkeypatch.setattr(
-        diagnostics,
-        "_command",
-        lambda name: diagnostics.CommandInfo(name, "/usr/bin/tool", "1.0"),
-    )
-    monkeypatch.setattr(
-        "prodockit.diagnostics.shutil.which",
-        lambda name: "/usr/bin/node" if name == "node" else None,
-    )
-    monkeypatch.setattr(
-        "prodockit.diagnostics.probe_mathjax",
-        lambda node, path: SimpleNamespace(path=path, ok=False, error="Cannot find module"),
+    from prodockit.pdf.runtime_store import PreparationResult, RuntimeStoreError
+
+    prepared = PreparationResult(
+        "mathjax", tmp_path / ".prodockit/cache/pdf/mathjax", "4.1.3", "b" * 64, True
     )
 
-    check = next(
-        item
-        for item in diagnostics._renderer_checks(config, tmp_path)
-        if item.id == "renderer.mathjax"
+    class Store:
+        def __init__(self, root: Path) -> None:
+            assert root == tmp_path
+
+        def active_for(self, descriptor):
+            assert descriptor.component == "mathjax"
+            return prepared
+
+        def active(self, component: str):
+            assert component == "mathjax"
+            return prepared
+
+    def failed_probe(_path: Path) -> str:
+        raise RuntimeStoreError("Cannot render expression")
+
+    monkeypatch.setattr(diagnostics, "RuntimeStore", Store)
+    monkeypatch.setattr(diagnostics, "probe_mathjax_runtime", failed_probe)
+
+    check = diagnostics._project_cached_runtime_check(
+        _project(tmp_path, required=True), tmp_path, component="mathjax", required=True
     )
 
     assert check.status == "fail"
-    assert "health probe: Cannot find module" in check.details
-    assert check.data["error"] == "Cannot find module"
+    assert check.summary == "Project-local MathJax failed its health check"
+    assert any("Cannot render expression" in detail for detail in check.details)
 
 
-def test_browser_diagnostic_rejects_a_configured_path_that_is_not_a_file(
+def test_production_renderer_diagnostics_exclude_browser_and_npm(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setenv("PUPPETEER_EXECUTABLE_PATH", "/broken/chromium")
     monkeypatch.setattr(
         diagnostics,
         "_command",
         lambda name: diagnostics.CommandInfo(name, None, None, "not found"),
     )
-    monkeypatch.setattr("prodockit.diagnostics.shutil.which", lambda _name: None)
-    monkeypatch.setattr(diagnostics, "_run", lambda *_args, **_kwargs: pytest.fail("ran browser"))
+    checks = diagnostics._renderer_checks(_project(tmp_path, required=False), tmp_path)
+    ids = {check.id for check in checks}
 
-    check = next(
-        item
-        for item in diagnostics._renderer_checks(_project(tmp_path, required=True), tmp_path)
-        if item.id == "renderer.browser"
-    )
-
-    assert check.status == "fail"
-    assert check.summary == "Browser executable is unusable"
-    assert check.data["error"] == "path does not name a file"
-
-
-def test_browser_diagnostic_does_not_launch_a_configured_browser(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    browser = tmp_path / "msedge.exe"
-    browser.touch()
-    monkeypatch.setenv("PUPPETEER_EXECUTABLE_PATH", str(browser))
-    monkeypatch.setattr(
-        diagnostics,
-        "_command",
-        lambda name: diagnostics.CommandInfo(name, None, None, "not found"),
-    )
-    monkeypatch.setattr("prodockit.diagnostics.shutil.which", lambda _name: None)
-    monkeypatch.setattr(diagnostics, "_run", lambda *_args, **_kwargs: pytest.fail("ran browser"))
-
-    check = next(
-        item
-        for item in diagnostics._renderer_checks(_project(tmp_path, required=True), tmp_path)
-        if item.id == "renderer.browser"
-    )
-
-    assert check.status == "pass"
-    assert check.summary == "Browser executable found"
-    assert check.data == {
-        "required": True,
-        "path": "msedge.exe",
-        "bundled": False,
-        "version": None,
-        "error": None,
-    }
-
-
+    assert "renderer.browser" not in ids
+    assert "renderer.npm" not in ids
 def test_diag_json_is_stable_and_failures_set_the_exit_status(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -1543,7 +1495,13 @@ def test_independent_project_repairs_never_use_template_sync() -> None:
     ]
 
     assert "renderer.mermaid.install-locked" not in operations
-    assert "renderer.mathjax.install-locked" in operations
+    assert "renderer.mathjax.install-locked" not in operations
+    mathjax = next(
+        candidate
+        for candidate in dry_run.candidates
+        if candidate.check_id == "renderer.mathjax"
+    )
+    assert "pdk pdf --prepare mathjax" in mathjax.remediation
     assert not any(operation and "template-sync" in operation for operation in operations)
     template = next(
         candidate
@@ -1695,8 +1653,8 @@ def test_diag_dry_run_text_says_commands_could_run(
 
     assert result.exit_code == 1
     assert "nothing will be changed" in result.output
-    assert "Repair the declared Python requirements" in result.output
-    assert "REFUSED — prohibited" in result.output
+    assert "pdk pdf --prepare mermaid" in result.output
+    assert "MANUAL — manual" in result.output
     assert "Apply this repair?" not in result.output
 
 
@@ -2272,7 +2230,7 @@ def test_stage5_refuses_yaml_and_unknown_local_assets(tmp_path: Path) -> None:
     assert check.data["repairable_problems"] == []
 
 
-def test_mermaid_runtime_failures_are_not_offered_an_npm_repair() -> None:
+def test_mermaid_runtime_failures_point_to_explicit_cache_preparation() -> None:
     report = DiagnosticReport(
         "zensical.toml",
         ".",
@@ -2289,9 +2247,10 @@ def test_mermaid_runtime_failures_are_not_offered_an_npm_repair() -> None:
 
     candidate = diagnostics.build_repair_dry_run(report).candidates[0]
 
-    assert candidate.status == "refused"
-    assert candidate.disposition == "prohibited"
+    assert candidate.status == "manual"
+    assert candidate.disposition == "manual"
     assert candidate.choices == ()
+    assert "pdk pdf --prepare mermaid" in candidate.remediation
 
 
 def test_stage4_mathjax_repair_regenerates_browser_assets(
@@ -2632,12 +2591,9 @@ def test_author_guide_documents_every_stable_check_id() -> None:
         "renderer.pandoc",
         "renderer.weasyprint",
         "renderer.node",
-        "renderer.npm",
         "renderer.mermaid",
-        "renderer.browser",
         "renderer.mathjax",
         "renderer.inspection",
-        "renderer.security-inspection",
         "repository.git",
         "repository.template-metadata",
         "repository.template-update",

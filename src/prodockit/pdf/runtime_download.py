@@ -1,7 +1,7 @@
 # Copyright (c) 2026 Mark Buckwell and contributors
 # SPDX-License-Identifier: MIT
 
-"""Bounded downloads for reviewed GitHub PDF-runtime release assets."""
+"""Bounded downloads for reviewed PDF-runtime artifacts."""
 
 from __future__ import annotations
 
@@ -17,6 +17,8 @@ from prodockit.pdf.runtime_store import RuntimeStoreError
 _DOWNLOAD_HOSTS = frozenset(
     {
         "github.com",
+        "codeload.github.com",
+        "files.pythonhosted.org",
         "release-assets.githubusercontent.com",
         "objects.githubusercontent.com",
     }

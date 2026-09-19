@@ -7,7 +7,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const puppeteer = require(path.resolve(
   __dirname,
-  "../../tools/mathjax/node_modules/puppeteer-core",
+  "../../tools/browser-test/node_modules/puppeteer-core",
 ));
 
 const [pageUrl, ...selectors] = process.argv.slice(2);

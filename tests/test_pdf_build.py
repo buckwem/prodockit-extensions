@@ -1013,7 +1013,7 @@ def test_warns_when_maths_has_no_renderer(
     build_pdf([_MATHS_PAGE], str(tmp_path / "out.pdf"))
     out = capsys.readouterr().out
     assert "contains TeX maths" in out
-    assert "prodockit init-tools" in out
+    assert "pdk pdf --prepare mathjax" in out
 
 
 def test_does_not_warn_when_the_renderers_are_available(

@@ -111,7 +111,7 @@ def test_assertions_fail_with_the_page_number_and_the_fix() -> None:
     assert "[1]" in message
     assert "Python Mermaid dependencies" in message, "the failure should name the fix"
 
-    with pytest.raises(AssertionError, match="prodockit init-tools"):
+    with pytest.raises(AssertionError, match="pdk pdf --prepare mathjax"):
         assert_no_unrendered_tex([UNRENDERED_TEX])
 
 

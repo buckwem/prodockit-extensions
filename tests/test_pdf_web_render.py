@@ -181,7 +181,7 @@ def test_browser_failure_keeps_diagnostics_and_fails(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     config = _project(tmp_path, "$$x^2$$")
-    module = tmp_path / "tools" / "mathjax" / "node_modules" / "puppeteer-core"
+    module = tmp_path / "tools" / "browser-test" / "node_modules" / "puppeteer-core"
     module.mkdir(parents=True)
     browser = tmp_path / "chrome"
     browser.write_text("", encoding="utf-8")
@@ -224,7 +224,10 @@ def test_real_browser_checks_both_renderers_and_navigation(
     module = Path(
         os.environ.get(
             "PDK_BROWSER_TEST_PUPPETEER",
-                str(Path(__file__).parents[1] / "tools/mathjax/node_modules/puppeteer-core"),
+                str(
+                    Path(__file__).parents[1]
+                    / "tools/browser-test/node_modules/puppeteer-core"
+                ),
         )
     )
     if not node or not browser or not module.is_dir():
@@ -308,7 +311,10 @@ def test_real_browser_visits_inactive_content_tabs(
     module = Path(
         os.environ.get(
             "PDK_BROWSER_TEST_PUPPETEER",
-                str(Path(__file__).parents[1] / "tools/mathjax/node_modules/puppeteer-core"),
+                str(
+                    Path(__file__).parents[1]
+                    / "tools/browser-test/node_modules/puppeteer-core"
+                ),
         )
     )
     if not node or not browser or not module.is_dir():
@@ -373,7 +379,10 @@ def test_real_browser_checks_zensical_closed_shadow_diagrams(tmp_path: Path) -> 
     module = Path(
         os.environ.get(
             "PDK_BROWSER_TEST_PUPPETEER",
-                str(Path(__file__).parents[1] / "tools/mathjax/node_modules/puppeteer-core"),
+                str(
+                    Path(__file__).parents[1]
+                    / "tools/browser-test/node_modules/puppeteer-core"
+                ),
         )
     )
     if not node or not browser or not module.is_dir():
@@ -422,11 +431,12 @@ def test_real_browser_mathjax_survives_zensical_instant_navigation(
     browser = find_browser()
     root = Path(__file__).parents[1]
     module = Path(os.environ.get(
-            "PDK_BROWSER_TEST_PUPPETEER", str(root / "tools/mathjax/node_modules/puppeteer-core")
+            "PDK_BROWSER_TEST_PUPPETEER",
+            str(root / "tools/browser-test/node_modules/puppeteer-core"),
     ))
     bundle = Path(os.environ.get(
         "PDK_BROWSER_TEST_MATHJAX",
-        str(root / "tools/mathjax/node_modules/mathjax-full/es5/tex-svg-full.js"),
+        str(root / "tools/browser-test/node_modules/mathjax-full/es5/tex-svg-full.js"),
     ))
     if not node or not browser or not module.is_dir() or not bundle.is_file():
         pytest.skip("Node, Chrome, Puppeteer and the MathJax install are required")

@@ -11,7 +11,7 @@ split is the whole testing strategy.
 Twelve of the eighteen are platform-independent (SSH keys, the ssh
 config stanza, the agent, cloning, resetting the history, repointing the
 remote, the project's commit identity and environment, VS Code
-extensions and settings, the citation style, MathJax for the website),
+extensions and settings, and the citation style),
 which is most of the work written once. That
 is the argument for a stage abstraction over three separate per-platform
 scripts.
@@ -38,7 +38,7 @@ import tempfile
 from collections.abc import Callable, Sequence
 from pathlib import Path
 
-from prodockit import mathjax, shared_files, tools
+from prodockit import shared_files, tools
 from prodockit.adopt import MANIFEST as ADOPT_MANIFEST
 from prodockit.adopt import AdoptOptions, manifest_source
 from prodockit.bootstrap.model import (
@@ -103,21 +103,9 @@ WEASYPRINT_MIN_VERSION = "69.0"
 #: is not enough to call the machine ready.
 GIT_MIN_VERSION = "2.28.0"
 
-#: Minimum Node release used by the remaining browser toolchain. Puppeteer Core
-#: declares Node 22.12.0 or later; checking only the major would accept
-#: an early 22.x release that npm then refuses to use.
+#: Minimum Node release used by the project-cached MathJax 4 runtime.
 NODE_MIN_VERSION = "22.12.0"
 NODE_MAJOR = int(NODE_MIN_VERSION.split(".", 1)[0])
-
-#: ``package-lock.json`` uses lockfile version 3, which npm 7 introduced.
-#: A working ``node`` command with an older npm is still unable to install the
-#: pinned MathJax tree reproducibly.
-NPM_MIN_VERSION = "7.0.0"
-
-#: Browser revision used by the pinned Puppeteer runtime. Ubuntu deliberately
-#: uses its system Chromium instead of Puppeteer's downloaded binary so ARM64
-#: receives a native executable; it must still be new enough for that runtime.
-CHROMIUM_MIN_VERSION = "151.0.7922.47"
 
 #: WeasyPrint 69's documented system-library floor.
 PANGO_MIN_VERSION = "1.44.0"
@@ -657,12 +645,7 @@ def pandoc_command(context: Context) -> str:
 
 
 def node_command(context: Context) -> str:
-    """How to invoke node: `node`, or where winget put it.
-
-    `npm_command` already exists for node's other Windows problem -
-    `CreateProcess` never applies `PATHEXT`, so a bare `npm` cannot find
-    `npm.cmd` (#371). This is the missing half of that pair.
-    """
+    """How to invoke node: `node`, or where the platform installer put it."""
     return _found_where_installed(context, "node")
 
 
@@ -3244,14 +3227,12 @@ def _plan_project_env(context: Context) -> Plan:
 
 
 # ---------------------------------------------------------------------------
-# 14. Node and the two toolchains
+# 14. Node for project-cached MathJax
 # ---------------------------------------------------------------------------
 
 
-#: Commands whose name cannot be run bare on Windows, with the resolver
-#: that finds them. `CreateProcess` appends `.exe` and nothing else, so a
-#: `.cmd` shim - which is what npm and VS Code's CLI are - is "not found"
-#: however right `PATH` is.
+#: Commands whose name cannot always be run bare on Windows, with the resolver
+#: that finds them.
 _RESOLVE_BEFORE_RUNNING: dict[str, Callable[[Context], str]] = {
     "npm": npm_command,
     "pandoc": pandoc_command,
@@ -3265,9 +3246,8 @@ def resolve_for_execution(context: Context, command: Sequence[str]) -> list[str]
 
     A plan is built before any of it runs, so a command installed by an
     earlier line of the *same* plan cannot be found when the plan is
-    written. The node stage is exactly that: `winget install` Node, then
-    `npm ci` twice - and `npm` resolved to the bare name, which on
-    Windows can never work (prodockit-extensions#405).
+    written. This matters after package-manager installs on Windows, whose
+    PATH changes are not visible to the current process.
 
     Resolving here instead costs one lookup per command and is the only
     point at which the answer can be right.
@@ -3281,116 +3261,27 @@ def resolve_for_execution(context: Context, command: Sequence[str]) -> list[str]
 
 
 def _check_node(context: Context) -> CheckResult:
-    if (unknown := _needs_config(context, "project_name")) is not None:
-        return unknown
-    project = context.config.resolved_project_dir(context.home)
-    if context.guided and not project.exists():
-        # This stage installs system Node *and* the render toolchains held
-        # inside the clone. Running its combined plan before the clone exists
-        # installs half the stage and then sends npm into a nonexistent path
-        # (prodockit-extensions#610).
-        return _blocked("no project directory yet")
     result = context.runner.run([node_command(context), "--version"])
     if not result.ok:
         return _missing("node is not installed")
     raw = result.stdout.strip().lstrip("v")
-    warnings: list[str] = []
     if _numeric_version(raw) is None:
-        warnings.append(
-            f"could not read Node's version; the toolchains may fail unless it is "
+        return _warning(
+            f"could not read Node's version; MathJax may fail unless it is "
             f"{NODE_MIN_VERSION} or later"
         )
-    elif _version_is_older(raw, NODE_MIN_VERSION):
-        return _wrong(f"node {raw} is older than the {NODE_MIN_VERSION} the tools need")
-    npm_result = context.runner.run([npm_command(context), "--version"])
-    if not npm_result.ok:
-        # The signature of Ubuntu's own nodejs package, or a NodeSource
-        # install whose `curl` line failed - node without npm.
-        return _wrong("node is installed but npm is not")
-    npm_raw = npm_result.stdout.strip().lstrip("v")
-    if _numeric_version(npm_raw) is None:
-        warnings.append(
-            f"could not read npm's version; the pinned toolchains may fail unless it is "
-            f"{NPM_MIN_VERSION} or later"
-        )
-    elif _version_is_older(npm_raw, NPM_MIN_VERSION):
-        return _wrong(f"npm {npm_raw} is older than the {NPM_MIN_VERSION} the toolchains need")
-
-    # Everything above is about node itself; the rest of this stage checks
-    # the remaining MathJax toolchain and its browser support.
-    if project.exists() and context.guided:
-        mathjax_bundle = project.joinpath(*mathjax.SOURCE)
-        if not mathjax_bundle.is_file() or not mathjax_bundle.stat().st_size:
-            return _wrong(f"node {raw}, but mathjax is not installed")
-        # Loading the modules used by tex2svg catches partial npm extracts
-        # without modifying the project or relying on shell input redirection.
-        mathjax_result = context.runner.run(
-            [
-                node_command(context),
-                "-e",
-                ";".join(
-                    f"require('{module}')"
-                    for module in (
-                        "mathjax-full/js/mathjax.js",
-                        "mathjax-full/js/input/tex.js",
-                        "mathjax-full/js/output/svg.js",
-                        "mathjax-full/js/adaptors/liteAdaptor.js",
-                        "mathjax-full/js/handlers/html.js",
-                        "mathjax-full/js/input/tex/AllPackages.js",
-                    )
-                ),
-            ],
-            cwd=str(project / "tools" / "mathjax"),
-            timeout=15,
-        )
-        if not mathjax_result.ok:
-            detail = mathjax_result.stderr.strip() or mathjax_result.stdout.strip()
-            return _wrong(
-                f"node {raw}, but MathJax cannot load its renderer modules"
-                + (f": {detail}" if detail else "")
-            )
-    elif project.exists():
-        if not (project / "tools" / "mathjax" / "node_modules").exists():
-            return _wrong(f"node {raw}, but mathjax is not installed")
-    if context.platform == UBUNTU:
-        chromium = _chromium_version_result(context)
-        if not chromium.ok or not chromium.stdout.strip():
-            return _wrong(
-                f"node {raw}, but Puppeteer has no system Chromium to use - it would "
-                "download one, which on ARM64 may be a build that cannot run"
-            )
-        chromium_raw = chromium.stdout.strip()
-        if _numeric_version(chromium_raw) is None:
-            warnings.append(
-                "could not read Chromium's version; MathJax verification may fail unless it is "
-                f"{CHROMIUM_MIN_VERSION} or later"
-            )
-        elif _version_is_older(chromium_raw, CHROMIUM_MIN_VERSION):
-            return _wrong(
-                f"Chromium {'.'.join(str(part) for part in _numeric_version(chromium_raw) or ())} "
-                f"is older than the {CHROMIUM_MIN_VERSION} Mermaid needs"
-            )
-        if not _chromium_exports_ready(context):
-            return _wrong(
-                f"node {raw}, but Puppeteer is not configured to use system Chromium - "
-                "it would download one, which on ARM64 is a build that cannot run"
-            )
-    if warnings:
-        return _warning("; ".join(warnings))
-    return _ok(f"node {raw}, npm {npm_raw}")
+    if _version_is_older(raw, NODE_MIN_VERSION):
+        return _wrong(f"node {raw} is older than the {NODE_MIN_VERSION} MathJax needs")
+    return _ok(f"node {raw}")
 
 
-def _node_runtime_state(context: Context) -> tuple[str | None, str | None, bool]:
-    """Installed Node/npm versions and whether npm itself is runnable."""
+def _node_runtime_state(context: Context) -> tuple[bool, str | None]:
+    """Whether Node is installed and its parsed version, when readable."""
     result = context.runner.run([node_command(context), "--version"])
     if not result.ok:
-        return None, None, False
+        return False, None
     raw = result.stdout.strip().lstrip("v")
-    parsed = raw if _numeric_version(raw) is not None else None
-    npm_result = context.runner.run([npm_command(context), "--version"])
-    npm_raw = npm_result.stdout.strip().lstrip("v")
-    npm_version = npm_raw if npm_result.ok and _numeric_version(npm_raw) is not None else None
-    return parsed, npm_version, npm_result.ok
+    return True, raw if _numeric_version(raw) is not None else None
 
 
 def _windows_node_needs_architecture_handover(context: Context) -> bool:
@@ -3444,60 +3335,10 @@ def _windows_remove_registered_node() -> list[str]:
     return ["powershell", "-NoProfile", "-Command", script]
 
 
-def _chromium_version_result(context: Context) -> CommandResult:
-    """Ubuntu's system Chromium version, under either package command name."""
-    return context.runner.run(
-        [
-            "bash",
-            "-c",
-            "browser=$(command -v chromium-browser || command -v chromium) || exit 1; "
-            '"$browser" --version',
-        ]
-    )
-
-
-def _chromium_exports_ready(context: Context) -> bool:
-    """Whether Puppeteer is configured to use the system browser."""
-    exports = context.runner.run(
-        ["bash", "-c", f"grep -q {PUPPETEER_SKIP_VAR} {context.home / '.bashrc'}"]
-    )
-    return exports.ok
-
-
-def _chromium_ready(context: Context) -> bool:
-    """Whether Mermaid has a browser it can actually use, on Ubuntu.
-
-    Both halves matter. A Chromium that is installed but never pointed at
-    leaves Puppeteer downloading its own; the exports without a Chromium
-    point at nothing.
-    """
-    found = _chromium_version_result(context)
-    return found.ok and bool(found.stdout.strip()) and _chromium_exports_ready(context)
-
-
-#: Where Puppeteer is told to find a browser, and told not to fetch one.
-PUPPETEER_PATH_VAR = "PUPPETEER_EXECUTABLE_PATH"
-PUPPETEER_SKIP_VAR = "PUPPETEER_SKIP_DOWNLOAD"
-
-#: Resolves the system Chromium the way the User Guide does. Ubuntu has
-#: called the package both things across releases.
-_WHICH_CHROMIUM = "$(which chromium-browser || which chromium)"
-
-
-def _puppeteer_exports() -> str:
-    """The two exports, as a shell prefix.
-
-    Computed by the shell at run time rather than by a plan beforehand,
-    because the path does not exist yet when the plan is built - the same
-    plan installs Chromium a command earlier.
-    """
-    return f"export {PUPPETEER_PATH_VAR}={_WHICH_CHROMIUM}; export {PUPPETEER_SKIP_VAR}=true; "
-
-
 def node_runtime_install_plan(
     context: Context,
 ) -> tuple[list[list[str]], bool, bool, list[str]]:
-    """Shared Node/npm installation policy, without renderers or repository work."""
+    """Shared Node installation policy, without renderers or repository work."""
     ubuntu_node_install = [
         _apt("install", "-y", "curl"),
         ["bash", "-c", "curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -"],
@@ -3526,150 +3367,38 @@ def node_runtime_install_plan(
     repair = False
     upgrade_parts: list[str] = []
     if context.guided:
-        version, npm_version, npm_ok = _node_runtime_state(context)
+        installed, version = _node_runtime_state(context)
         old_node = version is not None and _version_is_older(version, NODE_MIN_VERSION)
-        old_npm = npm_version is not None and _version_is_older(npm_version, NPM_MIN_VERSION)
         if old_node:
             upgrade_parts.append("Node.js")
-        if old_npm:
-            upgrade_parts.append("npm")
-        if (
-            version is not None
-            and not old_node
-            and npm_ok
-            and npm_version is not None
-            and not old_npm
-        ):
+        if installed and not old_node:
             install = []
-        elif old_node or old_npm:
+        elif old_node:
             upgrade = True
-            if old_node:
-                install = {
-                    MACOS: [_brew_upgrade_or_install("node")],
-                    UBUNTU: ubuntu_node_install,
-                    WINDOWS: [
-                        *(
-                            [_windows_remove_registered_node()]
-                            if _windows_node_needs_architecture_handover(context)
-                            else []
-                        ),
-                        _winget_upgrade("OpenJS.NodeJS.LTS"),
-                    ],
-                }[context.platform]
-            else:
-                npm_upgrade = [
-                    npm_command(context),
-                    "install",
-                    "--global",
-                    f"npm@>={NPM_MIN_VERSION}",
-                ]
-                install = [["sudo", *npm_upgrade] if context.platform == UBUNTU else npm_upgrade]
-        elif version is not None and not npm_ok:
             install = {
-                MACOS: [["brew", "reinstall", "node"]],
+                MACOS: [_brew_upgrade_or_install("node")],
                 UBUNTU: ubuntu_node_install,
-                WINDOWS: [_winget_repair("OpenJS.NodeJS.LTS")],
+                WINDOWS: [
+                    *(
+                        [_windows_remove_registered_node()]
+                        if _windows_node_needs_architecture_handover(context)
+                        else []
+                    ),
+                    _winget_upgrade("OpenJS.NodeJS.LTS"),
+                ],
             }[context.platform]
-            repair = True
 
     return install, upgrade, repair, upgrade_parts
 
 
 def _plan_node(context: Context) -> Plan:
-    project = context.config.resolved_project_dir(context.home)
     install, upgrade, repair, upgrade_parts = node_runtime_install_plan(context)
-    mathjax = str(project / "tools" / "mathjax")
-
-    def npm_ci(directory: str) -> list[str]:
-        """Run npm from its package directory instead of using ``--prefix``.
-
-        Use npm's ordinary working-directory form so the committed MathJax
-        lockfile remains authoritative.
-        """
-        if context.platform == WINDOWS:
-            literal = directory.replace("'", "''")
-            return [
-                "powershell",
-                "-NoProfile",
-                "-Command",
-                f"Set-Location -LiteralPath '{literal}'; "
-                "npm.cmd ci --legacy-peer-deps; "
-                "exit $LASTEXITCODE",
-            ]
-        return [
-            "bash",
-            "-c",
-            f"cd {shlex.quote(directory)} && npm ci --legacy-peer-deps",
-        ]
-
-    if context.platform != UBUNTU:
-        return Plan(
-            commands=[
-                *install,
-                npm_ci(mathjax),
-            ],
-            describe=(
-                f"Upgrade {' and '.join(upgrade_parts)} to supported versions, then "
-                "install the project toolchains"
-                if upgrade
-                else (
-                    "Repair the existing Node installation so npm works, then install "
-                    "the project toolchains"
-                    if repair
-                    else ""
-                )
-            ),
-            action="UPGRADE" if upgrade else ("REPAIR" if repair else ""),
-            # An upgrade or repair of an existing runtime is an explicit
-            # decision. A fresh install and npm's project-local work keep the
-            # established yes default.
-            destructive=upgrade or repair,
-        )
-
-    # MathJax browser verification uses Puppeteer Core with system Chromium.
-    exports = _puppeteer_exports()
-    bashrc = context.home / ".bashrc"
-    persist = (
-        f"grep -q {PUPPETEER_SKIP_VAR} {bashrc} 2>/dev/null || "
-        f"printf '%s\n%s\n' "
-        f"'export {PUPPETEER_PATH_VAR}={_WHICH_CHROMIUM}' "
-        f"'export {PUPPETEER_SKIP_VAR}=true' >> {bashrc}"
-    )
-    chromium_upgrade = False
-    if context.guided:
-        chromium = _chromium_version_result(context)
-        chromium_upgrade = (
-            chromium.ok
-            and _numeric_version(chromium.stdout) is not None
-            and _version_is_older(chromium.stdout, CHROMIUM_MIN_VERSION)
-        )
-        if chromium_upgrade:
-            upgrade = True
-            upgrade_parts.append("Chromium")
-
     return Plan(
-        commands=[
-            *install,
-            _apt("install", "-y", "chromium-browser"),
-            # Appended once. Rerunning bootstrap should not leave a
-            # profile with the same two exports in it four times over.
-            ["bash", "-c", persist],
-            [
-                "bash",
-                "-c",
-                f"{exports}cd {shlex.quote(mathjax)} && npm ci --legacy-peer-deps",
-            ],
-        ],
+        commands=install,
         describe=(
-            f"Upgrade {' and '.join(upgrade_parts)} to supported versions, then "
-            "install the project toolchains"
+            f"Upgrade {' and '.join(upgrade_parts)} to a supported version"
             if upgrade
-            else (
-                "Repair the existing Node installation so npm works, then install "
-                "the project toolchains"
-                if repair
-                else ""
-            )
+            else ""
         ),
         action="UPGRADE" if upgrade else ("REPAIR" if repair else ""),
         destructive=upgrade or repair,
@@ -4085,125 +3814,6 @@ def _plan_csl_style(context: Context) -> Plan:
 
 
 # ---------------------------------------------------------------------------
-# 18. MathJax for the website, installed rather than committed
-# ---------------------------------------------------------------------------
-
-
-#: Where the installer puts things, borrowed rather than restated. The
-#: paths, the bundle's name and the configuration all live in
-#: `prodockit.mathjax` now, which is the single implementation both this
-#: stage and a project's CI call (prodockit-extensions#276).
-def _mathjax_paths(context: Context) -> tuple[Path, Path, Path, Path, Path]:
-    project = context.config.resolved_project_dir(context.home)
-    return (
-        project.joinpath(*mathjax.SOURCE),
-        project.joinpath(*mathjax.LICENSE_SOURCE),
-        project.joinpath(*mathjax.DEST, mathjax.BUNDLE),
-        project.joinpath(*mathjax.DEST, mathjax.LICENSE),
-        project.joinpath(*mathjax.CONFIG),
-    )
-
-
-def _check_mathjax(context: Context) -> CheckResult:
-    """Whether the website can typeset the maths the PDF already can.
-
-    Both halves are needed and they fail differently. Without the config
-    the bundle loads and does nothing; without the bundle the config
-    configures nothing. Either way the page shows raw TeX, which is what
-    was reported (prodockit-extensions#263).
-    """
-    if (unknown := _needs_config(context, "project_name")) is not None:
-        return unknown
-    project = context.config.resolved_project_dir(context.home)
-    if not project.exists():
-        project_absent = _blocked if context.guided else _missing
-        return project_absent("no project to install it into yet")
-    if not (project / "docs").is_dir():
-        return _missing("no project to install it into yet")
-    source, license_source, bundle, license_path, config = _mathjax_paths(context)
-    absent = [
-        name
-        for name, path in (
-            ("the config", config),
-            ("the bundle", bundle),
-            ("the licence", license_path),
-        )
-        if not path.exists()
-    ]
-    if absent:
-        return _missing(f"{' and '.join(absent)} for the website is not installed")
-    if context.guided:
-        try:
-            bundle_bytes = bundle.read_bytes()
-            license_bytes = license_path.read_bytes()
-            config_text = config.read_text(encoding="utf-8")
-        except OSError:
-            return _wrong("the generated MathJax files cannot be read")
-        if not bundle_bytes:
-            return _wrong("the generated MathJax bundle is empty - installation was interrupted")
-        if not license_bytes:
-            return _wrong("the generated MathJax licence is empty - installation was interrupted")
-        if source.exists():
-            try:
-                if bundle_bytes != source.read_bytes():
-                    return _wrong(
-                        "the generated MathJax bundle does not match the project's pinned copy"
-                    )
-            except OSError:
-                return _wrong("the project's pinned MathJax bundle cannot be read")
-        if license_source.exists():
-            try:
-                if license_bytes != license_source.read_bytes():
-                    return _wrong(
-                        "the generated MathJax licence does not match the project's pinned copy"
-                    )
-            except OSError:
-                return _wrong("the project's pinned MathJax licence cannot be read")
-        if config_text != mathjax.CONFIG_SOURCE:
-            return _wrong("the generated MathJax configuration is incomplete or out of date")
-        try:
-            ignored = (project / ".gitignore").read_text(encoding="utf-8").splitlines()
-        except OSError:
-            ignored = []
-        missing_ignores = [entry for entry in mathjax.IGNORED if entry not in ignored]
-        if missing_ignores:
-            return _wrong(
-                "MathJax is installed, but its generated files are not all excluded from git: "
-                + ", ".join(missing_ignores)
-            )
-    if not source.exists():
-        # Installed, but the pinned copy it came from is gone - so nothing
-        # can say whether the two still agree.
-        return _ok(f"{bundle.name} is installed")
-    return _ok(f"{bundle.name} is installed")
-
-
-def _plan_mathjax(context: Context) -> Plan:
-    """Runs the command that does this, rather than a copy of it.
-
-    The configuration used to live here *and* in a template's CI, which
-    never runs bootstrap - two copies of a thing whose whole failure mode
-    is being subtly wrong, since both produce a valid file and the site
-    simply typesets one way locally and another when published
-    (prodockit-extensions#276).
-
-    `prodockit init-mathjax` is now the single implementation, and this
-    calls it - the same arrangement the repoint stage already has with
-    `prodockit sync-repo`.
-    """
-    project = context.config.resolved_project_dir(context.home)
-    return Plan(
-        cwd=str(project),
-        describe=(
-            "Install MathJax for the website: copy the browser bundle out of "
-            "tools/mathjax's pinned install, copy its licence, write the browser "
-            "configuration, and keep the generated assets out of git"
-        ),
-        commands=[[*_prodockit_command(), "init-mathjax"]],
-    )
-
-
-# ---------------------------------------------------------------------------
 # 19. The published site answers - the last thing, and only a test
 # ---------------------------------------------------------------------------
 
@@ -4356,7 +3966,7 @@ def _check_site_published(context: Context) -> CheckResult:
         # Authentication responses are deliberately inconclusive. Surrey's
         # Pages gateway returns the same redirect for a published private
         # site and for a path that has never existed, so treating it as proof
-        # produced a false `All 23 stages are set up` after a failed pipeline
+        # produced a false complete report after a failed pipeline
         # (#611). The browser remains the only project-specific check there.
         if context.guided and context.config.confirmed_site_url == url:
             return _ok(f"published at {url} - confirmed in your browser")
@@ -4928,7 +4538,7 @@ STAGES: tuple[Stage, ...] = (
         _check_project_env,
         _plan_project_env,
     ),
-    Stage("node", "Node.js and the render toolchains", _check_node, _plan_node),
+    Stage("node", "Node.js for PDF maths", _check_node, _plan_node),
     Stage("extensions", "VS Code extensions", _check_extensions, _plan_extensions),
     # Last, so that the state bootstrap leaves behind is one where
     # opening the project in VS Code is enough to start writing.
@@ -4941,9 +4551,6 @@ STAGES: tuple[Stage, ...] = (
     # `prodockit.bibliography` is on by default and this file is not in
     # the clone, so without it the very first build fails outright.
     Stage("csl-style", "Citation style for the first build", _check_csl_style, _plan_csl_style),
-    # After node, because the bundle is copied out of what `npm ci` put
-    # in tools/mathjax (#263).
-    Stage("mathjax", "MathJax for the website", _check_mathjax, _plan_mathjax),
     # Last of all, because it can only be true once a push has built the
     # site - and it is a test rather than a step: the workflow enables
     # Pages itself (#333).
