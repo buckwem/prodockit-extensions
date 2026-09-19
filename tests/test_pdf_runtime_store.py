@@ -82,6 +82,7 @@ def test_prepare_activates_metadata_then_warm_reuse_does_no_acquisition(tmp_path
     assert current["weasyprint"]["environment_identity"] == descriptor.environment_identity
     assert marker["sha256"] == descriptor.sha256
     assert marker["licence"] == "BSD-3-Clause"
+    assert warm.path.relative_to(store.root).parts == ("r", descriptor.cache_key)
     assert store.active("weasyprint") == warm
     assert store.active_for(descriptor) == warm
     incompatible = ArtifactDescriptor(
@@ -353,6 +354,23 @@ def test_stale_partial_state_for_the_component_is_cleaned_under_its_lock(
 
     assert not stale_file.exists()
     assert not stale_directory.exists()
+
+
+def test_new_runtime_paths_are_compact_for_windows_dll_loading(tmp_path: Path) -> None:
+    archive = tmp_path / "runtime.zip"
+    descriptor = _descriptor(_zip(archive))
+    project = tmp_path / ("project-" + "x" * 80)
+    store = RuntimeStore(project)
+    staged: list[Path] = []
+
+    active = store.prepare(
+        descriptor,
+        acquire=_copy_from(archive, []),
+        probe=lambda root: staged.append(root),
+    )
+
+    assert len(staged[0].relative_to(store.root).as_posix()) <= 40
+    assert len(active.path.relative_to(store.root).as_posix()) <= 40
 
 
 def test_store_refuses_a_symlinked_project_cache_boundary(tmp_path: Path) -> None:
