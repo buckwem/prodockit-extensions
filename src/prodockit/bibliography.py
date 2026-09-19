@@ -28,10 +28,9 @@ custom code at all) rather than reimplemented here - the same reasoning
 :mod:`prodockit.pdf` already documents for why it feeds Pandoc real HTML
 instead of hand-translating every markdown feature: CSL processing
 (sorting, disambiguation, locale-specific formatting) is a mature-tool-
-sized problem, not a small one. This makes `pandoc` a required, on-PATH
-dependency for this extension specifically - including for a project that
-never builds a PDF at all, unlike every other prodockit extension, which
-needs nothing beyond Python-Markdown itself.
+sized problem, not a small one. The extension prepares the same verified,
+project-local Pandoc runtime as the PDF command when bibliography content is
+actually used. A website without bibliography content acquires nothing.
 
 Only single-key ``\cite{id}`` is supported (not
 prodockit.citations' ``\citeref{id1,id2,...}``) - Pandoc's own multi-source
@@ -45,7 +44,6 @@ own syntax (falls through as literal text) rather than silently mishandled.
 from __future__ import annotations
 
 import re
-import shutil
 import subprocess
 import xml.etree.ElementTree as etree
 from functools import cache
@@ -58,6 +56,11 @@ from markdown.inlinepatterns import InlineProcessor
 from markdown.treeprocessors import Treeprocessor
 
 from prodockit._zensical import page_source, prescan_bibliography, share
+from prodockit.pdf.pandoc_runtime import executable_in_runtime
+from prodockit.pdf.runtime_prepare import (
+    current_runtime_environment,
+    prepare_pandoc_runtime,
+)
 from prodockit.util import cross_page_href
 
 CITE_RE = r"\\cite\{([^}\s,]+)\}"
@@ -197,6 +200,12 @@ class _BibliographyCache:
 _ZENSICAL_SHARED_CACHES: dict[tuple[str, str], _BibliographyCache] = {}
 
 
+def _project_pandoc_executable() -> Path:
+    environment = current_runtime_environment()
+    prepared = prepare_pandoc_runtime("zensical.toml", environment=environment)
+    return executable_in_runtime(prepared.path, environment)
+
+
 def _run_pandoc_citeproc(
     body: str, *, bib_files: list[str], csl_style: str, front_matter: str = ""
 ) -> tuple[str, str]:
@@ -204,18 +213,17 @@ def _run_pandoc_citeproc(
     markdown citation syntax, e.g. `[@key]`), returning (stdout, stderr) as
     HTML/diagnostic text. `bib_files` may name more than one `.bib` file -
     Pandoc merges repeated `--bibliography=` flags natively. Raises
-    `BibliographyError` if `pandoc` isn't on `PATH` at all, or if it exits
-    non-zero (an unresolved citation key is *not* a non-zero exit - see
+    `BibliographyError` if the project runtime cannot be prepared, or if it
+    exits non-zero (an unresolved citation key is *not* a non-zero exit - see
     module docstring - only a genuinely broken invocation is, e.g. a
     malformed `.bib` file)."""
-    if shutil.which("pandoc") is None:
+    try:
+        pandoc = _project_pandoc_executable()
+    except (OSError, RuntimeError) as error:
         raise BibliographyError(
-            "pandoc not found on PATH - prodockit.bibliography formats citations "
-            "and bibliography entries via `pandoc --citeproc`, the same tool "
-            "prodockit.pdf already needs (see https://pandoc.org/installing.html) "
-            "- required here even for a website-only build with no PDF."
-        )
-    cmd = ["pandoc", "-f", "markdown", "-t", "html", "--citeproc"]
+            f"project-local Pandoc could not be prepared for bibliography use: {error}"
+        ) from error
+    cmd = [str(pandoc), "-f", "markdown", "-t", "html", "--citeproc"]
     cmd += [f"--bibliography={bib_file}" for bib_file in bib_files]
     if csl_style:
         cmd.append(f"--csl={csl_style}")

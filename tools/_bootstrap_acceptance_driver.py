@@ -984,7 +984,6 @@ def main() -> None:
         expected_upgrades = {
             "vscode",
             "git",
-            "pandoc",
             "node",
             "npm",
             "vscode-extensions",
@@ -1006,7 +1005,7 @@ def main() -> None:
         expected = {
             "Visual Studio Code",
             "Git, installed and configured",
-            "Pandoc, and the libraries WeasyPrint needs",
+            "PDF native libraries",
             "Node.js and the render toolchains",
             "VS Code extensions",
         }

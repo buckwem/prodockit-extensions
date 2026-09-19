@@ -32,7 +32,7 @@ the appropriate publishing guide.
 | Starting point | First guide |
 |---|---|
 | You want the ready-made `prodockit-template` report project | [Build a template site](devcons/bootstrap.md#bootstrap-template) explains what it provides and which files become yours |
-| A new computer or an incomplete template-based checkout | [Bootstrap](devcons/bootstrap.md) checks and prepares Python, Git, Node, Pandoc, fonts, and the project environment |
+| A new computer or an incomplete template-based checkout | [Bootstrap](devcons/bootstrap.md) checks and prepares Python, Git, Node, native PDF libraries, and the project environment; `pdk pdf` owns Pandoc and fonts |
 | An established documentation project that should keep its existing design and workflow | [Adoption](adopt.md) integrates selected prodockit components without replacing those choices |
 | An existing template-derived project | [Staying in step with the template](devcons/template-sync.md) brings shared workflows and publishing files up to date without replacing your writing |
 | A working project that already previews with `zensical serve` | Continue with the publishing path below |

@@ -81,6 +81,25 @@ def test_pandoc_receives_the_selected_weasyprint_executable(
     assert f"--pdf-engine={selected}" in args_path.read_text(encoding="utf-8").splitlines()
 
 
+def test_build_uses_selected_pandoc_and_project_font_css(tmp_path: Path) -> None:
+    bin_dir = _fake_pandoc(tmp_path, 'echo "%PDF-1.4 stub" > "$3"')
+    selected = bin_dir / "pandoc"
+    work = tmp_path / "work"
+
+    build_pdf(
+        [Page(docs_rel_path="index.md", html="<h1>Report</h1>", is_index=True)],
+        str(tmp_path / "out.pdf"),
+        pandoc_executable=str(selected),
+        font_face_css='@font-face { font-family: "Inter"; src: url("file:///font.ttf"); }',
+        work_dir=str(work),
+        keep_work_dir=True,
+    )
+
+    compiled = (work / "_prodockit_pdf_compiled.css").read_text(encoding="utf-8")
+    assert compiled.startswith("@font-face")
+    assert "file:///font.ttf" in compiled
+
+
 def test_raises_pdf_build_error_when_pandoc_fails(tmp_path: Path, fake_pandoc_on_path) -> None:
     fake_pandoc_on_path('echo "boom" >&2; exit 1')
     with pytest.raises(PdfBuildError) as exc_info:

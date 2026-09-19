@@ -982,28 +982,14 @@ before continuing.
             brew install pango
             ```
 
-        2. Install \index{Pandoc}:
+        `pdk pdf` downloads verified Pandoc and font archives into this
+        project's `.prodockit/cache/pdf/` on first use. To prepare them now:
 
-            ``` bash
-            brew install pandoc
-            ```
+        ``` bash
+        pdk pdf --prepare pandoc --prepare fonts
+        ```
 
-            !!! info "Why Pandoc and Pango"
-                `prodockit pdf` shells out to `pandoc`, which hands the result to \index{WeasyPrint} to lay out the pages - and WeasyPrint draws text through Pango, so `pango` alone is enough (glib, HarfBuzz and fontconfig come along as its dependencies). Skipping either still looks fine right up until `prodockit pdf`, which then fails with `pandoc exited with status 43` - see [WeasyPrint cannot load its graphics libraries](troubleshooting-installs.md#installtooling-weasyprint-libraries) if that happens.
-
-        3. Install the desktop font files this template's PDF uses by default - **Inter** and **JetBrains Mono**:
-
-            ``` bash
-            brew install --cask font-inter font-jetbrains-mono
-            ```
-
-            !!! info "Why this early"
-                The website loads its fonts from a CDN at view time, but the
-                PDF has no such fallback. WeasyPrint has to embed the actual
-                font files and silently substitutes a fallback if they are
-                missing. [Generate a PDF](pdf.md) explains the complete build.
-
-        4. Open **Terminal** in your project folder and create the virtual
+        2. Open **Terminal** in your project folder and create the virtual
            environment:
 
             ``` bash
@@ -1036,49 +1022,22 @@ before continuing.
 
     === ":fontawesome-brands-windows: Windows"
 
-        1. Install the Pandoc release used by Bootstrap and the continuous
-           integration workflows. Open **PowerShell** and run:
-
-            ``` powershell
-            winget install --id JohnMacFarlane.Pandoc --exact --version 3.10.1
-            ```
-
-            !!! note "The package is under its author's name, not `Pandoc`"
-                winget identifies packages as `Publisher.Package`, and
-                Pandoc's publisher is its author, John MacFarlane. There
-                is no `Pandoc.Pandoc`, so guessing that gives:
-
-                ``` text
-                No package found matching input criteria.
-                ```
-
-                `winget search pandoc` lists the real identifier if you
-                ever need to check it.
-
-        2. Prepare the project-local \index{WeasyPrint} runtime. Windows x64
-           uses the official digest-pinned WeasyPrint 70 onedir release, so
+        1. Prepare the project-local PDF runtimes. Windows x64 uses verified,
+           digest-pinned Pandoc, font, and WeasyPrint release archives, so
            do not install MSYS2/Pango or change PATH, the registry, or
            `WEASYPRINT_DLL_DIRECTORIES`:
 
             ``` powershell
-            pdk pdf --prepare weasyprint
+            pdk pdf --prepare pandoc --prepare fonts --prepare weasyprint
             ```
 
             This command verifies the download, safely extracts it beneath
             `.prodockit/cache/pdf/`, renders a smoke-test PDF, and atomically
-            activates it. The first ordinary `pdk pdf` or `pdk source-bundle`
-            run performs the same preparation if it has not been forced here.
-            Windows ARM64 is not a supported G3 target.
+            activates it. The first ordinary `pdk pdf` prepares all three
+            automatically; bibliography-only use prepares Pandoc alone.
+            Windows ARM64 is not a supported PDF target.
 
-        3. Install the desktop font files this template's PDF uses by default - **Inter** and **JetBrains Mono**. Download the desktop (`.ttf`/`.otf`) files for each - [Inter](https://fonts.google.com/specimen/Inter){target="_blank"}, [JetBrains Mono](https://fonts.google.com/specimen/JetBrains+Mono){target="_blank"} - then select them all, right-click, and choose **Install for all users**.
-
-            !!! info "Why this early"
-                The website loads its fonts from a CDN at view time, but the
-                PDF has no such fallback. WeasyPrint must embed the desktop
-                `.ttf` or `.otf` files and silently substitutes a fallback if
-                they are missing. [Generate a PDF](pdf.md) explains the build.
-
-        4. The PowerShell execution policy was set when the setup environment
+        2. The PowerShell execution policy was set when the setup environment
            was created. If you chose not to change it, use **classic CMD** and
            run `.\.venv\Scripts\activate.bat` when activating the project
            environment.
@@ -1139,18 +1098,13 @@ before continuing.
 
     === ":material-linux: Linux (Ubuntu)"
 
-        1. Open a terminal and install the exact Pandoc release used by
-           Bootstrap, the graphics libraries \index{WeasyPrint} needs, and
-           the fonts this template's PDF uses by default:
+        1. Open a terminal and install the graphics libraries
+           \index{WeasyPrint} needs:
 
             ``` bash
             sudo apt update
-            sudo apt install -y curl
-            curl -fsSL -o /tmp/pandoc.deb "https://github.com/jgm/pandoc/releases/download/3.10.1/pandoc-3.10.1-1-$(dpkg --print-architecture).deb"
-            sudo apt install -y /tmp/pandoc.deb
             sudo apt install -y \
-              libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz-subset0 \
-              fonts-inter fonts-jetbrains-mono
+              libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz-subset0
             ```
 
             !!! info "Why the three library packages"
@@ -1161,11 +1115,12 @@ before continuing.
                 package cannot be found, upgrade the distribution rather than
                 hunting for a substitute package.
 
-            !!! info "Why the fonts, this early"
-                The website loads its fonts from a CDN at view time, but the
-                PDF has no such fallback. WeasyPrint must embed the installed
-                files and silently substitutes a fallback if they are missing.
-                [Generate a PDF](pdf.md) explains the complete build.
+            Pandoc and the PDF fonts are downloaded, verified, and cached by
+            `pdk pdf` on first use. To prepare them before building, run:
+
+            ``` bash
+            pdk pdf --prepare pandoc --prepare fonts
+            ```
 
         2. Navigate to your project folder, then create a virtual
            environment:
@@ -1194,22 +1149,9 @@ before continuing.
 
 ////
 
-//// step | Verify Pandoc and install the project packages
+//// step | Install the project packages and prepare PDF runtimes
 
 <span id="which-pandoc-version"></span>
-
-These commands follow Bootstrap's current Pandoc 3.10.1 requirement.
-Prodockit's tested combination can change in a later release; `pdk diag`
-and [Requirements and dependencies](requirements-dependencies.md) are the
-authority when they differ from a copied command.
-
-Confirm which version you actually have:
-
-``` bash
-pandoc --version
-```
-
-The first line should report `pandoc 3.10.1`.
 
 1. Install Zensical and prodockit inside the active virtual environment. The
     `requirements.txt` file lists the required packages, so install them with
@@ -1217,7 +1159,6 @@ The first line should report `pandoc 3.10.1`.
 
     ``` bash
     python -m pip install -r requirements.txt
-    python -m prodockit.toolchain install-pandoc --version 3.10.1
     ```
 
     Using `python -m pip` ties the install to the active environment. Do not
@@ -1237,7 +1178,7 @@ The first line should report `pandoc 3.10.1`.
     === ":fontawesome-brands-windows: Windows"
 
         ``` powershell
-        pdk pdf --prepare weasyprint
+        pdk pdf --prepare pandoc --prepare fonts --prepare weasyprint
         ```
 
         A prepared or already-prepared result proves the project-local
@@ -1246,12 +1187,14 @@ The first line should report `pandoc 3.10.1`.
     === ":material-apple: macOS"
 
         ``` bash
+        pdk pdf --prepare pandoc --prepare fonts
         python -c "import weasyprint; print(weasyprint.__version__)"
         ```
 
     === ":material-linux: Linux (Ubuntu)"
 
         ``` bash
+        pdk pdf --prepare pandoc --prepare fonts
         python -c "import weasyprint; print(weasyprint.__version__)"
         ```
 

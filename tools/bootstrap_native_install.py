@@ -237,9 +237,9 @@ def cleanup_ephemeral_runner(
             "native installer cleanup is restricted to disposable GitHub Actions runners"
         )
     if recipe == MACOS:
-        for package in ("visual-studio-code", "font-inter", "font-jetbrains-mono"):
+        for package in ("visual-studio-code",):
             _brew_remove(package, cask=True)
-        for package in ("git", "pandoc", "pango", "node"):
+        for package in ("git", "pango", "node"):
             _brew_remove(package)
         vscode_app = Path("/Applications/Visual Studio Code.app")
         if vscode_app.exists():
@@ -249,11 +249,8 @@ def cleanup_ephemeral_runner(
             "code",
             "git",
             "git-man",
-            "pandoc",
             "nodejs",
             "chromium-browser",
-            "fonts-inter",
-            "fonts-jetbrains-mono",
         ):
             _apt_remove(package)
     elif recipe == WINDOWS:
@@ -278,17 +275,14 @@ def cleanup_ephemeral_runner(
         identifiers = [
             "Microsoft.VisualStudioCode",
             "Git.Git",
-            "JohnMacFarlane.Pandoc",
             "OpenJS.NodeJS.LTS",
-            "MSYS2.MSYS2",
         ]
         # Removing MSYS2 after the first route can hang indefinitely on the
         # Windows ARM64 hosted image even after its package processes have
         # stopped.  The upgrade fixture removes both Pango architectures above,
         # so retaining the manager for its second route still exercises a real
         # Pango install and avoids spending 15 minutes in runner-only cleanup.
-        if preserve_msys2:
-            identifiers.remove("MSYS2.MSYS2")
+        del preserve_msys2
         for identifier in identifiers:
             _winget_remove(identifier)
         # Hosted images sometimes register Node with Windows Installer but
@@ -430,6 +424,16 @@ def run_native_install(wheel: Path, report_path: Path) -> dict[str, Any]:
             stage = selected[stage_id]
             plan = stage.plan(planning)
             if not plan.commands:
+                if stage_id == "pandoc" and recipe == WINDOWS:
+                    records.append(
+                        {
+                            "id": stage_id,
+                            "commands": [],
+                            "verified": "project-local PDF runtimes need no Windows setup",
+                            "ok": True,
+                        }
+                    )
+                    continue
                 raise NativeInstallError(f"{stage_id} produced no real install commands")
             print(f"\nStage: {stage.summary}", flush=True)
             result = apply_stage(real, stage, plan, progress=_progress)

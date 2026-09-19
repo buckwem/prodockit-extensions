@@ -55,7 +55,6 @@ from prodockit.bootstrap.model import (
     windows_system_ssh,
 )
 from prodockit.pdf_fonts import FontEvidence, inspect_fonts
-from prodockit.windows_pango import pango_spec, repair_script
 
 #: The VS Code extensions the User Guide installs. Kept here rather than
 #: in the template so bootstrap can check them without a project.
@@ -2647,7 +2646,7 @@ def _plan_project_identity(context: Context) -> Plan:
 
 
 # ---------------------------------------------------------------------------
-# 12. Pandoc, and the libraries WeasyPrint needs
+# 12. Native PDF libraries
 # ---------------------------------------------------------------------------
 
 
@@ -2678,43 +2677,17 @@ def _pango_version_result(context: Context) -> CommandResult:
 
 
 def _check_pandoc(context: Context) -> CheckResult:
-    result = context.runner.run([pandoc_command(context), "--version"])
-    if not result.ok:
-        return _missing("pandoc is not installed")
-    version = _pandoc_version(result.stdout)
+    if context.platform == WINDOWS:
+        return _ok("PDF runtimes are prepared project-locally by `pdk pdf`")
+
     warnings: list[str] = []
-    if version is None:
-        warnings.append(
-            "pandoc's version could not be read - PDF conversion may fail unless "
-            f"it is {PANDOC_MIN_MAJOR}.x or later"
-        )
-    major = version.split(".")[0] if version is not None else ""
-    if version is not None and major.isdigit() and int(major) < PANDOC_MIN_MAJOR:
-        # Ubuntu's own package lags well behind upstream - far enough to
-        # change how the PDF renders. Code blocks come out as justified
-        # prose on pandoc 2.x (#207).
-        return _wrong(
-            f"pandoc {version} is too old - {PANDOC_MIN_MAJOR}.x or later is "
-            f"needed (the builds pin {PANDOC_VERSION})"
-        )
-    fonts = _pdf_font_evidence(context)
-    if fonts.status == "missing":
-        # The plan installs these, so the check has to be able to see
-        # them (#224). WeasyPrint substitutes silently when they are
-        # absent, so nothing else will notice until a test does.
-        prefix = f"pandoc {version}" if version is not None else "pandoc"
-        return _wrong(f"{prefix}, but {fonts.detail}")
-    if fonts.status == "unverified":
-        warnings.append(fonts.detail)
-    if context.guided and context.platform == WINDOWS:
-        pandoc_text = version if version is not None else "unknown"
-        if warnings:
-            return _warning(f"pandoc {pandoc_text}; " + "; ".join(warnings))
-        return _ok(
-            f"pandoc {pandoc_text}; WeasyPrint is prepared project-locally by `pdk pdf`"
-        )
     pango = _pango_version_result(context)
     pango_version = _numeric_version(pango.stdout) if pango.ok else None
+    if not pango.ok:
+        return _missing(
+            f"Pango {PANGO_MIN_VERSION} or later is not installed; "
+            "Pandoc and fonts are prepared project-locally by `pdk pdf`"
+        )
     if pango_version is None:
         warnings.append(
             "Pango's version could not be read - the PDF build may "
@@ -2724,32 +2697,15 @@ def _check_pandoc(context: Context) -> CheckResult:
         ".".join(str(part) for part in pango_version) if pango_version is not None else "unknown"
     )
     if pango_version is not None and _version_is_older(pango.stdout, PANGO_MIN_VERSION):
-        pandoc_text = version if version is not None else "unknown"
         return _wrong(
-            f"pandoc {pandoc_text}, but Pango {pango_text} is too old - "
+            f"Pango {pango_text} is too old - "
             f"{PANGO_MIN_VERSION} or later is needed"
         )
     if warnings:
         return _warning("; ".join(warnings))
-    assert version is not None
-    if version != PANDOC_VERSION:
-        # Said, not failed. Pandoc decides how the PDF renders - #207 was
-        # code blocks coming out as justified prose on an older major,
-        # and limitations.md records 3.1.3 accepting markup 3.10 does
-        # not - so a local pandoc that differs from the builds' is worth
-        # knowing about: both builds succeed, and only the output
-        # disagrees (#454).
-        #
-        # Deliberately not `_wrong`. Homebrew cannot install an old
-        # pandoc, so on macOS a failing status would be one no reader
-        # could ever clear - a stage stuck for good, which is the failure
-        # this project keeps having to undo (#443, #451). A note they can
-        # act on beats a red mark they cannot.
-        return _ok(
-            f"pandoc {version} - the builds pin {PANDOC_VERSION}, so a PDF built "
-            f"here can differ from the published one; Pango {pango_text}"
-        )
-    return _ok(f"pandoc {version}; Pango {pango_text}")
+    return _ok(
+        f"Pango {pango_text}; Pandoc and fonts are prepared project-locally by `pdk pdf`"
+    )
 
 
 def _pdf_font_evidence(context: Context) -> FontEvidence:
@@ -2821,277 +2777,51 @@ def _windows_font_install_command() -> list[str]:
 
 
 def _plan_pandoc(context: Context, *, native_only: bool = False) -> Plan:
-    installed = (
-        CommandResult(returncode=0, stdout=f"pandoc {PANDOC_VERSION}")
-        if native_only
-        else context.runner.run([pandoc_command(context), "--version"])
-    )
-    installed_version = _pandoc_version(installed.stdout) if installed.ok else None
-    installed_major = installed_version.split(".")[0] if installed_version else ""
-    pandoc_upgrade = installed_major.isdigit() and int(installed_major) < PANDOC_MIN_MAJOR
+    del native_only
+    if context.platform == WINDOWS:
+        return Plan()
+
     pango_result = (
         CommandResult(returncode=1)
         if context.platform == WINDOWS
         else _pango_version_result(context)
     )
     pango_upgrade = pango_result.ok and _version_is_older(pango_result.stdout, PANGO_MIN_VERSION)
-    upgrade = pandoc_upgrade or pango_upgrade
     if context.platform == MACOS:
         package_commands: list[list[str]] = []
-        if pandoc_upgrade or not installed.ok:
-            package_commands.append(_brew_upgrade_or_install("pandoc"))
         if pango_upgrade or not pango_result.ok:
             package_commands.append(_brew_upgrade_or_install("pango"))
-        if not package_commands and not upgrade:
-            package_commands.append(
-                ["brew", "install", *([] if native_only else ["pandoc"]), "pango"]
-            )
         return Plan(
-            commands=[
-                *package_commands,
-                ["brew", "install", "fontconfig"],
-                # The PDF embeds these; the website loads them from a CDN
-                # at view time and so never notices they are absent
-                # (prodockit-userguide#101, #249).
-                ["brew", "install", "--cask", *PDF_FONT_CASKS],
-            ],
+            commands=package_commands,
             describe=(
-                f"Upgrade Pandoc to {PANDOC_MIN_MAJOR}.x or later and refresh the PDF libraries"
-                if upgrade
+                f"Upgrade Pango to {PANGO_MIN_VERSION} or later"
+                if pango_upgrade
                 else ""
             ),
-            action="UPGRADE" if upgrade else "",
-            destructive=upgrade,
+            action="UPGRADE" if pango_upgrade else "",
+            destructive=pango_upgrade,
         )
     if context.platform == UBUNTU:
-        # Ubuntu's own pandoc package is several major versions behind -
-        # far enough to change how the PDF renders (#207, #209). The CI
-        # workflows and the User Guide both download the pinned release
-        # directly, using dpkg to pick the right architecture so the same
-        # command works on amd64, arm64 and under Rosetta.
-        v = PANDOC_VERSION
-        deb_url = (
-            f"https://github.com/jgm/pandoc/releases/download/{v}/"
-            f"pandoc-{v}-1-$(dpkg --print-architecture).deb"
-        )
-        download_and_install = [
-            [
-                "bash",
-                "-c",
-                f'curl -fsSL -o /tmp/pandoc.deb "{deb_url}" && {APT_SH} install -y /tmp/pandoc.deb',
-            ]
-        ]
-        if context.guided:
-            download_and_install = [
-                ["bash", "-c", f'curl -fsSL -o /tmp/pandoc.deb "{deb_url}"'],
-                _apt("install", "-y", "/tmp/pandoc.deb"),
-            ]
         return Plan(
             commands=[
-                *([] if native_only else [_apt("install", "-y", "curl"), *download_and_install]),
                 _apt(
                     "install",
                     "-y",
                     "libpango-1.0-0",
                     "libpangoft2-1.0-0",
                     "libharfbuzz-subset0",
-                    "fontconfig",
-                    *PDF_FONT_PACKAGES,
                 ),
             ],
             describe=(
-                f"Upgrade Pandoc to the supported {PANDOC_VERSION} release and "
-                "refresh the PDF libraries"
-                if upgrade
+                f"Upgrade Pango to {PANGO_MIN_VERSION} or later"
+                if pango_upgrade
                 else ""
             ),
-            action="UPGRADE" if upgrade else "",
-            destructive=upgrade,
-        )
-    if context.platform == WINDOWS:
-        # G3: the PDF command owns the official project-local WeasyPrint
-        # runtime. Bootstrap keeps the current Pandoc/font responsibilities
-        # until G4, but must not install MSYS2, Pango, alter PATH, or persist
-        # WEASYPRINT_DLL_DIRECTORIES for the normal Windows path.
-        windows_pandoc_install: list[str] | None = _winget(
-            "JohnMacFarlane.Pandoc",
-            PANDOC_VERSION,
-            resilient=context.guided,
-        )
-        if context.guided:
-            if installed_major.isdigit() and int(installed_major) < PANDOC_MIN_MAJOR:
-                windows_pandoc_install = _winget_upgrade(
-                    "JohnMacFarlane.Pandoc", PANDOC_VERSION
-                )
-                pandoc_upgrade = True
-            elif installed_version is not None:
-                windows_pandoc_install = None
-        commands = (
-            []
-            if native_only or windows_pandoc_install is None
-            else [windows_pandoc_install]
-        )
-        if context.guided:
-            commands.append(_windows_font_install_command())
-        return Plan(
-            commands=commands,
-            describe=(
-                f"Upgrade Pandoc to the supported {PANDOC_VERSION} release"
-                if pandoc_upgrade
-                else ""
-            ),
-            action="UPGRADE" if pandoc_upgrade else "",
-            destructive=pandoc_upgrade,
-            follow_up=(
-                []
-                if context.guided
-                else [
-                    "Install the fonts the PDF uses: download the desktop (.ttf/.otf) "
-                    "files for Inter and JetBrains Mono from fonts.google.com, select "
-                    "them all, right-click, and choose 'Install'."
-                ]
-            ),
-            confirm=("" if context.guided else "Have you installed the fonts?"),
+            action="UPGRADE" if pango_upgrade else "",
+            destructive=pango_upgrade,
         )
 
-    # Pre-G3 Windows MSYS2/Pango implementation retained as dead migration
-    # reference until G6 deletes the obsolete setup machinery.
-    # MSYS2 carries Pango, which is what WeasyPrint draws text through on
-    # Windows. The User Guide walks the reader through a MINGW64 shell
-    # and the Environment Variables dialog; all three steps run
-    # unattended, so they do.
-    # Both of these are facts about the installation rather than about this
-    # project, and neither can be known from here: winget installs MSYS2
-    # where it likes, and Pango must match the Python process that loads
-    # it. Windows on ARM may run x64 tools under emulation, so neither a
-    # PowerShell process nor the host architecture reliably answers that
-    # question. prodockit bootstrap asks its own Python interpreter (#393).
-    pandoc_install: list[str] | None = _winget(
-        "JohnMacFarlane.Pandoc",
-        PANDOC_VERSION,
-        resilient=context.guided,
-    )
-    if context.guided:
-        if installed_major.isdigit() and int(installed_major) < PANDOC_MIN_MAJOR:
-            pandoc_install = _winget_upgrade("JohnMacFarlane.Pandoc", PANDOC_VERSION)
-            pandoc_upgrade = True
-        elif installed_version is not None:
-            # A partial run may have installed Pandoc and Pango before a
-            # later font download lost the network. Repeating the pinned
-            # install then exits 1 with "A package version is already
-            # installed. Installation cancelled" and used to prevent the
-            # repair command from ever being reached.
-            pandoc_install = None
-
-    environments = _BOOTSTRAP_MSYS2_ENVIRONMENTS if context.guided else _MSYS2_ENVIRONMENTS
-    arm, other = environments["arm64"], environments["other"]
-    roots = ", ".join(f'"{root}"' for root in _MSYS2_ROOTS)
-    msys2_arguments = _winget("MSYS2.MSYS2", resilient=context.guided)
-    msys2_install = (
-        "$roots = @("
-        + roots
-        + "); "
-        + '$root = $roots | Where-Object { Test-Path "$_\\usr\\bin\\bash.exe" } '
-        + "| Select-Object -First 1; "
-        + 'if ($root) { Write-Host "Reusing MSYS2 at $root"; exit 0 }; '
-        + "& "
-        + " ".join(msys2_arguments)
-        + "; exit $LASTEXITCODE"
-    )
-    python_is_arm64 = context.guided and _windows_python_is_arm64(context)
-    if context.guided:
-        selected = arm if python_is_arm64 else other
-        select_environment = f"$msysEnv = '{selected[0]}'; $pkg = '{selected[1]}'; "
-    else:
-        select_environment = (
-            "$nativeArch = $env:PROCESSOR_ARCHITECTURE; "
-            f"$msysEnv = if ($nativeArch -eq 'ARM64') {{ '{arm[0]}' }} "
-            f"else {{ '{other[0]}' }}; "
-            f"$pkg = if ($msysEnv -eq '{arm[0]}') {{ '{arm[1]}' }} "
-            f"else {{ '{other[1]}' }}; "
-        )
-    pango_script = (
-        "$roots = @(" + roots + "); "
-        '$root = $roots | Where-Object { Test-Path "$_\\usr\\bin\\bash.exe" } '
-        "| Select-Object -First 1; "
-        "if (-not $root) { "
-        "Write-Host \"MSYS2 was not found. Looked in: $($roots -join ', ')\"; "
-        'Write-Host "Install it, or run pacman for pango in its own shell yourself."; '
-        "exit 1 }; " + select_environment + 'Write-Host "Using MSYS2 at $root ($msysEnv)"; '
-        # `--needed` so a rerun is a no-op rather than a reinstall, and
-        # `--noconfirm` because pacman asks otherwise.
-        '& "$root\\usr\\bin\\bash.exe" -lc "pacman -S --noconfirm --needed $pkg"; '
-        "exit $LASTEXITCODE"
-    )
-    # Appended only when absent: a PATH with the same entry on it four
-    # times is what a tool that assumed one run looks like. The directory
-    # follows the environment found above, for the same reason.
-    path_entry = (
-        "$roots = @(" + roots + "); "
-        '$root = $roots | Where-Object { Test-Path "$_\\usr\\bin\\bash.exe" } '
-        "| Select-Object -First 1; "
-        "if (-not $root) { exit 1 }; "
-        + select_environment
-        + '$bin = Join-Path $root "$msysEnv\\bin"; '
-        "$p=[Environment]::GetEnvironmentVariable('Path','User'); "
-        'if ($p -notlike "*$bin*") { '
-        "[Environment]::SetEnvironmentVariable('Path', $p + \";$bin\", 'User') }; "
-        "[Environment]::SetEnvironmentVariable("
-        "'WEASYPRINT_DLL_DIRECTORIES', $bin, 'User')"
-    )
-    if context.guided:
-        # One bounded transaction verifies the installed package files and
-        # expected DLL, reinstalls only when either proof fails, then updates
-        # both persistent and current-process discovery state (#722).
-        pango_script = repair_script(pango_spec(arm64=python_is_arm64))
-    commands = [
-        *([pandoc_install] if pandoc_install is not None else []),
-        ["powershell", "-NoProfile", "-Command", msys2_install],
-        ["powershell", "-NoProfile", "-Command", pango_script],
-        *(
-            [
-                [
-                    sys.executable,
-                    "-c",
-                    "import ctypes, os; "
-                    "ctypes.WinDLL(os.path.join("
-                    "os.environ['WEASYPRINT_DLL_DIRECTORIES'], "
-                    "'libpango-1.0-0.dll'))",
-                ]
-            ]
-            if context.guided
-            else [["powershell", "-NoProfile", "-Command", path_entry]]
-        ),
-    ]
-    if context.guided:
-        commands.append(_windows_font_install_command())
-    return Plan(
-        commands=commands,
-        describe=(
-            f"Upgrade Pandoc to the supported {PANDOC_VERSION} release, then "
-            "prepare the Windows PDF libraries"
-            if upgrade
-            else ""
-        ),
-        action="UPGRADE" if upgrade else "",
-        destructive=upgrade,
-        # Independent of the winget install, so either order works - after
-        # it, so the automated half is not held up behind a manual one.
-        follow_up=(
-            []
-            if context.guided
-            else [
-                "After setup finishes, open a new PowerShell before running build "
-                "commands yourself. prodockit bootstrap has refreshed its own PATH for this run, "
-                "so do not close this window now.",
-                "Install the fonts the PDF uses, which Windows has no package "
-                "manager for: download the desktop (.ttf/.otf) files for Inter and "
-                "JetBrains Mono from fonts.google.com, select them all, right-click, "
-                "and choose 'Install'.",
-            ]
-        ),
-        confirm=("" if context.guided else "Have you installed the fonts?"),
-    )
+    raise AssertionError(f"unsupported platform: {context.platform}")
 
 
 # ---------------------------------------------------------------------------
@@ -3224,7 +2954,7 @@ def _check_project_env(context: Context) -> CheckResult:
     It is a stricter test than it looks. Importing WeasyPrint loads Pango
     and its friends through the system's dynamic linker, so a successful
     import proves both that the Python package is installed *and* that
-    the native libraries the pandoc stage installed can actually be
+    the native libraries the PDF libraries stage installed can actually be
     found. `pip` exiting zero proves neither.
     """
     if (unknown := _needs_config(context, "project_name")) is not None:
@@ -3256,7 +2986,7 @@ def _check_project_env(context: Context) -> CheckResult:
         }[context.platform]
         return _wrong(
             "WeasyPrint is installed but cannot load its graphics libraries - "
-            f"the pandoc stage installs {library_source}"
+            f"the PDF libraries stage installs {library_source}"
         )
     if context.guided and context.platform == MACOS and not _macos_loader_is_configured(context):
         return _wrong(
@@ -3277,13 +3007,6 @@ def _check_project_env(context: Context) -> CheckResult:
             return _wrong(
                 f"the first-path clone has managed files from an older Prodockit release: {names}"
             )
-    pandoc = context.runner.run([str(_venv_command(context, "pandoc")), "--version"])
-    pandoc_version = _pandoc_version(pandoc.stdout) if pandoc.ok else None
-    if pandoc_version != PANDOC_VERSION:
-        return _wrong(
-            f"the project's Pandoc is {pandoc_version or 'missing or unreadable'}; "
-            f"install the supported {PANDOC_VERSION} in {_project_venv(context)}"
-        )
     build_python = _project_build_python(project)
     environment_python = _project_environment_python(context) if build_python else None
     if (
@@ -3463,18 +3186,6 @@ def _plan_project_env(context: Context) -> Plan:
     if not python.exists() or rebuild:
         commands.append([sys.executable, "-m", "venv", str(venv)])
     commands.append([str(python), "-m", "pip", "install", "-r", str(project / "requirements.txt")])
-    pandoc = context.runner.run([str(_venv_command(context, "pandoc")), "--version"])
-    if rebuild or not pandoc.ok or _pandoc_version(pandoc.stdout) != PANDOC_VERSION:
-        commands.append(
-            [
-                str(python),
-                "-m",
-                "prodockit.toolchain",
-                "install-pandoc",
-                "--version",
-                PANDOC_VERSION,
-            ]
-        )
     if context.guided and not context.config.source_url.strip():
         # The first path starts from a replaceable template checkout. Install
         # the renderer and shared assets from Prodockit itself so correctness
@@ -5210,7 +4921,7 @@ STAGES: tuple[Stage, ...] = (
     # needs, but cannot verify them - importing WeasyPrint is what does
     # that, and WeasyPrint is not installed until the project's own
     # environment exists, one stage below (#248).
-    Stage("pandoc", "Pandoc, and the libraries WeasyPrint needs", _check_pandoc, _plan_pandoc),
+    Stage("pandoc", "PDF native libraries", _check_pandoc, _plan_pandoc),
     Stage(
         "project-env",
         "Project environment, dependencies and Adoption component choices",

@@ -23,7 +23,7 @@ def test_native_recipe_does_not_install_system_pandoc(tmp_path, monkeypatch, pla
     ctx = context(tmp_path, platform)
     monkeypatch.setattr(stages, "_windows_python_is_arm64", lambda ctx: False)
     commands = stages._plan_pandoc(ctx, native_only=True).commands
-    assert commands
+    assert bool(commands) is (platform != WINDOWS)
     assert "jgm/pandoc" not in str(commands)
     assert "JohnMacFarlane.Pandoc" not in str(commands)
     assert not any(arg == "pandoc" for command in commands for arg in command)
@@ -36,15 +36,12 @@ def test_native_recipe_does_not_install_system_pandoc(tmp_path, monkeypatch, pla
 
 def test_healthy_native_runtime_requires_no_download(tmp_path, monkeypatch):
     monkeypatch.setattr(runtime, "_context", lambda: context(tmp_path, UBUNTU))
-    monkeypatch.setattr(
-        runtime.shutil, "which", lambda name: pytest.fail("package manager checked")
-    )
     assert not runtime.plan(offline=True).needs_work
 
 
 def test_offline_missing_native_dependency_blocks(tmp_path, monkeypatch):
     monkeypatch.setattr(runtime, "_context", lambda: context(tmp_path, UBUNTU))
-    monkeypatch.setattr(runtime, "_probe", lambda *args, **kwargs: "Inter is missing")
+    monkeypatch.setattr(runtime, "_probe", lambda *args, **kwargs: "Pango is missing")
     assert "online run" in runtime.plan(offline=True).blocked
 
 
@@ -70,29 +67,23 @@ def test_probe_timeout_does_not_trigger_a_reinstall(tmp_path, monkeypatch):
 
 
 @pytest.mark.parametrize("offline", [False, True])
-def test_windows_assessment_checks_fonts_without_probing_weasyprint(
-    tmp_path, monkeypatch, offline
-):
+def test_windows_has_no_machine_level_pdf_runtime(tmp_path, monkeypatch, offline):
     monkeypatch.setattr(runtime, "_context", lambda: context(tmp_path, WINDOWS))
-    monkeypatch.delenv("WEASYPRINT_DLL_DIRECTORIES", raising=False)
-    monkeypatch.setenv("PATH", "session-tools")
-
-    def refresh():
-        monkeypatch.setenv("WEASYPRINT_DLL_DIRECTORIES", "installed-pdf-libraries")
-        monkeypatch.setenv("PATH", "session-tools;installed-font-tools")
-
-    def fonts(ctx):
-        assert "installed-font-tools" in runtime.os.environ["PATH"]
-        return ""
-
-    monkeypatch.setattr(runtime, "refresh_windows_path", refresh)
-    monkeypatch.setattr(runtime, "_font_problem", fonts)
+    monkeypatch.setattr(
+        runtime,
+        "refresh_windows_path",
+        lambda: pytest.fail("Windows PATH must not be changed for the PDF runtime"),
+    )
+    monkeypatch.setattr(
+        runtime,
+        "_font_problem",
+        lambda *_args: pytest.fail("project-local fonts are checked by pdk pdf"),
+    )
     monkeypatch.setattr(
         runtime,
         "_probe",
-        lambda *_args, **_kwargs: pytest.fail("Windows must not probe Python WeasyPrint"),
+        lambda *_args, **_kwargs: pytest.fail("project-local WeasyPrint is checked by pdk pdf"),
     )
-    monkeypatch.setattr(runtime.shutil, "which", lambda name: pytest.fail("unexpected install"))
     assert not runtime.plan(offline=offline).needs_work
 
 
@@ -159,7 +150,6 @@ def test_post_install_probe_must_succeed(tmp_path, monkeypatch):
     monkeypatch.setattr(runtime, "_context", lambda: ctx)
     monkeypatch.setattr(runtime, "plan", lambda **kwargs: runtime.NativePlan((("installer",),)))
     monkeypatch.setattr(runtime, "run_commands", lambda *args, **kwargs: None)
-    monkeypatch.setattr(runtime.shutil, "which", lambda name: None)
     monkeypatch.setattr(runtime, "_probe", lambda *args, **kwargs: "Pango cannot load")
     with pytest.raises(runtime.ToolchainError, match="verification failed"):
         runtime.apply(tmp_path)
@@ -175,7 +165,7 @@ def test_fallback_font_is_not_accepted(tmp_path, monkeypatch, family):
         )
 
     monkeypatch.setattr(runtime.subprocess, "run", run)
-    assert family in REAL_PROBE(context(tmp_path, UBUNTU))
+    assert family in runtime._font_problem(context(tmp_path, UBUNTU))
 
 
 def test_verification_generates_pdf_not_just_import(tmp_path, monkeypatch):

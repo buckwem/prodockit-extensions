@@ -23,6 +23,7 @@ from pathlib import Path
 
 from prodockit._zensical import _installed_zensical_version
 from prodockit.pdf.build import Page, StageReporter, build_pdf, detect_renderer_requirements
+from prodockit.pdf.font_runtime import font_face_css
 from prodockit.pdf.icons import (
     build_icon_registry,
     build_site_icon_registry,
@@ -30,8 +31,13 @@ from prodockit.pdf.icons import (
     discover_legacy_icon_dirs,
 )
 from prodockit.pdf.mermaid import MermaidRenderer, create_mermaid_renderer
+from prodockit.pdf.pandoc_runtime import executable_in_runtime as pandoc_executable_in_runtime
 from prodockit.pdf.release import get_latest_release_tag
-from prodockit.pdf.runtime_prepare import prepare_windows_weasyprint_runtime
+from prodockit.pdf.runtime_prepare import (
+    current_runtime_environment,
+    prepare_runtime_components,
+    prepare_windows_weasyprint_runtime,
+)
 from prodockit.pdf.site import (
     page_html,
     page_metadata,
@@ -72,6 +78,24 @@ RECTO_TITLE_FRONT_MATTER_KEY = "recto_title"
 # every existing project unchanged. A ``-m`` single-page build deliberately
 # ignores this flag because the author has requested that page directly.
 PDF_INCLUDE_FRONT_MATTER_KEY = "pdf_include"
+
+
+def _prepare_pdf_build_runtime(config_path: str) -> tuple[str, str]:
+    """Return the cached Pandoc CLI and explicit project-font CSS."""
+
+    environment = current_runtime_environment()
+    prepared = {
+        result.component: result
+        for result in prepare_runtime_components(
+            config_path,
+            ("pandoc", "fonts"),
+            environment=environment,
+        )
+    }
+    return (
+        str(pandoc_executable_in_runtime(prepared["pandoc"].path, environment)),
+        font_face_css(prepared["fonts"].path),
+    )
 
 
 def _inline_css_urls(css_text: str, css_dir: str) -> str:
@@ -552,6 +576,7 @@ def _build_pdf_from_config(
     if project_config is not None and not Path(output_path).is_absolute():
         build_output_path = str(project_config.root / output_path)
 
+    pandoc_executable, prepared_font_css = _prepare_pdf_build_runtime(config_path)
     prepared_weasyprint = prepare_windows_weasyprint_runtime(config_path)
     weasyprint_executable = (
         str(executable_in_runtime(prepared_weasyprint.path))
@@ -575,14 +600,11 @@ def _build_pdf_from_config(
             admonition_icon_config=admonition_icon_config,
             icon_registry=icon_registry,
             render_mermaid=render_mermaid,
-            # Zensical supplies these documented Material-theme defaults in its
-            # resolved configuration even when a source config has no ``font``
-            # table.  The direct reader deliberately does not call that private
-            # resolver, so carry the same public defaults here.  Prodockit-based
-            # projects still use Inter/JetBrains Mono because their configs name
-            # those fonts explicitly.
-            main_font=font.get("text") or "Roboto",
-            mono_font=font.get("code") or "Roboto Mono",
+            # These are the verified project-local faces prepared above. An
+            # explicit project font remains author-owned and can still select
+            # another installed or stylesheet-provided family.
+            main_font=font.get("text") or "Inter",
+            mono_font=font.get("code") or "JetBrains Mono",
             copyright_text=(extra.get("pdf_copyright") or config.get("copyright") or "").strip(),
             site_name=_css_escape_content_string(config.get("site_name") or ""),
             page_size=extra.get("pdf_page_size") or extra_default("pdf_page_size"),
@@ -622,7 +644,9 @@ def _build_pdf_from_config(
             or extra_default("pdf_table_of_contents_title"),
             include_index=index_settings.include,
             index_title=index_settings.title,
+            pandoc_executable=pandoc_executable,
             weasyprint_executable=weasyprint_executable,
+            font_face_css=prepared_font_css,
             on_stage=on_stage,
         )
     finally:

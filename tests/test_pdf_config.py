@@ -79,6 +79,13 @@ def _page_with_mermaid(_project, source: str) -> str:
     return f'<h1>{source}</h1><pre class="mermaid">flowchart LR; A --&gt; B</pre>'
 
 
+@pytest.fixture(autouse=True)
+def _prepared_project_runtime(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Configuration tests isolate orchestration from provider downloads."""
+
+    monkeypatch.setattr(config, "_prepare_pdf_build_runtime", lambda _path: ("pandoc", ""))
+
+
 @pytest.fixture()
 def project(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     def _make(*, extra: str = "", pandoc_script: str = 'echo "%PDF-1.4 stub" > "$3"') -> Path:
@@ -214,8 +221,8 @@ def test_built_site_candidate_uses_the_documented_build_output(
     assert metadata_paths == [root / "docs" / "index.md", root / "docs" / "chapter1.md"]
     assert captured["kwargs"]["project_root"] == str(root)
     assert captured["kwargs"]["source_page_paths"] == ["index.md", "chapter1.md"]
-    assert captured["kwargs"]["main_font"] == "Roboto"
-    assert captured["kwargs"]["mono_font"] == "Roboto Mono"
+    assert captured["kwargs"]["main_font"] == "Inter"
+    assert captured["kwargs"]["mono_font"] == "JetBrains Mono"
 
 
 def test_built_site_pdf_is_written_to_author_and_published_paths(project) -> None:

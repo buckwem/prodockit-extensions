@@ -15,39 +15,16 @@ For a short reference list that you prefer to write yourself, use
 
 ## Before you start {: #bibliography-requirements }
 
-[Pandoc](https://pandoc.org/) must be installed before you use this extension:
+Pandoc is prepared automatically in this project's `.prodockit/cache/pdf/`
+the first time the extension processes a bibliography. It is verified against
+the version and digest selected by `pdk-pdf.toml`; no host Pandoc installation
+is required.
 
-=== "macOS"
-
-    Install Homebrew first if `brew` is not already available:
-
-    [:simple-homebrew: Install Homebrew](https://brew.sh/){ .md-button .homebrew-button target="_blank" rel="noopener" }
-
-    ```bash
-    brew install pandoc
-    ```
-
-=== "Windows"
-
-    ```powershell
-    winget install --source winget --exact --id JohnMacFarlane.Pandoc
-    ```
-
-=== "Linux (Ubuntu)"
-
-    ```bash
-    sudo apt update
-    sudo apt install pandoc
-    ```
-
-Check the installation:
+To prepare and verify it before a build:
 
 ```bash
-pandoc --version
+pdk pdf --prepare pandoc
 ```
-
-See [Pandoc's installation guide](https://pandoc.org/installing.html) for its
-installers and other operating systems.
 
 ## Enable the extension {: #bibliography-enable }
 
@@ -332,7 +309,7 @@ needs one.
 | Reference list | You write it, by hand, in full | Generated automatically |
 | Citation style | Whatever you typed - one style, fixed | Any CSL style, swappable via one setting |
 | Multi-key citations (`\citeref{a,b}`) | Yes - each key individually linked | Not supported (falls through as literal text) |
-| External dependencies | None | `pandoc` on `PATH`, even without a PDF build |
+| External dependencies | None | Verified project-local Pandoc, prepared automatically even without a PDF build |
 | Editing a reference | Edit the prose by hand, on the references page | Edit the `.bib` entry once, everywhere it's cited updates |
 | Separate References/Bibliography sections | Not built in - would need two hand-authored lists kept in sync manually | Built in - `\bibliography{<file>}{<true\|false>}` generates a strict cited-only list and/or a broader everything-included list, see [Multiple sections](#bibliography-multiple-sections) |
 /// table-caption | <

@@ -58,19 +58,19 @@ def test_missing_font_and_unknown_font_are_both_reported():
     assert "could not verify JetBrains Mono" in evidence.detail
 
 
-def test_bootstrap_unknown_is_warning_not_verified_pass(tmp_path):
+def test_bootstrap_no_longer_checks_host_pdf_fonts(tmp_path):
     from prodockit.bootstrap.config import BootstrapConfig
     from prodockit.bootstrap.model import GITHUB_COM, Context
 
     def run(command, **kwargs):
         if "pandoc" in command[0]:
             return CommandResult(0, "pandoc 3.10.1")
-        if "pango" in command[0]:
-            return CommandResult(0, "pango-view (pango) 1.56.3")
+        if command[0] == "dpkg-query":
+            return CommandResult(0, "1.56.3")
         return CommandResult(127)
 
     context = Context(BootstrapConfig(), GITHUB_COM, UBUNTU, SimpleNamespace(run=run), tmp_path)
     result = _check_pandoc(context)
-    assert result.status is Status.WARNING
-    assert "could not be verified" in result.detail
+    assert result.status is Status.OK
+    assert "project-locally" in result.detail
     assert not result.needs_work

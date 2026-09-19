@@ -245,7 +245,8 @@ install the PDF toolchain merely to make diagnostics pass.
 
 | Check ID | Failure or warning means | Author remediation |
 |---|---|---|
-| `renderer.pandoc` | Pandoc is not on `PATH`, does not run, or reports no version. | Install the version pinned by the project and reopen the terminal. Confirm with `pandoc --version`. Bootstrap-managed projects can use `pdk bootstrap --apply`. |
+| `renderer.pandoc` | The selected project-local Pandoc cache is absent, incompatible, corrupt, or fails its absolute-path version/citeproc probe. | Run `pdk pdf --prepare pandoc`; diagnostics itself never downloads or changes the cache. |
+| `renderer.fonts` | The selected project-local Inter/JetBrains Mono bundle is absent, incompatible, corrupt, or incomplete. | Run `pdk pdf --prepare fonts`; diagnostics itself never downloads or changes the cache. |
 | `renderer.weasyprint` | On Windows x64, the project-local runtime is absent, incompatible, corrupt, or fails its absolute-path CLI probe. Elsewhere, a fresh Python process could not import system-backed WeasyPrint. | On Windows, run `pdk pdf --prepare weasyprint`; diagnostics itself never downloads or changes the cache. On other platforms, run `python -c "import weasyprint; print(weasyprint.__version__)"`, then install the native libraries described in the installation guide. |
 | `renderer.node` | Node is missing or cannot report its version. | Install the project's supported Node version, reopen the terminal, and confirm with `node --version`. |
 | `renderer.npm` | npm is missing or cannot report its version, even if Node itself exists. | Repair or reinstall the Node distribution so `npm --version` works. Avoid mixing Node and npm from different installations on `PATH`. |

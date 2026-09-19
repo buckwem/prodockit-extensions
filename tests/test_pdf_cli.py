@@ -39,12 +39,19 @@ def _write_project(tmp_path: Path) -> None:
 
 
 def _install_fake_pandoc(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, script: str) -> None:
+    import prodockit.pdf.config as pdf_config
+
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir(exist_ok=True)
     pandoc_path = bin_dir / "pandoc"
     pandoc_path.write_text(f"#!/bin/sh\n{script}\n", encoding="utf-8")
     pandoc_path.chmod(pandoc_path.stat().st_mode | stat.S_IEXEC)
     monkeypatch.setenv("PATH", f"{bin_dir}{os.pathsep}{os.environ['PATH']}")
+    monkeypatch.setattr(
+        pdf_config,
+        "_prepare_pdf_build_runtime",
+        lambda _config_path: (str(pandoc_path), ""),
+    )
 
 
 def test_pdf_command_builds_using_the_default_config_file(

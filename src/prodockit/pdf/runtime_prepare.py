@@ -1,13 +1,7 @@
 # Copyright (c) 2026 Mark Buckwell and contributors
 # SPDX-License-Identifier: MIT
 
-"""Provider boundary for explicit project-local PDF runtime preparation.
-
-G1 intentionally ships no network providers.  Component gates add approved
-providers only after their artifacts, licences, platform coverage and probes
-have passed their own evidence work.  Local fixtures exercise this complete
-orchestration path in the meantime.
-"""
+"""Provider boundary for explicit project-local PDF runtime preparation."""
 
 from __future__ import annotations
 
@@ -81,11 +75,19 @@ def default_runtime_providers(
 ) -> Mapping[str, RuntimeProvider]:
     """Return only providers qualified for this release and host family."""
 
+    from prodockit.pdf.font_runtime import FontProvider
+    from prodockit.pdf.pandoc_runtime import PandocProvider
+
+    providers: dict[str, RuntimeProvider] = {
+        "fonts": FontProvider(),
+        "pandoc": PandocProvider(),
+    }
     if environment.system != "windows":
-        return {}
+        return providers
     from prodockit.pdf.weasyprint_runtime import WindowsWeasyPrintProvider
 
-    return {"weasyprint": WindowsWeasyPrintProvider()}
+    providers["weasyprint"] = WindowsWeasyPrintProvider()
+    return providers
 
 
 def normalise_requested_components(requested: Sequence[str]) -> tuple[str, ...]:
@@ -173,6 +175,40 @@ def prepare_windows_weasyprint_runtime(
     return prepared[0]
 
 
+def prepare_pandoc_runtime(
+    config_file: str | Path,
+    *,
+    providers: Mapping[str, RuntimeProvider] | None = None,
+    environment: RuntimeEnvironment | None = None,
+) -> PreparationResult:
+    """Prepare the single Pandoc runtime shared by PDF and bibliography."""
+
+    prepared = prepare_runtime_components(
+        config_file,
+        ("pandoc",),
+        providers=providers,
+        environment=environment,
+    )
+    return prepared[0]
+
+
+def prepare_font_runtime(
+    config_file: str | Path,
+    *,
+    providers: Mapping[str, RuntimeProvider] | None = None,
+    environment: RuntimeEnvironment | None = None,
+) -> PreparationResult:
+    """Prepare the pinned project-local PDF font files."""
+
+    prepared = prepare_runtime_components(
+        config_file,
+        ("fonts",),
+        providers=providers,
+        environment=environment,
+    )
+    return prepared[0]
+
+
 __all__ = [
     "RuntimeEnvironment",
     "RuntimeProvider",
@@ -180,6 +216,8 @@ __all__ = [
     "current_runtime_environment",
     "default_runtime_providers",
     "normalise_requested_components",
+    "prepare_font_runtime",
+    "prepare_pandoc_runtime",
     "prepare_runtime_components",
     "prepare_windows_weasyprint_runtime",
 ]

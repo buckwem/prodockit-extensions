@@ -53,9 +53,8 @@ def _context(
 
 @pytest.mark.parametrize("platform", [MACOS, WINDOWS, UBUNTU])
 @pytest.mark.parametrize("source_url", ["", "group/existing"])
-@pytest.mark.parametrize("version", [None, "3.11", "3.10.1"])
-def test_project_pandoc_is_exact_local_and_repeatable(
-    tmp_path, monkeypatch, platform, source_url, version
+def test_project_environment_does_not_install_pandoc(
+    tmp_path, monkeypatch, platform, source_url
 ):
     context = _context(tmp_path, platform=platform, source_url=source_url)
     project = context.config.resolved_project_dir(context.home)
@@ -67,24 +66,10 @@ def test_project_pandoc_is_exact_local_and_repeatable(
     monkeypatch.setattr(stages, "_project_venv_is_structurally_complete", lambda c: True)
     monkeypatch.setattr(stages, "_macos_loader_is_configured", lambda c: True)
     monkeypatch.setattr(stages, "_imports_from_project_venv", lambda c, m: CommandResult(0))
-    local = stages._venv_command(context, "pandoc")
-    context = replace(
-        context,
-        runner=CliFakeRunner(
-            {
-                str(local): CommandResult(0, f"pandoc {version}\n")
-                if version
-                else CommandResult(1),
-            }
-        ),
-    )
     result = stages._check_project_env(context)
-    assert result.status is (Status.OK if version == stages.PANDOC_VERSION else Status.WRONG)
-    command = [str(python), "-m", "prodockit.toolchain", "install-pandoc", "--version", "3.10.1"]
+    assert result.status is Status.OK
     plan = stages._plan_project_env(context)
-    assert (command in plan.commands) is (version != stages.PANDOC_VERSION)
-    local.touch()
-    assert stages.pandoc_command(context) == str(local)
+    assert not any("install-pandoc" in command for command in plan.commands)
 
 
 def _pushed_context(
@@ -177,14 +162,16 @@ def test_pandoc_version_parser_handles_malformed_and_prefixed_output(
     assert stages._pandoc_version(output) == expected
 
 
-def test_pandoc_stage_reports_an_unreadable_installed_version(tmp_path: Path) -> None:
-    runner = CliFakeRunner({"pandoc --version": CommandResult(0, "pandoc")})
+def test_pdf_native_stage_reports_an_unreadable_pango_version(tmp_path: Path) -> None:
+    runner = CliFakeRunner(
+        {"pango-view --version": CommandResult(0, "pango-view development")}
+    )
 
     result = stages._check_pandoc(_context(tmp_path, runner=runner))
 
     assert result.status is Status.WARNING
     assert not result.needs_work
-    assert "version could not be read" in result.detail
+    assert "Pango's version could not be read" in result.detail
 
 
 def test_font_fallback_handles_an_empty_font_directory(tmp_path: Path) -> None:
@@ -629,9 +616,7 @@ def test_windows_pandoc_plan_is_independent_of_python_architecture(
     plan = stages._plan_pandoc(_context(tmp_path, platform=WINDOWS, runner=runner))
     rendered = " ".join(" ".join(command) for command in plan.commands)
 
-    assert "JohnMacFarlane.Pandoc" in rendered
-    assert "pango" not in rendered.lower()
-    assert "MSYS2" not in rendered
+    assert not rendered
 
 
 def _write_usable_github_keypair(tmp_path: Path) -> None:

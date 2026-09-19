@@ -10,6 +10,7 @@ from pathlib import Path
 
 import pytest
 
+from prodockit.pdf import runtime_download
 from prodockit.pdf import weasyprint_runtime as runtime
 from prodockit.pdf.runtime_config import ComponentPolicy
 from prodockit.pdf.runtime_prepare import (
@@ -80,7 +81,9 @@ def test_download_is_bounded_to_the_reviewed_size_and_hosts(
             return payload
 
     monkeypatch.setattr(runtime, "WEASYPRINT_ASSET_BYTES", len(payload))
-    monkeypatch.setattr(runtime, "_open_download", lambda _request, _timeout: Response())
+    monkeypatch.setattr(
+        runtime_download, "_open_download", lambda _request, _timeout: Response()
+    )
     destination = tmp_path / "artifact.zip"
 
     runtime._download_official_artifact(runtime.WEASYPRINT_ASSET_URL, destination)

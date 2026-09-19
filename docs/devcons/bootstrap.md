@@ -378,9 +378,8 @@ repositories on every host.
 pdk diag
 ```
 
-Bootstrap installs and verifies Pandoc **3.10.1** inside the project
-environment, even if the system has a newer Pandoc. It leaves the system
-installation alone and records Mermaid and maths as the project's selected components
+Bootstrap leaves Pandoc and PDF fonts to `pdk pdf`, which prepares verified
+archives in the project cache on first use. It records Mermaid and maths as the project's selected components
 in `.prodockit-components.toml`. A later `pdk adopt` can therefore repair their
 installed software without asking you to configure those choices first.
 

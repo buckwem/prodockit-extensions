@@ -123,13 +123,13 @@ def test_the_documented_floors_match_the_declared_ones() -> None:
     assert not wrong, "\n".join(wrong)
 
 
-def test_pandoc_and_weasyprint_are_not_filed_as_the_same_kind_of_thing() -> None:
-    """Document the platform-specific WeasyPrint runtime and external Pandoc."""
+def test_pandoc_and_weasyprint_have_distinct_project_runtime_boundaries() -> None:
+    """Document project-local Pandoc and platform-specific WeasyPrint."""
     page = REQUIREMENTS.read_text(encoding="utf-8")
 
     assert "Windows x64 uses the official digest-pinned WeasyPrint 70" in page
     assert "macOS and Linux currently use a separately installed Python command" in page
-    assert "Genuinely not a Python package" in page
+    assert "downloads the verified official archive into the project cache" in page
 
 
 def test_the_versions_bootstrap_enforces_are_the_ones_documented() -> None:
@@ -267,7 +267,6 @@ def test_reader_facing_homebrew_install_routes_link_to_the_official_installer() 
 
     routes = (
         INSTALLATION,
-        REPO / "docs" / "extensions" / "bibliography.md",
         REPO / "docs" / "pdf.md",
     )
     for path in routes:

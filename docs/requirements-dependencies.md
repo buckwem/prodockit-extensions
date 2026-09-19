@@ -60,7 +60,8 @@ pip cannot install and the features that use them.
 | Requirement {: width="36%" } | Needed for |
 | --- | --- |
 | \index{dependencies!`weasyprint`} | `prodockit.pdf`. Windows x64 uses the official digest-pinned WeasyPrint 70 standalone artifact cached by `pdk pdf`; macOS and Linux currently use a separately installed Python command and native libraries. |
-| \index{dependencies!`pandoc`} (>= 3, builds pin 3.10.1) | `prodockit.pdf`, and `prodockit.bibliography` even without a PDF build. Genuinely not a Python package - there is nothing for `pip` to install |
+| \index{dependencies!`pandoc`} (3.10.1) | `prodockit.pdf`, and `prodockit.bibliography` even without a PDF build. `pdk pdf` downloads the verified official archive into the project cache on first use. |
+| Inter 4.1 and JetBrains Mono 2.304 | `prodockit.pdf`. `pdk pdf` assembles and verifies a minimal project-local OFL font bundle; host font installation is not used. |
 | `mathjax-full` (Node >= 22) | TeX maths in the PDF and website verification |
 | Chrome or Chromium | website verification for MathJax; default Mermaid PDF rendering does not use it |
 | A citation style (`.csl`) | only `prodockit.bibliography`. The standard style is fetched and validated by Bootstrap or Adopt; custom styles remain author-owned - see below |
@@ -87,15 +88,11 @@ installation can fetch the supported standard style with:
 curl -fsSL -o harvard-cite-them-right.csl "https://www.zotero.org/styles/harvard-cite-them-right"
 ```
 
-WeasyPrint is worth separating from Pandoc rather than filing both as external
-binaries: one is a `pip install` away and the other is not.
-
 Pandoc is version-sensitive in a way that changes output rather than breaking
 the build: a major version below 3 renders code blocks as justified prose, and
-the builds pin an exact release because 3.x releases have disagreed about the
-same source. Bootstrap installs and verifies Pandoc 3.10.1 inside the project's
-virtual environment on every supported operating system. The system package
-can remain at another version; activate the project environment to use its pin.
+3.x releases have disagreed about the same source. PDF and bibliography paths
+therefore resolve the same absolute executable from `.prodockit/cache/pdf/`;
+Bootstrap, Adopt, `PATH`, and the project's virtual environment do not select it.
 See [Version pinning and
 drift](devcons/pinning-drift.md).
 
