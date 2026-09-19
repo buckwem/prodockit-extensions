@@ -51,9 +51,10 @@ are supported by `prodockit.citations`, not by the BibTeX extension.
 **What you see:** a PDF contains Mermaid source or TeX rather than a rendered
 diagram or formula.
 
-**What to do:** run `prodockit init-tools`, install the reported Node tools, and
-rebuild. The website can render these features in the browser, but the PDF must
-convert them before WeasyPrint runs.
+**What to do:** run `pdk diag`, then rerun `pdk pdf`. The PDF command prepares
+the project-local Mermaid or MathJax cache transparently when the content needs
+it. If diagnostics reports a missing Node runtime for maths, install Node with
+the operating-system package manager and rerun; npm is not required.
 
 ## Browser and PDF layouts differ
 

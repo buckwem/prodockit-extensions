@@ -450,9 +450,9 @@ pdk adopt --configure
 Both default to **No** for a new site. Existing installations or saved choices
 may already enable them; check before accepting.
 
-If either is selected, Adopt will check Node.js and npm and offer installation
-or repair. You do not need to install them manually first. On macOS, Homebrew
-must already be available; administrator approval may be needed.
+Adopt records the selection without installing a renderer. The first `pdk pdf`
+prepares the selected project-local cache. Mermaid needs only Python; PDF
+mathematics also needs Node.js on `PATH`, installed separately, but not npm.
 
 ////
 
@@ -948,8 +948,7 @@ third-party software; these are the project-local files managed for Prodockit.
 | `.prodockit-components.toml` | Save the selected optional components. | Write a generated manifest containing the selected component choices; do not use this file for unrelated custom settings. |
 | `.prodockit-adopt.toml` | Record which template settings have already been processed. | Read the [review ledger](commands/adopt.md#template-settings-and-the-review-ledger), skip previously processed settings, then save the updated ledger after valid configuration has been written. Deleting it allows settings to be reviewed again on a later run. |
 | `docs/stylesheets/pdk.css`, `docs/stylesheets/pdk-pdf.css`, `docs/javascripts/pdk.js` | Install the [managed styles and behaviour](commands/shared-files.md) supplied by Prodockit. | Replace these managed files with the installed release's copies when the activity runs. Put your customisations in the [user-managed files](stylesheets.md#keep-managed-and-author-styles-separate) in the first table, not here. |
-| `tools/mathjax/package.json`, `tools/mathjax/package-lock.json`, `tools/mathjax/tex2svg.js` | Align the selected maths renderer with the release. | Use the same compare, backup and replace process, under `.prodockit-adopt-backups/renderers/mathjax/`. |
-| `docs/javascripts/mathjax.js` and MathJax assets under `docs/javascripts/vendor/` | Generate the selected website maths configuration and runtime assets with [`pdk init-mathjax`](commands/init-mathjax.md). | Regenerate these installed assets from the MathJax setup; treat them as generated files, not places for custom edits. |
+| `.prodockit/cache/pdf/` | Cache verified PDF-only Pandoc, fonts, Mermaid and MathJax runtimes on demand. | `pdk pdf` manages this ignored project-local cache; use `pdk pdf --prepare COMPONENT` to prepare a component explicitly. Website maths remains configured separately according to Zensical's MathJax instructions. |
 | `pdk.yml` | Propose GitHub build instructions for manual merging. | Create at the project root only when an existing GitHub workflow is not recognised and no proposal exists. Never overwrite an existing proposal; the root-level file is not an active GitHub workflow. |
 | `.gitlab-pdk.yml` | Propose GitLab build instructions for manual merging. | Create only when `.gitlab-ci.yml` exists and no proposal is present. Never overwrite an existing proposal. Its hidden example job does not run by itself. |
 /// table-caption | <

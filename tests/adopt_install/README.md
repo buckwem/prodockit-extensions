@@ -5,15 +5,10 @@ GitHub-hosted Ubuntu and Windows x64 machines, plus Ubuntu, Windows and macOS
 ARM64 machines. It uses disposable TOML and YAML projects and covers the core,
 Mermaid-only, maths-only and combined paths.
 
-A release pull request also runs `tools/adopt_native_upgrade.py` on all five
-runner and architecture combinations. That slower gate installs published
-Prodockit 0.47.0, uses it to adopt and build a real Zensical project with both
-optional renderers, then installs the candidate wheel over the same environment.
-It verifies that the requirement floor and managed stylesheet are upgraded,
-that the existing site still builds, and that applying adoption again is clean.
-It is deliberately not repeated on ordinary pull requests or after the release
-merge; the normal installed-wheel matrix provides the quicker change-level
-coverage.
+The same workflow also exercises Template Sync upgrade, downgrade and
+fresh-process handoff on all five runner and architecture combinations. Adopt
+does not install PDF runtimes, so its matrix needs no npm, browser, MSYS2 or
+native-runtime preparation.
 
 ## Create a minimal site for manual testing
 

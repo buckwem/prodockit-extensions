@@ -40,14 +40,6 @@ jobs:
         id: deployment
 """
 
-MATHJAX = """      - name: Restore optional MathJax website files
-        run: |
-          if [ -f tools/mathjax/package.json ]; then
-            npm ci --prefix tools/mathjax
-            pdk init-mathjax
-          fi
-"""
-
 PROPOSAL_NOTICE = (
     "# Proposed Prodockit build instructions — review and merge manually.\n"
     "# This root-level file is not activated by Adopt.\n"
@@ -65,7 +57,7 @@ def _requirements(root: Path) -> str:
 def github_content(root: Path) -> str:
     return STOCK_GITHUB.replace(
         "      - run: pip install zensical\n",
-        f"      - run: python -m pip install -r {_requirements(root)}\n" + MATHJAX,
+        f"      - run: python -m pip install -r {_requirements(root)}\n",
     )
 
 
@@ -79,13 +71,6 @@ def gitlab_content(root: Path) -> str:
   image: python:3.14
   before_script:
     - python -m pip install -r {_requirements(root)}
-    - |
-      if [ -f tools/mathjax/package.json ]; then
-        apt-get update
-        apt-get install -y nodejs npm
-        npm ci --prefix tools/mathjax
-        pdk init-mathjax
-      fi
   script:
     - zensical build --clean --strict
 # Keep your existing Pages publish directory and deployment configuration.

@@ -917,10 +917,9 @@ class Status(Enum):
     """Whether a stage is set up.
 
     `WRONG` is separate from `MISSING` deliberately. Git installed but with
-    no `user.email` set, or MSYS2 present without `pango`, is not the same
-    as absent - it is the state a rerun exists to repair, and reporting it
-    as "missing" would tell a reader to install something they already
-    have.
+    no `user.email` set is not the same as absent - it is the state a rerun
+    exists to repair, and reporting it as "missing" would tell a reader to
+    install something they already have.
     """
 
     OK = "ok"

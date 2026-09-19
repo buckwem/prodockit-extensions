@@ -85,7 +85,6 @@ _ALL_RUNTIME_FILES = {
     "src/prodockit/diagnostics.py",
     "src/prodockit/environment.py",
     "src/prodockit/renderer_health.py",
-    "src/prodockit/pdf_fonts.py",
     "src/prodockit/renderer_resilience.py",
     "src/prodockit/weasyprint_probe.py",
     "src/prodockit/installer_process.py",
@@ -102,13 +101,8 @@ _ADOPT_RUNTIME_FILES = {
     "src/prodockit/adopt_browser.py",
     "src/prodockit/adopt_workflow.py",
     "src/prodockit/adopt_package_manager.py",
-    "src/prodockit/adopt_node.py",
-    "src/prodockit/adopt_pdf_runtime.py",
-    "src/prodockit/adopt_renderers.py",
     "src/prodockit/adopt_settings.py",
     "src/prodockit/adopt_toml.py",
-    "src/prodockit/init_tools.py",
-    "src/prodockit/mathjax.py",
 }
 
 _PDF_RUNTIME_FILES = {
@@ -159,26 +153,18 @@ _COMPONENT_FILES: dict[str, frozenset[str]] = {
     "src/prodockit/text_encoding.py": frozenset({"adopt", "pdf", "diagnostics"}),
     "src/prodockit/config_diagnostics.py": frozenset({"diagnostics"}),
     "src/prodockit/csl.py": frozenset({"adopt", "diagnostics"}),
-    "src/prodockit/init_tools.py": frozenset({"adopt", "bootstrap", "diagnostics"}),
-    "src/prodockit/mathjax.py": frozenset({"adopt", "bootstrap", "diagnostics"}),
     "src/prodockit/pins.py": frozenset({"adopt", "diagnostics"}),
     "src/prodockit/toolchain.py": frozenset({"adopt", "diagnostics"}),
     "src/prodockit/vscode_extensions.py": frozenset({"bootstrap"}),
-    "src/prodockit/windows_pango.py": frozenset({"adopt", "bootstrap", "diagnostics"}),
-    "src/prodockit/windows_msys2.py": frozenset({"adopt", "bootstrap", "diagnostics"}),
     "src/prodockit/template_sync.py": frozenset({"adopt"}),
     "src/prodockit/template_prerequisites.py": frozenset({"adopt"}),
     "src/prodockit/project_integrity.py": frozenset({"diagnostics"}),
     "src/prodockit/settings.py": frozenset({"pdf", "diagnostics"}),
     "src/prodockit/sync_repo.py": frozenset({"bootstrap", "pdf"}),
     "tools/adopt_acceptance.py": frozenset({"adopt"}),
-    "tools/adopt_native_upgrade.py": frozenset({"adopt"}),
-    "tools/windows_native_acceptance.py": frozenset({"adopt", "bootstrap", "diagnostics"}),
     "tools/template_sync_acceptance.py": frozenset({"adopt"}),
     "tools/_diagnostics_repair_acceptance_driver.py": frozenset({"diagnostics"}),
     "tools/diagnostics_repair_acceptance.py": frozenset({"diagnostics"}),
-    "tools/adopt_toolchain_acceptance.py": frozenset({"diagnostics"}),
-    "tools/_adopt_toolchain_acceptance_driver.py": frozenset({"diagnostics"}),
     "tools/check_shared_file_wheel.py": frozenset({"pdf"}),
     "tools/pdf_from_site_acceptance.py": frozenset({"pdf"}),
     "tools/pdf_runtime_g4_acceptance.py": frozenset({"pdf"}),
@@ -208,7 +194,6 @@ _COMPONENT_FILES: dict[str, frozenset[str]] = {
     "tools/release_gate_state.py": frozenset({"bootstrap"}),
     "tools/_bootstrap_acceptance_driver.py": frozenset({"bootstrap"}),
     "tools/bootstrap_native_install.py": frozenset({"bootstrap"}),
-    "tools/bootstrap_native_upgrade.py": frozenset({"bootstrap"}),
     "tools/native_download.py": frozenset({"bootstrap"}),
     ".github/workflows/adopt-install.yml": frozenset({"adopt"}),
     ".github/workflows/diag-repair.yml": frozenset({"diagnostics"}),
@@ -337,7 +322,6 @@ def output_lines(
     scope: Scope,
     *,
     main: bool = False,
-    adopt_native: bool = False,
     bootstrap_native: bool = False,
 ) -> tuple[str, ...]:
     """Format values for ``GITHUB_OUTPUT``.
@@ -353,7 +337,6 @@ def output_lines(
         f"pdf={'true' if scope.pdf else 'false'}",
         f"bootstrap={'true' if scope.bootstrap else 'false'}",
         f"diagnostics={'true' if scope.diagnostics else 'false'}",
-        f"adopt-native={'true' if adopt_native else 'false'}",
         f"bootstrap-native={'true' if bootstrap_native else 'false'}",
     )
 
@@ -370,14 +353,7 @@ _NATIVE_BOOTSTRAP_FILES = {
     ".github/workflows/bootstrap-install.yml",
     "tools/ci_scope.py",
     "tools/bootstrap_native_install.py",
-    "tools/bootstrap_native_upgrade.py",
     "tools/native_download.py",
-}
-
-_NATIVE_ADOPT_FILES = {
-    ".github/workflows/adopt-install.yml",
-    "tools/adopt_native_upgrade.py",
-    "tools/ci_scope.py",
 }
 
 
@@ -420,48 +396,6 @@ def bootstrap_native_for_event(
         return True
     if any(path in _NATIVE_BOOTSTRAP_FILES for path in changes.paths):
         return True
-    try:
-        pull = event["pull_request"]
-        base = _sha(pull["base"]["sha"])
-        head = _sha(pull["head"]["sha"])
-        return _project_version_at(base, git=git) != _project_version_at(head, git=git)
-    except (KeyError, TypeError, UnicodeError, ValueError, RuntimeError, tomllib.TOMLDecodeError):
-        return True
-
-
-def adopt_native_for_event(
-    event_name: str,
-    event: dict[str, Any],
-    changes: ChangedRange,
-    *,
-    git: GitRunner = _run_git,
-) -> bool:
-    """Select the real Adopt upgrade for releases and its own test code.
-
-    The ordinary installed-wheel matrix exercises Adopt changes on every
-    relevant pull request.  This slower gate downloads an older published
-    Prodockit release, creates a fully adopted project, and upgrades it with
-    the candidate wheel on all five architectures.  A package version change
-    is therefore the normal boundary.  Changes to the native workflow, harness
-    or selector also exercise the gate before those changes can be merged, and
-    a manual dispatch provides an explicit diagnostic rerun.  It is not
-    repeated for the resulting push, schedules, or ordinary Adopt work.
-
-    If a pull request changes ``pyproject.toml`` but either version cannot be
-    read, select the gate rather than risk mistaking a malformed release pull
-    request for ordinary work.
-    """
-
-    if event_name == "workflow_dispatch":
-        return True
-    if event_name != "pull_request":
-        return False
-    if changes.full:
-        return True
-    if any(path in _NATIVE_ADOPT_FILES for path in changes.paths):
-        return True
-    if "pyproject.toml" not in changes.paths:
-        return False
     try:
         pull = event["pull_request"]
         base = _sha(pull["base"]["sha"])
@@ -558,7 +492,6 @@ def _write_summary(
     changes: ChangedRange,
     classification: Classification,
     *,
-    adopt_native: bool = False,
     bootstrap_native: bool = False,
 ) -> None:
     path = os.environ.get("GITHUB_STEP_SUMMARY")
@@ -580,7 +513,6 @@ def _write_summary(
         f"- Range: {changes.reason}",
         f"- Python: {', '.join(classification.scope.python_matrix)}",
         f"- Native matrices: {', '.join(selected) if selected else 'none'}",
-        "- Real Adopt project upgrade: " + ("selected" if adopt_native else "not selected"),
         "- Real Bootstrap package installs: "
         + ("selected" if bootstrap_native else "not selected"),
         "",
@@ -608,7 +540,6 @@ def main(argv: list[str] | None = None) -> int:
 
     event_name = ""
     event: dict[str, Any] = {}
-    adopt_native = False
     bootstrap_native = False
     if args.all:
         changes = ChangedRange(full=True, reason="all scopes requested")
@@ -629,7 +560,6 @@ def main(argv: list[str] | None = None) -> int:
             if changes.full
             else classify_details(changes.paths)
         )
-        adopt_native = adopt_native_for_event(event_name, event, changes)
         bootstrap_native = bootstrap_native_for_event(event_name, event, changes)
     else:
         changes = ChangedRange(paths=tuple(sys.stdin.read().splitlines()), reason="stdin paths")
@@ -639,7 +569,6 @@ def main(argv: list[str] | None = None) -> int:
         "\n".join(
             output_lines(
                 classification.scope,
-                adopt_native=adopt_native,
                 bootstrap_native=bootstrap_native,
             )
         )
@@ -647,7 +576,6 @@ def main(argv: list[str] | None = None) -> int:
     _write_summary(
         changes,
         classification,
-        adopt_native=adopt_native,
         bootstrap_native=bootstrap_native,
     )
     return 0

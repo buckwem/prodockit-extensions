@@ -22,10 +22,9 @@ import os
 import platform
 import shutil
 import subprocess
-import sys
 import tempfile
 import time
-from collections.abc import Callable, Sequence
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
@@ -115,29 +114,6 @@ def _winget_remove(identifier: str) -> None:
     )
 
 
-def _remove_windows_registered_node(
-    run: Callable[..., subprocess.CompletedProcess[str]],
-) -> None:
-    """Remove runner-image Node registrations that WinGet cannot see."""
-    script = (
-        "$roots = @("  # machine x64, machine x86, and current user
-        "'HKLM:\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\*',"
-        "'HKLM:\\Software\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\*',"
-        "'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\*'); "
-        "$entries = Get-ItemProperty -Path $roots -ErrorAction SilentlyContinue | "
-        "Where-Object { $_.DisplayName -like 'Node.js*' }; "
-        "foreach ($entry in $entries) { "
-        "if ($entry.UninstallString -match '\\{[0-9A-Fa-f-]+\\}') { "
-        "$product = $Matches[0]; "
-        "Write-Host \"Removing registered $($entry.DisplayName) $product\"; "
-        "$process = Start-Process msiexec.exe -ArgumentList "
-        "@('/x', $product, '/qn', '/norestart') -Wait -PassThru; "
-        "if ($process.ExitCode -notin @(0, 1605, 1614, 3010)) { "
-        "exit $process.ExitCode } } }; exit 0"
-    )
-    run(["powershell", "-NoProfile", "-Command", script])
-
-
 def _ensure_windows_winget() -> None:
     """Prepare WinGet where a disposable Windows runner omits App Installer.
 
@@ -205,30 +181,9 @@ def _ensure_windows_winget() -> None:
     os.environ["PATH"] = str(executable.parent) + os.pathsep + os.environ.get("PATH", "")
 
 
-def _windows_msys_roots() -> tuple[Path, ...]:
-    """Return absolute MSYS2 roots using Windows drive-root syntax.
-
-    ``Path("C:") / "msys64"`` is drive-relative on Windows and renders as
-    ``C:msys64`` rather than ``C:\\msys64``.  The native release cleanup then
-    missed the runner's preinstalled Pango package, letting Bootstrap mistake
-    stale files for a completed fresh installation.
-    """
-
-    system_drive = os.environ.get("SYSTEMDRIVE", "C:").rstrip("\\/") or "C:"
-    values = [system_drive + r"\msys64"]
-    for variable in ("LOCALAPPDATA", "PROGRAMFILES"):
-        base = os.environ.get(variable, "").rstrip("\\/")
-        if base:
-            suffix = r"\Programs\msys64" if variable == "LOCALAPPDATA" else r"\msys64"
-            values.append(base + suffix)
-    return tuple(Path(value) for value in values)
-
-
 def cleanup_ephemeral_runner(
     recipe: str,
     home: Path,
-    *,
-    preserve_msys2: bool = False,
 ) -> None:
     """Remove target tools, but only from a disposable GitHub runner."""
 
@@ -239,7 +194,7 @@ def cleanup_ephemeral_runner(
     if recipe == MACOS:
         for package in ("visual-studio-code",):
             _brew_remove(package, cask=True)
-        for package in ("git", "pango", "node"):
+        for package in ("git",):
             _brew_remove(package)
         vscode_app = Path("/Applications/Visual Studio Code.app")
         if vscode_app.exists():
@@ -249,71 +204,16 @@ def cleanup_ephemeral_runner(
             "code",
             "git",
             "git-man",
-            "nodejs",
-            "chromium-browser",
         ):
             _apt_remove(package)
     elif recipe == WINDOWS:
         _ensure_windows_winget()
-        roots = _windows_msys_roots()
-        packages = (
-            "mingw-w64-ucrt-x86_64-pango",
-            "mingw-w64-clang-aarch64-pango",
-        )
-        for root in roots:
-            bash = root / "usr" / "bin" / "bash.exe"
-            if bash.is_file():
-                for package in packages:
-                    _run(
-                        [
-                            str(bash),
-                            "-lc",
-                            f"pacman -Rdd --noconfirm {package} >/dev/null 2>&1 || true",
-                        ],
-                        check=False,
-                    )
         identifiers = [
             "Microsoft.VisualStudioCode",
             "Git.Git",
-            "OpenJS.NodeJS.LTS",
         ]
-        # Removing MSYS2 after the first route can hang indefinitely on the
-        # Windows ARM64 hosted image even after its package processes have
-        # stopped.  The upgrade fixture removes both Pango architectures above,
-        # so retaining the manager for its second route still exercises a real
-        # Pango install and avoids spending 15 minutes in runner-only cleanup.
-        del preserve_msys2
         for identifier in identifiers:
             _winget_remove(identifier)
-        # Hosted images sometimes register Node with Windows Installer but
-        # not WinGet. Leaving that hidden product behind makes the subsequent
-        # clean-install MSI fail with 1603 even after bounded retries.
-        _remove_windows_registered_node(_run)
-        # Hosted images can retain the MSYS2 directory and the per-user DLL
-        # setting after the package registration is removed. Bootstrap then
-        # sees an apparently usable Pango during an intermediate recheck and
-        # skips the commands that configure the fresh installation. Native
-        # release tests deliberately start from a genuinely clean machine.
-        os.environ.pop("WEASYPRINT_DLL_DIRECTORIES", None)
-        os.environ["PATH"] = os.pathsep.join(
-            part
-            for part in os.environ.get("PATH", "").split(os.pathsep)
-            if "msys64\\ucrt64\\bin" not in part.lower()
-            and "msys64\\clangarm64\\bin" not in part.lower()
-        )
-        _run(
-            [
-                "powershell",
-                "-NoProfile",
-                "-Command",
-                "[Environment]::SetEnvironmentVariable("
-                "'WEASYPRINT_DLL_DIRECTORIES', $null, 'User'); "
-                "$path = [Environment]::GetEnvironmentVariable('Path', 'User'); "
-                "$kept = @($path -split ';' | Where-Object { $_ -and $_ -notmatch "
-                "'\\msys64\\(ucrt64|clangarm64)\\bin\\?$' }); "
-                "[Environment]::SetEnvironmentVariable('Path', ($kept -join ';'), 'User')",
-            ]
-        )
     else:  # pragma: no cover - guarded by prodockit's platform resolver
         raise NativeInstallError(f"unsupported Bootstrap recipe: {recipe}")
 
@@ -337,18 +237,8 @@ class AbsentPlanningRunner:
     ) -> CommandResult:
         del cwd, timeout, capture
         words = list(command)
-        if words[:2] == ["dpkg", "--print-architecture"]:
-            architecture = "arm64" if _is_arm64() else "amd64"
-            return CommandResult(0, architecture + "\n")
         if words[:2] == ["brew", "--prefix"]:
             return CommandResult(0, "/opt/homebrew\n" if _is_arm64() else "/usr/local\n")
-        if words and words[0] == sys.executable and "-c" in words:
-            script = words[words.index("-c") + 1]
-            if "int.from_bytes" in script:
-                return CommandResult(0, "0xaa64\n" if _is_arm64() else "0x8664\n")
-            return CommandResult(0)
-        if words[:2] == ["fc-list", ":"]:
-            return CommandResult(0, "")
         return CommandResult(127, stderr=f"planned as absent: {words[0] if words else ''}")
 
 
@@ -420,20 +310,10 @@ def run_native_install(wheel: Path, report_path: Path) -> dict[str, Any]:
             guided=True,
         )
         selected = {stage.id: stage for stage in STAGES}
-        for stage_id in ("vscode", "git", "pandoc", "project-env", "node", "extensions"):
+        for stage_id in ("vscode", "git", "project-env", "extensions"):
             stage = selected[stage_id]
             plan = stage.plan(planning)
             if not plan.commands:
-                if stage_id == "pandoc" and recipe == WINDOWS:
-                    records.append(
-                        {
-                            "id": stage_id,
-                            "commands": [],
-                            "verified": "project-local PDF runtimes need no Windows setup",
-                            "ok": True,
-                        }
-                    )
-                    continue
                 raise NativeInstallError(f"{stage_id} produced no real install commands")
             print(f"\nStage: {stage.summary}", flush=True)
             result = apply_stage(real, stage, plan, progress=_progress)

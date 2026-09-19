@@ -28,9 +28,6 @@ def _supported_toolchain(monkeypatch: pytest.MonkeyPatch) -> None:
         "prodockit.toolchain._fresh_distribution_versions",
         lambda packages: {package: TESTED_VERSIONS[package] for package in packages},
     )
-    monkeypatch.setattr(
-        "prodockit.toolchain.installed_pandoc_version", lambda: TESTED_VERSIONS["pandoc"]
-    )
     monkeypatch.setattr("prodockit.adopt._interpreter_problem", lambda _root: None)
 
 

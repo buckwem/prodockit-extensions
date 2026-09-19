@@ -54,7 +54,6 @@ from prodockit.bootstrap.model import (
     Status,
     windows_system_ssh,
 )
-from prodockit.pdf_fonts import FontEvidence, inspect_fonts
 
 #: The VS Code extensions the User Guide installs. Kept here rather than
 #: in the template so bootstrap can check them without a project.
@@ -98,17 +97,20 @@ VSCODE_MIN_VERSION = "1.100.0"
 #: build its PDF (prodockit-extensions#712).
 WEASYPRINT_MIN_VERSION = "69.0"
 
+# Runtime versions remain public compatibility metadata for documentation and
+# acceptance fixtures. Bootstrap does not install or inspect these PDF
+# components; pdk pdf and diagnostics own that boundary.
+PANDOC_VERSION = "3.10.1"
+PANDOC_MIN_MAJOR = 3
+NODE_MIN_VERSION = "22.12.0"
+NODE_MAJOR = int(NODE_MIN_VERSION.split(".", 1)[0])
+PANGO_MIN_VERSION = "1.44.0"
+
 #: ``git init -b`` arrived in Git 2.28. Bootstrap uses it when separating a
 #: new document from the template, so merely finding an older Git executable
 #: is not enough to call the machine ready.
 GIT_MIN_VERSION = "2.28.0"
 
-#: Minimum Node release used by the project-cached MathJax 4 runtime.
-NODE_MIN_VERSION = "22.12.0"
-NODE_MAJOR = int(NODE_MIN_VERSION.split(".", 1)[0])
-
-#: WeasyPrint 69's documented system-library floor.
-PANGO_MIN_VERSION = "1.44.0"
 
 #: How long apt should wait for the dpkg lock rather than giving up.
 #:
@@ -211,60 +213,6 @@ _WRITE_NEW_TEXT_FILE = (
     "stream.write(sys.argv[2]); stream.close()"
 )
 
-#: Where MSYS2 puts the MinGW64 libraries WeasyPrint draws text through.
-MSYS2_ROOT = r"C:\msys64"
-MSYS2_BIN = MSYS2_ROOT + r"\mingw64\bin"
-_MSYS2_BASH = MSYS2_ROOT + r"\usr\bin\bash.exe"
-
-#: Where MSYS2 has been found. `C:\msys64` is its installer's default,
-#: not a promise, and the arm64 installer is a separate build again.
-_MSYS2_ROOTS = (
-    r"$env:SystemDrive\msys64",
-    r"$env:SystemDrive\msys2",
-    r"$env:LOCALAPPDATA\Programs\msys64",
-    r"$env:ProgramFiles\msys64",
-    r"C:\tools\msys64",
-)
-
-#: Pango, per MSYS2 environment. There is no MINGW64 on an arm64 install -
-#: its native environment is CLANGARM64, whose packages are named
-#: differently and whose DLLs live in a different directory
-#: (prodockit-extensions#393). `mingw-w64-clang-aarch64-pango` was
-#: confirmed present in that repository before being named here:
-#: https://packages.msys2.org/packages/?repo=clangarm64&query=pango
-_MSYS2_ENVIRONMENTS = {
-    "arm64": ("clangarm64", "mingw-w64-clang-aarch64-pango"),
-    "other": ("mingw64", "mingw-w64-x86_64-pango"),
-}
-
-_BOOTSTRAP_MSYS2_ENVIRONMENTS = {
-    "arm64": ("clangarm64", "mingw-w64-clang-aarch64-pango"),
-    # UCRT64 is MSYS2's current x64 default. MINGW64 began deprecation in
-    # 2026, and CPython itself uses the Universal C Runtime on supported
-    # Windows releases, so this is also the closer match for cffi-loaded DLLs.
-    "other": ("ucrt64", "mingw-w64-ucrt-x86_64-pango"),
-}
-
-_PYTHON_PE_MACHINE = (
-    "from pathlib import Path; import sys; "
-    "data=Path(sys.executable).read_bytes(); "
-    "offset=int.from_bytes(data[60:64], 'little'); "
-    "print(hex(int.from_bytes(data[offset+4:offset+6], 'little')))"
-)
-
-
-def _windows_python_is_arm64(context: Context) -> bool:
-    """Whether the Python process that will load Pango is native ARM64.
-
-    Windows on ARM can run x64 Python. Such a process must load x64 DLLs,
-    regardless of the host's native architecture; selecting from
-    PROCESSOR_ARCHITEW6432 instead installs an ARM64 Pango that cffi cannot
-    load into that emulated process.
-    """
-    result = context.runner.run([sys.executable, "-c", _PYTHON_PE_MACHINE])
-    return result.ok and result.stdout.strip().lower() == "0xaa64"
-
-
 def _winget(
     package_id: str,
     version: str = "",
@@ -353,33 +301,6 @@ def _winget_repair(package_id: str) -> list[str]:
     ]
 
 
-#: The fonts this template's PDF uses by default.
-#:
-#: Easy to leave out and hard to notice: the website loads them from a
-#: CDN when a page is viewed, but a PDF has to embed the actual files,
-#: and WeasyPrint substitutes a fallback **silently** rather than failing
-#: when they are absent. So the build succeeds, the PDF looks plausible,
-#: and the only symptom is a test reporting `No 'Inter' font found`
-#: (prodockit-userguide#101, prodockit-extensions#249).
-PDF_FONT_PACKAGES = ("fonts-inter", "fonts-jetbrains-mono")
-PDF_FONT_CASKS = ("font-inter", "font-jetbrains-mono")
-WINDOWS_INTER_URL = "https://github.com/rsms/inter/releases/download/v4.1/Inter-4.1.zip"
-WINDOWS_INTER_SHA256 = "9883fdd4a49d4fb66bd8177ba6625ef9a64aa45899767dde3d36aa425756b11e"
-WINDOWS_JETBRAINS_MONO_URL = (
-    "https://github.com/JetBrains/JetBrainsMono/releases/download/v2.304/JetBrainsMono-2.304.zip"
-)
-WINDOWS_JETBRAINS_MONO_SHA256 = "6f6376c6ed2960ea8a963cd7387ec9d76e3f629125bc33d1fdcd7eb7012f7bbf"
-
-#: The pandoc version this family of repos pins. Set in one place so a
-#: bump does not leave bootstrap behind - the CI workflows pin the same
-#: version independently, and `prodockit pins` checks the two agree.
-PANDOC_VERSION = "3.10.1"
-
-#: The minimum pandoc major version that renders code blocks correctly.
-#: Ubuntu's own package lags well behind upstream - 2.x on some LTS
-#: releases - and a pandoc old enough to be a different major version
-#: renders code blocks as justified prose (#207).
-PANDOC_MIN_MAJOR = 3
 
 
 def _ok(detail: str = "") -> CheckResult:
@@ -476,9 +397,8 @@ def _origin_url(context: Context) -> str:
 def _prodockit_command() -> list[str]:
     """The prodockit that is running, addressed so PATH cannot lose it.
 
-    Bootstrap is itself a prodockit command, and two stages run further
-    prodockit commands: `sync-repo` when it repoints a clone, and
-    `init-mathjax`. Naming them bare asks the machine to find prodockit a
+    Bootstrap is itself a prodockit command, and a stage runs `sync-repo`
+    when it repoints a clone. Naming it bare asks the machine to find prodockit a
     second time - and on Windows that failed outright, stopping a setup
     at stage 12 with `prodockit: not found` on a machine where prodockit
     was plainly installed and driving the run
@@ -617,10 +537,8 @@ def _found_where_installed(context: Context, name: str) -> str:
 
     The same answer as `git_command` and `vscode_command`, for the same
     reason and by the same list (prodockit-extensions#450). A `winget
-    install` updates the machine's PATH; a process already running does
-    not get it - so `pandoc --version` failed on the machine that had
-    just installed pandoc, and the stage reported "pandoc is not
-    installed" about software that was there.
+    install` updates the machine's PATH, but a process already running
+    does not get it.
 
     That is not merely a cosmetic miss. The stage then offers to install
     it, winget answers "already up to date", and the check fails again -
@@ -633,20 +551,6 @@ def _found_where_installed(context: Context, name: str) -> str:
         if context.exists(path):
             return str(path)
     return name
-
-
-def pandoc_command(context: Context) -> str:
-    """Prefer the project's exact toolchain, then the system installation."""
-    if context.config.project_name:
-        local = _venv_command(context, "pandoc")
-        if local.exists():
-            return str(local)
-    return _found_where_installed(context, "pandoc")
-
-
-def node_command(context: Context) -> str:
-    """How to invoke node: `node`, or where the platform installer put it."""
-    return _found_where_installed(context, "node")
 
 
 #: Where each platform's install puts the `code` CLI itself, as opposed
@@ -736,35 +640,6 @@ def _macos_vscode_profile_command(context: Context) -> list[str]:
         str(_macos_vscode_bin(context)),
         _VSCODE_PROFILE_MARKER,
     ]
-
-
-#: Where Node's installer puts `npm.cmd` on Windows.
-_NPM_PATHS = (
-    r"C:\Program Files\nodejs",
-    r"~\AppData\Roaming\npm",
-)
-
-
-def npm_command(context: Context) -> str:
-    """How to invoke npm, falling back to its full path on Windows.
-
-    Same trap as VS Code's CLI, and for the same reason (#292, #295).
-    `npm` on Windows is `npm.cmd`, and Python's `subprocess` uses
-    `CreateProcess`, which does not apply `PATHEXT` - so a bare `npm`
-    is "not found" on a machine where Node is installed correctly.
-
-    Returns `npm` unchanged when that works, or when nothing better can
-    be found: a command that fails as `npm` at least fails under the
-    name the reader knows.
-    """
-    if context.platform != WINDOWS or _installed(context, "npm"):
-        return "npm"
-    for raw in _NPM_PATHS:
-        expanded = raw.replace("~", str(context.home), 1) if raw.startswith("~") else raw
-        candidate = Path(expanded) / "npm.cmd"
-        if context.exists(candidate):
-            return str(candidate)
-    return "npm"
 
 
 def _check_vscode(context: Context) -> CheckResult:
@@ -2629,186 +2504,7 @@ def _plan_project_identity(context: Context) -> Plan:
 
 
 # ---------------------------------------------------------------------------
-# 12. Native PDF libraries
-# ---------------------------------------------------------------------------
-
-
-def _pandoc_version(stdout: str) -> str | None:
-    """Extract the version number from `pandoc --version` output.
-
-    The first non-blank line is normally `pandoc 3.10.1` or similar.
-    """
-    for line in stdout.splitlines():
-        stripped = line.strip()
-        if stripped.startswith("pandoc"):
-            parts = stripped.split()
-            if len(parts) >= 2:
-                return parts[1]
-    return None
-
-
-def _pango_version_result(context: Context) -> CommandResult:
-    """Ask for Pango's version using a command available on the platform.
-
-    Ubuntu installs the runtime library rather than ``pango-view``. Its
-    package database is therefore the dependable source there; Homebrew and
-    MSYS2 both install ``pango-view`` alongside the library.
-    """
-    if context.platform == UBUNTU:
-        return context.runner.run(["dpkg-query", "-W", "-f=${Version}", "libpango-1.0-0"])
-    return context.runner.run(["pango-view", "--version"])
-
-
-def _check_pandoc(context: Context) -> CheckResult:
-    if context.platform == WINDOWS:
-        return _ok("PDF runtimes are prepared project-locally by `pdk pdf`")
-
-    warnings: list[str] = []
-    pango = _pango_version_result(context)
-    pango_version = _numeric_version(pango.stdout) if pango.ok else None
-    if not pango.ok:
-        return _missing(
-            f"Pango {PANGO_MIN_VERSION} or later is not installed; "
-            "Pandoc and fonts are prepared project-locally by `pdk pdf`"
-        )
-    if pango_version is None:
-        warnings.append(
-            "Pango's version could not be read - the PDF build may "
-            f"fail unless Pango is {PANGO_MIN_VERSION} or later"
-        )
-    pango_text = (
-        ".".join(str(part) for part in pango_version) if pango_version is not None else "unknown"
-    )
-    if pango_version is not None and _version_is_older(pango.stdout, PANGO_MIN_VERSION):
-        return _wrong(
-            f"Pango {pango_text} is too old - "
-            f"{PANGO_MIN_VERSION} or later is needed"
-        )
-    if warnings:
-        return _warning("; ".join(warnings))
-    return _ok(
-        f"Pango {pango_text}; Pandoc and fonts are prepared project-locally by `pdk pdf`"
-    )
-
-
-def _pdf_font_evidence(context: Context) -> FontEvidence:
-    def run(command: list[str]) -> tuple[int, str]:
-        result = context.runner.run(command)
-        return result.returncode, result.stdout
-
-    return inspect_fonts(run)
-
-
-def _windows_font_install_command() -> list[str]:
-    """Install the PDF fonts for the current Windows user, unattended.
-
-    There are no dependable font packages in the community winget source.
-    Download the publishers' versioned archives instead, verify the exact
-    bytes before extracting them, and use Windows' documented per-user font
-    location and registry key. Per-user installation avoids UAC and is the
-    same scope prodockit bootstrap's font check reads.
-    """
-    script = (
-        "$ErrorActionPreference = 'Stop'; "
-        "$ProgressPreference = 'SilentlyContinue'; "
-        "$work = Join-Path ([IO.Path]::GetTempPath()) "
-        "('prodockit-bootstrap-fonts-' + [guid]::NewGuid()); "
-        "$fontDir = Join-Path $env:LOCALAPPDATA 'Microsoft\\Windows\\Fonts'; "
-        "$fontKey = 'HKCU:\\Software\\Microsoft\\Windows NT\\CurrentVersion\\Fonts'; "
-        "New-Item -ItemType Directory -Force -Path $work,$fontDir | Out-Null; "
-        "New-Item -Path $fontKey -Force | Out-Null; "
-        "try { "
-        f"$archives = @(@{{Name='inter'; Uri='{WINDOWS_INTER_URL}'; "
-        f"Sha='{WINDOWS_INTER_SHA256}'}}, "
-        f"@{{Name='jetbrains'; Uri='{WINDOWS_JETBRAINS_MONO_URL}'; "
-        f"Sha='{WINDOWS_JETBRAINS_MONO_SHA256}'}}); "
-        "foreach ($archive in $archives) { "
-        "$zip = Join-Path $work ($archive.Name + '.zip'); "
-        "$out = Join-Path $work $archive.Name; "
-        "Invoke-WebRequest -Uri $archive.Uri -OutFile $zip; "
-        "$sha256 = [Security.Cryptography.SHA256]::Create(); "
-        "$stream = [IO.File]::OpenRead($zip); "
-        "try { $bytes = $sha256.ComputeHash($stream) } "
-        "finally { $stream.Dispose(); $sha256.Dispose() }; "
-        "$actual = ([BitConverter]::ToString($bytes)).Replace('-', '').ToLowerInvariant(); "
-        "if ($actual -ne $archive.Sha) { "
-        'throw "Font archive checksum failed for $($archive.Name)" }; '
-        "Expand-Archive -LiteralPath $zip -DestinationPath $out -Force }; "
-        "$fonts = @("
-        "@{Path='inter\\Inter.ttc'; Name='Inter (TrueType)'},"
-        "@{Path='inter\\InterVariable.ttf'; Name='Inter Variable (TrueType)'},"
-        "@{Path='inter\\InterVariable-Italic.ttf'; Name='Inter Variable Italic (TrueType)'},"
-        "@{Path='jetbrains\\fonts\\ttf\\JetBrainsMono-Regular.ttf'; "
-        "Name='JetBrains Mono Regular (TrueType)'},"
-        "@{Path='jetbrains\\fonts\\ttf\\JetBrainsMono-Italic.ttf'; "
-        "Name='JetBrains Mono Italic (TrueType)'},"
-        "@{Path='jetbrains\\fonts\\ttf\\JetBrainsMono-Bold.ttf'; "
-        "Name='JetBrains Mono Bold (TrueType)'},"
-        "@{Path='jetbrains\\fonts\\ttf\\JetBrainsMono-BoldItalic.ttf'; "
-        "Name='JetBrains Mono Bold Italic (TrueType)'}) ; "
-        "foreach ($font in $fonts) { "
-        "$source = Join-Path $work $font.Path; "
-        "if (-not (Test-Path -LiteralPath $source)) { "
-        'throw "Font file missing from archive: $($font.Path)" }; '
-        "$file = Split-Path -Leaf $source; "
-        "Copy-Item -LiteralPath $source -Destination (Join-Path $fontDir $file) -Force; "
-        "New-ItemProperty -Path $fontKey -Name $font.Name -Value $file "
-        "-PropertyType String -Force | Out-Null } "
-        "} finally { Remove-Item -LiteralPath $work -Recurse -Force -ErrorAction SilentlyContinue }"
-    )
-    return ["powershell", "-NoProfile", "-Command", script]
-
-
-def _plan_pandoc(context: Context, *, native_only: bool = False) -> Plan:
-    del native_only
-    if context.platform == WINDOWS:
-        return Plan()
-
-    pango_result = (
-        CommandResult(returncode=1)
-        if context.platform == WINDOWS
-        else _pango_version_result(context)
-    )
-    pango_upgrade = pango_result.ok and _version_is_older(pango_result.stdout, PANGO_MIN_VERSION)
-    if context.platform == MACOS:
-        package_commands: list[list[str]] = []
-        if pango_upgrade or not pango_result.ok:
-            package_commands.append(_brew_upgrade_or_install("pango"))
-        return Plan(
-            commands=package_commands,
-            describe=(
-                f"Upgrade Pango to {PANGO_MIN_VERSION} or later"
-                if pango_upgrade
-                else ""
-            ),
-            action="UPGRADE" if pango_upgrade else "",
-            destructive=pango_upgrade,
-        )
-    if context.platform == UBUNTU:
-        return Plan(
-            commands=[
-                _apt(
-                    "install",
-                    "-y",
-                    "libpango-1.0-0",
-                    "libpangoft2-1.0-0",
-                    "libharfbuzz-subset0",
-                ),
-            ],
-            describe=(
-                f"Upgrade Pango to {PANGO_MIN_VERSION} or later"
-                if pango_upgrade
-                else ""
-            ),
-            action="UPGRADE" if pango_upgrade else "",
-            destructive=pango_upgrade,
-        )
-
-    raise AssertionError(f"unsupported platform: {context.platform}")
-
-
-# ---------------------------------------------------------------------------
-# 13. The project's own virtual environment, and what goes in it
+# 15. The project's own virtual environment, and what goes in it
 # ---------------------------------------------------------------------------
 
 
@@ -2860,31 +2556,11 @@ def _project_venv_is_structurally_complete(context: Context) -> bool:
     return context.runner.run([str(python), "-m", "pip", "--version"]).ok
 
 
-_MACOS_DYLD_MARKER = "# Added by prodockit bootstrap for WeasyPrint"
-
-
 def _homebrew_library_path(context: Context) -> str:
     """The Homebrew library directory WeasyPrint's loader needs on macOS."""
     prefix = context.runner.run(["brew", "--prefix"])
     root = prefix.stdout.strip() if prefix.ok and prefix.stdout.strip() else "/opt/homebrew"
     return str(Path(root) / "lib")
-
-
-def _macos_loader_line(context: Context) -> str:
-    library = _homebrew_library_path(context)
-    return (
-        f'export DYLD_FALLBACK_LIBRARY_PATH="{library}'
-        '${DYLD_FALLBACK_LIBRARY_PATH:+:$DYLD_FALLBACK_LIBRARY_PATH}"'
-    )
-
-
-def _macos_loader_is_configured(context: Context) -> bool:
-    activate = _project_venv(context) / "bin" / "activate"
-    try:
-        expected = f"{_MACOS_DYLD_MARKER}\n{_macos_loader_line(context)}"
-        return expected in activate.read_text(encoding="utf-8")
-    except OSError:
-        return False
 
 
 def _imports_from_project_venv(context: Context, module: str) -> CommandResult:
@@ -2936,9 +2612,9 @@ def _check_project_env(context: Context) -> CheckResult:
 
     It is a stricter test than it looks. Importing WeasyPrint loads Pango
     and its friends through the system's dynamic linker, so a successful
-    import proves both that the Python package is installed *and* that
-    the native libraries the PDF libraries stage installed can actually be
-    found. `pip` exiting zero proves neither.
+    import proves both that the Python package is installed and that its
+    manually installed native prerequisites can be found. `pip` exiting zero
+    proves neither.
     """
     if (unknown := _needs_config(context, "project_name")) is not None:
         return unknown
@@ -2963,18 +2639,12 @@ def _check_project_env(context: Context) -> CheckResult:
         # and reinstalling it would not help, so the detail has to point
         # at the libraries rather than at pip.
         library_source = {
-            MACOS: "Homebrew's libraries",
-            WINDOWS: "the MSYS2 libraries matching this Python's architecture",
+            MACOS: "Homebrew's Pango libraries",
             UBUNTU: "the system Pango libraries",
         }[context.platform]
         return _wrong(
             "WeasyPrint is installed but cannot load its graphics libraries - "
-            f"the PDF libraries stage installs {library_source}"
-        )
-    if context.guided and context.platform == MACOS and not _macos_loader_is_configured(context):
-        return _wrong(
-            "WeasyPrint works in this run, but the project environment does not yet "
-            "preserve Homebrew's library path for future shells"
+            f"install {library_source} as documented, then rerun Bootstrap"
         )
     if context.guided and not (project / ADOPT_MANIFEST).is_file():
         return _missing(
@@ -3194,49 +2864,17 @@ def _plan_project_env(context: Context) -> Plan:
                 _BOOTSTRAP_ADOPT_MANIFEST,
             ]
         )
-    if context.guided and context.platform == MACOS:
-        activate = venv / "bin" / "activate"
-        library = _homebrew_library_path(context)
-        script = (
-            "from pathlib import Path; import sys\n"
-            "path = Path(sys.argv[1]); marker = sys.argv[2]; library = sys.argv[3]\n"
-            "text = path.read_text(encoding='utf-8')\n"
-            "line = 'export DYLD_FALLBACK_LIBRARY_PATH=\"' + library + "
-            "'${DYLD_FALLBACK_LIBRARY_PATH:+:$DYLD_FALLBACK_LIBRARY_PATH}\"'\n"
-            "lines = text.splitlines()\n"
-            "updated_lines = []\n"
-            "index = 0\n"
-            "while index < len(lines):\n"
-            "    if lines[index] == marker:\n"
-            "        index += 1\n"
-            "        if index < len(lines) and lines[index].startswith("
-            "'export DYLD_FALLBACK_LIBRARY_PATH='):\n"
-            "            index += 1\n"
-            "        continue\n"
-            "    updated_lines.append(lines[index])\n"
-            "    index += 1\n"
-            "updated = ('\\n'.join(updated_lines).rstrip() + '\\n\\n' + marker + "
-            "'\\n' + line + '\\n')\n"
-            "temporary = path.with_name(path.name + '.bootstrap.tmp')\n"
-            "temporary.write_text(updated, encoding='utf-8')\n"
-            "temporary.chmod(path.stat().st_mode)\n"
-            "temporary.replace(path)\n"
-        )
-        commands.append([sys.executable, "-c", script, str(activate), _MACOS_DYLD_MARKER, library])
     return Plan(cwd=str(project), commands=commands)
 
 
 # ---------------------------------------------------------------------------
-# 14. Node for project-cached MathJax
+# Commands resolved immediately before execution
 # ---------------------------------------------------------------------------
 
 
 #: Commands whose name cannot always be run bare on Windows, with the resolver
 #: that finds them.
 _RESOLVE_BEFORE_RUNNING: dict[str, Callable[[Context], str]] = {
-    "npm": npm_command,
-    "pandoc": pandoc_command,
-    "node": node_command,
     "code": lambda context: vscode_command(context) or "code",
 }
 
@@ -3260,153 +2898,7 @@ def resolve_for_execution(context: Context, command: Sequence[str]) -> list[str]
     return [resolver(context), *command[1:]]
 
 
-def _check_node(context: Context) -> CheckResult:
-    result = context.runner.run([node_command(context), "--version"])
-    if not result.ok:
-        return _missing("node is not installed")
-    raw = result.stdout.strip().lstrip("v")
-    if _numeric_version(raw) is None:
-        return _warning(
-            f"could not read Node's version; MathJax may fail unless it is "
-            f"{NODE_MIN_VERSION} or later"
-        )
-    if _version_is_older(raw, NODE_MIN_VERSION):
-        return _wrong(f"node {raw} is older than the {NODE_MIN_VERSION} MathJax needs")
-    return _ok(f"node {raw}")
-
-
-def _node_runtime_state(context: Context) -> tuple[bool, str | None]:
-    """Whether Node is installed and its parsed version, when readable."""
-    result = context.runner.run([node_command(context), "--version"])
-    if not result.ok:
-        return False, None
-    raw = result.stdout.strip().lstrip("v")
-    return True, raw if _numeric_version(raw) is not None else None
-
-
-def _windows_node_needs_architecture_handover(context: Context) -> bool:
-    """Whether an emulated x64 Node must give way to native ARM64 Node.
-
-    Node 18 did not publish a Windows ARM64 installer.  It is therefore quite
-    normal for an ARM64 machine to contain its x64 MSI under emulation.  Newer
-    Winget releases select the native ARM64 installer, but Windows Installer
-    cannot change the architecture of an existing product in place and exits
-    with 1603.  Ask each side directly and make the handover explicit.
-    """
-    node_arch = context.runner.run([node_command(context), "-p", "process.arch"])
-    os_arch = context.runner.run(
-        [
-            "powershell",
-            "-NoProfile",
-            "-Command",
-            "[System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString()",
-        ]
-    )
-    return (
-        node_arch.ok
-        and os_arch.ok
-        and node_arch.stdout.strip().lower() == "x64"
-        and os_arch.stdout.strip().lower() == "arm64"
-    )
-
-
-def _windows_remove_registered_node() -> list[str]:
-    """Remove Node's MSI when Winget cannot correlate another architecture."""
-    script = (
-        "$roots = @("  # machine x64, machine x86, and current user
-        "'HKLM:\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\*',"
-        "'HKLM:\\Software\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\*',"
-        "'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\*'); "
-        "$entries = Get-ItemProperty -Path $roots -ErrorAction SilentlyContinue | "
-        "Where-Object { $_.DisplayName -like 'Node.js*' }; "
-        "$removed = $false; foreach ($entry in $entries) { "
-        "$product = if ($entry.PSChildName -match '^\\{[0-9A-Fa-f-]+\\}$') { "
-        "$entry.PSChildName } elseif ($entry.UninstallString -match "
-        "'\\{[0-9A-Fa-f-]+\\}') { $Matches[0] } else { $null }; "
-        "if ($product) { Write-Host "
-        '"Removing $($entry.DisplayName) $product before installing native ARM64 Node"; '
-        "$process = Start-Process msiexec.exe -ArgumentList "
-        "@('/x', $product, '/qn', '/norestart') -Wait -PassThru; "
-        "if ($process.ExitCode -notin @(0, 1605, 1614, 3010)) { "
-        'throw "Node uninstall failed with exit code $($process.ExitCode)" }; '
-        "$removed = $true } }; if (-not $removed) { "
-        "throw 'The existing x64 Node MSI registration could not be found' }"
-    )
-    return ["powershell", "-NoProfile", "-Command", script]
-
-
-def node_runtime_install_plan(
-    context: Context,
-) -> tuple[list[list[str]], bool, bool, list[str]]:
-    """Shared Node installation policy, without renderers or repository work."""
-    ubuntu_node_install = [
-        _apt("install", "-y", "curl"),
-        ["bash", "-c", "curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -"],
-        _apt("install", "-y", "nodejs"),
-    ]
-    if context.guided:
-        ubuntu_node_install = [
-            _apt("install", "-y", "curl"),
-            [
-                "curl",
-                "-fsSL",
-                "-o",
-                "/tmp/nodesource-setup.sh",
-                "https://deb.nodesource.com/setup_22.x",
-            ],
-            ["sudo", "-E", "bash", "/tmp/nodesource-setup.sh"],
-            _apt("install", "-y", "nodejs"),
-        ]
-    install = {
-        MACOS: [["brew", "install", "node"]],
-        UBUNTU: ubuntu_node_install,
-        WINDOWS: [_winget("OpenJS.NodeJS.LTS", resilient=context.guided)],
-    }[context.platform]
-
-    upgrade = False
-    repair = False
-    upgrade_parts: list[str] = []
-    if context.guided:
-        installed, version = _node_runtime_state(context)
-        old_node = version is not None and _version_is_older(version, NODE_MIN_VERSION)
-        if old_node:
-            upgrade_parts.append("Node.js")
-        if installed and not old_node:
-            install = []
-        elif old_node:
-            upgrade = True
-            install = {
-                MACOS: [_brew_upgrade_or_install("node")],
-                UBUNTU: ubuntu_node_install,
-                WINDOWS: [
-                    *(
-                        [_windows_remove_registered_node()]
-                        if _windows_node_needs_architecture_handover(context)
-                        else []
-                    ),
-                    _winget_upgrade("OpenJS.NodeJS.LTS"),
-                ],
-            }[context.platform]
-
-    return install, upgrade, repair, upgrade_parts
-
-
-def _plan_node(context: Context) -> Plan:
-    install, upgrade, repair, upgrade_parts = node_runtime_install_plan(context)
-    return Plan(
-        commands=install,
-        describe=(
-            f"Upgrade {' and '.join(upgrade_parts)} to a supported version"
-            if upgrade
-            else ""
-        ),
-        action="UPGRADE" if upgrade else ("REPAIR" if repair else ""),
-        destructive=upgrade or repair,
-    )
-
-
-# ---------------------------------------------------------------------------
-# 15. VS Code extensions (platform-independent)
+# 16. VS Code extensions (platform-independent)
 # ---------------------------------------------------------------------------
 
 
@@ -3535,7 +3027,7 @@ def _plan_extensions(context: Context) -> Plan:
 
 #: Every stage, in the order they have to happen. Ordering is a real
 #: dependency, not a preference: nothing can be cloned before SSH
-#: authenticates, and the Node toolchains install *into* the clone.
+#: authenticates, and project build commands run *inside* the clone.
 # ---------------------------------------------------------------------------
 # 16. The editor's own settings, in the project
 # ---------------------------------------------------------------------------
@@ -3814,7 +3306,7 @@ def _plan_csl_style(context: Context) -> Plan:
 
 
 # ---------------------------------------------------------------------------
-# 19. The published site answers - the last thing, and only a test
+# 20. The published site answers - the last thing, and only a test
 # ---------------------------------------------------------------------------
 
 
@@ -3947,8 +3439,8 @@ def _check_site_published(context: Context) -> CheckResult:
         return _ok(f"Pages is enabled - {url} (public: anyone with the link can read it)")
     if status is None:
         # Nobody said the site is missing - the question was never put.
-        # curl arrives with the Pandoc stage, so a run that has not got
-        # that far has no way to ask (prodockit-extensions#374).
+        # The system curl fallback could not answer either, so the command
+        # cannot infer whether the site exists (prodockit-extensions#374).
         if probe_problem:
             detail = f"could not verify {url} because {probe_problem}"
         else:
@@ -4527,18 +4019,12 @@ STAGES: tuple[Stage, ...] = (
         _check_project_identity,
         _plan_project_identity,
     ),
-    # Named for what it checks. It installs the libraries WeasyPrint
-    # needs, but cannot verify them - importing WeasyPrint is what does
-    # that, and WeasyPrint is not installed until the project's own
-    # environment exists, one stage below (#248).
-    Stage("pandoc", "PDF native libraries", _check_pandoc, _plan_pandoc),
     Stage(
         "project-env",
         "Project environment, dependencies and Adoption component choices",
         _check_project_env,
         _plan_project_env,
     ),
-    Stage("node", "Node.js for PDF maths", _check_node, _plan_node),
     Stage("extensions", "VS Code extensions", _check_extensions, _plan_extensions),
     # Last, so that the state bootstrap leaves behind is one where
     # opening the project in VS Code is enough to start writing.

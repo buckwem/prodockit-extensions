@@ -31,10 +31,10 @@ Follow these steps from the project root—the directory containing
 
 //// step | Check how the project was prepared
 
-There are three valid setup routes. Bootstrap installs and checks the PDF
-toolchain. Adoption aligns its active Python packages and project-local Pandoc
-but leaves machine-level native libraries and fonts to that environment.
-Manual installation gives the author direct control of every dependency. Use the matching row under
+There are three valid setup routes. Bootstrap and Adoption prepare the Python
+project environment but do not install PDF runtimes or operating-system
+libraries. `pdk pdf` owns its project-local runtimes. Manual installation gives
+the author direct control of every dependency. Use the matching row under
 [Prepare the PDF tools](#pdf-requirements) before continuing.
 
 ////
@@ -90,8 +90,8 @@ installed depends on the route used to prepare the project:
 
 | Setup route {: width="28%" } | PDF preparation |
 |---|---|
-| [Bootstrap](devcons/bootstrap.md) | `prodockit bootstrap --apply` installs only the native Pango libraries needed on macOS/Linux. `pdk pdf` owns Pandoc and PDF fonts. |
-| [Adoption](adopt.md) | `prodockit adopt --apply` repairs only native Pango on macOS/Linux. On Windows x64, all PDF runtimes are project-local. |
+| [Bootstrap](devcons/bootstrap.md) | Prepares the Python project environment; `pdk pdf` prepares its project-local runtimes on first use. |
+| [Adoption](adopt.md) | Aligns the active Python environment and records selected components; `pdk pdf` prepares their runtimes. |
 | [Manual installation](installation.md) | Install the PDF dependencies the document uses by following the operating-system instructions below. |
 /// table-caption | <
     attrs: {id: tab-pdf-prepare-the-pdf-tools}
@@ -147,21 +147,14 @@ pdk pdf --prepare pandoc --prepare fonts
     Keep the intended virtual environment active and check that the alternative
     command belongs to it before installing packages.
 
-Install the exact supported Pandoc into the activated project environment on
-all three operating systems, then verify both programs. This explicit Python
-command targets that environment without changing a system or Homebrew Pandoc:
+Prepare and verify the exact supported Pandoc in the project-local PDF cache:
 
 ```bash
-python -m prodockit.toolchain install-pandoc --version 3.10.1
+pdk pdf --prepare pandoc
 ```
 
-Confirm that Pandoc reports **3.10.1** from the same activated environment before building:
-
-```bash
-pandoc --version
-```
-
-On macOS and Ubuntu, also verify the system-backed Python renderer with
+`pdk pdf` performs the same preparation transparently before a build. On macOS
+and Ubuntu, also verify the system-backed Python renderer with
 `python -c "import weasyprint; print(weasyprint.__version__)"`. On Windows
 x64, use `pdk pdf --prepare weasyprint`; it validates the cached standalone
 CLI by rendering a smoke-test PDF.

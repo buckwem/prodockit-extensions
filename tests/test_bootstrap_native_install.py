@@ -67,14 +67,13 @@ def test_missing_winget_installs_microsofts_signed_release(monkeypatch, tmp_path
 @pytest.mark.parametrize(
     ("recipe", "expected"),
     (
-        (_MODULE.MACOS, ("visual-studio-code", "git", "pango", "node")),
+        (_MODULE.MACOS, ("visual-studio-code", "git")),
         (
             _MODULE.UBUNTU,
             (
                 "code",
                 "git",
                 "git-man",
-                "nodejs",
             ),
         ),
         (
@@ -82,7 +81,6 @@ def test_missing_winget_installs_microsofts_signed_release(monkeypatch, tmp_path
             (
                 "Microsoft.VisualStudioCode",
                 "Git.Git",
-                "OpenJS.NodeJS.LTS",
             ),
         ),
     ),
@@ -126,85 +124,6 @@ def test_ubuntu_cleanup_preserves_operating_system_shared_libraries(
     assert "libpango-1.0-0" not in rendered
     assert "libpangoft2-1.0-0" not in rendered
     assert "libharfbuzz-subset0" not in rendered
-
-
-def test_absent_planning_runner_preserves_cpu_architecture() -> None:
-    runner = _MODULE.AbsentPlanningRunner(_MODULE.WINDOWS)
-
-    result = runner.run([sys.executable, "-c", "int.from_bytes"])
-
-    assert result.ok
-    assert result.stdout.strip() in {"0x8664", "0xaa64"}
-
-
-def test_windows_msys_roots_are_drive_absolute(monkeypatch) -> None:
-    monkeypatch.setenv("SYSTEMDRIVE", "C:")
-    monkeypatch.setenv("LOCALAPPDATA", r"C:\Users\Ada\AppData\Local")
-    monkeypatch.setenv("PROGRAMFILES", r"C:\Program Files")
-
-    assert tuple(map(str, _MODULE._windows_msys_roots())) == (
-        r"C:\msys64",
-        r"C:\Users\Ada\AppData\Local\Programs\msys64",
-        r"C:\Program Files\msys64",
-    )
-
-
-def test_windows_inter_route_cleanup_keeps_msys2_but_removes_pango(
-    monkeypatch, tmp_path: Path
-) -> None:
-    commands: list[list[str]] = []
-
-    def record(command, *, check=True):  # type: ignore[no-untyped-def]
-        del check
-        commands.append(list(command))
-        return _completed(returncode=1)
-
-    monkeypatch.setenv("GITHUB_ACTIONS", "true")
-    monkeypatch.setattr(_MODULE, "_run", record)
-    monkeypatch.setattr(_MODULE.shutil, "which", lambda _name: "winget")
-    root = tmp_path / "msys64"
-    bash = root / "usr" / "bin" / "bash.exe"
-    bash.parent.mkdir(parents=True)
-    bash.touch()
-    monkeypatch.setattr(_MODULE, "_windows_msys_roots", lambda: (root,))
-
-    _MODULE.cleanup_ephemeral_runner(
-        _MODULE.WINDOWS,
-        tmp_path,
-        preserve_msys2=True,
-    )
-
-    rendered = "\n".join(" ".join(command) for command in commands)
-    assert "mingw-w64-ucrt-x86_64-pango" in rendered
-    assert "mingw-w64-clang-aarch64-pango" in rendered
-    assert "winget uninstall --id MSYS2.MSYS2" not in rendered
-
-
-def test_windows_cleanup_removes_node_registration_hidden_from_winget(
-    monkeypatch, tmp_path: Path
-) -> None:
-    commands: list[list[str]] = []
-
-    def record(command, *, check=True):  # type: ignore[no-untyped-def]
-        del check
-        commands.append(list(command))
-        return _completed(returncode=1)
-
-    monkeypatch.setenv("GITHUB_ACTIONS", "true")
-    monkeypatch.setattr(_MODULE, "_run", record)
-    monkeypatch.setattr(_MODULE.shutil, "which", lambda _name: "winget")
-
-    _MODULE.cleanup_ephemeral_runner(_MODULE.WINDOWS, tmp_path)
-
-    registry_commands = [
-        command
-        for command in commands
-        if command[:3] == ["powershell", "-NoProfile", "-Command"]
-        and "UninstallString" in command[-1]
-    ]
-    assert len(registry_commands) == 1
-    assert "Where-Object { $_.DisplayName -like 'Node.js*' }" in registry_commands[0][-1]
-    assert "msiexec.exe" in registry_commands[0][-1]
 
 
 def test_wheel_resolution_requires_exactly_one_candidate(tmp_path: Path) -> None:

@@ -17,7 +17,7 @@ from typing import Any
 import pytest
 
 from prodockit.adopt import MANIFEST, AdoptOptions, manifest_source
-from prodockit.bootstrap.stages import _WRITE_NEW_TEXT_FILE, PANDOC_VERSION, WEASYPRINT_MIN_VERSION
+from prodockit.bootstrap.stages import _WRITE_NEW_TEXT_FILE, WEASYPRINT_MIN_VERSION
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
@@ -587,14 +587,6 @@ def test_project_environment_allows_only_the_reviewed_template_repairs(
             [
                 project_python,
                 "-m",
-                "prodockit.toolchain",
-                "install-pandoc",
-                "--version",
-                PANDOC_VERSION,
-            ],
-            [
-                project_python,
-                "-m",
                 "pip",
                 "install",
                 f"weasyprint>={WEASYPRINT_MIN_VERSION}",
@@ -677,45 +669,6 @@ def test_project_environment_rejects_broader_dependency_commands(
         live.authorise_plan(
             "project-env",
             [rendered],
-            str(project),
-            fixture=fixture,
-            home=home,
-            project=project,
-            allow_push=True,
-            candidate_python=Path(sys.executable),
-        )
-
-
-def test_plan_allows_only_the_reviewed_node_dependency_commands(tmp_path: Path) -> None:
-    fixture = live.Fixture(**fixture_values())
-    home = tmp_path / "home"
-    project = home / "setup" / live.SURREY_PROJECT
-    project.parent.mkdir(parents=True)
-    mathjax = project / "tools" / "mathjax"
-    reviewed = [
-        ["bash", "-c", f"cd {mathjax} && npm ci --legacy-peer-deps"],
-    ]
-
-    live.authorise_plan(
-        "node",
-        reviewed,
-        str(project),
-        fixture=fixture,
-        home=home,
-        project=project,
-        allow_push=True,
-        candidate_python=Path(sys.executable),
-    )
-
-    changed_runtime = [list(command) for command in reviewed]
-    changed_runtime[0] = list(changed_runtime[0])
-    changed_runtime[0][2] = changed_runtime[0][2].replace(
-        "--legacy-peer-deps", "--force"
-    )
-    with pytest.raises(live.LiveProviderError, match="unapproved non-Git"):
-        live.authorise_plan(
-            "node",
-            changed_runtime,
             str(project),
             fixture=fixture,
             home=home,

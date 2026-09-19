@@ -1366,7 +1366,7 @@ pdk pdf --prepare mermaid --prepare mathjax
 ```
 
 Repeating the command against a healthy cache is a fast, network-free check.
-Do not run `npm ci`, `pdk init-tools` or `pdk init-mathjax` for this PDF path.
+No npm or MSYS2 setup is part of this PDF path.
 
 !!! warning "Check the PDF as well as the website"
     A successful website build does not prove that PDF rendering is ready.

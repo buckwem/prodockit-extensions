@@ -21,6 +21,7 @@ requests rather than here.
 
 ## Unreleased
 
+- Bootstrap and Adopt no longer install PDF runtimes, Node, npm, browsers, host fonts, Pango or MSYS2; `pdk pdf` owns project-local runtime preparation.
 - PDF and bibliography builds now acquire one verified project-local Pandoc runtime; PDF builds also embed verified project-local Inter and JetBrains Mono without host font installation.
 - Removed the legacy Mermaid CLI fallback, `--swap`, and `pdf_mmdc_bin`; PDF Mermaid rendering now uses only the Python runtime.
 - Windows x64 PDF and source-bundle builds now acquire and reuse the official verified WeasyPrint 70 project runtime without end-user MSYS2/Pango setup.

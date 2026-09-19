@@ -138,24 +138,11 @@ The system package manager may request administrator approval. Adopt refreshes
 its own PATH after installation and verifies both commands before continuing.
 It cannot rewrite the parent terminal's environment: if the verification still
 fails, an uppercase restart message includes the platform's activation command.
-On Windows, a missing WinGet is registered or installed using Microsoft's
-`Microsoft.WinGet.Client` repair workflow in current-user scope, before the
-runtime installer runs. It does not change PowerShell execution policy.
-Homebrew is the agreed manual prerequisite on macOS: install it from
-[the Homebrew website](https://brew.sh), complete its shell setup instructions,
-then reopen the terminal, activate the project's environment and rerun Adopt.
-Adopt installs the required runtime packages once Homebrew is available.
-An offline run cannot
-provision a missing package manager. Git, SSH and editors are not part of this
-runtime activity. Windows package-manager provisioning still requires native
-acceptance testing before issue 782 can be considered complete.
-
-The native PDF activity installs or repairs only Pango on macOS and Ubuntu.
-Pandoc and PDF fonts are project-local and prepared by `pdk pdf`; on Windows,
-WeasyPrint is project-local as well, so Adopt has no native PDF install step.
-On macOS Adopt preserves the Homebrew library path in the active virtual
-environment's activation script. A failed Pango/WeasyPrint verification leaves
-the activity incomplete.
+Adopt changes only the active Python environment and project-local files. It
+does not install Node, npm, Pandoc, Pango, MSYS2, browsers, fonts, Git, SSH or
+editors. `pdk pdf` prepares its project-local renderer caches; any reported
+Node or macOS/Linux Pango prerequisite is installed separately with the
+operating-system package manager.
 
 Existing citation styles are preserved and checked for valid XML and the
 required CSL structure. An invalid file stops the citation-style activity;

@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import argparse
 import concurrent.futures
-import contextlib
 import hashlib
 import json
 import os
@@ -67,66 +66,6 @@ class AcceptanceError(RuntimeError):
     """A candidate wheel failed an acceptance condition."""
 
 
-_TRANSIENT_RENDERER_MARKERS = (
-    "timed out",
-    "econnreset",
-    "econnrefused",
-    "etimedout",
-    "eai_again",
-    "socket hang up",
-    "temporary failure",
-    "service unavailable",
-    "bad gateway",
-    "gateway timeout",
-    # Ubuntu's Chromium snap occasionally starts before its automatically
-    # connected graphics content snap is mounted on a fresh hosted runner.
-    "content snap gpu wrapper",
-    "ensure slot is connected",
-)
-
-
-def transient_renderer_failure(detail: str) -> bool:
-    """Return whether an Adopt failure is safe to repeat in its fixture.
-
-    Only external npm, Puppeteer, and browser availability failures
-    qualify. Assertions and project/configuration failures remain immediate so
-    a retry cannot hide a deterministic regression.
-    """
-
-    lowered = detail.casefold()
-    renderer = any(name in lowered for name in ("npm", "mathjax", "puppeteer", "chrome"))
-    return renderer and any(marker in lowered for marker in _TRANSIENT_RENDERER_MARKERS)
-
-
-def prepare_renderer_retry(project: Path, detail: str) -> None:
-    """Discard a partial renderer install and validate npm's shared cache."""
-
-    lowered = detail.casefold()
-    components = [component for component in ("mathjax",) if component in lowered]
-    if not components and "npm" in lowered:
-        components = ["mathjax"]
-    for component in components:
-        shutil.rmtree(project / "tools" / component / "node_modules", ignore_errors=True)
-
-    npm_install_failed = any(
-        marker in lowered for marker in ("could not install", "npm ci", "npm err", "npm error")
-    )
-    if npm_install_failed and (npm := shutil.which("npm")):
-        # The locked install is the evidence that matters. Cache verification
-        # is best-effort preparation for that retry.
-        with contextlib.suppress(OSError, subprocess.SubprocessError):
-            subprocess.run(
-                [npm, "cache", "verify"],
-                cwd=project,
-                capture_output=True,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
-                timeout=120,
-                check=False,
-            )
-
-
 @dataclass(frozen=True)
 class Result:
     name: str
@@ -145,7 +84,6 @@ def run(
     cwd: Path,
     input_text: str | None = None,
     timeout: int = 900,
-    transient_attempts: int = 1,
 ) -> subprocess.CompletedProcess[str]:
     environment = dict(os.environ)
     environment.pop("PYTHONPATH", None)
@@ -188,32 +126,21 @@ def run(
                 str(activate),
                 *command,
             ]
-    for attempt in range(1, transient_attempts + 1):
-        completed = subprocess.run(
-            execution_command,
-            cwd=cwd,
-            input=input_text,
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            timeout=timeout,
-            env=environment,
-        )
-        if not completed.returncode:
-            return completed
+    completed = subprocess.run(
+        execution_command,
+        cwd=cwd,
+        input=input_text,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=timeout,
+        env=environment,
+    )
+    if completed.returncode:
         detail = "\n".join(part for part in (completed.stdout, completed.stderr) if part)
-        if attempt < transient_attempts and transient_renderer_failure(detail):
-            print(
-                f"Transient renderer failure on attempt {attempt}/{transient_attempts}; "
-                "resetting the affected renderer state and retrying the same fixture.",
-                file=sys.stderr,
-            )
-            prepare_renderer_retry(cwd, detail)
-            continue
-        attempts = f" after {attempt} attempts" if attempt > 1 else ""
-        raise AcceptanceError(f"command failed{attempts} ({' '.join(command)}):\n{detail}")
-    raise AssertionError("unreachable")
+        raise AcceptanceError(f"command failed ({' '.join(command)}):\n{detail}")
+    return completed
 
 
 def venv_python(environment: Path) -> Path:
@@ -536,7 +463,6 @@ def adopt(
         command,
         cwd=project,
         input_text=("y\n" * 20 if apply else None),
-        transient_attempts=2 if apply else 1,
     )
     return completed.stdout
 

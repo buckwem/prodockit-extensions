@@ -378,10 +378,10 @@ repositories on every host.
 pdk diag
 ```
 
-Bootstrap leaves Pandoc and PDF fonts to `pdk pdf`, which prepares verified
-archives in the project cache on first use. It records Mermaid and maths as the project's selected components
-in `.prodockit-components.toml`. A later `pdk adopt` can therefore repair their
-installed software without asking you to configure those choices first.
+Bootstrap leaves every PDF runtime to `pdk pdf`, which prepares verified
+project-local caches on first use. It records Mermaid and maths as selected
+components in `.prodockit-components.toml`; neither Bootstrap nor a later
+Adopt run installs those runtimes.
 
 The `Project` line must name the clone rather than its parent setup directory.
 Add `--verbose` for resolved evidence or `--json` when attaching the report to
@@ -405,7 +405,7 @@ report and leave any available update for the maintenance workflow.
 ## Understand the completed project {: #bootstrap-completed-project }
 
 The four documentation stages above describe what you do. Bootstrap groups its
-22 activities into seven phases covering preflight, core tools, Git and the
+20 activities into seven phases covering preflight, core tools, Git and the
 host, the project, the build toolchain, the editor, and publication. Use the
 [phase and activity inventory](../commands/bootstrap.md#cmd-bootstrap-phases)
 when you need to identify an activity reported by the command.

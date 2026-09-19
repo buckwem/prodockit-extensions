@@ -11,7 +11,6 @@ fall through to the workstation or network running the suite.
 from __future__ import annotations
 
 import json
-import subprocess
 from dataclasses import replace
 from pathlib import Path
 
@@ -63,7 +62,6 @@ def test_project_environment_does_not_install_pandoc(
     (project / "requirements.txt").write_text("prodockit\n")
     (project / stages.ADOPT_MANIFEST).write_text("schema = 1\n")
     monkeypatch.setattr(stages, "_project_venv_is_structurally_complete", lambda c: True)
-    monkeypatch.setattr(stages, "_macos_loader_is_configured", lambda c: True)
     monkeypatch.setattr(stages, "_imports_from_project_venv", lambda c, m: CommandResult(0))
     result = stages._check_project_env(context)
     assert result.status is Status.OK
@@ -147,52 +145,6 @@ def test_readme_only_probe_treats_any_incomplete_probe_as_unsafe(
     )
 
 
-@pytest.mark.parametrize(
-    ("output", "expected"),
-    [
-        ("\nPandoc 3.10.1\n", None),
-        ("pandoc\n", None),
-        ("header\npandoc 3.10.1\n", "3.10.1"),
-    ],
-)
-def test_pandoc_version_parser_handles_malformed_and_prefixed_output(
-    output: str, expected: str | None
-) -> None:
-    assert stages._pandoc_version(output) == expected
-
-
-def test_pdf_native_stage_reports_an_unreadable_pango_version(tmp_path: Path) -> None:
-    runner = CliFakeRunner(
-        {"pango-view --version": CommandResult(0, "pango-view development")}
-    )
-
-    result = stages._check_pandoc(_context(tmp_path, runner=runner))
-
-    assert result.status is Status.WARNING
-    assert not result.needs_work
-    assert "Pango's version could not be read" in result.detail
-
-
-def test_font_fallback_handles_an_empty_font_directory(tmp_path: Path) -> None:
-    (tmp_path / "Library" / "Fonts").mkdir(parents=True)
-    runner = CliFakeRunner({"fc-list : family": CommandResult(127)})
-
-    evidence = stages._pdf_font_evidence(_context(tmp_path, runner=runner))
-    assert evidence.status == "unverified"
-    assert "fc-match" in evidence.detail
-
-
-def test_font_fallback_normalises_font_filenames(tmp_path: Path) -> None:
-    fonts = tmp_path / "Library" / "Fonts"
-    fonts.mkdir(parents=True)
-    (fonts / "Inter-Regular.ttf").touch()
-    (fonts / "JetBrains_Mono.ttf").touch()
-    runner = CliFakeRunner({"fc-list : family": CommandResult(127)})
-
-    # Filenames alone do not prove that the PDF renderer can select the fonts.
-    assert stages._pdf_font_evidence(_context(tmp_path, runner=runner)).status == "unverified"
-
-
 def test_project_environment_reports_a_missing_requirements_file(tmp_path: Path) -> None:
     project = tmp_path / "report"
     (project / ".venv" / "bin").mkdir(parents=True)
@@ -216,79 +168,6 @@ def test_project_environment_reports_dependencies_that_do_not_import(tmp_path: P
 
     assert result.status is Status.MISSING
     assert "dependencies are not installed" in result.detail
-
-
-def test_node_stage_warns_about_an_unreadable_version(tmp_path: Path) -> None:
-    project = tmp_path / "report"
-    mathjax_bundle = (
-        project / "tools" / "mathjax" / "node_modules" / "mathjax-full" / "es5" / "tex-svg-full.js"
-    )
-    mathjax_bundle.parent.mkdir(parents=True)
-    mathjax_bundle.write_text("bundle", encoding="utf-8")
-    runner = CliFakeRunner(
-        {
-            "node --version": CommandResult(0, "development"),
-            "npm --version": CommandResult(0, "10.9.2"),
-            "mathjax-full/js/mathjax.js": CommandResult(0),
-        }
-    )
-
-    result = stages._check_node(_context(tmp_path, runner=runner))
-
-    assert result.status is Status.WARNING
-    assert not result.needs_work
-    assert "could not read Node's version" in result.detail
-
-
-def test_node_stage_does_not_probe_project_renderer_files(tmp_path: Path) -> None:
-    runner = CliFakeRunner(
-        {
-            "node --version": CommandResult(0, "v22.14.0"),
-            "npm --version": CommandResult(0, "10.9.2"),
-            "mathjax-full/js/mathjax.js": CommandResult(1, stderr="Cannot find module"),
-        }
-    )
-
-    result = stages._check_node(_context(tmp_path, runner=runner))
-
-    assert result.status is Status.OK
-    assert result.detail == "node 22.14.0"
-
-
-def test_node_stage_does_not_require_npm(tmp_path: Path) -> None:
-    (tmp_path / "report").mkdir()
-    runner = CliFakeRunner(
-        {
-            "node --version": CommandResult(0, "v22.14.0"),
-            "npm --version": CommandResult(0, "6.14.18"),
-        }
-    )
-
-    result = stages._check_node(_context(tmp_path, runner=runner))
-
-    assert result.status is Status.OK
-
-
-def test_node_stage_does_not_require_project_configuration(
-    tmp_path: Path,
-) -> None:
-    runner = CliFakeRunner(
-        {"node --version": CommandResult(0, "v24.1.0"), "npm --version": CommandResult(0, "11")}
-    )
-
-    result = stages._check_node(_context(tmp_path, runner=runner, project_name=""))
-
-    assert result.status is Status.OK
-
-
-def test_node_stage_does_not_wait_until_the_project_directory_exists(tmp_path: Path) -> None:
-    runner = CliFakeRunner(
-        {"node --version": CommandResult(0, "v24.1.0"), "npm --version": CommandResult(0, "11")}
-    )
-
-    result = stages._check_node(_context(tmp_path, runner=runner))
-
-    assert result.status is Status.OK
 
 
 def test_ubuntu_locale_without_lang_is_unknown(tmp_path: Path) -> None:
@@ -470,71 +349,6 @@ def test_windows_certificate_failure_is_diagnosed_without_disabling_tls(
     assert "-k" not in curl and "--insecure" not in curl
 
 
-def test_macos_project_environment_plan_persists_homebrew_library_path(
-    tmp_path: Path,
-) -> None:
-    project = tmp_path / "report"
-    project.mkdir()
-    (project / "requirements.txt").write_text("zensical\n", encoding="utf-8")
-    context = _context(
-        tmp_path,
-        runner=CliFakeRunner({"brew --prefix": CommandResult(0, "/opt/homebrew\n")}),
-    )
-
-    plan = stages._plan_project_env(context)
-    rendered = "\n".join(" ".join(command) for command in plan.commands)
-
-    assert "DYLD_FALLBACK_LIBRARY_PATH" in rendered
-    assert "/opt/homebrew/lib" in rendered
-    assert "activate" in rendered
-    compile(plan.commands[-1][2], "<prodockit bootstrap macOS activation update>", "exec")
-
-
-def test_macos_loader_marker_without_the_export_is_not_complete(tmp_path: Path) -> None:
-    activate = tmp_path / "report" / ".venv" / "bin" / "activate"
-    activate.parent.mkdir(parents=True)
-    activate.write_text("# Added by prodockit bootstrap for WeasyPrint\n", encoding="utf-8")
-    context = _context(
-        tmp_path,
-        runner=CliFakeRunner({"brew --prefix": CommandResult(0, "/opt/homebrew\n")}),
-    )
-
-    assert stages._macos_loader_is_configured(context) is False
-
-
-def test_macos_loader_update_replaces_a_partial_block_atomically(tmp_path: Path) -> None:
-    project = tmp_path / "report"
-    activate = project / ".venv" / "bin" / "activate"
-    activate.parent.mkdir(parents=True)
-    activate.write_text(
-        "VIRTUAL_ENV=/old\n# Added by prodockit bootstrap for WeasyPrint\n"
-        'export DYLD_FALLBACK_LIBRARY_PATH="/wrong/lib"\n',
-        encoding="utf-8",
-    )
-    (project / "requirements.txt").write_text("zensical\n", encoding="utf-8")
-    python = activate.parent / "python"
-    python.touch()
-    runner = CliFakeRunner(
-        {
-            "brew --prefix": CommandResult(0, "/opt/homebrew\n"),
-            "-m pip --version": CommandResult(0, "pip 26.0.1"),
-        }
-    )
-    plan = stages._plan_project_env(_context(tmp_path, runner=runner))
-    script = plan.commands[-1]
-
-    subprocess.run(script, check=True)
-
-    updated = activate.read_text(encoding="utf-8")
-    assert "/wrong/lib" not in updated
-    assert updated.count("# Added by prodockit bootstrap for WeasyPrint") == 1
-    assert (
-        'export DYLD_FALLBACK_LIBRARY_PATH="/opt/homebrew/lib'
-        '${DYLD_FALLBACK_LIBRARY_PATH:+:$DYLD_FALLBACK_LIBRARY_PATH}"'
-    ) in updated
-    assert not activate.with_name("activate.bootstrap.tmp").exists()
-
-
 @pytest.mark.parametrize("platform", [MACOS, UBUNTU, WINDOWS])
 def test_own_environment_recovery_resumes_with_bootstrap(tmp_path: Path, platform: str) -> None:
     context = _context(
@@ -547,38 +361,6 @@ def test_own_environment_recovery_resumes_with_bootstrap(tmp_path: Path, platfor
 
     assert "prodockit bootstrap" in instructions
     assert "pdk bootstrap" not in instructions
-
-
-def test_linux_node_setup_separates_download_from_privileged_execution(
-    tmp_path: Path,
-) -> None:
-    plan = stages._plan_node(_context(tmp_path, platform=UBUNTU))
-    rendered = [" ".join(command) for command in plan.commands]
-
-    assert any("/tmp/nodesource-setup.sh" in line and line.startswith("curl ") for line in rendered)
-    assert any(line.startswith("sudo -E bash /tmp/nodesource-setup.sh") for line in rendered)
-    assert not any("| sudo" in line for line in rendered)
-
-
-def test_windows_node_does_not_repair_a_missing_npm(tmp_path: Path) -> None:
-    runner = CliFakeRunner(
-        {
-            "node --version": CommandResult(0, "v22.12.0\n"),
-            "npm --version": CommandResult(1, stderr="npm is broken"),
-        }
-    )
-    plan = stages._plan_node(_context(tmp_path, platform=WINDOWS, runner=runner))
-    assert not plan.commands
-
-
-def test_windows_pandoc_plan_is_independent_of_python_architecture(
-    tmp_path: Path,
-) -> None:
-    runner = CliFakeRunner({"int.from_bytes": CommandResult(0, "0xaa64")})
-    plan = stages._plan_pandoc(_context(tmp_path, platform=WINDOWS, runner=runner))
-    rendered = " ".join(" ".join(command) for command in plan.commands)
-
-    assert not rendered
 
 
 def _write_usable_github_keypair(tmp_path: Path) -> None:

@@ -206,8 +206,8 @@ From `prodockit.testing`:
 Checks
 ///
 
-The assertions in \ref{tab-devcons-testing-checks} name the fix
-(`prodockit init-tools`) in their failure
+The assertions in \ref{tab-devcons-testing-checks} name the fix (`pdk pdf`,
+which prepares a required project-local renderer cache) in their failure
 message rather than only reporting the symptom.
 
 Contributor guidance for keeping the automatically discovered plugin

@@ -58,8 +58,6 @@ write behaviour of each public command.
 | [`prodockit config`](commands/config.md) | You need to see the Prodockit settings that will actually be used, or check that the source project is complete | `prodockit config` | Nothing; add `--check` for a CI-friendly non-zero exit when problems exist |
 | [`prodockit adopt`](commands/adopt.md) | An existing Zensical document needs selected prodockit components without machine, Git or editor setup | `prodockit adopt` | Local project files only with `--apply`; optional choices use `--configure` |
 | [`prodockit bootstrap`](commands/bootstrap.md) | A machine or a project based on `prodockit-template` is not ready to build and publish | `prodockit bootstrap` | Only with `--apply`; configuration questions use `--configure` |
-| [`prodockit init-tools`](commands/init-tools.md) | The project needs local Mermaid or MathJax rendering tools | `prodockit init-tools` | Tool manifests, scripts, and ignore entries; existing files require `--force` |
-| [`prodockit init-mathjax`](commands/init-mathjax.md) | The website needs the installed MathJax bundle copied into its assets | `prodockit init-mathjax` | Website JavaScript assets, the package licence, and, unless disabled, `.gitignore` |
 | [`prodockit update-dates`](commands/update-dates.md) | A completed website should show when each page was last updated | `prodockit update-dates` after the normal site build | The configured `site_dir`; source Markdown and configuration remain unchanged |
 | [`prodockit pdf`](commands/pdf.md) | You need one PDF containing the pages in `nav` | `prodockit pdf` | The configured PDF output |
 | [`prodockit source-bundle`](commands/source-bundle.md) | A submission needs the Markdown and configuration as a separate PDF | `prodockit source-bundle` | The configured source-bundle output |
@@ -74,11 +72,9 @@ Choose a command
 ///
 
 \ref{tab-command-line-choose-a-command} is the quickest way to select a safe
-starting form. The narrower website asset command is `prodockit
-init-mathjax`\index{commands!`prodockit init-mathjax`}; use `init-tools` when
-preparing both Mermaid and maths for PDF output. It copies the pinned package's
-Apache-2.0 licence beside the browser bundle, so a published self-contained site
-also publishes the licence that governs that third-party code.
+starting form. `pdk pdf` prepares project-local Mermaid and MathJax caches only
+when the document uses them; `pdk pdf --prepare COMPONENT` can prepare one
+explicitly. Website maths follows Zensical's documented MathJax configuration.
 
 ## Use diagnostics, Adopt, pins, and template sync together
 

@@ -419,8 +419,8 @@ def test_first_site_proves_zensical_before_adopting_prodockit() -> None:
     assert "pip install --upgrade prodockit" not in before_prodockit
     renderer_choice = page[choose_renderers:adopt]
     assert "pdk adopt --configure" in renderer_choice
-    assert "Adopt will check Node.js and npm" in renderer_choice
-    assert "need to install them manually first" in renderer_choice
+    assert "Adopt records the selection without installing a renderer" in renderer_choice
+    assert "mathematics also needs Node.js on `PATH`" in renderer_choice
     assert "pdk adopt --dry-run\n```" in page[adopt:]
     assert "```bash\npdk adopt --apply\n```" in page[adopt:]
     assert "pdk diag" in page[diagnose:add_content]
@@ -469,8 +469,8 @@ def test_bootstrap_continues_after_shared_preparation() -> None:
 
     assert ".prodockit-components.toml" in page
     assert "/// tree" not in page
-    assert "records Mermaid and maths as the project's selected components" in page
-    assert "later `pdk adopt` can therefore repair" in page
+    assert "records Mermaid and maths as selected" in page
+    assert "neither Bootstrap nor a later" in page
 
     installation = page[
         page.index("## Install with bootstrap") : page.index("## Understand the completed project")

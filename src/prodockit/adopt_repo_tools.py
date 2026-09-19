@@ -8,15 +8,54 @@ from __future__ import annotations
 import os
 import shutil
 import subprocess
+import sys
+from collections.abc import Callable, Sequence
 from pathlib import Path
 
 import click
 
 from prodockit import adopt_package_manager
-from prodockit.adopt_node import run_commands
 from prodockit.bootstrap import current_platform
 from prodockit.bootstrap.model import MACOS, UBUNTU, WINDOWS, refresh_windows_path
-from prodockit.toolchain import ToolchainError
+from prodockit.renderer_resilience import RetryReporter
+from prodockit.toolchain import ToolchainError, run_install_command
+
+
+def run_commands(
+    root: Path,
+    commands: Sequence[Sequence[str]],
+    *,
+    offline: bool = False,
+    reporter: RetryReporter | None = None,
+    refresh: Callable[[], None] | None = None,
+    label: str = "Repository tools",
+) -> None:
+    """Run approved repository-tool installers with bounded retries."""
+    refresh = refresh or _refresh
+    root_user = hasattr(os, "geteuid") and os.geteuid() == 0
+    if not root_user and any(command[0] == "sudo" for command in commands):
+        authenticated = (
+            subprocess.run(["sudo", "-n", "-v"], check=False, timeout=30).returncode == 0
+        )
+        if not authenticated:
+            if not sys.stdin.isatty():
+                raise ToolchainError(
+                    "Administrator approval is required. Run pdk adopt --apply "
+                    "in an interactive terminal."
+                )
+            if subprocess.run(["sudo", "-v"], check=False, timeout=300).returncode:
+                raise ToolchainError(
+                    f"Administrator approval was declined; {label} were not installed"
+                )
+    for command in commands:
+        arguments = list(command)
+        if arguments[0] == "sudo":
+            if root_user:
+                arguments = [value for value in arguments[1:] if value != "-E"]
+            else:
+                arguments.insert(1, "-n")
+        run_install_command(arguments, root=root, reporter=reporter, offline=offline)
+        refresh()
 
 
 def install_commands(platform: str, missing: list[str]) -> list[list[str]]:

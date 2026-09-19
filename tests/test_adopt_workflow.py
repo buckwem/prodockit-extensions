@@ -17,8 +17,7 @@ def test_stock_workflow_repair_is_valid_and_idempotent(tmp_path):
     assert target == path
     steps = yaml.safe_load(content)["jobs"]["deploy"]["steps"]
     assert steps[3]["run"] == "python -m pip install -r requirements.txt"
-    assert "npm ci --prefix tools/mathjax" in steps[4]["run"]
-    assert steps[5]["run"] == "zensical build --clean"
+    assert steps[4]["run"] == "zensical build --clean"
     path.write_text(content)
     assert plan(tmp_path) is None
 

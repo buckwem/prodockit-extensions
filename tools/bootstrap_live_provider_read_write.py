@@ -780,7 +780,6 @@ def _authorise_non_git_command(
     """Allow only the expected local build operations around repository work."""
     if fixture.source_remote in command or fixture.destination_remote in command:
         raise LiveProviderError(f"stage {stage_id} passed a provider remote to a non-Git command")
-    executable = Path(command[0]).name.casefold()
     candidate = str(candidate_python) if candidate_python is not None else ""
     project_python = str(project / ".venv" / "bin" / "python")
     project_zensical = str(project / ".venv" / "bin" / "zensical")
@@ -809,17 +808,7 @@ def _authorise_non_git_command(
     elif stage_id == "remote":
         accepted = command == [candidate, "-m", "prodockit", "sync-repo"]
     elif stage_id == "project-env":
-        from prodockit.bootstrap.stages import PANDOC_VERSION
-
         accepted = command in (
-            [
-                project_python,
-                "-m",
-                "prodockit.toolchain",
-                "install-pandoc",
-                "--version",
-                PANDOC_VERSION,
-            ],
             [candidate, "-m", "venv", str(project / ".venv")],
             [
                 project_python,
@@ -844,15 +833,6 @@ def _authorise_non_git_command(
             and command[:4] == [project_python, "-m", "pip", "install"]
         ):
             accepted = bool(re.fullmatch(r"weasyprint>=[1-9][0-9]*(?:\.[0-9]+){1,2}", command[4]))
-        if (
-            not accepted
-            and len(command) == 6
-            and command[0] == candidate
-            and command[1] == "-c"
-            and command[3] == str(project / ".venv" / "bin" / "activate")
-            and command[5] in {"/opt/homebrew/lib", "/usr/local/lib"}
-        ):
-            accepted = _safe_embedded_python(command[2])
         if not accepted and len(command) == 5:
             from prodockit.adopt import MANIFEST, AdoptOptions, manifest_source
             from prodockit.bootstrap.stages import _WRITE_NEW_TEXT_FILE
@@ -864,24 +844,6 @@ def _authorise_non_git_command(
                 str(project / MANIFEST),
                 manifest_source(AdoptOptions(mermaid=True, maths=True)),
             ]
-    elif stage_id == "node":
-        # Keep these exact rather than accepting arbitrary ``bash -c`` or npm
-        # commands.  A deliberate change to Bootstrap's dependency install
-        # remains a reviewed live-provider boundary change.  Mermaid's
-        # optional peer can be omitted by npm, so Bootstrap now verifies it
-        # and installs the one pinned runtime when necessary.
-        wanted = {
-            (
-                f"cd {shlex.quote(str(project / 'tools' / 'mermaid'))} "
-                "&& npm ci --legacy-peer-deps"
-                " && if [ ! -d node_modules/puppeteer ]; then "
-                "npm install --no-save --package-lock=false --legacy-peer-deps "
-                "puppeteer@25.9.0; fi"
-                " && npm exec -- puppeteer browsers install"
-            ),
-            (f"cd {shlex.quote(str(project / 'tools' / 'mathjax'))} && npm ci --legacy-peer-deps"),
-        }
-        accepted = executable == "bash" and command[1:2] == ["-c"] and command[2] in wanted
     elif stage_id == "vscode-settings":
         accepted = (
             len(command) == 5
@@ -908,35 +870,12 @@ def _authorise_non_git_command(
             "harvard-cite-them-right.csl",
             "https://www.zotero.org/styles/harvard-cite-them-right",
         ]
-    elif stage_id == "mathjax":
-        accepted = command == [candidate, "-m", "prodockit", "init-mathjax"]
     elif stage_id == "first-push":
         accepted = command == [project_zensical, "build", "--clean"]
     if not accepted:
         raise LiveProviderError(
             f"stage {stage_id} generated an unapproved non-Git command: {shlex.join(command)}"
         )
-
-
-def _safe_embedded_python(script: str) -> bool:
-    """Bound the two reviewed file-rewrite scripts emitted by Bootstrap."""
-    lowered = script.casefold()
-    forbidden = (
-        "subprocess",
-        "socket",
-        "urllib",
-        "requests",
-        "http",
-        "shutil",
-        "os.system",
-        "unlink(",
-        "rmtree(",
-    )
-    return "from pathlib import path" in lowered and not any(
-        token in lowered for token in forbidden
-    )
-
-
 @contextmanager
 def use_environment(environment: dict[str, str]) -> Iterator[None]:
     previous = dict(os.environ)

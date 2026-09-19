@@ -890,8 +890,6 @@ def test_no_alias_shadows_a_command() -> None:
         "pins",
         "shared-files",
         "sync-repo",
-        "init-tools",
-        "init-mathjax",
     }
 
     assert not (set(COMMAND_ALIASES) & real), "an alias may not take a command's own name"
