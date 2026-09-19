@@ -896,6 +896,16 @@ def _interpreter_candidate(check: DiagnosticResult) -> RepairCandidate:
 
 
 def _windows_pango_candidate(check: DiagnosticResult) -> RepairCandidate:
+    if check.data.get("backend") == "project-cache":
+        return RepairCandidate(
+            "renderer.weasyprint.prepare-project-cache",
+            check.id,
+            "manual",
+            "manual",
+            check.summary,
+            "Diagnostics are read-only and do not download project runtimes.",
+            "Run `pdk pdf --prepare weasyprint` or let the next PDF build prepare it.",
+        )
     policy = REPAIR_REGISTRY[check.id]
     raw = check.data.get("windows_pango")
     if not isinstance(raw, dict):

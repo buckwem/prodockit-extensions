@@ -1188,6 +1188,15 @@ def test_windows_weasyprint_diagnostic_does_not_prepare_a_missing_cache(
     assert check.data["path"] is None
     assert "pdk pdf --prepare weasyprint" in check.details[0]
 
+    dry_run = diagnostics.build_repair_dry_run(
+        DiagnosticReport("zensical.toml", str(tmp_path), False, (check,))
+    )
+    candidate = dry_run.candidates[0]
+    assert candidate.id == "renderer.weasyprint.prepare-project-cache"
+    assert candidate.status == "manual"
+    assert candidate.choices == ()
+    assert "pdk pdf --prepare weasyprint" in candidate.remediation
+
 
 def test_mermaid_diagnostic_accepts_the_standalone_runtime(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch

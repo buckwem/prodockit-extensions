@@ -81,3 +81,46 @@ def test_remove_tree_retries_transient_windows_permission_error(
 
     assert calls == 2
     assert not tmp_path.exists()
+
+
+def test_prepare_windows_pdf_runtime_is_explicit(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    calls: list[tuple[list[str], Path]] = []
+    python = tmp_path / "venv" / "Scripts" / "python.exe"
+    project = tmp_path / "project"
+    monkeypatch.setattr(acceptance.platform, "system", lambda: "Windows")
+    monkeypatch.setattr(
+        acceptance.acceptance,
+        "run",
+        lambda command, *, cwd: calls.append((command, cwd)),
+    )
+
+    acceptance.prepare_windows_pdf_runtime(python, project)
+
+    assert calls == [
+        (
+            [
+                str(python),
+                "-m",
+                "prodockit",
+                "pdf",
+                "--prepare",
+                "weasyprint",
+            ],
+            project,
+        )
+    ]
+
+
+def test_prepare_windows_pdf_runtime_is_skipped_elsewhere(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(acceptance.platform, "system", lambda: "Linux")
+    monkeypatch.setattr(
+        acceptance.acceptance,
+        "run",
+        lambda *args, **kwargs: pytest.fail("preparation should be Windows-only"),
+    )
+
+    acceptance.prepare_windows_pdf_runtime(tmp_path / "python", tmp_path / "project")

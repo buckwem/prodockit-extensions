@@ -240,6 +240,17 @@ def remove_tree(root: Path, *, attempts: int = 5) -> None:
             time.sleep(0.25 * attempt)
 
 
+def prepare_windows_pdf_runtime(python: Path, project: Path) -> None:
+    """Prepare the project-local Windows runtime before read-only diagnostics."""
+
+    if platform.system() != "Windows":
+        return
+    acceptance.run(
+        [str(python), "-m", "prodockit", "pdf", "--prepare", "weasyprint"],
+        cwd=project,
+    )
+
+
 def scenario(
     root: Path,
     candidate: Path,
@@ -334,6 +345,7 @@ def scenario(
         [str(python), "-m", "prodockit", "pins", "--check", "--offline"],
         cwd=project,
     )
+    prepare_windows_pdf_runtime(python, project)
     diagnostic = acceptance.run(
         [str(python), "-m", "prodockit", "diag", "--json"],
         cwd=project,
