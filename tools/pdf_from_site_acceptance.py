@@ -190,8 +190,11 @@ assert [page.docs_rel_path for page in captured["pages"]] == [
 ]
 assert captured["pages"][3].is_appendix is True
 assert captured["pages"][3].recto_title == "Short guide"
-assert captured["kwargs"]["main_font"] == "Roboto"
-assert captured["kwargs"]["mono_font"] == "Roboto Mono"
+assert captured["kwargs"]["main_font"] == "Inter"
+assert captured["kwargs"]["mono_font"] == "JetBrains Mono"
+assert Path(captured["kwargs"]["pandoc_executable"]).is_file()
+assert 'font-family: "Inter"' in captured["kwargs"]["font_face_css"]
+assert 'font-family: "JetBrains Mono"' in captured["kwargs"]["font_face_css"]
 assert 'class="prodockit-ref"' in home, home
 assert 'href="guide/#guide"' in home, home
 # These are assertions against Zensical's completed build output, not the
