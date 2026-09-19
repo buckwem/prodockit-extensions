@@ -870,6 +870,7 @@ def _plan_vscode(context: Context) -> Plan:
                 f"https://update.code.visualstudio.com/latest/linux-deb-{_deb_arch(context)}/stable"
             )
             commands = [
+                _apt("update"),
                 _apt("install", "-y", "curl"),
                 ["curl", "-fsSL", "-o", "/tmp/code.deb", url],
                 [
@@ -931,6 +932,10 @@ def _plan_vscode(context: Context) -> Plan:
         url = f"https://update.code.visualstudio.com/latest/linux-deb-{_deb_arch(context)}/stable"
         return Plan(
             commands=[
+                # Refresh before installing the downloaded package: hosted
+                # images and long-lived machines can otherwise reference a
+                # dependency version that Ubuntu's mirrors have retired.
+                _apt("update"),
                 _apt("install", "-y", "curl"),
                 # Two commands rather than one shell line: the download
                 # needs no privileges and the install does, so splitting
