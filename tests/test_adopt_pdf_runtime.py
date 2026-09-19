@@ -107,6 +107,26 @@ def test_pending_python_package_is_not_mistaken_for_native_install_failure(tmp_p
     assert not plan.blocked
 
 
+def test_windows_font_check_uses_the_native_installed_font_collection(
+    tmp_path, monkeypatch
+):
+    calls = []
+
+    def run(command, **kwargs):
+        calls.append(command)
+        return SimpleNamespace(
+            returncode=0,
+            stdout="Inter\nJetBrains Mono\n",
+            stderr="",
+        )
+
+    monkeypatch.setattr(runtime.subprocess, "run", run)
+
+    assert not runtime._font_problem(context(tmp_path, WINDOWS))
+    assert calls[0][:3] == ["powershell", "-NoProfile", "-Command"]
+    assert "InstalledFontCollection" in calls[0][3]
+
+
 def test_loader_repair_can_run_offline_without_package_install(tmp_path, monkeypatch):
     monkeypatch.setattr(runtime, "_context", lambda: context(tmp_path, MACOS))
     monkeypatch.setattr(runtime, "_loader_missing", lambda ctx: True)

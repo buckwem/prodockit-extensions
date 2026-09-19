@@ -74,6 +74,7 @@ def test_native_pdf_plan_does_not_provision_windows_weasyprint_runtime(monkeypat
     from prodockit import adopt_pdf_runtime
 
     monkeypatch.setattr(adopt_pdf_runtime, "_context", lambda: SimpleNamespace(platform=WINDOWS))
+    monkeypatch.setattr(adopt_pdf_runtime, "_font_problem", lambda _context: "")
     monkeypatch.setattr(
         adopt_pdf_runtime,
         "_plan_pandoc",

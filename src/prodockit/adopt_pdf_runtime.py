@@ -104,6 +104,9 @@ def _probe(
 
 
 def _font_problem(context: Context) -> str:
+    if context.platform == WINDOWS:
+        return _windows_font_problem(context)
+
     def run_font_probe(command: list[str]) -> tuple[int, str]:
         match = subprocess.run(
             command,
@@ -122,6 +125,36 @@ def _font_problem(context: Context) -> str:
     except (OSError, subprocess.SubprocessError) as error:
         return f"PDF font health could not be verified: {error}"
     return "" if fonts.status == "available" else fonts.detail
+
+
+def _windows_font_problem(context: Context) -> str:
+    """Verify installed families through Windows rather than MSYS2 fontconfig."""
+
+    script = (
+        "Add-Type -AssemblyName System.Drawing; "
+        "(New-Object System.Drawing.Text.InstalledFontCollection).Families | "
+        "ForEach-Object { $_.Name }"
+    )
+    try:
+        match = subprocess.run(
+            ["powershell", "-NoProfile", "-Command", script],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=15,
+            env=_environment(context),
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError) as error:
+        return f"PDF font health could not be verified: {error}"
+    if match.returncode:
+        detail = match.stderr.strip() or f"PowerShell exited {match.returncode}"
+        return f"PDF font health could not be verified: {detail[-400:]}"
+    installed = {line.strip().casefold() for line in match.stdout.splitlines() if line.strip()}
+    required = ("Inter", "JetBrains Mono")
+    missing = [family for family in required if family.casefold() not in installed]
+    return "" if not missing else "PDF fonts are missing: " + ", ".join(missing)
 
 
 def _loader_missing(context: Context) -> bool:
