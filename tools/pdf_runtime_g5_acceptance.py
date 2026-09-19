@@ -11,6 +11,7 @@ import json
 import os
 import subprocess
 import sys
+import sysconfig
 import time
 from pathlib import Path
 
@@ -26,9 +27,9 @@ def _run(command: list[str], *, cwd: Path, environment: dict[str, str] | None = 
 
 def _console_script(name: str) -> str:
     suffix = ".exe" if os.name == "nt" else ""
-    executable = Path(sys.executable).with_name(f"{name}{suffix}")
+    executable = Path(sysconfig.get_path("scripts")) / f"{name}{suffix}"
     if not executable.is_file():
-        raise AssertionError(f"{name} is not installed beside {sys.executable}")
+        raise AssertionError(f"{name} is not installed in {executable.parent}")
     return str(executable)
 
 
