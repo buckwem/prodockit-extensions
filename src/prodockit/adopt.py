@@ -70,6 +70,10 @@ MANIFEST = ".prodockit-components.toml"
 STYLESHEET = Path("docs/stylesheets/pdk.css")
 MANAGED_STYLESHEETS = ("pdk.css", "pdk-pdf.css")
 MANAGED_JAVASCRIPTS = ("pdk.js",)
+MATHJAX_CONFIG_JAVASCRIPT = "mathjax.js"
+WEBSITE_MATHJAX_CONFIG = "javascripts/mathjax.js"
+WEBSITE_MATHJAX_RUNTIME = "https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js"
+LEGACY_WEBSITE_MATHJAX_RUNTIME = "javascripts/vendor/mathjax/tex-svg-full.js"
 USER_MANAGED_JAVASCRIPTS = {"extra.js": ""}
 USER_MANAGED_STYLESHEETS = {
     "extra.css": "/* Add project-specific website and PDF styles below this line. */\n",
@@ -505,9 +509,20 @@ def _stylesheet_paths(root: Path, parsed: dict[str, Any]) -> dict[str, Path]:
     return {name: directory / name for name in (*MANAGED_STYLESHEETS, *USER_MANAGED_STYLESHEETS)}
 
 
+def _managed_javascripts(parsed: dict[str, Any]) -> tuple[str, ...]:
+    project = parsed.get("project", parsed)
+    configured = project.get("extra_javascript", []) if isinstance(project, dict) else []
+    if _asset_is_configured(WEBSITE_MATHJAX_CONFIG, configured):
+        return (*MANAGED_JAVASCRIPTS, MATHJAX_CONFIG_JAVASCRIPT)
+    return MANAGED_JAVASCRIPTS
+
+
 def _javascript_paths(root: Path, parsed: dict[str, Any]) -> dict[str, Path]:
     directory = root / _docs_dir(parsed) / "javascripts"
-    return {name: directory / name for name in (*MANAGED_JAVASCRIPTS, *USER_MANAGED_JAVASCRIPTS)}
+    return {
+        name: directory / name
+        for name in (*_managed_javascripts(parsed), *USER_MANAGED_JAVASCRIPTS)
+    }
 
 
 def _missing_core_extensions(parsed: dict[str, Any]) -> list[str]:
@@ -547,7 +562,7 @@ def _style_ok(root: Path, parsed: dict[str, Any]) -> bool:
         )
         and all(
             same_text_content(scripts[name].read_bytes(), resource_bytes(name))
-            for name in MANAGED_JAVASCRIPTS
+            for name in _managed_javascripts(parsed)
         )
         and all(
             _asset_is_configured(configured, values)
@@ -648,6 +663,14 @@ def _text_contains_asset_reference(source: str, rendered: str) -> bool:
             source,
         )
     )
+
+
+def _replace_yaml_asset_reference(source: str, old: str, new: str) -> str:
+    """Replace one known stock asset while preserving its YAML quote style."""
+    pattern = re.compile(
+        rf"(?P<quote>[\"']?){re.escape(old)}(?:[?#][^\"'\s,\]]*)?(?P=quote)"
+    )
+    return pattern.sub(lambda match: f"{match.group('quote')}{new}{match.group('quote')}", source)
 
 
 def _planned_zensical_config(root: Path, options: AdoptOptions) -> tuple[Path, str]:
@@ -1222,17 +1245,22 @@ def _planned_yaml_config(
         source = _yaml_ensure_mermaid(source)
     if options.maths:
         source = _yaml_ensure_arithmatex(source)
+        source = _replace_yaml_asset_reference(
+            source,
+            LEGACY_WEBSITE_MATHJAX_RUNTIME,
+            WEBSITE_MATHJAX_RUNTIME,
+        )
         source = _yaml_add_top_list_value(
             source,
             "extra_javascript",
-            "javascripts/vendor/mathjax/tex-svg-full.js",
+            f'"{WEBSITE_MATHJAX_RUNTIME}"',
             prepend=True,
             asset=True,
         )
         source = _yaml_add_top_list_value(
             source,
             "extra_javascript",
-            "javascripts/mathjax.js",
+            WEBSITE_MATHJAX_CONFIG,
             prepend=True,
             asset=True,
         )
@@ -1274,7 +1302,7 @@ def ensure_javascripts(root: Path) -> list[Path]:
     _config_path, _source, parsed = _config(root)
     paths = _javascript_paths(root, parsed)
     paths["pdk.js"].parent.mkdir(parents=True, exist_ok=True)
-    for name in MANAGED_JAVASCRIPTS:
+    for name in _managed_javascripts(parsed):
         _atomic_write(paths[name], resource_bytes(name))
     for name, initial_content in USER_MANAGED_JAVASCRIPTS.items():
         if not paths[name].exists():
@@ -1596,7 +1624,7 @@ def assess(
         style_path = style_paths[name]
         if not style_path.is_file():
             core_problems.append(f"add user-managed stylesheet {style_path.relative_to(root)}")
-    for name in MANAGED_JAVASCRIPTS:
+    for name in _managed_javascripts(parsed):
         javascript_path = javascript_paths[name]
         if not javascript_path.is_file():
             core_problems.append(f"add managed JavaScript {javascript_path.relative_to(root)}")
@@ -1629,10 +1657,11 @@ def assess(
         else f"save the selected component choices in {MANIFEST}"
     )
     csl = _csl_activity(root, parsed, offline=offline)
-    mermaid_tool_ok, mermaid_detail = _tool_health(root, "mermaid", retry_reporter=retry_reporter)
-    maths_tool_ok, maths_detail = _tool_health(root, "mathjax")
-    mermaid_ok = mermaid_tool_ok and "pymdownx.superfences" in configured
-    maths_ok = maths_tool_ok and "pymdownx.arithmatex" in configured
+    # Renderer binaries are optional project caches. Adopt records the choices
+    # and authoring configuration; Diagnostics or pdk pdf prepares the exact
+    # runtime lazily when content first needs it.
+    mermaid_ok = "pymdownx.superfences" in configured
+    maths_ok = "pymdownx.arithmatex" in configured
     from prodockit import adopt_node
 
     node = (
@@ -1741,14 +1770,14 @@ def assess(
         Step(
             "node",
             "Optional renderers",
-            "Node.js and npm runtime",
+            "Node.js runtime",
             "wrong" if node.blocked else ("missing" if node.needs_work else "ok"),
             node.blocked
             or (
-                "install or repair Node.js/npm using the system package manager; "
+                "install or repair Node.js using the system package manager; "
                 "administrator approval may be required"
                 if node.needs_work
-                else "Node.js and npm meet the supported runtime requirements"
+                else "Node.js meets the supported runtime requirements"
             ),
             commands=node.commands,
             selected=options.maths,
@@ -1759,7 +1788,8 @@ def assess(
             "Mermaid diagrams",
             "ok" if mermaid_ok else "missing",
             (
-                f"selected; {mermaid_detail}"
+                "selected; the project cache will be prepared automatically when pdk pdf "
+                "first needs Mermaid"
                 if options.mermaid
                 else "not selected; the Python runtime is not checked"
             ),
@@ -1771,14 +1801,12 @@ def assess(
             "Mathematical notation",
             "ok" if maths_ok else "missing",
             (
-                f"selected; {maths_detail}"
+                "selected; the project cache will be prepared automatically when pdk pdf "
+                "first needs MathJax"
                 if options.maths
                 else "not selected for this run; existing files are left in place"
             ),
             selected=options.maths,
-            files=tuple(root / "tools" / "mathjax" / name for name in COMPONENT_FILES["mathjax"])
-            if options.maths and not maths_ok
-            else (),
         ),
         Step(
             "verify",
@@ -1879,12 +1907,6 @@ def apply_step(
         return [
             ensure_zensical_config(root, options),
             write_manifest(root, options),
-            *install_tool(
-                root,
-                "mathjax",
-                retry_reporter=retry_reporter,
-                **({"offline": True} if offline else {}),
-            ),
         ]
     return []
 

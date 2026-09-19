@@ -36,8 +36,11 @@ def inline(value: Any) -> Item:
 def update(source: str, options: "AdoptOptions") -> str:
     from prodockit._zensical_defaults import DOCUMENTED_MARKDOWN_DEFAULTS
     from prodockit.adopt import (
+        LEGACY_WEBSITE_MATHJAX_RUNTIME,
         TREE_ICON_EXTENSION,
         TREE_ICON_SETTINGS,
+        WEBSITE_MATHJAX_CONFIG,
+        WEBSITE_MATHJAX_RUNTIME,
         AdoptError,
         _asset_reference,
         _extra_defaults_missing,
@@ -103,14 +106,26 @@ def update(source: str, options: "AdoptOptions") -> str:
     for key, value in _extra_defaults_missing(parsed).items():
         extra[key] = value
 
-    def asset(table: Any, key: str, expected: str, *, first: bool = False) -> None:
+    def asset(
+        table: Any,
+        key: str,
+        expected: str,
+        *,
+        first: bool = False,
+        replace: tuple[str, ...] = (),
+    ) -> None:
         if key not in table:
             table[key] = tomlkit.array().multiline(True)
         values = table[key]
         if not isinstance(values, list):
             raise AdoptError(f"{key} must be an array")
-        if any(_asset_reference(item) == expected for item in values):
-            return
+        for index, item in enumerate(values):
+            reference = _asset_reference(item)
+            if reference == expected:
+                return
+            if reference in replace:
+                values[index] = expected
+                return
         if first:
             values.insert(0, expected)
         else:
@@ -139,8 +154,14 @@ def update(source: str, options: "AdoptOptions") -> str:
             )
     if options.maths:
         extension("pymdownx.arithmatex")["generic"] = True
-        asset(project, "extra_javascript", "javascripts/vendor/mathjax/tex-svg-full.js", first=True)
-        asset(project, "extra_javascript", "javascripts/mathjax.js", first=True)
+        asset(
+            project,
+            "extra_javascript",
+            WEBSITE_MATHJAX_RUNTIME,
+            first=True,
+            replace=(LEGACY_WEBSITE_MATHJAX_RUNTIME,),
+        )
+        asset(project, "extra_javascript", WEBSITE_MATHJAX_CONFIG, first=True)
     asset(project, "extra_javascript", "javascripts/pdk.js", first=True)
     asset(project, "extra_javascript", "javascripts/extra.js")
     output = tomlkit.dumps(document)

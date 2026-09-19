@@ -39,8 +39,6 @@ ADOPTED_SITE_FILES = {
     "javascripts/pdk.js",
     "javascripts/extra.js",
     "javascripts/mathjax.js",
-    "javascripts/vendor/mathjax/LICENSE",
-    "javascripts/vendor/mathjax/tex-svg-full.js",
 }
 SCENARIOS = (
     ("toml-default", "zensical.toml", False, False),
@@ -55,7 +53,7 @@ ASSET_TAG = re.compile(
     rb"(?:<link\b[^>]*(?:pdk|extra)\.css[^>]*>|"
     rb"<script\b[^>]*(?:javascripts/(?:pdk|extra)\.js|"
     rb"javascripts/mathjax\.js|"
-    rb"javascripts/vendor/mathjax/tex-svg-full\.js)[^>]*>\s*</script>)\s*",
+    rb"https://unpkg\.com/mathjax@3/es5/tex-mml-chtml\.js)[^>]*>\s*</script>)\s*",
     re.IGNORECASE | re.DOTALL,
 )
 
