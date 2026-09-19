@@ -270,7 +270,7 @@ def recovery_advice(
         verification = {
             "git": "`git --version`",
             "vscode": "`code --version`",
-            "node": "both `node --version` and `npm --version`",
+            "node": "`node --version`",
         }[stage_id]
         return RecoveryAdvice(
             "alternative-installer",
@@ -336,18 +336,17 @@ def recovery_advice(
                 "The NodeSource repository setup failed before Node was installed; "
                 "review its output and confirm the VM's Ubuntu release is supported.",
                 "If NodeSource remains unavailable, install the current Node.js LTS "
-                "with its official Linux instructions, confirm both `node --version` "
-                "and `npm --version`, then resume prodockit bootstrap.",
+                "with its official Linux instructions, confirm `node --version`, then "
+                "resume prodockit bootstrap.",
             ),
         )
     if stage_id == "node":
         return RecoveryAdvice(
-            "node-toolchain",
+            "node-runtime",
             (
-                "Run `node --version` and `npm --version` to distinguish a runtime "
-                "failure from a project-toolchain failure.",
-                "Run `npm cache verify`; if it succeeds, resume prodockit bootstrap so `npm ci` "
-                "can rebuild the project toolchains.",
+                "Run `node --version` to confirm whether the runtime is available.",
+                "Resume prodockit bootstrap after correcting the Node installation; "
+                "PDF renderer assets are prepared separately in the project cache.",
             ),
         )
     if stage_id == "pandoc" and platform == UBUNTU:

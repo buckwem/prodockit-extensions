@@ -1,7 +1,7 @@
 # Copyright (c) 2026 Mark Buckwell and contributors
 # SPDX-License-Identifier: MIT
 
-"""Node/npm provisioning shared with Bootstrap, without its repository activities."""
+"""Node provisioning shared with Bootstrap, without its repository activities."""
 
 from __future__ import annotations
 
@@ -55,13 +55,13 @@ def plan(*, offline: bool = False) -> NodePlan:
         home=Path.home(),
         guided=True,
     )
-    # The shared routine only probes Node/npm and plans package-manager commands.
+    # The shared routine only probes Node and plans package-manager commands.
     # It does not read Bootstrap's saved answers or invoke Git, SSH or an editor.
     commands, _upgrade, _repair, _parts = node_runtime_install_plan(context)
     if not commands:
         return NodePlan()
     if offline:
-        return NodePlan(blocked="Node.js/npm needs installation or repair, but Adopt is offline")
+        return NodePlan(blocked="Node.js needs installation or repair, but Adopt is offline")
     manager = adopt_package_manager.plan(platform, offline=offline)
     if manager.blocked:
         return NodePlan(blocked=manager.blocked)
@@ -93,7 +93,7 @@ def apply(root: Path, *, offline: bool = False, reporter: RetryReporter | None =
             else "source .venv/bin/activate"
         )
         raise ToolchainError(
-            "\n" + "=" * 78 + "\nINSTALLATION INCOMPLETE — NODE.JS/NPM IS NOT READY\n"
+            "\n" + "=" * 78 + "\nINSTALLATION INCOMPLETE — NODE.JS IS NOT READY\n"
             "The installer finished, but Node.js still needs installation or repair.\n"
             "If it was just installed, RESTART YOUR TERMINAL to refresh its commands.\n"
             "Return to this project, then run:\n"

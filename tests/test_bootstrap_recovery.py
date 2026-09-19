@@ -264,10 +264,10 @@ def test_journal_failure_is_reported_without_raising(tmp_path: Path) -> None:
         (
             "node",
             MACOS,
-            ["npm", "ci"],
-            CommandResult(1, stderr="dependency install failed"),
-            "node-toolchain",
-            "npm cache verify",
+            ["node", "--version"],
+            CommandResult(1, stderr="runtime failed"),
+            "node-runtime",
+            "node --version",
         ),
         (
             "pandoc",

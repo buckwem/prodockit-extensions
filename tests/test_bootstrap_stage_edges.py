@@ -19,7 +19,6 @@ import pytest
 from bootstrap_cli_harness import CliFakeRunner, unreachable
 
 import prodockit.bootstrap.stages as stages
-from prodockit import mathjax
 from prodockit.bootstrap import BootstrapConfig, CommandResult, Status, build_context, plan_all
 from prodockit.bootstrap.model import MACOS, UBUNTU, WINDOWS
 
@@ -241,17 +240,7 @@ def test_node_stage_warns_about_an_unreadable_version(tmp_path: Path) -> None:
     assert "could not read Node's version" in result.detail
 
 
-def _installed_renderer_files(project: Path) -> None:
-    bundle = (
-        project / "tools" / "mathjax" / "node_modules" / "mathjax-full" / "es5" / "tex-svg-full.js"
-    )
-    bundle.parent.mkdir(parents=True)
-    bundle.write_text("bundle", encoding="utf-8")
-
-
-def test_node_stage_rejects_incomplete_mathjax_modules(tmp_path: Path) -> None:
-    project = tmp_path / "report"
-    _installed_renderer_files(project)
+def test_node_stage_does_not_probe_project_renderer_files(tmp_path: Path) -> None:
     runner = CliFakeRunner(
         {
             "node --version": CommandResult(0, "v22.14.0"),
@@ -262,12 +251,11 @@ def test_node_stage_rejects_incomplete_mathjax_modules(tmp_path: Path) -> None:
 
     result = stages._check_node(_context(tmp_path, runner=runner))
 
-    assert result.status is Status.WRONG
-    assert "MathJax cannot load" in result.detail
-    assert "Cannot find module" in result.detail
+    assert result.status is Status.OK
+    assert result.detail == "node 22.14.0"
 
 
-def test_node_stage_rejects_an_old_npm(tmp_path: Path) -> None:
+def test_node_stage_does_not_require_npm(tmp_path: Path) -> None:
     (tmp_path / "report").mkdir()
     runner = CliFakeRunner(
         {
@@ -278,11 +266,10 @@ def test_node_stage_rejects_an_old_npm(tmp_path: Path) -> None:
 
     result = stages._check_node(_context(tmp_path, runner=runner))
 
-    assert result.status is Status.WRONG
-    assert stages.NPM_MIN_VERSION in result.detail
+    assert result.status is Status.OK
 
 
-def test_node_stage_requests_missing_configuration_after_tool_checks(
+def test_node_stage_does_not_require_project_configuration(
     tmp_path: Path,
 ) -> None:
     runner = CliFakeRunner(
@@ -291,18 +278,17 @@ def test_node_stage_requests_missing_configuration_after_tool_checks(
 
     result = stages._check_node(_context(tmp_path, runner=runner, project_name=""))
 
-    assert result.status is Status.UNKNOWN
+    assert result.status is Status.OK
 
 
-def test_node_stage_waits_until_the_project_directory_exists(tmp_path: Path) -> None:
+def test_node_stage_does_not_wait_until_the_project_directory_exists(tmp_path: Path) -> None:
     runner = CliFakeRunner(
         {"node --version": CommandResult(0, "v24.1.0"), "npm --version": CommandResult(0, "11")}
     )
 
     result = stages._check_node(_context(tmp_path, runner=runner))
 
-    assert result.status is Status.BLOCKED
-    assert result.detail == "no project directory yet"
+    assert result.status is Status.OK
 
 
 def test_ubuntu_locale_without_lang_is_unknown(tmp_path: Path) -> None:
@@ -420,25 +406,6 @@ def test_remote_stage_reports_an_unexpected_origin(tmp_path: Path) -> None:
 
     assert result.status is Status.WRONG
     assert "expected" in result.detail
-
-
-def test_mathjax_stage_accepts_an_install_after_its_pinned_source_is_removed(
-    tmp_path: Path,
-) -> None:
-    context = _context(tmp_path)
-    _source, _license_source, bundle, license_path, config = stages._mathjax_paths(context)
-    bundle.parent.mkdir(parents=True)
-    bundle.write_text("BUNDLE", encoding="utf-8")
-    license_path.write_text("APACHE", encoding="utf-8")
-    config.parent.mkdir(parents=True, exist_ok=True)
-    config.write_text(mathjax.CONFIG_SOURCE, encoding="utf-8")
-    (tmp_path / "report" / ".gitignore").write_text(
-        "\n".join(mathjax.IGNORED) + "\n", encoding="utf-8"
-    )
-
-    result = stages._check_mathjax(context)
-
-    assert result.status is Status.OK
 
 
 def test_site_stage_is_not_applicable_without_a_fixed_pages_address(
@@ -593,7 +560,7 @@ def test_linux_node_setup_separates_download_from_privileged_execution(
     assert not any("| sudo" in line for line in rendered)
 
 
-def test_windows_node_repair_is_fully_non_interactive(tmp_path: Path) -> None:
+def test_windows_node_does_not_repair_a_missing_npm(tmp_path: Path) -> None:
     runner = CliFakeRunner(
         {
             "node --version": CommandResult(0, "v22.12.0\n"),
@@ -601,12 +568,7 @@ def test_windows_node_repair_is_fully_non_interactive(tmp_path: Path) -> None:
         }
     )
     plan = stages._plan_node(_context(tmp_path, platform=WINDOWS, runner=runner))
-    repair = next(command for command in plan.commands if command[:2] == ["winget", "repair"])
-
-    assert "--silent" in repair
-    assert "--accept-source-agreements" in repair
-    assert "--accept-package-agreements" in repair
-    assert "--disable-interactivity" in repair
+    assert not plan.commands
 
 
 def test_windows_pandoc_plan_is_independent_of_python_architecture(

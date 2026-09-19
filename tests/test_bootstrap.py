@@ -46,14 +46,11 @@ from prodockit.bootstrap import (
 )
 from prodockit.bootstrap.model import GITHUB_COM, MACOS, SURREY_GITLAB, UBUNTU, WINDOWS
 from prodockit.bootstrap.stages import (
-    CHROMIUM_MIN_VERSION,
     DEFAULT_CSL_STYLE,
     GIT_MIN_VERSION,
-    NPM_MIN_VERSION,
     PANDOC_VERSION,
     PANGO_MIN_VERSION,
     PUBLIC_KEY_MARKER,
-    PUPPETEER_SKIP_VAR,
     VSCODE_EXTENSION_MIN_VERSIONS,
     VSCODE_EXTENSIONS,
     VSCODE_MIN_VERSION,
@@ -651,15 +648,13 @@ def test_a_truncated_private_key_is_archived_instead_of_reused(tmp_path: Path) -
     assert "-y" not in plan.commands[-1]
 
 
-def test_node_without_npm_is_wrong(tmp_path: Path) -> None:
-    """The signature of Ubuntu's own nodejs package, or a NodeSource install
-    whose `curl` line failed - a real failure this family has already hit."""
+def test_node_without_npm_is_supported(tmp_path: Path) -> None:
     (tmp_path / "GitLab" / "report-al01234").mkdir(parents=True)
     runner = FakeRunner({"node": CommandResult(0, "v22.14.0\n")})
     context = _context(tmp_path, runner=runner)
     result = next(s for s in STAGES if s.id == "node").check(context)
-    assert result.status is Status.WRONG
-    assert "npm" in result.detail
+    assert result.status is Status.OK
+    assert result.detail == "node 22.14.0"
 
 
 def test_node_older_than_the_builds_use_is_wrong(tmp_path: Path) -> None:
@@ -2879,9 +2874,7 @@ def test_ubuntu_node_installs_curl_first(tmp_path: Path) -> None:
     assert "curl" in first_install
 
 
-def test_current_node_is_not_reinstalled_when_only_toolchains_are_missing(
-    tmp_path: Path,
-) -> None:
+def test_current_node_needs_no_project_toolchain_install(tmp_path: Path) -> None:
     runner = FakeRunner(
         {
             "node --version": CommandResult(0, "v22.14.0\n"),
@@ -2893,8 +2886,7 @@ def test_current_node_is_not_reinstalled_when_only_toolchains_are_missing(
         _context(tmp_path, platform=WINDOWS, runner=runner)
     )
 
-    assert not any(command[0] == "winget" for command in plan.commands)
-    assert len([command for command in plan.commands if "npm.cmd ci" in " ".join(command)]) == 1
+    assert not plan.commands
 
 
 def test_old_windows_node_uses_an_upgrade_or_install_command(tmp_path: Path) -> None:
@@ -2942,9 +2934,7 @@ def test_old_x64_node_is_replaced_before_native_windows_arm64_install(
     assert plan.destructive
 
 
-def test_old_npm_is_an_explicit_upgrade_without_reinstalling_current_node(
-    tmp_path: Path,
-) -> None:
+def test_old_npm_is_irrelevant_when_node_is_current(tmp_path: Path) -> None:
     runner = FakeRunner(
         {
             "node --version": CommandResult(0, "v22.14.0\n"),
@@ -2956,11 +2946,9 @@ def test_old_npm_is_an_explicit_upgrade_without_reinstalling_current_node(
         _context(tmp_path, platform=MACOS, runner=runner)
     )
 
-    assert plan.commands[0][:3] == ["npm", "install", "--global"]
-    assert plan.commands[0][-1] == f"npm@>={NPM_MIN_VERSION}"
-    assert plan.action == "UPGRADE"
-    assert plan.destructive
-    assert plan.describe.startswith("Upgrade npm")
+    assert not plan.commands
+    assert not plan.action
+    assert not plan.destructive
 
 
 @pytest.mark.parametrize("platform", [MACOS, UBUNTU])
@@ -2982,7 +2970,7 @@ def test_old_node_is_an_explicit_upgrade_on_unix(tmp_path: Path, platform: str) 
     assert plan.describe.startswith("Upgrade Node")
 
 
-def test_windows_node_without_npm_uses_repair_not_reinstall(tmp_path: Path) -> None:
+def test_windows_node_without_npm_needs_no_repair(tmp_path: Path) -> None:
     runner = FakeRunner(
         {
             "node --version": CommandResult(0, "v22.14.0\n"),
@@ -2994,10 +2982,8 @@ def test_windows_node_without_npm_uses_repair_not_reinstall(tmp_path: Path) -> N
         _context(tmp_path, platform=WINDOWS, runner=runner)
     )
 
-    assert plan.commands[0][:4] == ["winget", "repair", "--id", "OpenJS.NodeJS.LTS"]
-    assert "--source winget" in " ".join(plan.commands[0])
-    assert plan.destructive, "repairing an existing runtime needs explicit approval"
-    assert plan.describe.startswith("Repair the existing Node")
+    assert not plan.commands
+    assert not plan.destructive
 
 
 # ---------------------------------------------------------------------------
@@ -4108,44 +4094,13 @@ def test_ubuntu_reads_the_language_from_the_locale_command(tmp_path: Path) -> No
     assert '"ltex.language": "en-GB"' in plan.commands[0][-1]
 
 
-# ---------------------------------------------------------------------------
-# What the User Guide learned on ARM64, carried over: #249
-# ---------------------------------------------------------------------------
-
-
-def test_chromium_is_installed_before_npm_ci_runs(tmp_path: Path) -> None:
-    """Ordering is the whole of the fix. Installing Chromium after
-    `npm ci` leaves the wasted download already done."""
-    context = _context(tmp_path, platform=UBUNTU)
-    flat = [" ".join(c) for c in next(s for s in STAGES if s.id == "node").plan(context).commands]
-
-    chromium = next(i for i, c in enumerate(flat) if "chromium-browser" in c)
-    first_npm = next(i for i, c in enumerate(flat) if "npm ci" in c)
-    assert chromium < first_npm
-
-
-def test_the_puppeteer_exports_are_appended_only_once(tmp_path: Path) -> None:
-    """Bootstrap is rerunnable, and a profile carrying the same two
-    exports four times over is the mark of a tool that assumed it was
-    not."""
-    context = _context(tmp_path, platform=UBUNTU)
-    flat = " ".join(
-        " ".join(c) for c in next(s for s in STAGES if s.id == "node").plan(context).commands
-    )
-
-    assert ".bashrc" in flat, "later sessions need them too, not just this run"
-    assert "grep -q" in flat, "appended only when not already there"
-
-
-def test_other_platforms_are_left_alone(tmp_path: Path) -> None:
-    """macOS and Windows install only the MathJax Node project."""
-    for platform in (MACOS, WINDOWS):
+def test_node_stage_never_installs_npm_or_a_browser(tmp_path: Path) -> None:
+    for platform in (MACOS, UBUNTU, WINDOWS):
         plan = next(s for s in STAGES if s.id == "node").plan(_context(tmp_path, platform=platform))
         flat = " ".join(" ".join(c) for c in plan.commands)
         assert "chromium" not in flat, platform
         assert "PUPPETEER" not in flat, platform
-        assert flat.count("--legacy-peer-deps") == 1, platform
-        assert "puppeteer browsers install" not in flat, platform
+        assert "npm" not in flat, platform
 
 
 @pytest.mark.parametrize("platform", [MACOS, UBUNTU, WINDOWS])
@@ -4325,11 +4280,10 @@ PLAN_EFFECTS: dict[str, tuple[str, ...] | None] = {
     # with Python, so a failure there is guided rather than repaired.
     "own-venv": ("the venv machinery",),
     "project-env": ("the venv", "its dependencies"),
-    "node": ("node", "the toolchains", "chromium and the exports"),
+    "node": ("node",),
     "extensions": ("the extensions",),
     "vscode-settings": ("the settings file",),
     "csl-style": ("the style file",),
-    "mathjax": ("the bundle", "its config", "the gitignore entries"),
 }
 
 
@@ -4399,24 +4353,7 @@ def test_a_stage_with_commands_is_never_satisfied_by_an_empty_machine(
             )
 
 
-def test_a_stage_that_installs_toolchains_notices_they_are_absent(tmp_path: Path) -> None:
-    """The regression that prompted the review: node present, toolchains
-    not. The stage said `ok` and the reader found out at a diagram."""
-    project = tmp_path / "GitLab" / "report-al01234"
-    project.mkdir(parents=True)
-    save(tmp_path / "b.toml", _config())
-    runner = FakeRunner(
-        {"node": CommandResult(0, "v22.14.0\n"), "npm": CommandResult(0, "10.9.2\n")}
-    )
-
-    result = next(s for s in STAGES if s.id == "node").check(_context(tmp_path, runner=runner))
-
-    assert result.needs_work
-    assert "mathjax" in result.detail
-    assert "mermaid" not in result.detail
-
-
-def test_partial_node_modules_directories_are_not_complete_toolchains(tmp_path: Path) -> None:
+def test_node_stage_ignores_retired_project_toolchain_directories(tmp_path: Path) -> None:
     project = tmp_path / "GitLab" / "report-al01234"
     (project / "tools" / "mathjax" / "node_modules").mkdir(parents=True)
     save(tmp_path / "b.toml", _config())
@@ -4426,107 +4363,8 @@ def test_partial_node_modules_directories_are_not_complete_toolchains(tmp_path: 
 
     result = next(s for s in STAGES if s.id == "node").check(_context(tmp_path, runner=runner))
 
-    assert result.status is Status.WRONG
-    assert "mathjax" in result.detail
-    assert "mermaid" not in result.detail
-
-
-def test_ubuntu_notices_puppeteer_has_no_browser_to_point_at(tmp_path: Path) -> None:
-    """Chromium installed but never pointed at leaves Puppeteer
-    downloading its own; the exports without a Chromium point at
-    nothing. Both halves are the stage's own plan, so both are checked."""
-    project = tmp_path / "GitLab" / "report-al01234"
-    (project / "tools" / "mathjax" / "node_modules").mkdir(parents=True)
-    mathjax_bundle = (
-        project / "tools" / "mathjax" / "node_modules" / "mathjax-full" / "es5" / "tex-svg-full.js"
-    )
-    mathjax_bundle.parent.mkdir(parents=True, exist_ok=True)
-    mathjax_bundle.write_text("BUNDLE", encoding="utf-8")
-    save(tmp_path / "b.toml", _config())
-    stage = next(s for s in STAGES if s.id == "node")
-    base = {"node": CommandResult(0, "v22.14.0\n"), "npm": CommandResult(0, "10.9.2\n")}
-
-    no_chromium = FakeRunner({**base, "command -v chromium": CommandResult(1)})
-    result = stage.check(_context(tmp_path, runner=no_chromium, platform=UBUNTU))
-    assert result.needs_work and "Chromium" in result.detail
-
-    both = FakeRunner(
-        {
-            **base,
-            "command -v chromium-browser": CommandResult(0, f"Chromium {CHROMIUM_MIN_VERSION}\n"),
-            f"grep -q {PUPPETEER_SKIP_VAR}": CommandResult(0),
-        }
-    )
-    assert stage.check(_context(tmp_path, runner=both, platform=UBUNTU)).status is Status.OK
-
-
-def test_ubuntu_rejects_chromium_older_than_the_puppeteer_floor(tmp_path: Path) -> None:
-    project = tmp_path / "GitLab" / "report-al01234"
-    mathjax_bundle = (
-        project / "tools" / "mathjax" / "node_modules" / "mathjax-full" / "es5" / "tex-svg-full.js"
-    )
-    mathjax_bundle.parent.mkdir(parents=True, exist_ok=True)
-    mathjax_bundle.write_text("BUNDLE", encoding="utf-8")
-    save(tmp_path / "b.toml", _config())
-    runner = FakeRunner(
-        {
-            "node": CommandResult(0, "v22.14.0\n"),
-            "npm": CommandResult(0, "10.9.2\n"),
-            "command -v chromium-browser": CommandResult(0, "Chromium 100.0.4896.60\n"),
-            f"grep -q {PUPPETEER_SKIP_VAR}": CommandResult(0),
-        }
-    )
-
-    result = next(s for s in STAGES if s.id == "node").check(
-        _context(tmp_path, runner=runner, platform=UBUNTU)
-    )
-
-    assert result.status is Status.WRONG
-    assert CHROMIUM_MIN_VERSION in result.detail
-
-    plan = next(s for s in STAGES if s.id == "node").plan(
-        _context(tmp_path, runner=runner, platform=UBUNTU)
-    )
-    assert plan.action == "UPGRADE"
-    assert plan.destructive
-    assert "Chromium" in plan.describe
-
-
-@pytest.mark.parametrize(
-    "unreadable,detail",
-    [("npm", NPM_MIN_VERSION), ("chromium", CHROMIUM_MIN_VERSION)],
-)
-def test_node_stage_warns_when_a_runtime_version_cannot_be_read(
-    tmp_path: Path, unreadable: str, detail: str
-) -> None:
-    project = tmp_path / "GitLab" / "report-al01234"
-    mathjax_bundle = (
-        project / "tools" / "mathjax" / "node_modules" / "mathjax-full" / "es5" / "tex-svg-full.js"
-    )
-    mathjax_bundle.parent.mkdir(parents=True, exist_ok=True)
-    mathjax_bundle.write_text("BUNDLE", encoding="utf-8")
-    save(tmp_path / "b.toml", _config())
-    runner = FakeRunner(
-        {
-            "node": CommandResult(0, "v22.14.0\n"),
-            "npm": CommandResult(0, "development\n" if unreadable == "npm" else "10.9.2\n"),
-            "command -v chromium-browser": CommandResult(
-                0,
-                "Chromium development\n"
-                if unreadable == "chromium"
-                else f"Chromium {CHROMIUM_MIN_VERSION}\n",
-            ),
-            f"grep -q {PUPPETEER_SKIP_VAR}": CommandResult(0),
-        }
-    )
-
-    result = next(s for s in STAGES if s.id == "node").check(
-        _context(tmp_path, runner=runner, platform=UBUNTU)
-    )
-
-    assert result.status is Status.WARNING
-    assert not result.needs_work
-    assert detail in result.detail
+    assert result.status is Status.OK
+    assert result.detail == "node 22.14.0"
 
 
 def test_native_pdf_stage_ignores_host_fonts(tmp_path: Path) -> None:
@@ -5637,123 +5475,6 @@ def test_the_host_is_asked_before_the_prompt_that_needs_it() -> None:
     assert keys.index("host") < keys.index("email")
 
 
-# ---------------------------------------------------------------------------
-# MathJax installed, not committed: #263
-# ---------------------------------------------------------------------------
-
-
-def _mathjax_project(tmp_path: Path) -> Path:
-    project = tmp_path / "GitLab" / "report-al01234"
-    (project / "docs").mkdir(parents=True)
-    pinned = project / "tools" / "mathjax" / "node_modules" / "mathjax-full" / "es5"
-    pinned.mkdir(parents=True)
-    (pinned / "tex-svg-full.js").write_text("BUNDLE", encoding="utf-8")
-    (pinned.parent / "LICENSE").write_text("APACHE", encoding="utf-8")
-    save(tmp_path / "b.toml", _config())
-    return project
-
-
-def _complete_mathjax_install(project: Path) -> None:
-    source = project.joinpath(*mathjax.SOURCE)
-    license_source = project.joinpath(*mathjax.LICENSE_SOURCE)
-    bundle = project.joinpath(*mathjax.DEST, mathjax.BUNDLE)
-    bundle.parent.mkdir(parents=True, exist_ok=True)
-    bundle.write_bytes(source.read_bytes())
-    project.joinpath(*mathjax.DEST, mathjax.LICENSE).write_bytes(license_source.read_bytes())
-    config = project.joinpath(*mathjax.CONFIG)
-    config.parent.mkdir(parents=True, exist_ok=True)
-    config.write_text(mathjax.CONFIG_SOURCE, encoding="utf-8")
-    (project / ".gitignore").write_text("\n".join(mathjax.IGNORED) + "\n", encoding="utf-8")
-
-
-def test_the_website_needs_both_the_config_and_the_bundle(tmp_path: Path) -> None:
-    """prodockit-extensions#263: the equation showed as raw TeX because
-    MathJax was loaded with no configuration.
-
-    Both halves fail differently and neither is visible: without the
-    config the bundle loads and does nothing, without the bundle the
-    config configures nothing."""
-    _mathjax_project(tmp_path)
-    stage = next(s for s in STAGES if s.id == "mathjax")
-
-    result = stage.check(_context(tmp_path))
-    assert result.status is Status.MISSING
-    assert "config" in result.detail and "bundle" in result.detail
-
-
-def test_the_mathjax_stage_calls_the_one_installer(tmp_path: Path) -> None:
-    """prodockit-extensions#276. The configuration lived here *and* in a
-    template's CI, which never runs bootstrap - two copies of a thing
-    whose whole failure mode is being subtly wrong, since both produce a
-    valid file and the site simply typesets one way locally and another
-    when published.
-
-    The stage calls `prodockit init-mathjax` now, the same arrangement
-    the repoint stage has with `prodockit sync-repo`."""
-    _mathjax_project(tmp_path)
-    plan = next(s for s in STAGES if s.id == "mathjax").plan(_context(tmp_path))
-
-    assert plan.commands == [[sys.executable, "-m", "prodockit", "init-mathjax"]], (
-        "the prodockit already running, not whichever one PATH finds (#371)"
-    )
-    assert plan.cwd is not None and plan.cwd.endswith("report-al01234")
-    # The config itself is no longer here to drift from.
-    from prodockit.bootstrap import stages
-
-    assert not hasattr(stages, "MATHJAX_CONFIG_SOURCE")
-
-
-@pytest.mark.parametrize(
-    ("damage", "detail"),
-    [
-        ("empty-bundle", "bundle is empty"),
-        ("wrong-bundle", "does not match"),
-        ("wrong-config", "configuration is incomplete"),
-        ("empty-license", "licence is empty"),
-        ("missing-ignore", "not all excluded from git"),
-    ],
-)
-def test_partial_mathjax_installations_are_repaired(
-    tmp_path: Path, damage: str, detail: str
-) -> None:
-    project = _mathjax_project(tmp_path)
-    _complete_mathjax_install(project)
-    _source, _license_source, bundle, license_path, config = stages_module._mathjax_paths(
-        _context(tmp_path)
-    )
-    if damage == "empty-bundle":
-        bundle.write_bytes(b"")
-    elif damage == "wrong-bundle":
-        bundle.write_bytes(b"OTHER")
-    elif damage == "wrong-config":
-        config.write_text("window.MathJax = {};\n", encoding="utf-8")
-    elif damage == "empty-license":
-        license_path.write_bytes(b"")
-    else:
-        (project / ".gitignore").write_text("", encoding="utf-8")
-
-    result = next(s for s in STAGES if s.id == "mathjax").check(_context(tmp_path))
-
-    assert result.status is Status.WRONG
-    assert detail in result.detail
-
-
-def test_the_mathjax_stage_runs_after_the_toolchains(tmp_path: Path) -> None:
-    """The bundle is copied out of what `npm ci` put there."""
-    ids = [s.id for s in STAGES]
-
-    assert ids.index("mathjax") > ids.index("node")
-
-
-def test_the_stage_says_what_it_does_rather_than_showing_the_script(tmp_path: Path) -> None:
-    """#261's rule, applied to a stage written after it."""
-    _mathjax_project(tmp_path)
-    plan = next(s for s in STAGES if s.id == "mathjax").plan(_context(tmp_path))
-
-    assert plan.describe
-    assert "import pathlib" not in plan.describe
-
-
 def test_a_stages_instructions_describe_the_machine_as_it_is_now(
     cli_bootstrap, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -6156,11 +5877,7 @@ def test_a_machine_without_vs_code_still_reports_it_missing(tmp_path: Path) -> N
     assert next(s for s in STAGES if s.id == "vscode").check(context).status is Status.MISSING
 
 
-def test_windows_finds_npm_by_path_when_the_bare_name_will_not_run(tmp_path: Path) -> None:
-    """prodockit-extensions#295, the same trap as #292. `npm` on Windows
-    is `npm.cmd`, and Python's subprocess uses CreateProcess, which does
-    not apply PATHEXT - so a bare `npm` is "not found" on a machine where
-    Node is installed correctly, and neither toolchain installs."""
+def test_windows_npm_resolution_is_not_used_by_the_node_plan(tmp_path: Path) -> None:
     from prodockit.bootstrap.stages import npm_command
 
     context = build_context(
@@ -6173,22 +5890,13 @@ def test_windows_finds_npm_by_path_when_the_bare_name_will_not_run(tmp_path: Pat
 
     assert npm_command(context).endswith("npm.cmd")
     plan = next(s for s in STAGES if s.id == "node").plan(context)
-    installs = [c for c in plan.commands if "npm.cmd ci" in " ".join(c)]
-    assert installs and all(c[0] == "powershell" for c in installs)
+    assert not any("npm" in " ".join(command) for command in plan.commands)
 
 
-def test_npm_ci_runs_from_mathjax_directory_without_prefix(tmp_path: Path) -> None:
+def test_node_plan_never_runs_npm_ci(tmp_path: Path) -> None:
     for platform in (MACOS, WINDOWS, UBUNTU):
         plan = next(s for s in STAGES if s.id == "node").plan(_context(tmp_path, platform=platform))
-        installs = [
-            " ".join(c) for c in plan.commands if "npm" in " ".join(c) and " ci" in " ".join(c)
-        ]
-        assert len(installs) == 1, platform
-        assert all("--prefix" not in command for command in installs), platform
-        assert all("tools/mathjax" in command for command in installs), platform
-        assert any(
-            "tools/mathjax" in command or "tools\\mathjax" in command for command in installs
-        )
+        assert not any("npm" in " ".join(command) for command in plan.commands), platform
 
 
 def test_npm_is_left_alone_where_it_works(tmp_path: Path) -> None:
@@ -6973,10 +6681,13 @@ def test_project_dependent_stages_have_no_plan_before_the_clone(
         for report in plan_all(_context(tmp_path, platform=platform, runner=FakeRunner()))
     }
 
-    for stage_id in ("project-env", "node", "vscode-settings", "csl-style", "mathjax"):
+    for stage_id in ("project-env", "vscode-settings", "csl-style"):
         report = reports[stage_id]
         assert report.result.status is Status.BLOCKED, stage_id
         assert report.plan is None, f"{stage_id} must not run before its working tree exists"
+
+    assert reports["node"].result.status is Status.MISSING
+    assert reports["node"].plan is not None
 
 
 def test_the_reset_unblocks_both_stages(tmp_path: Path) -> None:
@@ -7791,7 +7502,7 @@ def test_no_stage_asks_the_machine_to_find_prodockit_again(tmp_path: Path) -> No
     plans = [
         stage.plan(context)
         for stage in STAGES
-        if stage.plan is not None and stage.id in {"remote", "mathjax"}
+        if stage.plan is not None and stage.id == "remote"
     ]
     commands = [command for plan in plans for command in plan.commands]
     commands += runner.calls

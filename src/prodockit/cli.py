@@ -167,7 +167,7 @@ _BOOTSTRAP_PHASES: tuple[tuple[str, frozenset[str]], ...] = (
     ),
     (
         "Editor and project",
-        frozenset({"extensions", "vscode-settings", "csl-style", "mathjax"}),
+        frozenset({"extensions", "vscode-settings", "csl-style"}),
     ),
     ("Publish", frozenset({"first-push", "site"})),
 )
@@ -184,7 +184,6 @@ _BOOTSTRAP_INSTALL_STAGES = frozenset(
         "node",
         "extensions",
         "csl-style",
-        "mathjax",
     }
 )
 _BOOTSTRAP_CONFIGURE_STAGES = frozenset(
@@ -868,7 +867,7 @@ def _offer_to_fill_gaps(config: BootstrapConfig, path: Path) -> tuple[BootstrapC
     report and exit rather than block on a prompt nobody can answer.
 
     Returns the config and whether a *whole* configuration was answered
-    here, which the caller stops on: twenty-three stage lines printed
+    here, which the caller stops on: twenty-two stage lines printed
     after it scroll the namespace and repository name off the screen, and
     those are the two things a reader has to take to a website
     (prodockit-extensions#433).
@@ -1598,7 +1597,7 @@ def _typed_yes(question: str) -> bool:
     """A question the Enter key cannot answer.
 
     `[Y/n]` is answered by pressing Enter, and a reader twelve stages
-    into a twenty-three stage setup presses it in rhythm. For a browser
+    into a twenty-two stage setup presses it in rhythm. For a browser
     step that means claiming to have done something they have not, and
     the run continues as though a manual stage was complete
     (prodockit-extensions#374). Typing the word costs three seconds and
@@ -2611,7 +2610,7 @@ def bootstrap(
 ) -> None:
     """Set up this machine and a project based on prodockit-template.
 
-    Checks all 23 activities - prodockit's own environment, editor, git, SSH
+    Checks all 22 activities - prodockit's own environment, editor, git, SSH
     key/config/agent/upload, clone, history, remote, commit identity, the
     project's own environment, pandoc, Node and the rest - and reports
     which are already done. Rerunnable: an activity that is set up correctly

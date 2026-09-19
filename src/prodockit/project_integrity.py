@@ -16,10 +16,6 @@ from markdown import markdown as render_markdown
 
 from prodockit.csl import CslError
 from prodockit.csl import validate as validate_csl
-from prodockit.pdf._standalone_quickjs import (
-    StandaloneBackendUnavailableError as StandaloneRuntimeUnavailableError,
-)
-from prodockit.pdf._standalone_quickjs import require_standalone_runtime
 from prodockit.project_config import ProjectConfig, load_project_config
 from prodockit.renderer_health import probe_mathjax
 from prodockit.text_encoding import inspect_project_text_encoding
@@ -486,24 +482,13 @@ def inspect_project(
                     )
                 )
 
-    mermaid_required, maths_required = _renderer_requirements_from_sources(
-        config, markdown_sources
-    )
-    if mermaid_required:
-        try:
-            require_standalone_runtime()
-        except StandaloneRuntimeUnavailableError as error:
-            problems.append(
-                ProjectProblem(
-                    "renderer.mermaid",
-                    "Mermaid diagrams are used but the Python renderer is unavailable: "
-                    f"{error}",
-                )
-            )
-
-    if maths_required:
-        configured = config.extra.get("pdf_tex2svg_script")
-        script = _tool_path(config.root, configured, ("tools/mathjax/tex2svg.js",))
+    _, maths_required = _renderer_requirements_from_sources(config, markdown_sources)
+    configured = config.extra.get("pdf_tex2svg_script")
+    if maths_required and configured:
+        # The standard renderer is prepared lazily in the project cache by
+        # Diagnostics or pdk pdf. Integrity stays static and validates only an
+        # author-supplied override, which cannot be repaired automatically.
+        script = _tool_path(config.root, configured, ())
         if script is None:
             problems.append(
                 ProjectProblem(

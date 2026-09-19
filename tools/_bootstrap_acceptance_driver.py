@@ -184,11 +184,7 @@ class HarnessRunner:
             "pango": "1.42.4" if old_software else bootstrap_stages_module.PANGO_MIN_VERSION,
             "node": "18.20.0" if old_software else bootstrap_stages_module.NODE_MIN_VERSION,
             "npm": "6.14.18" if old_software else "10.9.2",
-            "chromium": (
-                "100.0.4896.60"
-                if old_software
-                else bootstrap_stages_module.CHROMIUM_MIN_VERSION
-            ),
+            "chromium": "100.0.4896.60" if old_software else "151.0.7922.47",
         }
         self.extensions = {
             name: ("0.1.0" if old_software else minimum)
@@ -278,14 +274,11 @@ class HarnessRunner:
             "pango": bootstrap_stages_module.PANGO_MIN_VERSION,
             "node": bootstrap_stages_module.NODE_MIN_VERSION,
             "npm": "10.9.2",
-            "chromium": bootstrap_stages_module.CHROMIUM_MIN_VERSION,
+            "chromium": "151.0.7922.47",
         }
         for name in names:
             self.versions[name] = targets[name]
             self.upgraded.add(name)
-        if "node" in names:
-            self.versions["npm"] = "10.9.2"
-            self.upgraded.add("npm")
 
     def _install_toolchain(self, prefix: Path) -> None:
         if prefix.name == "mathjax":
@@ -969,20 +962,17 @@ def main() -> None:
         click.confirm = original_confirm
         click.prompt = original_prompt
 
-    if "All 23 activities are set up" not in check_output:
+    if f"All {len(STAGES)} activities are set up" not in check_output:
         raise AcceptanceError(f"second check was not complete:\n{check_output}")
     if args.old_software:
         expected_upgrades = {
             "vscode",
             "git",
             "node",
-            "npm",
             "vscode-extensions",
         }
         if current_platform() != "windows":
             expected_upgrades.add("pango")
-        if current_platform() == "ubuntu":
-            expected_upgrades.add("chromium")
         if harness.upgraded != expected_upgrades:
             raise AcceptanceError(
                 "the old-software route did not accept every upgrade; "
@@ -997,7 +987,7 @@ def main() -> None:
         expected = {
             "Visual Studio Code",
             "Git, installed and configured",
-            "Node.js and the render toolchains",
+            "Node.js for PDF maths",
             "VS Code extensions",
         }
         upgraded = {

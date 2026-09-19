@@ -75,7 +75,6 @@ def test_missing_winget_installs_microsofts_signed_release(monkeypatch, tmp_path
                 "git",
                 "git-man",
                 "nodejs",
-                "chromium-browser",
             ),
         ),
         (

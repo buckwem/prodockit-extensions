@@ -8,9 +8,6 @@ from types import SimpleNamespace
 
 import pytest
 
-from prodockit.pdf._standalone_quickjs import (
-    StandaloneBackendUnavailableError as StandaloneRuntimeUnavailableError,
-)
 from prodockit.project_config import load_project_config
 from prodockit.project_integrity import (
     assert_project_integrity,
@@ -34,10 +31,6 @@ def _messages(config: Path) -> list[str]:
         f"{problem.path}: {problem.message}"
         for problem in inspect_project(load_project_config(config))
     ]
-
-
-def _standalone_unavailable() -> None:
-    raise StandaloneRuntimeUnavailableError("audited runtime unavailable")
 
 
 def test_missing_local_css_and_javascript_are_reported_but_urls_are_allowed(
@@ -312,13 +305,7 @@ def test_active_syntax_after_a_comment_still_requires_extension(tmp_path: Path) 
     assert not any("prodockit.glossary" in message for message in messages)
 
 
-def test_configured_mermaid_is_optional_until_a_diagram_uses_it(
-    tmp_path: Path, monkeypatch
-) -> None:
-    monkeypatch.setenv("PATH", "")
-    monkeypatch.setattr(
-        "prodockit.project_integrity.require_standalone_runtime", _standalone_unavailable
-    )
+def test_project_integrity_leaves_mermaid_cache_preparation_to_pdf(tmp_path: Path) -> None:
     config = _project(
         tmp_path,
         "[project.markdown_extensions.pymdownx.superfences]\n"
@@ -330,12 +317,10 @@ def test_configured_mermaid_is_optional_until_a_diagram_uses_it(
         },
     )
 
-    assert not any("Python renderer is unavailable" in message for message in _messages(config))
-
     (tmp_path / "docs" / "index.md").write_text(
         "# Diagram\n\n```mermaid\ngraph LR\n  A --> B\n```\n", encoding="utf-8"
     )
-    assert any("Python renderer is unavailable" in message for message in _messages(config))
+    assert not any("renderer.mermaid" in message for message in _messages(config))
 
 
 @pytest.mark.parametrize(
@@ -360,13 +345,7 @@ def test_quoted_or_commented_mermaid_fence_does_not_require_a_renderer(
     assert not any("Python renderer is unavailable" in message for message in _messages(config))
 
 
-def test_real_mermaid_fence_beside_quoted_example_still_requires_a_renderer(
-    tmp_path: Path, monkeypatch
-) -> None:
-    monkeypatch.setenv("PATH", "")
-    monkeypatch.setattr(
-        "prodockit.project_integrity.require_standalone_runtime", _standalone_unavailable
-    )
+def test_real_mermaid_fence_is_not_a_static_integrity_problem(tmp_path: Path) -> None:
     config = _project(
         tmp_path,
         "[project.markdown_extensions.pymdownx.superfences]\n"
@@ -380,20 +359,18 @@ def test_real_mermaid_fence_beside_quoted_example_still_requires_a_renderer(
         },
     )
 
-    assert any("Python renderer is unavailable" in message for message in _messages(config))
+    assert not any("renderer.mermaid" in message for message in _messages(config))
 
 
-def test_configured_maths_is_optional_until_notation_uses_it(tmp_path: Path) -> None:
+def test_standard_mathjax_cache_is_not_a_static_integrity_problem(tmp_path: Path) -> None:
     config = _project(
         tmp_path,
         "[project.markdown_extensions.pymdownx.arithmatex]\n",
         {"index.md": "The price is $5 and the example is `\\(x\\)`.\n"},
     )
 
-    assert not any("tex2svg renderer" in message for message in _messages(config))
-
     (tmp_path / "docs" / "index.md").write_text("The area is $a^2$.\n", encoding="utf-8")
-    assert any("tex2svg renderer" in message for message in _messages(config))
+    assert not any("tex2svg renderer" in message for message in _messages(config))
 
 
 @pytest.mark.parametrize(
@@ -422,7 +399,7 @@ def test_quoted_or_commented_display_maths_does_not_require_a_renderer(
     assert not any("tex2svg renderer" in message for message in _messages(config))
 
 
-def test_real_display_maths_beside_quoted_examples_still_requires_a_renderer(
+def test_real_display_maths_uses_the_lazy_standard_renderer(
     tmp_path: Path,
 ) -> None:
     config = _project(
@@ -431,7 +408,7 @@ def test_real_display_maths_beside_quoted_examples_still_requires_a_renderer(
         {"index.md": "<!-- $$hidden$$ -->\n`$$example$$`\n\n$$\nx^2\n$$\n"},
     )
 
-    assert any("tex2svg renderer" in message for message in _messages(config))
+    assert not any("tex2svg renderer" in message for message in _messages(config))
 
 
 def test_mathjax_renderer_must_run_not_merely_exist(tmp_path: Path, monkeypatch) -> None:

@@ -405,7 +405,7 @@ report and leave any available update for the maintenance workflow.
 ## Understand the completed project {: #bootstrap-completed-project }
 
 The four documentation stages above describe what you do. Bootstrap groups its
-23 activities into seven phases covering preflight, core tools, Git and the
+22 activities into seven phases covering preflight, core tools, Git and the
 host, the project, the build toolchain, the editor, and publication. Use the
 [phase and activity inventory](../commands/bootstrap.md#cmd-bootstrap-phases)
 when you need to identify an activity reported by the command.
