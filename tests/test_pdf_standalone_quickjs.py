@@ -3,6 +3,9 @@
 
 from __future__ import annotations
 
+import base64
+import struct
+import zlib
 from typing import Any
 
 import pytest
@@ -14,14 +17,16 @@ from prodockit.pdf._standalone_quickjs import (
     StandaloneQuickJSMermaidEngine,
     StandaloneRenderError,
     StandaloneResourceLimitError,
+    StandaloneStackLimitError,
 )
 
 
 class FakeContext:
-    def __init__(self, svg: str = "<svg/>") -> None:
+    def __init__(self, svg: str = "<svg/>", error: str | None = None) -> None:
         self.calls: list[tuple[Any, ...]] = []
         self.values: dict[str, Any] = {}
         self.svg = svg
+        self.error = error
 
     def set_memory_limit(self, limit: int) -> None:
         self.calls.append(("memory", limit))
@@ -41,7 +46,7 @@ class FakeContext:
         if source == "!!globalThis.__renderResult || !!globalThis.__renderError":
             return True
         if source == "globalThis.__renderError":
-            return None
+            return self.error
         if source == "globalThis.__renderResult":
             return self.svg
         return None
@@ -63,6 +68,23 @@ def _fake_runtime(context: FakeContext) -> runtime_module._Runtime:
         path_bbox_js="path geometry",
         patch_svg=lambda svg: svg,
     )
+
+
+def _png_chunk(kind: bytes, data: bytes) -> bytes:
+    crc = zlib.crc32(kind + data) & 0xFFFFFFFF
+    return len(data).to_bytes(4, "big") + kind + data + crc.to_bytes(4, "big")
+
+
+def _png_data_uri(width: int = 1, height: int = 1) -> str:
+    header = struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0)
+    pixels = b"".join(b"\x00" + b"\x00\x00\x00" * width for _ in range(height))
+    png = (
+        b"\x89PNG\r\n\x1a\n"
+        + _png_chunk(b"IHDR", header)
+        + _png_chunk(b"IDAT", zlib.compress(pixels))
+        + _png_chunk(b"IEND", b"")
+    )
+    return "data:image/png;base64," + base64.b64encode(png).decode("ascii")
 
 
 def test_engine_configures_all_three_quickjs_limits_before_render(
@@ -128,6 +150,22 @@ def test_limits_reject_unsafe_values(field: str, value: int) -> None:
         QuickJSMermaidLimits(**{field: value})
 
 
+def test_default_stack_limit_uses_the_approved_one_mebibyte_ceiling() -> None:
+    assert QuickJSMermaidLimits().maximum_stack_bytes == 1024 * 1024
+
+
+def test_mermaid_stack_exhaustion_is_a_resource_limit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    context = FakeContext(error="RangeError: Maximum call stack size exceeded")
+    monkeypatch.setattr(runtime_module, "_load_runtime", lambda: _fake_runtime(context))
+    engine = StandaloneQuickJSMermaidEngine()
+    engine.start()
+
+    with pytest.raises(StandaloneStackLimitError, match="stack limit"):
+        engine.render_svg("flowchart TD\n N0 --> N1")
+
+
 def test_source_and_output_limits_fail_closed(monkeypatch: pytest.MonkeyPatch) -> None:
     context = FakeContext(svg="<svg>too large</svg>")
     monkeypatch.setattr(runtime_module, "_load_runtime", lambda: _fake_runtime(context))
@@ -190,12 +228,25 @@ def test_engine_accepts_safe_navigation_links(
     href: str,
 ) -> None:
     svg = f'<svg xmlns="http://www.w3.org/2000/svg"><a href="{href}"><path/></a></svg>'
+
     context = FakeContext(svg=svg)
     monkeypatch.setattr(runtime_module, "_load_runtime", lambda: _fake_runtime(context))
     engine = StandaloneQuickJSMermaidEngine()
     engine.start()
 
     assert engine.render_svg("graph LR; A-->B") == svg
+
+
+def test_engine_accepts_a_bounded_valid_png_in_an_svg_image(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    svg = f'<svg xmlns="http://www.w3.org/2000/svg"><image href="{_png_data_uri()}"/></svg>'
+    context = FakeContext(svg=svg)
+    monkeypatch.setattr(runtime_module, "_load_runtime", lambda: _fake_runtime(context))
+    engine = StandaloneQuickJSMermaidEngine()
+    engine.start()
+
+    assert engine.render_svg('C4Context\n Person(user, "User")') == svg
 
 
 @pytest.mark.parametrize(
@@ -219,6 +270,39 @@ def test_engine_rejects_unapproved_navigation_links(
     href: str,
 ) -> None:
     svg = f'<svg xmlns="http://www.w3.org/2000/svg"><a href="{href}"><path/></a></svg>'
+
+    context = FakeContext(svg=svg)
+    monkeypatch.setattr(runtime_module, "_load_runtime", lambda: _fake_runtime(context))
+    engine = StandaloneQuickJSMermaidEngine()
+    engine.start()
+
+    with pytest.raises(StandaloneRenderError):
+        engine.render_svg("graph LR; A-->B")
+
+
+@pytest.mark.parametrize(
+    "svg",
+    [
+        '<svg xmlns="http://www.w3.org/2000/svg"><image href="data:image/svg+xml;base64,PHN2Zy8+"/></svg>',
+        '<svg xmlns="http://www.w3.org/2000/svg"><image href="data:image/png;base64,not-base64"/></svg>',
+        '<svg xmlns="http://www.w3.org/2000/svg"><image href="data:image/png;base64,iVBORw0KGgo="/></svg>',
+        f'<svg xmlns="http://www.w3.org/2000/svg"><a href="{_png_data_uri()}"/></svg>',
+        f'<svg xmlns="http://www.w3.org/2000/svg"><image src="{_png_data_uri()}"/></svg>',
+        f'<svg xmlns="http://www.w3.org/2000/svg"><image href="{_png_data_uri(513, 1)}"/></svg>',
+    ],
+    ids=[
+        "svg-data-uri",
+        "invalid-base64",
+        "truncated-png",
+        "png-on-link",
+        "png-in-src",
+        "oversized-dimension",
+    ],
+)
+def test_engine_rejects_unapproved_or_invalid_embedded_data(
+    monkeypatch: pytest.MonkeyPatch,
+    svg: str,
+) -> None:
     context = FakeContext(svg=svg)
     monkeypatch.setattr(runtime_module, "_load_runtime", lambda: _fake_runtime(context))
     engine = StandaloneQuickJSMermaidEngine()

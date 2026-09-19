@@ -15,6 +15,7 @@ from prodockit.pdf._standalone_quickjs import (
     StandaloneBackendUnavailableError,
     StandaloneRenderError,
     StandaloneResourceLimitError,
+    StandaloneStackLimitError,
 )
 from prodockit.pdf._standalone_worker import (
     StandaloneMermaidWorker,
@@ -225,6 +226,7 @@ def test_oversized_response_fails_as_a_protocol_error() -> None:
     [
         ("unavailable", StandaloneBackendUnavailableError),
         ("resource", StandaloneResourceLimitError),
+        ("stack", StandaloneStackLimitError),
         ("render", StandaloneRenderError),
         ("worker", StandaloneWorkerCrashError),
     ],
@@ -289,6 +291,7 @@ class RecordingEngine:
     [
         (StandaloneBackendUnavailableError("secret path"), "unavailable"),
         (StandaloneResourceLimitError("secret input"), "resource"),
+        (StandaloneStackLimitError("secret input"), "stack"),
         (StandaloneRenderError("secret source"), "render"),
         (RuntimeError("secret traceback"), "worker"),
     ],

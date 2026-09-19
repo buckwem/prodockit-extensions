@@ -23,6 +23,7 @@ from ._standalone_quickjs import (
     StandaloneQuickJSMermaidEngine,
     StandaloneRenderError,
     StandaloneResourceLimitError,
+    StandaloneStackLimitError,
 )
 
 _PROTOCOL_VERSION = 1
@@ -130,6 +131,8 @@ def _worker_entry(send_connection: Connection, request_payload: bytes) -> None:
         )
     except StandaloneBackendUnavailableError:
         response = _error_response("unavailable")
+    except StandaloneStackLimitError:
+        response = _error_response("stack")
     except StandaloneResourceLimitError:
         response = _error_response("resource")
     except StandaloneRenderError:
@@ -317,6 +320,11 @@ class StandaloneMermaidWorker:
         if kind == "resource":
             raise StandaloneResourceLimitError(
                 "The standalone Mermaid worker reached a resource limit."
+            )
+        if kind == "stack":
+            raise StandaloneStackLimitError(
+                "The standalone Mermaid worker reached its stack limit; "
+                "simplify or split the diagram."
             )
         if kind == "render":
             raise StandaloneRenderError("Mermaid rendering failed in the worker.")

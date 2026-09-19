@@ -187,6 +187,20 @@ def test_malformed_render_does_not_poison_the_next_process(
     assert "Safe" in semantics.text
 
 
+def test_default_stack_renders_a_sixty_edge_linear_flowchart(
+    worker: StandaloneMermaidWorker,
+) -> None:
+    edges = "\n".join(
+        f" N{index}[Node {index}] --> N{index + 1}[Node {index + 1}]"
+        for index in range(60)
+    )
+
+    semantics = _semantics(worker.render_svg(f"flowchart TD\n{edges}"))
+
+    assert "Node 0" in semantics.text
+    assert "Node 60" in semantics.text
+
+
 def test_child_output_limit_fails_closed_without_poisoning_worker() -> None:
     if not _runtime_available():
         pytest.skip("requires the audited standalone Mermaid wheels")
@@ -258,3 +272,24 @@ def test_renderer_adapter_preserves_a_safe_mermaid_click_link(
         if element.tag.rsplit("}", 1)[-1] == "a"
     )
     assert link.get("href") == href
+
+
+def test_renderer_adapter_writes_c4_person_with_an_internal_png(
+    worker: StandaloneMermaidWorker,
+    tmp_path: Path,
+) -> None:
+    renderer = StandaloneMermaidRenderer(str(tmp_path / "diagrams"), worker=worker)
+
+    rendered = renderer.render_source(
+        'C4Context\n title System Context diagram\n Person(user, "User")\n'
+        ' System(system, "System")\n Rel(user, system, "Uses")'
+    )
+
+    assert rendered is not None
+    svg = Path(rendered).read_text(encoding="utf-8")
+    semantics = _semantics(svg)
+    assert "System Context diagram" in semantics.text
+    assert "User" in semantics.text
+    assert "System" in semantics.text
+    assert "Uses" in semantics.text
+    assert 'href="data:image/png;base64,' in svg
