@@ -159,6 +159,84 @@ def test_pdf_swap_selects_the_legacy_mmdc_backend(monkeypatch) -> None:
     assert calls == [("zensical.toml", None, MermaidBackend.MMDC)]
 
 
+def test_pdf_prepare_exits_before_environment_check_or_build(monkeypatch, tmp_path: Path) -> None:
+    import prodockit.cli as cli_module
+    from prodockit.pdf.runtime_store import PreparationResult
+
+    calls = []
+
+    def prepare(config_file, components):
+        calls.append((config_file, components))
+        return (
+            PreparationResult(
+                component="mermaid",
+                path=tmp_path / ".prodockit/cache/pdf/mermaid",
+                version="11.12.2",
+                sha256="0" * 64,
+                cached=False,
+            ),
+        )
+
+    monkeypatch.setattr(cli_module, "prepare_runtime_components", prepare)
+    monkeypatch.setattr(
+        cli_module,
+        "check_pdf_environment",
+        lambda _config: pytest.fail("preparation must not require the build environment"),
+    )
+    monkeypatch.setattr(
+        cli_module,
+        "build_pdf_from_built_site",
+        lambda *_args, **_kwargs: pytest.fail("preparation must not build a PDF"),
+    )
+
+    result = CliRunner().invoke(
+        main, ["pdf", "--prepare", "mermaid", "--prepare", "mermaid"]
+    )
+
+    assert result.exit_code == 0, result.output
+    assert calls == [("zensical.toml", ("mermaid", "mermaid"))]
+    assert "Prepared mermaid 11.12.2" in result.output
+
+
+def test_pdf_prepare_all_is_accepted_by_the_public_interface(monkeypatch) -> None:
+    import prodockit.cli as cli_module
+
+    calls = []
+    monkeypatch.setattr(
+        cli_module,
+        "prepare_runtime_components",
+        lambda config, components: calls.append((config, components)) or (),
+    )
+
+    result = CliRunner().invoke(main, ["pdf", "--prepare", "all"])
+
+    assert result.exit_code == 0, result.output
+    assert calls == [("zensical.toml", ("all",))]
+
+
+def test_pdf_prepare_rejects_swap_without_provisioning(monkeypatch) -> None:
+    import prodockit.cli as cli_module
+
+    monkeypatch.setattr(
+        cli_module,
+        "prepare_runtime_components",
+        lambda *_args: pytest.fail("--swap must never provision dependencies"),
+    )
+
+    result = CliRunner().invoke(main, ["pdf", "--swap", "--prepare", "mermaid"])
+
+    assert result.exit_code == 1, result.output
+    assert "cannot provision dependencies" in result.output
+
+
+def test_pdf_prepare_reports_an_unavailable_provider_without_a_traceback() -> None:
+    result = CliRunner().invoke(main, ["pdf", "--prepare", "mermaid"])
+
+    assert result.exit_code == 1, result.output
+    assert "preparation is not available in this release" in result.output
+    assert "Traceback" not in result.output
+
+
 @pytest.mark.parametrize(
     "extra_args",
     [["--swap=true"], ["--swap=false"], ["--swap", "value"], ["--no-swap"]],

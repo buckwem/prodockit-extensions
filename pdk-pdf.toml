@@ -1,0 +1,27 @@
+schema_version = 1
+
+# Optional renderer overrides. Commented sections retain automatic,
+# content-triggered behaviour.
+# [mathjax]
+# version = "latest"
+# location = "cache"
+# preload = true
+
+# [mermaid]
+# version = "supported"
+# location = "cache"
+# preload = true
+
+# Optional PDF runtime overrides. Commented sections use this Prodockit
+# release's supported defaults.
+# [weasyprint]
+# version = "supported"
+# location = "cache"
+
+# [pandoc]
+# version = "supported"
+# location = "cache"
+
+# [fonts]
+# version = "supported"
+# location = "cache"
