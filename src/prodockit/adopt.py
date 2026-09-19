@@ -25,6 +25,7 @@ import subprocess
 import sys
 import tempfile
 from collections.abc import Mapping
+from contextlib import suppress
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -1314,7 +1315,42 @@ def ensure_javascripts(root: Path) -> list[Path]:
             # extension point. Move it to managed pdk.js without erasing any
             # file that differs by more than normal line-ending conversion.
             _atomic_write(paths[name], initial_content.encode("utf-8"))
-    return list(paths.values())
+    written = list(paths.values())
+    if MATHJAX_CONFIG_JAVASCRIPT in _managed_javascripts(parsed):
+        written.extend(_remove_legacy_mathjax_website(root, parsed))
+    return written
+
+
+def _remove_legacy_mathjax_website(root: Path, parsed: dict[str, Any]) -> list[Path]:
+    """Remove only the website files owned by the former bundled runtime."""
+    docs = root / _docs_dir(parsed)
+    legacy = docs / "javascripts" / "vendor" / "mathjax"
+    removed: list[Path] = []
+    for name in ("tex-svg-full.js", "LICENSE"):
+        path = legacy / name
+        if path.is_file() or path.is_symlink():
+            path.unlink()
+            removed.append(path)
+    for directory in (legacy, legacy.parent):
+        with suppress(OSError):
+            directory.rmdir()
+
+    ignore = root / ".gitignore"
+    if not ignore.is_file():
+        return removed
+    relative_docs = docs.relative_to(root).as_posix()
+    obsolete = {
+        f"{relative_docs}/javascripts/vendor/",
+        f"{relative_docs}/javascripts/mathjax.js",
+        "# Installed by `prodockit init-mathjax` - not committed",
+    }
+    original = ignore.read_text(encoding="utf-8")
+    retained = [line for line in original.splitlines() if line not in obsolete]
+    updated = "\n".join(retained).rstrip("\n") + "\n"
+    if updated != original:
+        _atomic_write(ignore, updated.encode("utf-8"))
+        removed.append(ignore)
+    return removed
 
 
 def ensure_stylesheet(root: Path) -> Path:

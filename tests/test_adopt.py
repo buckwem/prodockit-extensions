@@ -541,6 +541,42 @@ pdf_extra_css = ["stylesheets/pdk-pdf.css?v=4", "stylesheets/print.css?v=2"]
     assert core.status == "ok", core.detail
 
 
+def test_maths_adoption_removes_only_legacy_managed_website_assets(tmp_path: Path) -> None:
+    project = _project(
+        tmp_path,
+        """[project]
+site_name = "Legacy maths"
+extra_javascript = [
+  "javascripts/mathjax.js",
+  "javascripts/vendor/mathjax/tex-svg-full.js",
+]
+""",
+    )
+    legacy = project / "docs/javascripts/vendor/mathjax"
+    legacy.mkdir(parents=True)
+    legacy.joinpath("tex-svg-full.js").write_text("legacy bundle\n", encoding="utf-8")
+    legacy.joinpath("LICENSE").write_text("legacy licence\n", encoding="utf-8")
+    legacy.joinpath("README.txt").write_text("author file\n", encoding="utf-8")
+    project.joinpath(".gitignore").write_text(
+        "# keep\n"
+        "# Installed by `prodockit init-mathjax` - not committed\n"
+        "docs/javascripts/vendor/\n"
+        "docs/javascripts/mathjax.js\n",
+        encoding="utf-8",
+    )
+
+    ensure_zensical_config(project, AdoptOptions(maths=True))
+    ensure_javascripts(project)
+
+    assert not legacy.joinpath("tex-svg-full.js").exists()
+    assert not legacy.joinpath("LICENSE").exists()
+    assert legacy.joinpath("README.txt").read_text(encoding="utf-8") == "author file\n"
+    assert project.joinpath("docs/javascripts/mathjax.js").read_bytes() == resource_bytes(
+        "mathjax.js"
+    )
+    assert project.joinpath(".gitignore").read_text(encoding="utf-8") == "# keep\n"
+
+
 def test_mkdocs_adoption_preserves_cache_versioned_assets(tmp_path: Path) -> None:
     project = _project(
         tmp_path,
