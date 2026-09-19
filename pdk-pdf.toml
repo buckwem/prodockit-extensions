@@ -1,5 +1,12 @@
 schema_version = 1
 
+[document]
+copyright = 'Copyright © 2026 Mark Buckwell and contributors.<br>Made with <a href="https://zensical.org/">Zensical</a> and <a href="https://prodockit.org/">prodockit</a>.'
+extra_css = [
+  "stylesheets/pdk-pdf.css",
+  "stylesheets/print.css",
+]
+
 # Optional renderer overrides. Commented sections retain automatic,
 # content-triggered behaviour.
 # [mathjax]

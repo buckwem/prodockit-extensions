@@ -298,11 +298,12 @@ def test_discover_markdown_and_config_files_keeps_only_md_and_config(tmp_path: P
         (tmp_path / generated).write_text("generated\n", encoding="utf-8")
     (tmp_path / "macros.py").write_text("def word_count(): ...\n", encoding="utf-8")
     (tmp_path / "zensical.toml").write_text('site_name = "T"\n', encoding="utf-8")
+    (tmp_path / "pdk-pdf.toml").write_text("schema_version = 1\n", encoding="utf-8")
     subprocess.run(["git", "add", "-A"], cwd=tmp_path, check=True)
 
     files = discover_markdown_and_config_files(str(tmp_path))
 
-    assert files == ["README.md", "docs/index.md", "zensical.toml"]
+    assert files == ["README.md", "docs/index.md", "pdk-pdf.toml", "zensical.toml"]
 
 
 def test_discover_markdown_and_config_files_finds_md_only_below_docs_dir(

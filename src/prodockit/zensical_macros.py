@@ -252,7 +252,9 @@ def define_env(env: Any) -> None:
         config = load_project_config(config_path).as_resolved_mapping()
         project_root = config_path.parent
 
-    validate_extra_settings(config.get("extra"))
+    validate_extra_settings(
+        config.get("extra"), groups=frozenset({"Shared rendering", "Website"})
+    )
     env.variables["word_count"] = _compute_site_word_count(config)
     env.variables["repo_url"] = _get_repo_url()
     short_tag = _short_tag(variables)

@@ -326,15 +326,17 @@ in the same review request. The merge request therefore contains a complete,
 internally consistent update rather than only the files copied directly from
 the template.
 
-The same check maintains the `extra_css`, `extra_javascript`, and
-`pdf_extra_css` lists in `zensical.toml`. Missing template entries are restored
+The same check maintains the `extra_css` and `extra_javascript` lists in
+`zensical.toml`. Missing template entries are restored
 in cascade order, cache-key changes replace the older form of the same path,
 and additional project entries are retained. If `extra.css`, `print.css`, or
 `extra.js` is missing, the template's starter copy is added. Once present,
 those three files belong to the author and Template Sync never replaces their
 contents, including in projects made from an older template manifest. Managed
 PDK assets follow the shared-file rule instead: a missing or outdated copy is
-refreshed from the installed Prodockit release.
+refreshed from the installed Prodockit release. PDF-only policy, including the
+PDF stylesheet cascade, is project-owned in `pdk-pdf.toml`; a missing file is
+seeded from the template without replacing an author's existing policy.
 
 Use `--apply` on its own when changes normally reach `main` through a pull
 request or merge request. On GitLab, the merge request is created for you; you

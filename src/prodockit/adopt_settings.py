@@ -28,6 +28,7 @@ from packaging.version import Version
 
 from prodockit import __version__
 from prodockit.adopt_toml import inline
+from prodockit.pdf.runtime_config import PDF_SETTING_PATHS
 from prodockit.project_config import _markdown_extensions
 from prodockit.renderer_resilience import RetryNotice, RetryReporter, run_with_retries
 
@@ -366,7 +367,11 @@ def review(root: Path, source: str, snapshot: Snapshot, *, original: str) -> Rev
         if path in entries:
             continue
         count += 1
-        if any(path[: len(prefix)] == prefix for prefix in EXCEPTIONS):
+        if any(path[: len(prefix)] == prefix for prefix in EXCEPTIONS) or (
+            path[:2] == ("project", "extra")
+            and len(path) == 3
+            and path[2] in PDF_SETTING_PATHS
+        ):
             outcome = "excluded"
         elif path in current:
             outcome = "already present" if path in before else "added"

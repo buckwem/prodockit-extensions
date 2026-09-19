@@ -52,7 +52,6 @@ from prodockit.pdf.weasyprint_runtime import executable_in_runtime
 from prodockit.project_config import load_project_config
 from prodockit.revision_dates import resolve_revision_dates
 from prodockit.settings import (
-    extra_default,
     flatten_nav,
     heading_numbering_enabled,
     reference_style_values,
@@ -304,8 +303,10 @@ def _build_pdf_from_config(
       `pdf_tex2svg_script` (auto-detected if unset - see
       `_find_tex2svg_script`). Mermaid uses the audited Python runtime;
       maths remains browser-checked when it appears),
-      `pdf_math_dir`, `pdf_include_table_of_contents`
-      (default `true`), `pdf_table_of_contents_title`, `pdf_extra_css` (a
+      `pdf_math_dir`. Remaining PDF-only settings are read from
+      `pdk-pdf.toml`, including `[table_of_contents].include`
+      (default `true`), `[table_of_contents].title`, and
+      `[document].extra_css` (a
       list of `docs_dir`-relative stylesheet paths, same
       shape as `project.extra_css` below, but meant *only* for the PDF -
       e.g. a rule that would look wrong on the live website, or one
@@ -315,8 +316,8 @@ def _build_pdf_from_config(
       Bundling this project's own Markdown source into a separate PDF is
       `prodockit source-bundle`, a different command - see
       `build_source_bundle_from_zensical_config()` below
-      (prodockit-extensions#212). It reads `pdf_source_bundle_output` and
-      `pdf_page_size` under `project.extra`, not this function.
+      (prodockit-extensions#212). It reads `[source_bundle].output` and
+      `[document].page_size` from `pdk-pdf.toml`, not this function.
     - Under `project.markdown_extensions."prodockit.index"`: `include`
       (default `false`) generates a back-of-book index from every
       `\\index{Term}` marker, and `title` (default `"Index"`) sets that
@@ -383,7 +384,9 @@ def _build_pdf_from_config(
         config = zensical_config.parse_config(config_path)
         zensical_render = _zensical_render
     extra = config.get("extra") or {}
-    validate_extra_settings(extra)
+    runtime_policy = load_pdf_runtime_config(config_path)
+    validate_extra_settings(extra, exclude=runtime_policy.pdf_explicit)
+    pdf_settings = runtime_policy.resolve_pdf_settings(extra)
     theme = config.get("theme") or {}
     font = theme.get("font") or {}
     admonition_icon_config = (theme.get("icon") or {}).get("admonition") or {}
@@ -419,7 +422,7 @@ def _build_pdf_from_config(
     # so pdk.css -> extra.css -> pdk-pdf.css -> print.css is a real cascade
     # in which the author-owned files can override equal-specificity defaults.
     for css_rel_path in (config.get("extra_css") or []) + list(
-        extra.get("pdf_extra_css") or extra_default("pdf_extra_css")
+        pdf_settings.value("pdf_extra_css")
     ):
         full_css_path = os.path.join(source_docs_dir, css_rel_path)
         with open(full_css_path, encoding="utf-8") as f:
@@ -487,7 +490,6 @@ def _build_pdf_from_config(
     # for a document that does not contain the matching active markup.
     renderer_requirements = detect_renderer_requirements(page_objects)
 
-    runtime_policy = load_pdf_runtime_config(config_path)
     legacy_tex2svg = (
         _find_tex2svg_script(extra.get("pdf_tex2svg_script"))
         if renderer_requirements.maths
@@ -581,8 +583,9 @@ def _build_pdf_from_config(
             cover_html = cover_html.replace("{{ site_name }}", site_name)
         cover.html = cover_html
 
-    if extra.get("pdf_output"):
-        output_path = str(extra["pdf_output"])
+    configured_output = pdf_settings.value("pdf_output")
+    if configured_output:
+        output_path = str(configured_output)
     elif markdown_file:
         stem = os.path.splitext(os.path.basename(markdown_file))[0]
         output_path = os.path.join(docs_dir, f"{stem}.pdf")
@@ -632,27 +635,26 @@ def _build_pdf_from_config(
             # another installed or stylesheet-provided family.
             main_font=font.get("text") or "Inter",
             mono_font=font.get("code") or "JetBrains Mono",
-            copyright_text=(extra.get("pdf_copyright") or config.get("copyright") or "").strip(),
+            copyright_text=(
+                pdf_settings.value("pdf_copyright") or config.get("copyright") or ""
+            ).strip(),
             site_name=_css_escape_content_string(config.get("site_name") or ""),
-            page_size=extra.get("pdf_page_size") or extra_default("pdf_page_size"),
-            margin_top=extra.get("pdf_margin_top") or extra_default("pdf_margin_top"),
-            margin_right=extra.get("pdf_margin_right") or extra_default("pdf_margin_right"),
+            page_size=pdf_settings.value("pdf_page_size"),
+            margin_top=pdf_settings.value("pdf_margin_top"),
+            margin_right=pdf_settings.value("pdf_margin_right"),
             # 2.5cm, not 2cm like the others: the running footer lives in this
             # margin and a two-line one came within 6.1mm of the paper edge -
             # see prodockit.pdf.css's own margin_bottom.
-            margin_bottom=extra.get("pdf_margin_bottom") or extra_default("pdf_margin_bottom"),
-            margin_left=extra.get("pdf_margin_left") or extra_default("pdf_margin_left"),
-            double_sided=bool(
-                extra.get("pdf_double_sided", extra_default("pdf_double_sided"))
+            margin_bottom=pdf_settings.value("pdf_margin_bottom"),
+            margin_left=pdf_settings.value("pdf_margin_left"),
+            double_sided=bool(pdf_settings.value("pdf_double_sided")),
+            margin_inner=pdf_settings.value("pdf_margin_inner"),
+            margin_outer=pdf_settings.value("pdf_margin_outer"),
+            header_footer_font_size=pdf_settings.value("pdf_header_footer_font_size"),
+            header_footer_color=pdf_settings.value("pdf_header_footer_color"),
+            header_footer_divider_color=pdf_settings.value(
+                "pdf_header_footer_divider_color"
             ),
-            margin_inner=extra.get("pdf_margin_inner") or extra_default("pdf_margin_inner"),
-            margin_outer=extra.get("pdf_margin_outer") or extra_default("pdf_margin_outer"),
-            header_footer_font_size=extra.get("pdf_header_footer_font_size")
-            or extra_default("pdf_header_footer_font_size"),
-            header_footer_color=extra.get("pdf_header_footer_color")
-            or extra_default("pdf_header_footer_color"),
-            header_footer_divider_color=extra.get("pdf_header_footer_divider_color")
-            or extra_default("pdf_header_footer_divider_color"),
             reference_style_global=reference_style == "global",
             reference_spacing_european=reference_spacing_european,
             reference_indent_global=reference_indent_global,
@@ -663,13 +665,9 @@ def _build_pdf_from_config(
             tex2svg_script=tex2svg_script or "",
             mathjax_runtime=mathjax_runtime,
             include_table_of_contents=bool(
-                extra.get(
-                    "pdf_include_table_of_contents",
-                    extra_default("pdf_include_table_of_contents"),
-                )
+                pdf_settings.value("pdf_include_table_of_contents")
             ),
-            table_of_contents_title=extra.get("pdf_table_of_contents_title")
-            or extra_default("pdf_table_of_contents_title"),
+            table_of_contents_title=pdf_settings.value("pdf_table_of_contents_title"),
             include_index=index_settings.include,
             index_title=index_settings.title,
             pandoc_executable=pandoc_executable,
@@ -706,17 +704,18 @@ def build_source_bundle_from_zensical_config(config_path: str = "zensical.toml")
 
     - `project.docs_dir` (default `"docs"`).
     - `project.site_name` - the running header's report name.
-    - Under `project.extra`: `pdf_source_bundle_output` (default
+    - Under `pdk-pdf.toml`: `[source_bundle].output` (default
       `"<docs_dir>/source_bundle.pdf"` - inside `docs_dir`, unlike the
       pre-#212 default of the project's top-level directory, so Zensical
-      serves it without a separate copy step) and `pdf_page_size`
+      serves it without a separate copy step) and `[document].page_size`
       (default `"A4", shared with `build_pdf_from_zensical_config()`'s
       own setting of the same name - one physical page size for both
       PDFs a project publishes).
 
     Which files are included is decided by
     `discover_markdown_and_config_files()` - root `README.md`, every `.md`
-    file below `docs_dir`, and this project's own Zensical config. Paths are
+    file below `docs_dir`, this project's own Zensical config, and
+    `pdk-pdf.toml` when present. Paths are
     `root`-relative to `config_path`'s own directory, matching how
     `git ls-files` reports them regardless of where the command was run.
 
@@ -726,7 +725,9 @@ def build_source_bundle_from_zensical_config(config_path: str = "zensical.toml")
     project_config = load_project_config(config_path)
     config = project_config.project
     extra = project_config.extra
-    validate_extra_settings(extra)
+    runtime_policy = load_pdf_runtime_config(config_path)
+    validate_extra_settings(extra, exclude=runtime_policy.pdf_explicit)
+    pdf_settings = runtime_policy.resolve_pdf_settings(extra)
     docs_dir = str(config.get("docs_dir") or "docs")
     root = str(project_config.root)
     prepared_weasyprint = prepare_windows_weasyprint_runtime(config_path)
@@ -736,8 +737,9 @@ def build_source_bundle_from_zensical_config(config_path: str = "zensical.toml")
         else "weasyprint"
     )
 
-    if extra.get("pdf_source_bundle_output"):
-        output_path = str(extra["pdf_source_bundle_output"])
+    configured_output = pdf_settings.value("pdf_source_bundle_output")
+    if configured_output:
+        output_path = str(configured_output)
     else:
         output_path = os.path.join(docs_dir, "source_bundle.pdf")
 
@@ -745,7 +747,7 @@ def build_source_bundle_from_zensical_config(config_path: str = "zensical.toml")
         output_path,
         root=root,
         report_name=config.get("site_name") or "",
-        page_size=extra.get("pdf_page_size") or extra_default("pdf_page_size"),
+        page_size=pdf_settings.value("pdf_page_size"),
         weasyprint_executable=weasyprint_executable,
         files=discover_markdown_and_config_files(
             root,

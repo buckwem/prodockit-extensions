@@ -82,7 +82,7 @@ def test_local_stylesheets_and_javascript_must_be_configured(tmp_path: Path) -> 
 
     assert any(
         "docs/stylesheets/missing-from-config.css" in message
-        and "project.extra_css or project.extra.pdf_extra_css" in message
+        and "project.extra_css or pdk-pdf.toml [document].extra_css" in message
         for message in messages
     )
     assert any(

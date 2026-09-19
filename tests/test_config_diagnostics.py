@@ -157,6 +157,35 @@ def test_reports_explicit_and_default_resolved_values(tmp_path: Path) -> None:
     assert "Title: Index" in result.output
 
 
+def test_pdk_pdf_value_wins_and_reports_its_source(tmp_path: Path) -> None:
+    path = _config(tmp_path, "\n[project.extra]\npdf_page_size = false\n")
+    (tmp_path / "pdk-pdf.toml").write_text(
+        'schema_version = 1\n\n[document]\npage_size = "A5"\n',
+        encoding="utf-8",
+    )
+
+    result = _run(path, check=True)
+
+    assert result.exit_code == 0, result.output
+    assert "pdf_page_size" in result.output
+    assert "A5" in result.output
+    assert "pdk-pdf.toml [document].page_size" in result.output
+
+
+def test_config_rejects_invalid_pdk_pdf_policy(tmp_path: Path) -> None:
+    path = _config(tmp_path)
+    (tmp_path / "pdk-pdf.toml").write_text(
+        'schema_version = 1\n\n[document]\npage_size = false\n',
+        encoding="utf-8",
+    )
+
+    result = _run(path, check=True)
+
+    assert result.exit_code == 1
+    assert "[document].page_size must be a string" in result.output
+    assert "Traceback" not in result.output
+
+
 def test_config_check_reports_invalid_utf8_in_supporting_configuration(
     tmp_path: Path,
 ) -> None:

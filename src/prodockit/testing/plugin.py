@@ -68,7 +68,7 @@ def pytest_addoption(parser: pytest.Parser) -> None:
         "prodockit_pdf",
         help=(
             "Built PDF the prodockit_pdf fixture opens, relative to the "
-            "rootdir. Defaults to the config's own pdf_output, or "
+            "rootdir. Defaults to pdk-pdf.toml [document].output, or "
             "<docs_dir>/site_documentation.pdf."
         ),
         default="",
@@ -91,7 +91,7 @@ def prodockit_paths(pytestconfig: pytest.Config) -> ProdockitPaths:
     """Resolves docs/site/PDF locations from the Zensical config, rather
     than assuming any particular layout - `site_dir` in particular is
     `site` by default but commonly set to `public`, and the PDF's name
-    follows `pdf_output` when set."""
+    follows ``pdk-pdf.toml`` when its document output is set."""
     root = Path(str(pytestconfig.rootpath))
     config_file = root / str(pytestconfig.getini("prodockit_config_file"))
     if not config_file.is_file():
@@ -104,6 +104,15 @@ def prodockit_paths(pytestconfig: pytest.Config) -> ProdockitPaths:
     raw = _load_toml(config_file)
     project = raw.get("project", {}) or {}
     extra = project.get("extra", {}) or {}
+    from prodockit.pdf.runtime_config import (
+        PdfRuntimeConfigError,
+        load_pdf_runtime_config,
+    )
+
+    try:
+        pdf_settings = load_pdf_runtime_config(config_file).resolve_pdf_settings(extra)
+    except PdfRuntimeConfigError as error:
+        pytest.fail(str(error))
 
     docs_dir = root / (project.get("docs_dir") or "docs")
     site_dir = root / (project.get("site_dir") or "site")
@@ -111,8 +120,8 @@ def prodockit_paths(pytestconfig: pytest.Config) -> ProdockitPaths:
     configured_pdf = str(pytestconfig.getini("prodockit_pdf") or "")
     if configured_pdf:
         pdf = root / configured_pdf
-    elif extra.get("pdf_output"):
-        pdf = root / str(extra["pdf_output"])
+    elif pdf_settings.value("pdf_output"):
+        pdf = root / str(pdf_settings.value("pdf_output"))
     else:
         pdf = docs_dir / "site_documentation.pdf"
 

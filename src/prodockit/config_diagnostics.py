@@ -19,10 +19,16 @@ from prodockit.citations import CitationsExtension
 from prodockit.glossary import GlossaryExtension
 from prodockit.headings import HeadingsExtension
 from prodockit.index import IndexExtension
+from prodockit.pdf.runtime_config import load_pdf_runtime_config
 from prodockit.project_config import ProjectConfig
 from prodockit.project_integrity import inspect_project
 from prodockit.refs import RefsExtension
-from prodockit.settings import EXTRA_SETTINGS, SettingError, resolve_index_settings
+from prodockit.settings import (
+    EXTRA_SETTINGS,
+    PDF_EXTRA_SETTINGS,
+    SettingError,
+    resolve_index_settings,
+)
 from prodockit.steps import StepsExtension
 from prodockit.tables import TablesExtension
 from prodockit.tree import TreeExtension
@@ -142,7 +148,52 @@ def inspect_config(
     known_extra = {setting.key for setting in EXTRA_SETTINGS}
     invalid_extra = False
 
+    pdf_keys = {setting.key for setting in PDF_EXTRA_SETTINGS}
+    migrated_pdf_keys = pdf_keys - {"pdf_tex2svg_script", "pdf_math_dir"}
+    policy = load_pdf_runtime_config(config.path)
+    valid_legacy_extra = dict(extra)
+    invalid_pdf: set[str] = set()
+    for setting in PDF_EXTRA_SETTINGS:
+        if (
+            setting.key not in migrated_pdf_keys
+            or setting.key not in extra
+            or setting.key in policy.pdf_explicit
+        ):
+            continue
+        try:
+            setting.validate(extra[setting.key])
+        except SettingError as error:
+            invalid_extra = True
+            invalid_pdf.add(setting.key)
+            valid_legacy_extra.pop(setting.key, None)
+            diagnostics.append(Diagnostic(f"project.extra.{setting.key}", str(error)))
+    pdf_settings = policy.resolve_pdf_settings(valid_legacy_extra)
+
     for setting in EXTRA_SETTINGS:
+        if setting.key in migrated_pdf_keys:
+            if setting.key in invalid_pdf:
+                settings.append(
+                    ResolvedSetting(
+                        setting.group,
+                        setting.key,
+                        extra[setting.key],
+                        f"project.extra.{setting.key} (invalid deprecated fallback)",
+                    )
+                )
+                continue
+            value = pdf_settings.value(setting.key)
+            source = pdf_settings.source_for(setting.key)
+            settings.append(
+                ResolvedSetting(
+                    setting.group,
+                    setting.key,
+                    _display_default(config, setting.key, value)
+                    if source == "default"
+                    else value,
+                    source,
+                )
+            )
+            continue
         explicit = setting.key in extra
         value = (
             extra[setting.key]

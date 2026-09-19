@@ -37,6 +37,7 @@ from prodockit.adopt import (
     apply as apply_adoption,
 )
 from prodockit.cli import main
+from prodockit.pdf.runtime_config import load_pdf_runtime_config
 from prodockit.pins import TESTED_VERSIONS
 from prodockit.project_config import load_project_config
 from prodockit.shared_files import resource_bytes
@@ -269,7 +270,9 @@ language = "en-GB"
     assert '"stylesheets/mine.css"' in config
     assert '"stylesheets/pdk.css"' in config
     assert config.index('site_name = "Mine"') < config.index("extra_css = [")
-    assert load_project_config(project / "zensical.toml").extra["pdf_extra_css"] == [
+    assert load_pdf_runtime_config(project / "zensical.toml").pdf_values[
+        "pdf_extra_css"
+    ] == [
         "stylesheets/pdk-pdf.css",
         "stylesheets/print.css",
     ]
@@ -310,7 +313,10 @@ pdf_extra_css = ["stylesheets/print.css"]
     config = (project / "zensical.toml").read_text(encoding="utf-8")
     assert config.index('"stylesheets/pdk.css"') < config.index('"stylesheets/template.css"')
     assert config.index('"stylesheets/template.css"') < config.index('"stylesheets/extra.css"')
-    assert config.index('"stylesheets/pdk-pdf.css"') < config.index('"stylesheets/print.css"')
+    pdf_config = (project / "pdk-pdf.toml").read_text(encoding="utf-8")
+    assert pdf_config.index('"stylesheets/pdk-pdf.css"') < pdf_config.index(
+        '"stylesheets/print.css"'
+    )
     assert {path.name for path in written} == {
         "pdk.css",
         "pdk-pdf.css",
@@ -337,12 +343,53 @@ extra.pdf_extra_css = ["stylesheets/course-print.css"]
     ensure_zensical_config(project, AdoptOptions())
 
     config = (project / "zensical.toml").read_text(encoding="utf-8")
-    assert 'extra.pdf_copyright = "Keep this footer"' in config
+    assert "extra.pdf_copyright" not in config
     assert not re.search(r"(?m)^\[project.extra\]", config)
-    assert config.index('"stylesheets/pdk-pdf.css"') < config.index(
+    pdf_config = (project / "pdk-pdf.toml").read_text(encoding="utf-8")
+    assert 'copyright = "Keep this footer"' in pdf_config
+    assert pdf_config.index('"stylesheets/pdk-pdf.css"') < pdf_config.index(
         '"stylesheets/course-print.css"'
     )
-    assert config.index('"stylesheets/course-print.css"') < config.index('"stylesheets/print.css"')
+    assert pdf_config.index('"stylesheets/course-print.css"') < pdf_config.index(
+        '"stylesheets/print.css"'
+    )
+
+
+def test_adopt_migrates_pdf_policy_and_is_idempotent(tmp_path: Path) -> None:
+    project = _project(
+        tmp_path,
+        """\
+[project]
+site_name = "Migration"
+
+[project.extra]
+pdf_output = "dist/report.pdf"
+pdf_page_size = "Letter"
+pdf_margin_top = "3cm"
+pdf_double_sided = true
+pdf_include_table_of_contents = false
+pdf_source_bundle_output = "dist/source.pdf"
+""",
+    )
+    (project / "pdk-pdf.toml").write_text(
+        'schema_version = 1\n\n[document]\npage_size = "A5"\n',
+        encoding="utf-8",
+    )
+
+    ensure_zensical_config(project, AdoptOptions())
+    first = (project / "pdk-pdf.toml").read_text(encoding="utf-8")
+    ensure_zensical_config(project, AdoptOptions())
+
+    assert (project / "pdk-pdf.toml").read_text(encoding="utf-8") == first
+    policy = load_pdf_runtime_config(project / "zensical.toml")
+    assert policy.pdf_values["pdf_output"] == "dist/report.pdf"
+    assert policy.pdf_values["pdf_page_size"] == "A5"
+    assert policy.pdf_values["pdf_margin_top"] == "3cm"
+    assert policy.pdf_values["pdf_double_sided"] is True
+    assert policy.pdf_values["pdf_include_table_of_contents"] is False
+    assert policy.pdf_values["pdf_source_bundle_output"] == "dist/source.pdf"
+    config = (project / "zensical.toml").read_text(encoding="utf-8")
+    assert not re.search(r"(?m)^pdf_(?:output|page_size|margin_top|double_sided)", config)
 
 
 def test_core_adoption_creates_missing_user_managed_styles_without_replacing_them(
@@ -555,6 +602,8 @@ site_name: Styled
 extra_css: [stylesheets/theme.css]
 extra:
   pdf_extra_css: [stylesheets/custom-print.css]
+  pdf_page_size: Letter
+  pdf_double_sided: true
 """,
         config_name="zensical.yml",
     )
@@ -566,10 +615,16 @@ extra:
     assert (
         "extra_css: [stylesheets/pdk.css, stylesheets/theme.css, stylesheets/extra.css]" in config
     )
-    assert (
-        "pdf_extra_css: [stylesheets/pdk-pdf.css, stylesheets/custom-print.css, "
-        "stylesheets/print.css]" in config
-    )
+    assert "pdf_extra_css" not in config
+    assert "pdf_page_size" not in config
+    assert "pdf_double_sided" not in config
+    pdf_config = (project / "pdk-pdf.toml").read_text(encoding="utf-8")
+    assert pdf_config.index('"stylesheets/pdk-pdf.css"') < pdf_config.index(
+        '"stylesheets/custom-print.css"'
+    ) < pdf_config.index('"stylesheets/print.css"')
+    policy = load_pdf_runtime_config(project / "zensical.yml")
+    assert policy.pdf_values["pdf_page_size"] == "Letter"
+    assert policy.pdf_values["pdf_double_sided"] is True
     assert all(
         (project / "docs" / "stylesheets" / name).is_file()
         for name in ("pdk.css", "pdk-pdf.css", "extra.css", "print.css")

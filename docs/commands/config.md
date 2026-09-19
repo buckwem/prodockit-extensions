@@ -46,13 +46,17 @@ Configuration-check options
 
 Recognised Prodockit settings are checked for their value types. Write boolean
 values as `true` or `false`, without quotes; `"false"` is a string, not a boolean.
-Text settings such as `pdf_page_size` require a string, and `pdf_extra_css`
-requires a list of strings. Errors name the setting to correct. PDF generation
+Text settings such as `[document].page_size` require a string, and
+`[document].extra_css` requires a list of strings. Errors name the setting to correct. PDF generation
 also rejects these invalid types rather than silently changing their meaning.
 
 Authoring syntax inside HTML comments is ignored, like examples inside code
 blocks. Only active syntax should require an extension. Diagnostics uses the
 same checks, so a commented-out reference does not trigger an extension repair.
+
+PDF-only settings are read from `pdk-pdf.toml`. Legacy
+`project.extra.pdf_*` values remain readable as deprecated fallbacks;
+`pdk-pdf.toml` wins per setting, and `pdk diag` identifies values to migrate.
 
 The command validates Prodockit settings, configured source files, navigation,
 stylesheets, JavaScript, citation style, and renderer paths without building

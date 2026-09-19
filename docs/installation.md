@@ -286,6 +286,7 @@ docs/ - original Markdown source pages and Prodockit assets
 .python-version - supported Python release added by Adopt
 requirements.txt - supported Python packages added by Adopt
 zensical.toml - original configuration updated by Adopt
+pdk-pdf.toml - PDF-only policy created or migrated by Adopt
 ///
 
 For the website, `zensical.toml` loads `pdk.css` first and `extra.css` last, so
@@ -353,7 +354,8 @@ macros.py - shared template macros
 README.md - project summary and publishing badges
 references.bib - example hand-written reference source
 requirements.txt - Python build dependencies
-zensical.toml - site, navigation, extensions, and PDF settings
+zensical.toml - site, navigation, and shared authoring settings
+pdk-pdf.toml - PDF-only settings and runtime policy
 ///
 
 This is the useful project-facing structure rather than every file in the

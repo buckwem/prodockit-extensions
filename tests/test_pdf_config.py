@@ -753,6 +753,47 @@ def test_pdf_extra_css_defaults_to_empty_when_unset(
     assert captured["extra_css"] == ""
 
 
+def test_pdk_pdf_document_policy_drives_the_build_and_wins_over_legacy(
+    project, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = project(extra="\n[project.extra]\npdf_page_size = false\n")
+    (root / "pdk-pdf.toml").write_text(
+        """schema_version = 1
+
+[document]
+output = "docs/configured.pdf"
+page_size = "A5"
+double_sided = true
+
+[margins]
+inner = "3cm"
+
+[table_of_contents]
+include = false
+title = "Contents"
+""",
+        encoding="utf-8",
+    )
+    captured: dict[str, object] = {}
+    import prodockit.pdf.config as config_module
+
+    def _spy(pages, output_path, **kwargs):
+        captured["output_path"] = output_path
+        captured.update(kwargs)
+
+    monkeypatch.setattr(config_module, "build_pdf", _spy)
+
+    result = build_pdf_from_zensical_config(str(root / "zensical.toml"))
+
+    assert result == "docs/configured.pdf"
+    assert captured["output_path"] == "docs/configured.pdf"
+    assert captured["page_size"] == "A5"
+    assert captured["double_sided"] is True
+    assert captured["margin_inner"] == "3cm"
+    assert captured["include_table_of_contents"] is False
+    assert captured["table_of_contents_title"] == "Contents"
+
+
 def _write_git_project(tmp_path: Path, *, extra: str = "") -> Path:
     """Like `_write_project()`, plus an actual git repo -
     `build_source_bundle_from_zensical_config()` needs one, since file
@@ -799,6 +840,20 @@ def test_source_bundle_defaults_into_docs_dir(source_bundle_project) -> None:
 def test_source_bundle_output_path_is_configurable(source_bundle_project) -> None:
     root = source_bundle_project(
         extra='\n[project.extra]\npdf_source_bundle_output = "dist/src.pdf"\n'
+    )
+    (root / "dist").mkdir()
+
+    output_path = build_source_bundle_from_zensical_config(str(root / "zensical.toml"))
+
+    assert output_path == "dist/src.pdf"
+    assert (root / "dist" / "src.pdf").exists()
+
+
+def test_source_bundle_output_comes_from_pdk_pdf(source_bundle_project) -> None:
+    root = source_bundle_project()
+    (root / "pdk-pdf.toml").write_text(
+        'schema_version = 1\n\n[source_bundle]\noutput = "dist/src.pdf"\n',
+        encoding="utf-8",
     )
     (root / "dist").mkdir()
 

@@ -125,17 +125,12 @@ environment to the combination supported by the installed Prodockit release.
 It can also align version declarations, enable the standard extensions, install
 the managed `pdk.css`, `pdk-pdf.css`, and `pdk.js` files; create missing
 user-managed `extra.css`, `print.css`, and `extra.js` files without replacing
-their contents; record the stylesheet and JavaScript cascades; save component
-choices; provision the supported
-configured citation style when it is missing, and initialise selected
-project-local renderers.
-For selected renderers, a separate Node.js and npm activity uses Bootstrap's
-runtime installation policy on macOS, Ubuntu and Windows. It reuses an adequate
-runtime, installs a missing one, or upgrades/repairs an unsupported one. Node
-and npm follow Bootstrap's minimum supported versions; the renderer packages
-themselves use the installed release's exact lockfile.
-The system package manager may request administrator approval. Adopt refreshes
-its own PATH after installation and verifies both commands before continuing.
+their contents; migrate PDF-only settings to `pdk-pdf.toml`; record the
+stylesheet and JavaScript cascades; save component choices; provision the
+configured citation style when it is missing; and initialise selected
+authoring configuration. Optional PDF renderers are prepared transparently by
+`pdk pdf` when the document first uses them; Adopt does not install Node, npm,
+MSYS2, browsers, fonts, or PDF runtimes.
 It cannot rewrite the parent terminal's environment: if the verification still
 fails, an uppercase restart message includes the platform's activation command.
 Adopt changes only the active Python environment and project-local files. It

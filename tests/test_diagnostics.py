@@ -1031,6 +1031,20 @@ def _project(tmp_path: Path, *, required: bool) -> ProjectConfig:
     )
 
 
+def test_pdf_configuration_check_warns_about_legacy_fallback(tmp_path: Path) -> None:
+    config = ProjectConfig(
+        path=tmp_path / "zensical.toml",
+        project={"extra": {"pdf_page_size": "Letter"}},
+        nav_pages=(),
+        markdown_extensions={},
+    )
+
+    check = diagnostics._pdf_configuration_check(config)
+
+    assert check.status == "warn"
+    assert "project.extra.pdf_page_size -> pdk-pdf.toml [document].page_size" in check.details
+
+
 def test_missing_renderers_warn_when_unused_and_fail_when_content_uses_them(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

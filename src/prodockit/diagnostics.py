@@ -35,7 +35,7 @@ from prodockit.pdf.mermaid_runtime import MermaidProvider
 from prodockit.pdf.mermaid_runtime import probe_runtime as probe_mermaid_runtime
 from prodockit.pdf.pandoc_runtime import PandocProvider
 from prodockit.pdf.pandoc_runtime import probe_runtime as probe_pandoc_runtime
-from prodockit.pdf.runtime_config import load_pdf_runtime_config
+from prodockit.pdf.runtime_config import PDF_SETTING_PATHS, load_pdf_runtime_config
 from prodockit.pdf.runtime_prepare import RuntimeProvider, current_runtime_environment
 from prodockit.pdf.runtime_store import RuntimeStore
 from prodockit.pdf.weasyprint_runtime import WindowsWeasyPrintProvider, probe_runtime
@@ -79,6 +79,7 @@ DIAGNOSTIC_IDS = frozenset(
         "installation.metadata",
         "installation.inspection",
         "project.configuration",
+        "project.pdf-configuration",
         "project.text-encoding",
         "dependencies.pins",
         "dependencies.shared-files",
@@ -274,6 +275,11 @@ REPAIR_REGISTRY: dict[str, RepairPolicy] = {
         "ambiguous",
         "Configuration findings may have several author-valid remediations.",
         "Use `pdk config --check`; prefer Adoption for independent Prodockit integration repairs.",
+    ),
+    "project.pdf-configuration": RepairPolicy(
+        "manual",
+        "Legacy PDF values remain valid while a project chooses when to migrate them.",
+        "Move each reported value to its named pdk-pdf.toml setting.",
     ),
     "project.text-encoding": RepairPolicy(
         "manual",
@@ -2612,6 +2618,34 @@ def _configuration_check(config_file: Path) -> tuple[ProjectConfig | None, Diagn
     )
 
 
+def _pdf_configuration_check(config: ProjectConfig) -> DiagnosticResult:
+    policy = load_pdf_runtime_config(config.path)
+    resolved = policy.resolve_pdf_settings(config.extra)
+    legacy = (*resolved.legacy, *resolved.shadowed_legacy)
+    if not legacy:
+        return DiagnosticResult(
+            "project.pdf-configuration",
+            "Project configuration and inputs",
+            "pass",
+            "PDF-only settings use pdk-pdf.toml or supported defaults",
+            (),
+            {"legacy_settings": [], "policy_file": policy.path.name},
+        )
+    details = tuple(
+        f"project.extra.{key} -> pdk-pdf.toml {PDF_SETTING_PATHS[key]}"
+        + (" (ignored because pdk-pdf.toml wins)" if key in resolved.shadowed_legacy else "")
+        for key in sorted(legacy)
+    )
+    return DiagnosticResult(
+        "project.pdf-configuration",
+        "Project configuration and inputs",
+        "warn",
+        f"{len(legacy)} legacy PDF setting(s) remain in zensical.toml",
+        details,
+        {"legacy_settings": sorted(legacy), "policy_file": policy.path.name},
+    )
+
+
 def _text_encoding_check(
     root: Path, config_file: Path, docs_dir: Path
 ) -> DiagnosticResult:
@@ -3169,11 +3203,15 @@ def _renderer_checks(
     *,
     retry_reporter: RetryReporter | None = None,
 ) -> list[DiagnosticResult]:
+    policy = load_pdf_runtime_config(config.path if config else root / "zensical.toml")
     pdf_required = bool(
         config
-        and any(
-            config.extra.get(key)
-            for key in ("pdf_output", "pdf_source_bundle_output", "pdf_extra_css")
+        and (
+            policy.pdf_explicit
+            or any(
+                config.extra.get(key)
+                for key in ("pdf_output", "pdf_source_bundle_output", "pdf_extra_css")
+            )
         )
     )
     mermaid_required, maths_required = renderer_requirements(config) if config else (False, False)
@@ -3447,7 +3485,7 @@ def _adopt_core_paths(root: Path) -> tuple[Path, ...]:
     config_path, _source, parsed = _config(root)
     styles = _stylesheet_paths(root, parsed)
     scripts = _javascript_paths(root, parsed)
-    return (config_path, *styles.values(), *scripts.values())
+    return (config_path, root / "pdk-pdf.toml", *styles.values(), *scripts.values())
 
 
 def _adopt_core_fingerprint(root: Path) -> str:
@@ -3732,6 +3770,7 @@ def inspect(
     )
     checks.append(config_check)
     if config is not None:
+        checks.append(_pdf_configuration_check(config))
         from prodockit.diagnostic_readiness import checks as readiness_checks
 
         collect(

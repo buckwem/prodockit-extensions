@@ -110,13 +110,23 @@ EXTRA_SETTINGS = (
 )
 
 EXTRA_SETTING_BY_KEY = {setting.key: setting for setting in EXTRA_SETTINGS}
+PDF_EXTRA_SETTINGS = tuple(setting for setting in EXTRA_SETTINGS if setting.group == "PDF")
 
 
-def validate_extra_settings(extra: Mapping[str, Any] | None) -> None:
+def validate_extra_settings(
+    extra: Mapping[str, Any] | None,
+    *,
+    groups: frozenset[str] | None = None,
+    exclude: frozenset[str] = frozenset(),
+) -> None:
     """Validate explicit owned settings before a runtime consumer uses them."""
     for key, value in (extra or {}).items():
         setting = EXTRA_SETTING_BY_KEY.get(key)
-        if setting is not None:
+        if (
+            setting is not None
+            and key not in exclude
+            and (groups is None or setting.group in groups)
+        ):
             setting.validate(value)
 
 
@@ -146,7 +156,7 @@ def heading_numbering_enabled(extra: dict[str, Any] | None) -> bool:
     """Whether `project.extra.heading_numbering` (default `True`) enables
     chapter/appendix numbering on headings and captions, on both the
     website and the PDF."""
-    validate_extra_settings(extra)
+    validate_extra_settings(extra, groups=frozenset({"Shared rendering"}))
     return bool((extra or {}).get("heading_numbering", extra_default("heading_numbering")))
 
 
@@ -170,7 +180,7 @@ def reference_style_values(extra: dict[str, Any] | None) -> tuple[str, str, str,
       `"2em"`) - the `global` style's margin-top between entries.
     """
     extra = extra or {}
-    validate_extra_settings(extra)
+    validate_extra_settings(extra, groups=frozenset({"Shared rendering"}))
     style = str(extra.get("reference_style", extra_default("reference_style"))).strip().lower()
     style = "global" if style == "global" else "european"
     spacing_european = str(

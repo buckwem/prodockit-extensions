@@ -109,6 +109,28 @@ def test_pdf_output_setting_is_honoured(pytester: pytest.Pytester) -> None:
     pytester.runpytest().assert_outcomes(passed=1)
 
 
+def test_pdk_pdf_output_wins_over_legacy_setting(pytester: pytest.Pytester) -> None:
+    config = CONFIG + '\n[project.extra]\npdf_output = "dist/legacy.pdf"\n'
+    _make_project(pytester, config=config)
+    pytester.makefile(
+        ".toml",
+        **{
+            "pdk-pdf": (
+                'schema_version = 1\n\n[document]\noutput = "dist/report.pdf"\n'
+            )
+        },
+    )
+    _write_pdf(pytester, "dist/report.pdf")
+    pytester.makepyfile(
+        """
+        def test_output(prodockit_paths, prodockit_pdf):
+            assert prodockit_paths.pdf.name == "report.pdf"
+            assert prodockit_pdf.page_count == 1
+        """
+    )
+    pytester.runpytest().assert_outcomes(passed=1)
+
+
 def test_pdf_path_can_be_overridden_by_ini_option(pytester: pytest.Pytester) -> None:
     _make_project(pytester)
     _write_pdf(pytester, "somewhere/else.pdf")
