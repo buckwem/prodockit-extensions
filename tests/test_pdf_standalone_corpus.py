@@ -228,3 +228,33 @@ def test_renderer_adapter_writes_svg_without_node_or_npm_on_path(
     semantics = _semantics(Path(rendered).read_text(encoding="utf-8"))
     assert "Python" in semantics.text
     assert "SVG" in semantics.text
+
+
+@pytest.mark.parametrize(
+    "href",
+    ["guide.html", "https://example.com/docs", "mailto:test@example.com"],
+    ids=["relative", "https", "mailto"],
+)
+def test_renderer_adapter_preserves_a_safe_mermaid_click_link(
+    worker: StandaloneMermaidWorker,
+    tmp_path: Path,
+    href: str,
+) -> None:
+    renderer = StandaloneMermaidRenderer(str(tmp_path / "diagrams"), worker=worker)
+
+    rendered = renderer.render_source(
+        'flowchart LR\n A[Open documentation] --> B[Done]\n'
+        f' click A "{href}" "Open documentation"'
+    )
+
+    assert rendered is not None
+    svg = Path(rendered).read_text(encoding="utf-8")
+    semantics = _semantics(svg)
+    assert "Open documentation" in semantics.text
+    assert "Done" in semantics.text
+    link = next(
+        element
+        for element in ElementTree.fromstring(svg).iter()
+        if element.tag.rsplit("}", 1)[-1] == "a"
+    )
+    assert link.get("href") == href

@@ -20,6 +20,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, NoReturn, Protocol, cast
+from urllib.parse import urlsplit
 from xml.etree import ElementTree
 
 from ._mermaid_provenance import load_mermaid_provenance
@@ -37,6 +38,7 @@ _ASSET_HASHES = {
 
 _UNSAFE_SVG_ELEMENTS = {"foreignobject", "iframe", "object", "script"}
 _EXTERNAL_URL = re.compile(r"url\(\s*['\"]?(?!#)", re.IGNORECASE)
+_NAVIGATION_SCHEMES = {"https", "mailto"}
 
 _BOOTSTRAP_JS = """
 globalThis.__log = () => {};
@@ -111,6 +113,29 @@ def _require_range(
         raise ValueError(f"{name} must be between {minimum} and {maximum}")
 
 
+def _is_safe_navigation_href(value: str) -> bool:
+    """Allow links that navigate without loading content into the SVG."""
+    if (
+        value != value.strip()
+        or "\\" in value
+        or value.startswith("//")
+        or any(character.isspace() or ord(character) == 127 for character in value)
+    ):
+        return False
+    try:
+        parsed = urlsplit(value)
+    except ValueError:
+        return False
+    scheme = parsed.scheme.lower()
+    if scheme not in _NAVIGATION_SCHEMES and scheme:
+        return False
+    if scheme == "https":
+        return bool(parsed.netloc)
+    if scheme == "mailto":
+        return not parsed.netloc and bool(parsed.path)
+    return not parsed.netloc and bool(parsed.path or parsed.query)
+
+
 def _validate_static_svg(svg: str) -> None:
     """Reject active or externally loaded content before SVG leaves the worker."""
     lowered = svg.lower()
@@ -144,6 +169,11 @@ def _validate_static_svg(svg: str) -> None:
                 name in {"href", "src"}
                 and normalized_value
                 and not normalized_value.startswith("#")
+                and not (
+                    element_name == "a"
+                    and name == "href"
+                    and _is_safe_navigation_href(value)
+                )
             ):
                 raise StandaloneRenderError("Mermaid SVG references an external resource.")
             if name == "style" and _EXTERNAL_URL.search(value):

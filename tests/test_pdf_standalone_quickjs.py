@@ -174,6 +174,60 @@ def test_engine_rejects_active_or_external_svg(
         engine.render_svg("graph LR; A-->B")
 
 
+@pytest.mark.parametrize(
+    "href",
+    [
+        "guide.html",
+        "../guide/page.html?view=pdf#details",
+        "/documentation/",
+        "?page=2",
+        "https://example.com/docs",
+        "mailto:test@example.com",
+    ],
+)
+def test_engine_accepts_safe_navigation_links(
+    monkeypatch: pytest.MonkeyPatch,
+    href: str,
+) -> None:
+    svg = f'<svg xmlns="http://www.w3.org/2000/svg"><a href="{href}"><path/></a></svg>'
+    context = FakeContext(svg=svg)
+    monkeypatch.setattr(runtime_module, "_load_runtime", lambda: _fake_runtime(context))
+    engine = StandaloneQuickJSMermaidEngine()
+    engine.start()
+
+    assert engine.render_svg("graph LR; A-->B") == svg
+
+
+@pytest.mark.parametrize(
+    "href",
+    [
+        "http://example.com/docs",
+        "//example.com/docs",
+        "data:text/html,unsafe",
+        "file:///tmp/unsafe",
+        "ftp://example.com/file",
+        "tel:+44123456789",
+        "https:example.com",
+        "mailto:",
+        "\\\\example.com\\docs",
+        " guide.html",
+        "guide.html\nunsafe",
+    ],
+)
+def test_engine_rejects_unapproved_navigation_links(
+    monkeypatch: pytest.MonkeyPatch,
+    href: str,
+) -> None:
+    svg = f'<svg xmlns="http://www.w3.org/2000/svg"><a href="{href}"><path/></a></svg>'
+    context = FakeContext(svg=svg)
+    monkeypatch.setattr(runtime_module, "_load_runtime", lambda: _fake_runtime(context))
+    engine = StandaloneQuickJSMermaidEngine()
+    engine.start()
+
+    with pytest.raises(StandaloneRenderError):
+        engine.render_svg("graph LR; A-->B")
+
+
 def test_runtime_rejects_missing_or_wrong_dependency_versions(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
