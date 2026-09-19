@@ -237,6 +237,8 @@ class AbsentPlanningRunner:
     ) -> CommandResult:
         del cwd, timeout, capture
         words = list(command)
+        if words == ["dpkg", "--print-architecture"]:
+            return CommandResult(0, "arm64\n" if _is_arm64() else "amd64\n")
         if words[:2] == ["brew", "--prefix"]:
             return CommandResult(0, "/opt/homebrew\n" if _is_arm64() else "/usr/local\n")
         return CommandResult(127, stderr=f"planned as absent: {words[0] if words else ''}")

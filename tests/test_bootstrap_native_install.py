@@ -144,3 +144,18 @@ def test_native_project_seed_needs_no_renderer_tool_templates(tmp_path: Path) ->
 
     assert not (project / "tools").exists()
     assert wheel.as_uri() in (project / "requirements.txt").read_text(encoding="utf-8")
+
+
+@pytest.mark.parametrize(
+    ("machine", "expected"), (("aarch64", "arm64\n"), ("x86_64", "amd64\n"))
+)
+def test_absent_planning_runner_preserves_linux_architecture(
+    monkeypatch, machine: str, expected: str
+) -> None:
+    monkeypatch.setattr(_MODULE.platform, "machine", lambda: machine)
+
+    result = _MODULE.AbsentPlanningRunner(_MODULE.UBUNTU).run(
+        ["dpkg", "--print-architecture"]
+    )
+
+    assert result == _MODULE.CommandResult(0, expected)
