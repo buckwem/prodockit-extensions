@@ -133,3 +133,14 @@ def test_wheel_resolution_requires_exactly_one_candidate(tmp_path: Path) -> None
     wheel = tmp_path / "prodockit-1-py3-none-any.whl"
     wheel.touch()
     assert _MODULE._resolve_wheel(tmp_path) == wheel.resolve()
+
+
+def test_native_project_seed_needs_no_renderer_tool_templates(tmp_path: Path) -> None:
+    wheel = tmp_path / "prodockit-1-py3-none-any.whl"
+    wheel.touch()
+    project = tmp_path / "project"
+
+    _MODULE._seed_project(project, wheel)
+
+    assert not (project / "tools").exists()
+    assert wheel.as_uri() in (project / "requirements.txt").read_text(encoding="utf-8")

@@ -258,12 +258,7 @@ def _resolve_wheel(value: Path) -> Path:
 
 
 def _seed_project(project: Path, wheel: Path) -> None:
-    package = Path(prodockit.__file__).resolve().parent
-    tools = package / "_tools_template"
-    if not tools.is_dir():
-        raise NativeInstallError(f"installed wheel has no tool templates at {tools}")
     project.mkdir(parents=True)
-    shutil.copytree(tools, project / "tools")
     (project / "requirements.txt").write_text(
         f"zensical\nweasyprint\n{wheel.as_uri()}\n", encoding="utf-8"
     )

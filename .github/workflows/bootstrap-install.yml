@@ -116,14 +116,6 @@ jobs:
           architecture: ${{ matrix.architecture }}
           cache: pip
           cache-dependency-path: pyproject.toml
-      - name: Disable unused Chrome package source on the hosted runner
-        if: runner.os == 'Linux'
-        run: sudo python3 tools/ci_disable_chrome_source.py
-      - name: Use a Chromium-accessible temporary directory on Linux
-        if: runner.os == 'Linux'
-        run: |
-          mkdir -p "$HOME/prodockit-bootstrap-tmp"
-          echo "TMPDIR=$HOME/prodockit-bootstrap-tmp" >> "$GITHUB_ENV"
       - name: Build and install the candidate wheel
         run: |
           python -m pip install build

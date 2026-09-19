@@ -91,7 +91,7 @@ def write_project(path: Path, *, marker: str, real_toolchains: bool = False) -> 
     (path / "README.md").write_text(f"# {marker}\n", encoding="utf-8")
     (path / "requirements.txt").write_text("\n", encoding="utf-8")
     (path / ".gitignore").write_text(
-        ".venv/\nsite/\ntools/mathjax/node_modules/\n",
+        ".venv/\nsite/\n",
         encoding="utf-8",
     )
     (path / "zensical.toml").write_text(
@@ -179,17 +179,11 @@ class HarnessRunner:
         self.versions = {
             "vscode": "1.80.2" if old_software else bootstrap_stages_module.VSCODE_MIN_VERSION,
             "git": "2.27.1" if old_software else bootstrap_stages_module.GIT_MIN_VERSION,
-            "pandoc": "2.19.2" if old_software else bootstrap_stages_module.PANDOC_VERSION,
-            "pango": "1.42.4" if old_software else bootstrap_stages_module.PANGO_MIN_VERSION,
-            "node": "18.20.0" if old_software else bootstrap_stages_module.NODE_MIN_VERSION,
-            "npm": "6.14.18" if old_software else "10.9.2",
-            "chromium": "100.0.4896.60" if old_software else "151.0.7922.47",
         }
         self.extensions = {
             name: ("0.1.0" if old_software else minimum)
             for name, minimum in bootstrap_stages_module.VSCODE_EXTENSION_MIN_VERSIONS.items()
         }
-        self.chromium = True
         self.old_tool_bins = {
             name: Path(path)
             for name, path in json.loads(
@@ -225,8 +219,6 @@ class HarnessRunner:
             selected = {
                 "Microsoft.VisualStudioCode": "vscode",
                 "Git.Git": "git",
-                "JohnMacFarlane.Pandoc": "pandoc",
-                "OpenJS.NodeJS.LTS": "node",
             }.get(package)
             if selected:
                 upgraded.add(selected)
@@ -235,14 +227,10 @@ class HarnessRunner:
                 upgraded.add("vscode")
             if "git" in words:
                 upgraded.add("git")
-            if "/tmp/pandoc.deb" in words:
-                upgraded.add("pandoc")
-            if "nodejs" in words:
-                upgraded.add("node")
         elif executable in {"brew", "bash"} and "brew" in script:
             if "visual-studio-code" in script:
                 upgraded.add("vscode")
-            for name in ("git", "pandoc", "node"):
+            for name in ("git",):
                 pattern = (
                     rf"(?:--formula\s+|\b(?:install|upgrade)\s+"
                     rf"(?:--force\s+)?){name}\b"
@@ -269,28 +257,10 @@ class HarnessRunner:
         targets = {
             "vscode": bootstrap_stages_module.VSCODE_MIN_VERSION,
             "git": bootstrap_stages_module.GIT_MIN_VERSION,
-            "pandoc": bootstrap_stages_module.PANDOC_VERSION,
-            "pango": bootstrap_stages_module.PANGO_MIN_VERSION,
-            "node": bootstrap_stages_module.NODE_MIN_VERSION,
-            "npm": "10.9.2",
-            "chromium": "151.0.7922.47",
         }
         for name in names:
             self.versions[name] = targets[name]
             self.upgraded.add(name)
-
-    def _install_toolchain(self, prefix: Path) -> None:
-        if prefix.name == "mathjax":
-            # ``SOURCE`` is rooted at the project (``tools/mathjax/...``),
-            # while npm's ``--prefix`` names ``tools/mathjax`` itself.
-            bundle = prefix.joinpath(
-                "node_modules",
-                "mathjax-full",
-                "es5",
-                bootstrap_stages_module.mathjax.BUNDLE,
-            )
-            bundle.parent.mkdir(parents=True, exist_ok=True)
-            bundle.write_text("acceptance", encoding="utf-8")
 
     def run(
         self,
@@ -314,17 +284,6 @@ class HarnessRunner:
             "code",
             "code.cmd",
             "curl",
-            "dpkg",
-            "dpkg-query",
-            "fc-list",
-            "node",
-            "node.exe",
-            "npm",
-            "npm.cmd",
-            "pandoc",
-            "pandoc.exe",
-            "pango-view",
-            "pango-view.exe",
             "sudo",
             "winget",
             "winget.exe",
@@ -346,36 +305,11 @@ class HarnessRunner:
                 self.upgraded.add("vscode-extensions")
                 return CommandResult(0, f"Updated {name}\n")
 
-        if self.old_software and executable in {"pandoc", "pandoc.exe"}:
-            return CommandResult(0, f"pandoc {self.versions['pandoc']}\n")
-        if self.old_software and executable in {"pango-view", "pango-view.exe"}:
-            return CommandResult(0, f"pango-view (pango) {self.versions['pango']}\n")
-        if self.old_software and executable in {"node", "node.exe"}:
-            return CommandResult(0, f"v{self.versions['node']}\n")
-        if self.old_software and executable in {"npm", "npm.cmd"} and "--version" in words:
-            return CommandResult(0, f"{self.versions['npm']}\n")
-        if self.old_software and executable == "fc-list":
-            return CommandResult(0, "Inter\nJetBrains Mono\n")
-        if self.old_software and executable == "dpkg" and "--print-architecture" in words:
-            architecture = (
-                "arm64\n"
-                if platform.machine().lower() in {"arm64", "aarch64"}
-                else "amd64\n"
-            )
-            return CommandResult(0, architecture)
-        if self.old_software and executable == "dpkg-query":
-            return CommandResult(0, f"{self.versions['pango']}\n")
-
         if self.old_software and executable == "brew":
             if "visual-studio-code" in words:
                 self._upgrade("vscode")
             if "git" in words:
                 self._upgrade("git")
-            selected = [name for name in ("pandoc", "pango") if name in words]
-            if selected:
-                self._upgrade(*selected)
-            if "node" in words:
-                self._upgrade("node")
             return CommandResult(0)
 
         if self.old_software and executable == "winget":
@@ -383,9 +317,6 @@ class HarnessRunner:
             mapping = {
                 "Microsoft.VisualStudioCode": ("vscode",),
                 "Git.Git": ("git",),
-                "JohnMacFarlane.Pandoc": ("pandoc",),
-                "OpenJS.NodeJS.LTS": ("node",),
-                "MSYS2.MSYS2": (),
             }
             if package in mapping:
                 self._upgrade(*mapping[package])
@@ -397,29 +328,11 @@ class HarnessRunner:
                     self._upgrade("vscode")
                 if "git" in words:
                     self._upgrade("git")
-                if "/tmp/pandoc.deb" in words:
-                    self._upgrade("pandoc")
-                if any(word.startswith("libpango") for word in words):
-                    self._upgrade("pango")
-                if "nodejs" in words:
-                    self._upgrade("node")
-                if "chromium-browser" in words:
-                    self.chromium = True
-                    self._upgrade("chromium")
                 return CommandResult(0)
             if "debconf-set-selections" in words:
                 return CommandResult(0)
-            if "bash" in words and "/tmp/nodesource-setup.sh" in words:
-                return CommandResult(0)
-            if any(Path(word).name in {"npm", "npm.cmd"} for word in words):
-                self._upgrade("npm")
-                return CommandResult(0)
 
         if self.old_software and executable == "curl":
-            return CommandResult(0)
-
-        if self.old_software and executable in {"npm", "npm.cmd"} and "ci" in words:
-            self._install_toolchain(Path(words[words.index("--prefix") + 1]))
             return CommandResult(0)
 
         if self.old_software and executable == "bash":
@@ -432,24 +345,7 @@ class HarnessRunner:
                     script,
                 ):
                     self._upgrade("git")
-                selected = [name for name in ("pandoc", "pango") if name in script]
-                if selected:
-                    self._upgrade(*selected)
-                if re.search(
-                    r"\b(?:brew (?:upgrade|install)(?: --force)?|--formula) node\b",
-                    script,
-                ):
-                    self._upgrade("node")
                 return CommandResult(0)
-            if "chromium-browser" in script and "--version" in script:
-                return CommandResult(0, f"Chromium {self.versions['chromium']}\n")
-            if "npm ci" in script and "cd " in script:
-                match = re.search(r"\bcd\s+([^;&]+?)\s+&&\s+npm ci", script)
-                if match:
-                    self._install_toolchain(Path(match.group(1).strip(" '\"")))
-                return CommandResult(0)
-            if "which chromium-browser" in script:
-                return CommandResult(0, "/usr/bin/chromium-browser\n")
             return CommandResult(0)
 
         if executable in {"ssh", "ssh.exe"}:
@@ -490,10 +386,6 @@ class HarnessRunner:
                 words, cwd=cwd, timeout=timeout, capture=capture
             )
         if self.old_software and executable in {"powershell", "powershell.exe"}:
-            if "npm.cmd ci" in words[-1] and "Set-Location -LiteralPath" in words[-1]:
-                match = re.search(r"Set-Location -LiteralPath '((?:''|[^'])+)'", words[-1])
-                if match:
-                    self._install_toolchain(Path(match.group(1).replace("''", "'")))
             return CommandResult(0)
 
         if executable.startswith("zensical"):
@@ -607,14 +499,6 @@ class HarnessRunner:
             return self.system.run(words, cwd=cwd, timeout=timeout, capture=capture)
 
         if self.old_software and executable == Path(sys.executable).name.lower() and "-c" in words:
-            script = words[words.index("-c") + 1]
-            if "int.from_bytes" in script:
-                machine = (
-                    "0xaa64"
-                    if platform.machine().lower() in {"arm64", "aarch64"}
-                    else "0x8664"
-                )
-                return CommandResult(0, machine + "\n")
             return CommandResult(0)
 
         return CommandResult(127, stderr=f"unexpected acceptance command: {' '.join(words)}")
@@ -643,7 +527,7 @@ def acceptance_stages(
         "site",
     }
     if old_software or real_software:
-        real.update({"vscode", "git", "pandoc", "node", "extensions"})
+        real.update({"vscode", "git", "extensions"})
     return tuple(stage if stage.id in real else _simulated_stage(stage) for stage in STAGES)
 
 
@@ -945,17 +829,14 @@ def main() -> None:
         expected_upgrades = {
             "vscode",
             "git",
-            "node",
             "vscode-extensions",
         }
-        if current_platform() != "windows":
-            expected_upgrades.add("pango")
         if harness.upgraded != expected_upgrades:
             raise AcceptanceError(
                 "the old-software route did not accept every upgrade; "
                 f"got {sorted(harness.upgraded)}, expected {sorted(expected_upgrades)}"
             )
-        expected_upgrade_actions = 4 if current_platform() == "windows" else 5
+        expected_upgrade_actions = 3
         if apply_output.count("Action:   UPGRADE") < expected_upgrade_actions:
             raise AcceptanceError(
                 "the old-software route did not present each software upgrade explicitly"
@@ -964,7 +845,6 @@ def main() -> None:
         expected = {
             "Visual Studio Code",
             "Git, installed and configured",
-            "Node.js for PDF maths",
             "VS Code extensions",
         }
         upgraded = {

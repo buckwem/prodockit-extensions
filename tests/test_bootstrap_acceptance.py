@@ -105,14 +105,14 @@ def test_real_software_commands_cross_the_machine_boundary(monkeypatch, tmp_path
     def execute(command, cwd=None, timeout=None, capture=True):  # type: ignore[no-untyped-def]
         del cwd, timeout, capture
         seen.append(list(command))
-        return bootstrap_acceptance_driver.CommandResult(0, "pandoc 2.19.2\n")
+        return bootstrap_acceptance_driver.CommandResult(0, "1.99.0\n")
 
     monkeypatch.setattr(runner.system, "run", execute)
 
-    result = runner.run(["pandoc", "--version"])
+    result = runner.run(["code", "--version"])
 
-    assert result.stdout == "pandoc 2.19.2\n"
-    assert seen == [["pandoc", "--version"]]
+    assert result.stdout == "1.99.0\n"
+    assert seen == [["code", "--version"]]
 
 
 def test_git_host_rewrites_are_attached_to_each_harness_command(
@@ -188,16 +188,12 @@ def test_template_release_recorder_runs_from_the_installed_wheel(
 
 @pytest.mark.parametrize(
     ("command", "revealed"),
-    [
-        (["winget", "install", "--id", "OpenJS.NodeJS.LTS"], "node"),
-        (["sudo", "apt", "install", "-y", "/tmp/pandoc.deb"], "pandoc"),
-        (["bash", "-c", "brew install git"], "git"),
-    ],
+    [(["bash", "-c", "brew install git"], "git")],
 )
 def test_real_install_reveals_only_the_tool_just_replaced(
     monkeypatch, tmp_path: Path, command: list[str], revealed: str
 ) -> None:
-    old = {name: str(tmp_path / name) for name in ("git", "pandoc", "node")}
+    old = {name: str(tmp_path / name) for name in ("git", "vscode")}
     environment = {
         "PATH": os.pathsep.join([*old.values(), "/new/tools"]),
         "PDKBOOT_ACCEPTANCE_OLD_TOOL_BINS": json.dumps(old),
