@@ -532,6 +532,28 @@ class RuntimeStore:
             cached=True,
         )
 
+    def active_for(self, descriptor: ArtifactDescriptor) -> PreparationResult | None:
+        """Return the active runtime only when it matches this exact host policy."""
+
+        descriptor.validate()
+        if not _safe_existing_directory(self.project_root, self.root):
+            return None
+        current = _read_json(self.root / "current.json")
+        path = self._valid_entry(
+            current.get(descriptor.component),
+            descriptor,
+            component=descriptor.component,
+        )
+        if path is None:
+            return None
+        return PreparationResult(
+            descriptor.component,
+            path,
+            descriptor.version,
+            descriptor.sha256,
+            True,
+        )
+
     def _download(self, descriptor: ArtifactDescriptor, acquire: AcquireArtifact) -> Path:
         downloads = self.root / "downloads"
         _safe_mkdir(self.project_root, downloads)

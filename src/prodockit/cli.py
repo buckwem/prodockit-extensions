@@ -2793,6 +2793,8 @@ def _run_pdf_command(
         RevisionDateError,
         SourceBundleError,
         MermaidBackendUnavailableError,
+        RuntimeProviderUnavailableError,
+        RuntimeStoreError,
         ValueError,
         OSError,
     ) as error:
@@ -2942,7 +2944,13 @@ def source_bundle(config_file: str) -> None:
     click.echo(f"Building source bundle from {config_file}...")
     try:
         output_path = build_source_bundle_from_zensical_config(config_file)
-    except (SourceBundleError, ValueError, OSError) as error:
+    except (
+        RuntimeProviderUnavailableError,
+        RuntimeStoreError,
+        SourceBundleError,
+        ValueError,
+        OSError,
+    ) as error:
         click.echo(f"Error: {error}", err=True)
         _echo_captured_stderr(error)
         sys.exit(1)

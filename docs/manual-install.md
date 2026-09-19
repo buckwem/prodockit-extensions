@@ -1055,67 +1055,20 @@ before continuing.
                 `winget search pandoc` lists the real identifier if you
                 ever need to check it.
 
-        2. Install the graphics libraries \index{WeasyPrint} needs. Pandoc hands your document to WeasyPrint to lay out the pages, and WeasyPrint is not pure Python - it draws text through \index{Pango}, which on Windows comes from \index{MSYS2}. Install MSYS2 first:
+        2. Prepare the project-local \index{WeasyPrint} runtime. Windows x64
+           uses the official digest-pinned WeasyPrint 70 onedir release, so
+           do not install MSYS2/Pango or change PATH, the registry, or
+           `WEASYPRINT_DLL_DIRECTORIES`:
 
             ``` powershell
-            winget install --id MSYS2.MSYS2
+            pdk pdf --prepare weasyprint
             ```
 
-            Ask the active Python which processor architecture its DLLs must
-            match:
-
-            ``` powershell
-            python -c "import platform; print(platform.machine())"
-            ```
-
-            Then use the matching tab. Choose from Python's answer, not from
-            the computer's advertised processor: Windows on ARM can run x64
-            Python under emulation.
-
-            === "AMD64 or x86_64"
-
-                ``` powershell
-                C:\msys64\usr\bin\bash.exe -lc "pacman -S --noconfirm --needed mingw-w64-ucrt-x86_64-pango"
-                $MsysBin = "C:\msys64\ucrt64\bin"
-                ```
-
-            === "ARM64 or aarch64"
-
-                ``` powershell
-                C:\msys64\usr\bin\bash.exe -lc "pacman -S --noconfirm --needed mingw-w64-clang-aarch64-pango"
-                $MsysBin = "C:\msys64\clangarm64\bin"
-                ```
-
-            If that fails partway through with a download error, run it
-            again. MSYS2 selects mirrors automatically, and a temporary
-            mirror failure does not mean the package name is wrong.
-
-            Tell WeasyPrint where those libraries are, both in this
-            PowerShell window and in future ones:
-
-            ``` powershell
-            $env:WEASYPRINT_DLL_DIRECTORIES = $MsysBin
-            [Environment]::SetEnvironmentVariable("WEASYPRINT_DLL_DIRECTORIES", $MsysBin, "User")
-
-            $env:Path = "$env:Path;$MsysBin"
-            $UserPath = [Environment]::GetEnvironmentVariable("Path", "User")
-            if (($UserPath -split ";") -notcontains $MsysBin) {
-                [Environment]::SetEnvironmentVariable("Path", "$UserPath;$MsysBin", "User")
-            }
-            ```
-
-            The first two assignments make the current installation run
-            work immediately. The user-level settings make new terminals
-            and VS Code find the same libraries later.
-
-            !!! warning "Python and the DLLs must have the same architecture"
-                Error `0xc1` means Windows found a DLL built for a different
-                processor. AMD64 Python uses `ucrt64`; native ARM64 Python
-                uses `clangarm64`. Bootstrap makes this decision from the
-                running Python executable for the same reason.
-
-            !!! info "Why this is needed"
-                That folder is where WeasyPrint finds `libgobject-2.0-0.dll`, `libpango-1.0-0.dll`, `libharfbuzz-0.dll` and `libfontconfig-1.dll` - installing `pango` brings all four in. Skipping this still looks fine until `prodockit pdf`, which then fails with `pandoc exited with status 43` - see [WeasyPrint cannot load its graphics libraries](troubleshooting-installs.md#installtooling-weasyprint-libraries) if that happens.
+            This command verifies the download, safely extracts it beneath
+            `.prodockit/cache/pdf/`, renders a smoke-test PDF, and atomically
+            activates it. The first ordinary `pdk pdf` or `pdk source-bundle`
+            run performs the same preparation if it has not been forced here.
+            Windows ARM64 is not a supported G3 target.
 
         3. Install the desktop font files this template's PDF uses by default - **Inter** and **JetBrains Mono**. Download the desktop (`.ttf`/`.otf`) files for each - [Inter](https://fonts.google.com/specimen/Inter){target="_blank"}, [JetBrains Mono](https://fonts.google.com/specimen/JetBrains+Mono){target="_blank"} - then select them all, right-click, and choose **Install for all users**.
 
@@ -1279,13 +1232,31 @@ The first line should report `pandoc 3.10.1`.
 
     `pip` exiting without an error only means the package landed in `.venv` - it doesn't prove your shell finds it there first. An older, separately-installed `prodockit` earlier on your `PATH` shadows it silently, and every command in this guide from here on would run against that instead.
 
-1. Check that WeasyPrint can find its graphics libraries. This is the one part of the setup `pip` cannot verify for you, so it is worth confirming now rather than at your first PDF build:
+1. Verify the PDF engine before the first real build.
 
-    ``` bash
-    python -c "import weasyprint; print(weasyprint.__version__)"
-    ```
+    === ":fontawesome-brands-windows: Windows"
 
-    A version number means everything is in place. If instead you get a long error ending in `cannot load library`, the libraries from the step above are missing or cannot be found - go back and install them.
+        ``` powershell
+        pdk pdf --prepare weasyprint
+        ```
+
+        A prepared or already-prepared result proves the project-local
+        standalone runtime can render a smoke-test PDF.
+
+    === ":material-apple: macOS"
+
+        ``` bash
+        python -c "import weasyprint; print(weasyprint.__version__)"
+        ```
+
+    === ":material-linux: Linux (Ubuntu)"
+
+        ``` bash
+        python -c "import weasyprint; print(weasyprint.__version__)"
+        ```
+
+    On macOS or Ubuntu, a `cannot load library` error means the native
+    libraries from the operating-system step are missing or cannot be found.
 
 1. Check the citation style configured for the project. If it uses
     `harvard-cite-them-right.csl` and that file is missing, download it from

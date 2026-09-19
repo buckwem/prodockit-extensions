@@ -22,6 +22,7 @@ requests rather than here.
 ## Unreleased
 
 - Removed the legacy Mermaid CLI fallback, `--swap`, and `pdf_mmdc_bin`; PDF Mermaid rendering now uses only the Python runtime.
+- Windows x64 PDF and source-bundle builds now acquire and reuse the official verified WeasyPrint 70 project runtime without end-user MSYS2/Pango setup.
 
 ## 0.66.0 (2026-09-16)
 

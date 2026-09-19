@@ -27,7 +27,11 @@ def test_native_recipe_does_not_install_system_pandoc(tmp_path, monkeypatch, pla
     assert "jgm/pandoc" not in str(commands)
     assert "JohnMacFarlane.Pandoc" not in str(commands)
     assert not any(arg == "pandoc" for command in commands for arg in command)
-    assert "pango" in str(commands).lower()
+    if platform == WINDOWS:
+        assert "pango" not in str(commands).lower()
+        assert "msys2" not in str(commands).lower()
+    else:
+        assert "pango" in str(commands).lower()
 
 
 def test_healthy_native_runtime_requires_no_download(tmp_path, monkeypatch):
@@ -45,12 +49,12 @@ def test_offline_missing_native_dependency_blocks(tmp_path, monkeypatch):
 
 
 def test_probe_timeout_does_not_trigger_a_reinstall(tmp_path, monkeypatch):
-    monkeypatch.setattr(runtime, "_context", lambda: context(tmp_path, WINDOWS))
+    monkeypatch.setattr(runtime, "_context", lambda: context(tmp_path, UBUNTU))
     monkeypatch.setattr(
         runtime,
         "_probe",
         lambda *args, **kwargs: (
-            "WeasyPrint health check timed out after 2 bounded attempts on Windows ARM64"
+            "WeasyPrint health check timed out after 2 bounded attempts on Ubuntu x64"
         ),
     )
     monkeypatch.setattr(
@@ -66,7 +70,9 @@ def test_probe_timeout_does_not_trigger_a_reinstall(tmp_path, monkeypatch):
 
 
 @pytest.mark.parametrize("offline", [False, True])
-def test_windows_assessment_refreshes_persisted_paths_before_probe(tmp_path, monkeypatch, offline):
+def test_windows_assessment_checks_fonts_without_probing_weasyprint(
+    tmp_path, monkeypatch, offline
+):
     monkeypatch.setattr(runtime, "_context", lambda: context(tmp_path, WINDOWS))
     monkeypatch.delenv("WEASYPRINT_DLL_DIRECTORIES", raising=False)
     monkeypatch.setenv("PATH", "session-tools")
@@ -75,13 +81,17 @@ def test_windows_assessment_refreshes_persisted_paths_before_probe(tmp_path, mon
         monkeypatch.setenv("WEASYPRINT_DLL_DIRECTORIES", "installed-pdf-libraries")
         monkeypatch.setenv("PATH", "session-tools;installed-font-tools")
 
-    def probe(ctx, **_kwargs):
-        assert runtime.os.environ["WEASYPRINT_DLL_DIRECTORIES"] == "installed-pdf-libraries"
+    def fonts(ctx):
         assert "installed-font-tools" in runtime.os.environ["PATH"]
         return ""
 
     monkeypatch.setattr(runtime, "refresh_windows_path", refresh)
-    monkeypatch.setattr(runtime, "_probe", probe)
+    monkeypatch.setattr(runtime, "_font_problem", fonts)
+    monkeypatch.setattr(
+        runtime,
+        "_probe",
+        lambda *_args, **_kwargs: pytest.fail("Windows must not probe Python WeasyPrint"),
+    )
     monkeypatch.setattr(runtime.shutil, "which", lambda name: pytest.fail("unexpected install"))
     assert not runtime.plan(offline=offline).needs_work
 

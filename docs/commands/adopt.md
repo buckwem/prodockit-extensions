@@ -150,14 +150,13 @@ provision a missing package manager. Git, SSH and editors are not part of this
 runtime activity. Windows package-manager provisioning still requires native
 acceptance testing before issue 782 can be considered complete.
 
-The native PDF activity installs or repairs Pango and the required PDF fonts.
-It reuses Bootstrap's Homebrew, Ubuntu and architecture-aware Windows MSYS2
-recipes without changing Adopt's separately pinned Pandoc installation.
-On macOS it preserves the Homebrew library path in the active virtual
-environment's activation script. On Windows it refreshes the current process
-from the persistent library/PATH settings. Verification generates a small PDF
-and checks that Inter and JetBrains Mono are available rather than accepting
-fallback fonts. A failed verification leaves the activity incomplete.
+The native PDF activity installs or repairs Pango and the required PDF fonts
+on macOS and Ubuntu. Windows retains the font work until G4, but no longer
+installs or repairs MSYS2/Pango: `pdk pdf` owns its project-local WeasyPrint.
+On macOS Adopt preserves the Homebrew library path in the active virtual
+environment's activation script. Verification checks that Inter and JetBrains
+Mono are available rather than accepting fallback fonts. A failed verification
+leaves the activity incomplete.
 
 Existing citation styles are preserved and checked for valid XML and the
 required CSL structure. An invalid file stops the citation-style activity;

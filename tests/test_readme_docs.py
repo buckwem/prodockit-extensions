@@ -51,7 +51,7 @@ def test_readme_describes_the_current_foundation_and_test_depth() -> None:
 def test_readme_distinguishes_python_and_external_pdf_requirements() -> None:
     for phrase in (
         "pip install prodockit",
-        "pip install weasyprint",
+        "project-local WeasyPrint",
         "Pandoc",
         "Pango",
         "prodockit[index]",

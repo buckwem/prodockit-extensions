@@ -83,6 +83,11 @@ def test_prepare_activates_metadata_then_warm_reuse_does_no_acquisition(tmp_path
     assert marker["sha256"] == descriptor.sha256
     assert marker["licence"] == "BSD-3-Clause"
     assert store.active("weasyprint") == warm
+    assert store.active_for(descriptor) == warm
+    incompatible = ArtifactDescriptor(
+        **{**descriptor.__dict__, "environment_identity": "windows-x86_64:other"}
+    )
+    assert store.active_for(incompatible) is None
 
 
 def test_corrupt_active_runtime_is_rebuilt_from_the_validated_download(tmp_path: Path) -> None:

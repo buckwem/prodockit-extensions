@@ -74,10 +74,11 @@ only `location = "cache"`: it means the derived project-local store at
 Resolved versions, hashes, platform identity and last-known-good state are
 recorded inside that store rather than in `pdk-pdf.toml`.
 
-The preparation interface is intentionally provider-gated. A component whose
-qualified acquisition phase has not shipped fails before downloading or
-changing the active runtime. A healthy prepared component is a fast local
-validation with no provider or network call.
+The preparation interface is intentionally provider-gated. Windows x64 can
+prepare the official digest-pinned WeasyPrint 70 runtime; a healthy cache is a
+fast local validation with no provider or network call. Components whose
+qualified acquisition phase has not shipped fail before changing runtime
+state.
 
 ## Exit status {: #cmd-pdf-exit-status }
 

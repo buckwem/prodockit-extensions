@@ -108,8 +108,8 @@ narrow cross-platform matrix complements rather than replaces the full Python
 test suite. Bootstrap uses local bare repositories instead of a live host to
 exercise all four combinations of Surrey GitLab or GitHub and new or existing
 repositories. The GitHub new-repository route starts its first Bootstrap pass
-with old VS Code, Git, Pandoc, Pango, Node.js, npm, editor extensions and, on
-Ubuntu, Chromium, then accepts every offered upgrade before creating the
+with old VS Code, Git, Pandoc, Node.js, npm, editor extensions and, on Ubuntu,
+Pango and Chromium, then accepts every offered upgrade before creating the
 project. A fifth, Surrey-only existing-repository scenario repeats those
 upgrades and verifies that the repository itself is not changed.
 Account setup, package managers, VPNs, firewalls, and real Pages publication

@@ -31,6 +31,7 @@ from prodockit.pdf.icons import (
 )
 from prodockit.pdf.mermaid import MermaidRenderer, create_mermaid_renderer
 from prodockit.pdf.release import get_latest_release_tag
+from prodockit.pdf.runtime_prepare import prepare_windows_weasyprint_runtime
 from prodockit.pdf.site import (
     page_html,
     page_metadata,
@@ -38,6 +39,7 @@ from prodockit.pdf.site import (
     validate_built_site,
 )
 from prodockit.pdf.source_bundle import build_source_bundle, discover_markdown_and_config_files
+from prodockit.pdf.weasyprint_runtime import executable_in_runtime
 from prodockit.pdf.web_render import check_web_rendering
 from prodockit.project_config import load_project_config
 from prodockit.revision_dates import resolve_revision_dates
@@ -550,6 +552,13 @@ def _build_pdf_from_config(
     if project_config is not None and not Path(output_path).is_absolute():
         build_output_path = str(project_config.root / output_path)
 
+    prepared_weasyprint = prepare_windows_weasyprint_runtime(config_path)
+    weasyprint_executable = (
+        str(executable_in_runtime(prepared_weasyprint.path))
+        if prepared_weasyprint is not None
+        else "weasyprint"
+    )
+
     try:
         build_pdf(
             page_objects,
@@ -613,6 +622,7 @@ def _build_pdf_from_config(
             or extra_default("pdf_table_of_contents_title"),
             include_index=index_settings.include,
             index_title=index_settings.title,
+            weasyprint_executable=weasyprint_executable,
             on_stage=on_stage,
         )
     finally:
@@ -667,6 +677,12 @@ def build_source_bundle_from_zensical_config(config_path: str = "zensical.toml")
     validate_extra_settings(extra)
     docs_dir = str(config.get("docs_dir") or "docs")
     root = str(project_config.root)
+    prepared_weasyprint = prepare_windows_weasyprint_runtime(config_path)
+    weasyprint_executable = (
+        str(executable_in_runtime(prepared_weasyprint.path))
+        if prepared_weasyprint is not None
+        else "weasyprint"
+    )
 
     if extra.get("pdf_source_bundle_output"):
         output_path = str(extra["pdf_source_bundle_output"])
@@ -678,6 +694,7 @@ def build_source_bundle_from_zensical_config(config_path: str = "zensical.toml")
         root=root,
         report_name=config.get("site_name") or "",
         page_size=extra.get("pdf_page_size") or extra_default("pdf_page_size"),
+        weasyprint_executable=weasyprint_executable,
         files=discover_markdown_and_config_files(
             root,
             docs_dir=docs_dir,

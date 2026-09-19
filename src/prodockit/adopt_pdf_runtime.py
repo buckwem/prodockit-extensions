@@ -95,25 +95,33 @@ def _probe(
         if result.pending:
             return "WeasyPrint Python package is pending"
 
-        def run_font_probe(command: list[str]) -> tuple[int, str]:
-            match = subprocess.run(
-                command,
-                capture_output=True,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
-                timeout=15,
-                env=_environment(context),
-                check=False,
-            )
-            return match.returncode, match.stdout
-
-        fonts = inspect_fonts(run_font_probe)
-        if fonts.status != "available":
-            return fonts.detail
+        font_problem = _font_problem(context)
+        if font_problem:
+            return font_problem
     except (OSError, subprocess.SubprocessError) as error:
         return f"PDF library or font health could not be verified: {error}"
     return ""
+
+
+def _font_problem(context: Context) -> str:
+    def run_font_probe(command: list[str]) -> tuple[int, str]:
+        match = subprocess.run(
+            command,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=15,
+            env=_environment(context),
+            check=False,
+        )
+        return match.returncode, match.stdout
+
+    try:
+        fonts = inspect_fonts(run_font_probe)
+    except (OSError, subprocess.SubprocessError) as error:
+        return f"PDF font health could not be verified: {error}"
+    return "" if fonts.status == "available" else fonts.detail
 
 
 def _loader_missing(context: Context) -> bool:
@@ -138,7 +146,11 @@ def plan(
         # Discover persisted paths before deciding another install is needed,
         # including during an offline assessment.
         refresh_windows_path()
-    problem = _probe(context, reporter=reporter)
+    problem = (
+        _font_problem(context)
+        if context.platform == WINDOWS
+        else _probe(context, reporter=reporter)
+    )
     if problem == "WeasyPrint Python package is pending":
         return NativePlan(
             environment_repair=True,
@@ -230,7 +242,11 @@ def apply(root: Path, *, offline: bool = False, reporter: RetryReporter | None =
             label="font cache",
         )
     clear_probe_cache()
-    problem = _probe(context, render=True, reporter=reporter)
+    problem = (
+        _font_problem(context)
+        if context.platform == WINDOWS
+        else _probe(context, render=True, reporter=reporter)
+    )
     if problem:
         raise ToolchainError(
             "PDF runtime verification failed: "

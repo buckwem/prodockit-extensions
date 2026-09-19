@@ -104,6 +104,7 @@ module to the transformation it owns.
 | `prodockit.pdf.runtime_config` | Strict project-root `pdk-pdf.toml` policy and supported defaults |
 | `prodockit.pdf.runtime_store` | Project-local locks, archive validation, smoke tests, atomic activation, and fallback state |
 | `prodockit.pdf.runtime_prepare` | Provider-gated `pdk pdf --prepare` orchestration |
+| `prodockit.pdf.weasyprint_runtime` | Official Windows x64 artifact pin, bounded download, absolute-path probe, and cache executable resolution |
 /// table-caption | <
     attrs: {id: tab-devcons-pdf-internals-know-the-internal-modules}
 

@@ -313,67 +313,31 @@ backup first.
 
 ## Repair WeasyPrint and its graphics libraries {: #installtooling-weasyprint-libraries }
 
-Activate the project environment and repeat the direct import check:
+On macOS and Ubuntu, activate the project environment and repeat the direct
+import check:
 
 ``` bash
 python -c "import weasyprint; print(weasyprint.__version__)"
 ```
 
-An error ending in `cannot load library` means the platform-specific Pango
+There, an error ending in `cannot load library` means the platform-specific Pango
 libraries are missing or cannot be found. Return to [Stage 4 — Create the
 project environment](manual-install.md#stage-4-create-the-project-environment)
 and repeat the graphics-library instructions for the operating system.
 Installing the Python package again does not install those external libraries.
 
-On Windows, preview Prodockit's guarded repair first:
+On Windows x64, do not install or repair MSYS2/Pango for ProDockit. The PDF
+command uses the official standalone WeasyPrint 70 runtime in the project's
+validated cache. Force acquisition or repair with:
 
 ``` powershell
-pdk diag --dry-run --apply-check renderer.weasyprint
+pdk pdf --prepare weasyprint
 ```
 
-If the proposed Pango directory and architecture are correct, apply only that
-repair:
-
-``` powershell
-pdk diag --apply --apply-check renderer.weasyprint
-```
-
-Windows native setup uses the same bounded MSYS2 recovery in Adopt, guided
-Bootstrap and this repair. It performs a full MSYS2 upgrade before installing
-Pango, so close other MSYS2 terminals and package managers first. Signature
-errors trigger a refresh of existing signing keys, then a signed keyring update
-and full upgrade if the error persists. Signature checks stay enabled.
-
-If recovery stops, review `%LOCALAPPDATA%\prodockit\logs\msys2-setup.log`
-for the selected architecture, MSYS2 directory, failed phase and exit status.
-Check the system clock and [MSYS2's update guidance](https://www.msys2.org/docs/updating/).
-A lock or unverified process shutdown stops automatic retries; wait for other
-installers to finish. Do not delete lock files, disable signature checks or
-remove the MSYS2 installation to work around the error.
-
-The DLL architecture must match `python.exe`, not necessarily the computer.
-An x64 Python requires `C:\msys64\ucrt64\bin`; an ARM64 Python requires the
-CLANGARM64 libraries. Mixing them commonly produces Windows error `0xc1`.
-
-If setting the value manually in PowerShell, the variable name requires the
-`$env:` prefix:
-
-``` powershell
-$env:WEASYPRINT_DLL_DIRECTORIES = 'C:\msys64\ucrt64\bin'
-[Environment]::SetEnvironmentVariable('WEASYPRINT_DLL_DIRECTORIES', 'C:\msys64\ucrt64\bin', 'User')
-```
-
-Typing `WEASYPRINT_DLL_DIRECTORIES = ...` without `$env:` attempts to run a
-command with that name. Check the import with Python; do not type
-`WeasyPrint = 69.0`, which invokes the WeasyPrint command with `=` as an input
-filename:
-
-``` powershell
-python -c "import weasyprint; print(weasyprint.__version__)"
-```
-
-If the value was persisted but not active in the current PowerShell, close the
-terminal completely, reopen it, activate `.venv`, and rerun `pdk diag`.
+`pdk diag` reports the cached version, digest, path and health without making a
+network request. A failed acquisition preserves the last-known-good runtime;
+the error names the download, digest, archive, probe, or unsupported
+architecture boundary that stopped activation.
 
 ## Repair the Node.js installation {: #installtooling-npm-missing }
 

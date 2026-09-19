@@ -68,24 +68,19 @@ def test_node_plan_provisions_manager_before_runtime(monkeypatch):
     assert planned.commands[1][0] == "winget"
 
 
-def test_native_pdf_plan_provisions_manager_before_runtime(monkeypatch):
+def test_native_pdf_plan_does_not_provision_windows_weasyprint_runtime(monkeypatch):
     from types import SimpleNamespace
 
     from prodockit import adopt_pdf_runtime
 
     monkeypatch.setattr(adopt_pdf_runtime, "_context", lambda: SimpleNamespace(platform=WINDOWS))
     monkeypatch.setattr(
-        adopt_pdf_runtime, "_probe", lambda context, **kwargs: "Pango unavailable"
-    )
-    monkeypatch.setattr(
         adopt_pdf_runtime,
         "_plan_pandoc",
         lambda *args, **kwargs: SimpleNamespace(commands=[["winget", "install", "MSYS2.MSYS2"]]),
     )
-    monkeypatch.setattr(
-        manager.shutil, "which", lambda name: name if name == "powershell" else None
-    )
+
     planned = adopt_pdf_runtime.plan()
+
     assert not planned.blocked
-    assert planned.commands[0][0] == "powershell"
-    assert planned.commands[1][0] == "winget"
+    assert planned.commands == ()

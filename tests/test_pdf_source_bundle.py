@@ -483,6 +483,26 @@ def test_raises_source_bundle_error_when_weasyprint_fails(
     assert "boom" in (exc_info.value.stderr or "")
 
 
+def test_source_bundle_invokes_the_selected_weasyprint_executable(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _make_sample_repo(repo)
+    selected_dir = tmp_path / "cache with spaces"
+    selected_dir.mkdir()
+    selected = selected_dir / "weasyprint"
+    selected.write_text('#!/bin/sh\necho "%PDF-1.4 stub" > "$2"\n', encoding="utf-8")
+    selected.chmod(selected.stat().st_mode | stat.S_IEXEC)
+    output = tmp_path / "out.pdf"
+
+    build_source_bundle(
+        str(output),
+        root=str(repo),
+        weasyprint_executable=str(selected),
+    )
+
+    assert output.read_text(encoding="utf-8").startswith("%PDF")
+
+
 def test_generated_html_has_one_page_break_pre_per_text_file_with_a_file_marker(
     tmp_path: Path, fake_weasyprint_on_path
 ) -> None:
