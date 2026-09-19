@@ -76,6 +76,18 @@ def current_runtime_environment() -> RuntimeEnvironment:
     )
 
 
+def default_runtime_providers(
+    environment: RuntimeEnvironment,
+) -> Mapping[str, RuntimeProvider]:
+    """Return only providers qualified for this release and host family."""
+
+    if environment.system != "windows":
+        return {}
+    from prodockit.pdf.weasyprint_runtime import WindowsWeasyPrintProvider
+
+    return {"weasyprint": WindowsWeasyPrintProvider()}
+
+
 def normalise_requested_components(requested: Sequence[str]) -> tuple[str, ...]:
     """Expand ``all`` and remove duplicates while retaining canonical order."""
 
@@ -102,7 +114,12 @@ def prepare_runtime_components(
     if not selected:
         return ()
     config: PdfRuntimeConfig = load_pdf_runtime_config(config_file)
-    available = providers or {}
+    runtime_environment = environment or current_runtime_environment()
+    available = (
+        default_runtime_providers(runtime_environment)
+        if providers is None
+        else providers
+    )
     missing = [component for component in selected if component not in available]
     if missing:
         joined = ", ".join(missing)
@@ -110,7 +127,6 @@ def prepare_runtime_components(
             f"{joined} preparation is not available in this release; "
             "the existing PDF runtime remains unchanged"
         )
-    runtime_environment = environment or current_runtime_environment()
     store = RuntimeStore(config.project_root)
     results: list[PreparationResult] = []
     for component in selected:
@@ -137,11 +153,33 @@ def prepare_runtime_components(
     return tuple(results)
 
 
+def prepare_windows_weasyprint_runtime(
+    config_file: str | Path,
+    *,
+    providers: Mapping[str, RuntimeProvider] | None = None,
+    environment: RuntimeEnvironment | None = None,
+) -> PreparationResult | None:
+    """Prepare Windows x64 WeasyPrint; other platforms keep their system CLI."""
+
+    runtime_environment = environment or current_runtime_environment()
+    if runtime_environment.system != "windows":
+        return None
+    prepared = prepare_runtime_components(
+        config_file,
+        ("weasyprint",),
+        providers=providers,
+        environment=runtime_environment,
+    )
+    return prepared[0]
+
+
 __all__ = [
     "RuntimeEnvironment",
     "RuntimeProvider",
     "RuntimeProviderUnavailableError",
     "current_runtime_environment",
+    "default_runtime_providers",
     "normalise_requested_components",
     "prepare_runtime_components",
+    "prepare_windows_weasyprint_runtime",
 ]

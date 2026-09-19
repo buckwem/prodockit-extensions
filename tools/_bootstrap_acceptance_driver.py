@@ -985,11 +985,12 @@ def main() -> None:
             "vscode",
             "git",
             "pandoc",
-            "pango",
             "node",
             "npm",
             "vscode-extensions",
         }
+        if current_platform() != "windows":
+            expected_upgrades.add("pango")
         if current_platform() == "ubuntu":
             expected_upgrades.add("chromium")
         if harness.upgraded != expected_upgrades:

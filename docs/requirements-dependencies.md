@@ -59,7 +59,7 @@ pip cannot install and the features that use them.
 
 | Requirement {: width="36%" } | Needed for |
 | --- | --- |
-| \index{dependencies!`weasyprint`} (>= 69) | `prodockit.pdf`. A Python package, but not a dependency of prodockit - install it yourself. `prodockit.pdf` runs its command-line rather than importing it |
+| \index{dependencies!`weasyprint`} | `prodockit.pdf`. Windows x64 uses the official digest-pinned WeasyPrint 70 standalone artifact cached by `pdk pdf`; macOS and Linux currently use a separately installed Python command and native libraries. |
 | \index{dependencies!`pandoc`} (>= 3, builds pin 3.10.1) | `prodockit.pdf`, and `prodockit.bibliography` even without a PDF build. Genuinely not a Python package - there is nothing for `pip` to install |
 | `mathjax-full` (Node >= 22) | TeX maths in the PDF and website verification |
 | Chrome or Chromium | website verification for MathJax; default Mermaid PDF rendering does not use it |

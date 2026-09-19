@@ -2707,39 +2707,11 @@ def _check_pandoc(context: Context) -> CheckResult:
     if fonts.status == "unverified":
         warnings.append(fonts.detail)
     if context.guided and context.platform == WINDOWS:
-        from prodockit.windows_pango import pango_spec, parse_evidence, probe_script
-
-        spec = pango_spec(arm64=_windows_python_is_arm64(context))
-        evidence_result = context.runner.run(
-            ["powershell", "-NoProfile", "-Command", probe_script(spec)]
-        )
-        if not evidence_result.ok:
-            return _wrong(
-                "the architecture-matched Windows Pango installation could not be checked"
-            )
-        try:
-            evidence = parse_evidence(evidence_result.stdout)
-        except ValueError as error:
-            return _wrong(f"the Windows Pango integrity result was invalid: {error}")
-        problems: list[str] = []
-        if evidence.root is None:
-            problems.append("MSYS2 is missing")
-        if not evidence.dll_exists:
-            problems.append(f"the expected {spec.environment} Pango DLL is missing")
-        if not evidence.package_integrity:
-            problems.append(f"{spec.package} failed its package integrity check")
-        if not evidence.environment_persisted:
-            problems.append("WEASYPRINT_DLL_DIRECTORIES does not select that environment")
-        if not evidence.environment_current:
-            problems.append("the current process has not loaded that environment selection")
-        if problems:
-            return _wrong("; ".join(problems))
         pandoc_text = version if version is not None else "unknown"
         if warnings:
             return _warning(f"pandoc {pandoc_text}; " + "; ".join(warnings))
         return _ok(
-            f"pandoc {pandoc_text}; {spec.environment} Pango package and DLL verified for "
-            f"{spec.architecture} Python"
+            f"pandoc {pandoc_text}; WeasyPrint is prepared project-locally by `pdk pdf`"
         )
     pango = _pango_version_result(context)
     pango_version = _numeric_version(pango.stdout) if pango.ok else None
@@ -2857,7 +2829,11 @@ def _plan_pandoc(context: Context, *, native_only: bool = False) -> Plan:
     installed_version = _pandoc_version(installed.stdout) if installed.ok else None
     installed_major = installed_version.split(".")[0] if installed_version else ""
     pandoc_upgrade = installed_major.isdigit() and int(installed_major) < PANDOC_MIN_MAJOR
-    pango_result = _pango_version_result(context)
+    pango_result = (
+        CommandResult(returncode=1)
+        if context.platform == WINDOWS
+        else _pango_version_result(context)
+    )
     pango_upgrade = pango_result.ok and _version_is_older(pango_result.stdout, PANGO_MIN_VERSION)
     upgrade = pandoc_upgrade or pango_upgrade
     if context.platform == MACOS:
@@ -2932,6 +2908,54 @@ def _plan_pandoc(context: Context, *, native_only: bool = False) -> Plan:
             action="UPGRADE" if upgrade else "",
             destructive=upgrade,
         )
+    if context.platform == WINDOWS:
+        # G3: the PDF command owns the official project-local WeasyPrint
+        # runtime. Bootstrap keeps the current Pandoc/font responsibilities
+        # until G4, but must not install MSYS2, Pango, alter PATH, or persist
+        # WEASYPRINT_DLL_DIRECTORIES for the normal Windows path.
+        windows_pandoc_install: list[str] | None = _winget(
+            "JohnMacFarlane.Pandoc",
+            PANDOC_VERSION,
+            resilient=context.guided,
+        )
+        if context.guided:
+            if installed_major.isdigit() and int(installed_major) < PANDOC_MIN_MAJOR:
+                windows_pandoc_install = _winget_upgrade(
+                    "JohnMacFarlane.Pandoc", PANDOC_VERSION
+                )
+                pandoc_upgrade = True
+            elif installed_version is not None:
+                windows_pandoc_install = None
+        commands = (
+            []
+            if native_only or windows_pandoc_install is None
+            else [windows_pandoc_install]
+        )
+        if context.guided:
+            commands.append(_windows_font_install_command())
+        return Plan(
+            commands=commands,
+            describe=(
+                f"Upgrade Pandoc to the supported {PANDOC_VERSION} release"
+                if pandoc_upgrade
+                else ""
+            ),
+            action="UPGRADE" if pandoc_upgrade else "",
+            destructive=pandoc_upgrade,
+            follow_up=(
+                []
+                if context.guided
+                else [
+                    "Install the fonts the PDF uses: download the desktop (.ttf/.otf) "
+                    "files for Inter and JetBrains Mono from fonts.google.com, select "
+                    "them all, right-click, and choose 'Install'."
+                ]
+            ),
+            confirm=("" if context.guided else "Have you installed the fonts?"),
+        )
+
+    # Pre-G3 Windows MSYS2/Pango implementation retained as dead migration
+    # reference until G6 deletes the obsolete setup machinery.
     # MSYS2 carries Pango, which is what WeasyPrint draws text through on
     # Windows. The User Guide walks the reader through a MINGW64 shell
     # and the Environment Variables dialog; all three steps run
@@ -3221,7 +3245,7 @@ def _check_project_env(context: Context) -> CheckResult:
     if not _imports_from_project_venv(context, "zensical").ok:
         return _missing("the project's dependencies are not installed")
     weasyprint = _imports_from_project_venv(context, "weasyprint")
-    if not weasyprint.ok:
+    if context.platform != WINDOWS and not weasyprint.ok:
         # Installed but unusable, which is exactly what WRONG is for -
         # and reinstalling it would not help, so the detail has to point
         # at the libraries rather than at pip.
@@ -3455,9 +3479,10 @@ def _plan_project_env(context: Context) -> Plan:
         # The first path starts from a replaceable template checkout. Install
         # the renderer and shared assets from Prodockit itself so correctness
         # does not depend on every host's template mirror being up to date.
-        commands.append(
-            [str(python), "-m", "pip", "install", f"weasyprint>={WEASYPRINT_MIN_VERSION}"]
-        )
+        if context.platform != WINDOWS:
+            commands.append(
+                [str(python), "-m", "pip", "install", f"weasyprint>={WEASYPRINT_MIN_VERSION}"]
+            )
         if shared_files.manifest_path(project).is_file():
             # Use the Prodockit release running Bootstrap, not the release from
             # the template's requirements.  A deliberately old template is a

@@ -124,15 +124,11 @@ def test_the_documented_floors_match_the_declared_ones() -> None:
 
 
 def test_pandoc_and_weasyprint_are_not_filed_as_the_same_kind_of_thing() -> None:
-    """One is a `pip install` away and the other is not.
-
-    Both used to be labelled "(external binary)". A reader who treats
-    them alike goes looking for a pandoc package that does not exist, or
-    misses a weasyprint one that does.
-    """
+    """Document the platform-specific WeasyPrint runtime and external Pandoc."""
     page = REQUIREMENTS.read_text(encoding="utf-8")
 
-    assert "A Python package, but not a dependency of prodockit" in page
+    assert "Windows x64 uses the official digest-pinned WeasyPrint 70" in page
+    assert "macOS and Linux currently use a separately installed Python command" in page
     assert "Genuinely not a Python package" in page
 
 

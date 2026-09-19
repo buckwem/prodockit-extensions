@@ -36,6 +36,9 @@ MAX_ARCHIVE_MEMBERS = 20_000
 MAX_ARCHIVE_BYTES = 512 * 1024 * 1024
 MAX_EXTRACTED_BYTES = 512 * 1024 * 1024
 _CACHE_KEY = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._+-]{0,127}$")
+_DOWNLOADS_DIRECTORY = "d"
+_RUNTIMES_DIRECTORY = "r"
+_STAGING_DIRECTORY = "s"
 _WINDOWS_RESERVED = frozenset(
     {
         "con",
@@ -439,13 +442,17 @@ class RuntimeStore:
             yield
 
     def _cleanup_staging(self, component: str) -> None:
-        staging = self.root / "staging"
-        _safe_mkdir(self.project_root, staging)
-        for path in staging.glob(f"*-{component}-*"):
-            if path.is_dir() and not path.is_symlink():
-                shutil.rmtree(path)
-            else:
-                path.unlink(missing_ok=True)
+        # Also clean the pre-G3 name so an interrupted upgrade does not leave
+        # stale partial state behind. New names are intentionally compact:
+        # PyInstaller-loaded DLLs still encounter Windows path-length limits.
+        for name in (_STAGING_DIRECTORY, "staging"):
+            staging = self.root / name
+            _safe_mkdir(self.project_root, staging)
+            for path in staging.glob(f"*-{component}-*"):
+                if path.is_dir() and not path.is_symlink():
+                    shutil.rmtree(path)
+                else:
+                    path.unlink(missing_ok=True)
 
     def _entry_path(self, entry: Mapping[str, Any]) -> Path | None:
         relative = entry.get("path")
@@ -532,8 +539,30 @@ class RuntimeStore:
             cached=True,
         )
 
+    def active_for(self, descriptor: ArtifactDescriptor) -> PreparationResult | None:
+        """Return the active runtime only when it matches this exact host policy."""
+
+        descriptor.validate()
+        if not _safe_existing_directory(self.project_root, self.root):
+            return None
+        current = _read_json(self.root / "current.json")
+        path = self._valid_entry(
+            current.get(descriptor.component),
+            descriptor,
+            component=descriptor.component,
+        )
+        if path is None:
+            return None
+        return PreparationResult(
+            descriptor.component,
+            path,
+            descriptor.version,
+            descriptor.sha256,
+            True,
+        )
+
     def _download(self, descriptor: ArtifactDescriptor, acquire: AcquireArtifact) -> Path:
-        downloads = self.root / "downloads"
+        downloads = self.root / _DOWNLOADS_DIRECTORY
         _safe_mkdir(self.project_root, downloads)
         destination = downloads / f"{descriptor.sha256}.{descriptor.archive_format}"
         if (
@@ -545,7 +574,7 @@ class RuntimeStore:
         destination.unlink(missing_ok=True)
         partial = (
             self.root
-            / "staging"
+            / _STAGING_DIRECTORY
             / f"download-{descriptor.component}-{uuid.uuid4().hex}.partial"
         )
         _safe_mkdir(self.project_root, partial.parent)
@@ -576,8 +605,8 @@ class RuntimeStore:
     ) -> tuple[Path, dict[str, Any]]:
         staging = (
             self.root
-            / "staging"
-            / f"runtime-{descriptor.component}-{uuid.uuid4().hex}"
+            / _STAGING_DIRECTORY
+            / f"runtime-{descriptor.component}-{uuid.uuid4().hex[:8]}"
         )
         _safe_mkdir(self.project_root, staging.parent)
         staging.mkdir(parents=True)
@@ -611,17 +640,13 @@ class RuntimeStore:
         old_current_was_valid: bool,
     ) -> Path:
         target = (
-            self.root
-            / descriptor.component
-            / descriptor.version
-            / descriptor.platform_key
-            / descriptor.cache_key
+            self.root / _RUNTIMES_DIRECTORY / descriptor.cache_key
         )
         _safe_mkdir(self.project_root, target.parent)
         displaced = (
             self.root
-            / "staging"
-            / f"displaced-{descriptor.component}-{uuid.uuid4().hex}"
+            / _STAGING_DIRECTORY
+            / f"displaced-{descriptor.component}-{uuid.uuid4().hex[:8]}"
         )
         if target.exists():
             os.replace(target, displaced)

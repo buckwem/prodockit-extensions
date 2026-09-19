@@ -369,6 +369,32 @@ def test_builds_a_pdf_from_a_zensical_toml_project(project) -> None:
     assert (root / output_path).exists()
 
 
+def test_pdf_build_uses_the_prepared_windows_weasyprint_runtime(
+    project, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from prodockit.pdf.runtime_store import PreparationResult
+
+    root = project()
+    runtime = root / ".prodockit/cache/pdf/weasyprint/runtime"
+    executable = runtime / "onedir/weasyprint/weasyprint.exe"
+    executable.parent.mkdir(parents=True)
+    executable.write_bytes(b"fixture")
+    prepared = PreparationResult("weasyprint", runtime, "70.0", "a" * 64, True)
+    captured = {}
+    monkeypatch.setattr(
+        config, "prepare_windows_weasyprint_runtime", lambda _config: prepared
+    )
+    monkeypatch.setattr(
+        config,
+        "build_pdf",
+        lambda _pages, _output, **kwargs: captured.update(kwargs),
+    )
+
+    build_pdf_from_zensical_config(str(root / "zensical.toml"))
+
+    assert captured["weasyprint_executable"] == str(executable)
+
+
 def test_pdf_output_path_is_configurable(project) -> None:
     root = project(extra='\n[project.extra]\npdf_output = "dist/out.pdf"\n')
     (root / "dist").mkdir()
@@ -878,6 +904,32 @@ def test_source_bundle_uses_the_narrow_discovery_not_every_source_file(
     assert "macros.py" not in html
     for generated in ("CHANGELOG.md", "CONTRIBUTING.md", "LICENSE.md"):
         assert generated not in html
+
+
+def test_source_bundle_uses_the_prepared_windows_weasyprint_runtime(
+    source_bundle_project, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from prodockit.pdf.runtime_store import PreparationResult
+
+    root = source_bundle_project()
+    runtime = root / ".prodockit/cache/pdf/weasyprint/runtime"
+    executable = runtime / "onedir/weasyprint/weasyprint.exe"
+    executable.parent.mkdir(parents=True)
+    executable.write_bytes(b"fixture")
+    prepared = PreparationResult("weasyprint", runtime, "70.0", "a" * 64, True)
+    captured = {}
+    monkeypatch.setattr(
+        config, "prepare_windows_weasyprint_runtime", lambda _config: prepared
+    )
+    monkeypatch.setattr(
+        config,
+        "build_source_bundle",
+        lambda _output, **kwargs: captured.update(kwargs),
+    )
+
+    build_source_bundle_from_zensical_config(str(root / "zensical.toml"))
+
+    assert captured["weasyprint_executable"] == str(executable)
 
 
 def test_pdf_never_builds_a_source_bundle_as_a_side_effect(

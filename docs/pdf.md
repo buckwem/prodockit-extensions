@@ -91,7 +91,7 @@ installed depends on the route used to prepare the project:
 | Setup route {: width="28%" } | PDF preparation |
 |---|---|
 | [Bootstrap](devcons/bootstrap.md) | `prodockit bootstrap --apply` installs and verifies the required PDF tools. Continue with the verification commands below. |
-| [Adoption](adopt.md) | `prodockit adopt --apply` installs the supported WeasyPrint package and project-local Pandoc, plus Mermaid or maths renderers only when selected. Install WeasyPrint's native Pango libraries and the document fonts by following the operating-system instructions below. |
+| [Adoption](adopt.md) | `prodockit adopt --apply` installs the current Pandoc/font prerequisites. On Windows x64, `pdk pdf` owns the project-local WeasyPrint runtime and neither Adopt nor Bootstrap installs MSYS2/Pango for it. |
 | [Manual installation](installation.md) | Install the PDF dependencies the document uses by following the operating-system instructions below. |
 /// table-caption | <
     attrs: {id: tab-pdf-prepare-the-pdf-tools}
@@ -115,14 +115,15 @@ operating system when the route above requires them:
 
 === ":fontawesome-brands-windows: Windows"
 
-    Follow the Windows tab under
-    [Manual install: Install Python and Zensical](https://docs.prodockit.org/installtooling/#install-python-and-zensical).
-    It gives the PowerShell commands for Pandoc, MSYS2 and Pango, and explains
-    how to expose the matching DLL directory to WeasyPrint. Those manual steps
-    follow the same package and architecture choices that bootstrap automates.
+    No MSYS2, Pango installation, PATH change, registry change, or Python
+    WeasyPrint package is required for the Windows x64 PDF engine. Prepare the
+    official verified runtime explicitly, or let the first PDF build do it:
 
-    Return here after installing the tools and run the two verification
-    commands below from the activated project environment.
+    ```powershell
+    pdk pdf --prepare weasyprint
+    ```
+
+    The runtime is cached beneath `.prodockit/cache/pdf/` for this project.
 
 === ":material-linux: Linux (Ubuntu)"
 
@@ -149,8 +150,12 @@ Confirm that Pandoc reports **3.10.1** from the same activated environment befor
 
 ```bash
 pandoc --version
-python -c "import weasyprint; print(weasyprint.__version__)"
 ```
+
+On macOS and Ubuntu, also verify the system-backed Python renderer with
+`python -c "import weasyprint; print(weasyprint.__version__)"`. On Windows
+x64, use `pdk pdf --prepare weasyprint`; it validates the cached standalone
+CLI by rendering a smoke-test PDF.
 
 If either command fails, use [Fix common PDF build problems](#pdf-common-problems)
 rather than changing PDF layout settings.
@@ -686,17 +691,17 @@ library location.
 
 === ":fontawesome-brands-windows: Windows"
 
-    Confirm that `WEASYPRINT_DLL_DIRECTORIES` names the MSYS2 Pango `bin`
-    directory whose DLL architecture matches the Python executable. An ARM
-    computer can still be running an x86-64 Python and therefore need the
-    x86-64 DLLs.
+    The normal Windows x64 path does not import Python WeasyPrint or load a
+    host Pango installation. Run `pdk pdf --prepare weasyprint` to validate or
+    repair the digest-pinned project cache, then retry the build. Diagnostics
+    reports the cached version, digest, path and health without downloading.
 
 === ":material-linux: Linux (Ubuntu)"
 
     Confirm that `libpango-1.0-0`, `libpangoft2-1.0-0`, and the separate
     `libharfbuzz-subset0` package are installed.
 
-Repeat the import check before retrying `prodockit pdf`.
+Repeat the platform-appropriate check before retrying `prodockit pdf`.
 
 ### A diagram or formula remains as source {: #pdf-unrendered-source }
 

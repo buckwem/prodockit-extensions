@@ -431,7 +431,9 @@ def build(python: Path, project: Path, config: Path, *, fixture_content: bool) -
 
 def verify_deliverables(python: Path, project: Path, config: Path) -> None:
     """Exercise the public diagnostics and both document-generation commands."""
-    for command in ("diag", "pdf", "source-bundle"):
+    # The first Windows PDF command transparently prepares the project-local
+    # runtime. Diagnostics remains non-mutating and therefore runs afterwards.
+    for command in ("pdf", "source-bundle", "diag"):
         arguments = [str(python), "-m", "prodockit", command]
         arguments.extend(("--config-file", config.name))
         completed = run(

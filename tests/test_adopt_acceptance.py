@@ -116,15 +116,23 @@ def test_deliverables_allow_only_expected_optional_warnings(tmp_path, monkeypatc
 
     monkeypatch.setattr(adopt_acceptance, "run", run)
     adopt_acceptance.verify_deliverables(Path("python"), tmp_path, tmp_path / "zensical.toml")
-    assert [call[3] for call in calls] == ["diag", "pdf", "source-bundle"]
+    assert [call[3] for call in calls] == ["pdf", "source-bundle", "diag"]
 
 
 @pytest.mark.parametrize("output", ["", "  WARN Broken package\nResult: WARN (1 warning)"])
 def test_deliverables_reject_unexpected_diagnostics(tmp_path, monkeypatch, output):
+    def run(command, **kwargs):
+        name = command[3]
+        if name == "diag":
+            return subprocess.CompletedProcess(command, 0, stdout=output)
+        filename = f"{name}.pdf"
+        (tmp_path / filename).write_bytes(b"%PDF-1.7\n")
+        return subprocess.CompletedProcess(command, 0, stdout=f"Wrote {filename}")
+
     monkeypatch.setattr(
         adopt_acceptance,
         "run",
-        lambda command, **kwargs: subprocess.CompletedProcess(command, 0, stdout=output),
+        run,
     )
     with pytest.raises(adopt_acceptance.AcceptanceError, match="diagnostics did not pass"):
         adopt_acceptance.verify_deliverables(Path("python"), tmp_path, tmp_path / "zensical.toml")

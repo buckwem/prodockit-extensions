@@ -110,10 +110,11 @@ it: a different Python minor release blocks the whole stage before packages or
 project files are changed, and the report gives the exact Bootstrap or virtual
 environment remediation.
 
-Adoption is not a whole-machine native-library installer. WeasyPrint's Pango,
-GLib, HarfBuzz and fontconfig libraries, and the document fonts, remain part of
-the existing machine setup. Follow the adoption row under [Prepare the PDF
-tools](pdf.md#pdf-requirements) before building a PDF.
+Adoption is not a whole-machine native-library installer. On macOS and Ubuntu,
+WeasyPrint's Pango, GLib, HarfBuzz and fontconfig libraries remain part of the
+existing machine setup. Windows x64 instead uses the standalone project cache
+owned by `pdk pdf`; document fonts remain host-managed until G4. Follow the
+adoption row under [Prepare the PDF tools](pdf.md#pdf-requirements).
 
 ## Adoption stages
 

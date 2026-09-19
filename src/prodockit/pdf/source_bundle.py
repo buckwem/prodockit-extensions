@@ -399,6 +399,7 @@ def build_source_bundle(
     work_dir: str | None = None,
     keep_work_dir: bool = False,
     files: list[str] | None = None,
+    weasyprint_executable: str = "weasyprint",
 ) -> int:
     """Builds a single PDF bundling text files under `root` and writes it to
     `output_path` (relative paths resolve against `root`, matching "the
@@ -423,8 +424,8 @@ def build_source_bundle(
     footer - see this module's own `_CSS_TEMPLATE` for the exact rules.
 
     Raises `SourceBundleError` if the underlying `git`/`weasyprint`
-    invocation fails (both `git` and a WeasyPrint install are required on
-    `PATH` - this function doesn't install either).
+    invocation fails. Git is required on PATH; ``weasyprint_executable``
+    names the selected WeasyPrint CLI.
 
     `work_dir`/`keep_work_dir` mirror `prodockit.pdf.build.build_pdf`'s
     own pair - `weasyprint` needs the concatenated HTML on disk somewhere;
@@ -485,7 +486,7 @@ def build_source_bundle(
             f.write("\n".join(body_parts))
             f.write("</body></html>")
 
-        cmd = ["weasyprint", html_path, resolved_output_path]
+        cmd = [weasyprint_executable, html_path, resolved_output_path]
         result = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8")
         if result.returncode != 0:
             raise SourceBundleError(

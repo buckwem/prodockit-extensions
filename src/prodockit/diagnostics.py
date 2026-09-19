@@ -33,6 +33,10 @@ from prodockit.pdf._standalone_quickjs import (
     StandaloneBackendUnavailableError as StandaloneRuntimeUnavailableError,
 )
 from prodockit.pdf._standalone_quickjs import require_standalone_runtime
+from prodockit.pdf.runtime_config import load_pdf_runtime_config
+from prodockit.pdf.runtime_prepare import current_runtime_environment
+from prodockit.pdf.runtime_store import RuntimeStore
+from prodockit.pdf.weasyprint_runtime import WindowsWeasyPrintProvider, probe_runtime
 from prodockit.pins import (
     DEFAULT_PACKAGES,
     TESTED_VERSIONS,
@@ -892,6 +896,16 @@ def _interpreter_candidate(check: DiagnosticResult) -> RepairCandidate:
 
 
 def _windows_pango_candidate(check: DiagnosticResult) -> RepairCandidate:
+    if check.data.get("backend") == "project-cache":
+        return RepairCandidate(
+            "renderer.weasyprint.prepare-project-cache",
+            check.id,
+            "manual",
+            "manual",
+            check.summary,
+            "Diagnostics are read-only and do not download project runtimes.",
+            "Run `pdk pdf --prepare weasyprint` or let the next PDF build prepare it.",
+        )
     policy = REPAIR_REGISTRY[check.id]
     raw = check.data.get("windows_pango")
     if not isinstance(raw, dict):
@@ -3297,6 +3311,158 @@ def _tool_result(
     )
 
 
+def _windows_cached_weasyprint_check(
+    config: ProjectConfig | None,
+    root: Path,
+    *,
+    required: bool,
+) -> DiagnosticResult:
+    try:
+        policy = load_pdf_runtime_config(
+            config.path if config is not None else root / "zensical.toml"
+        ).policy_for("weasyprint")
+        descriptor = WindowsWeasyPrintProvider().resolve(
+            policy, current_runtime_environment()
+        )
+        store = RuntimeStore(root)
+        active = store.active_for(descriptor)
+        incompatible = store.active("weasyprint") if active is None else None
+    except Exception as error:
+        active = None
+        incompatible = None
+        cache_error = _sanitise_text(f"{type(error).__name__}: {error}", root)
+    else:
+        cache_error = ""
+    if active is None:
+        details = tuple(
+            item
+            for item in (
+                cache_error,
+                (
+                    "The active cache belongs to a different version or environment."
+                    if incompatible is not None
+                    else ""
+                ),
+                "Run `pdk pdf --prepare weasyprint` or let the next PDF build prepare it.",
+            )
+            if item
+        )
+        return DiagnosticResult(
+            "renderer.weasyprint",
+            "Rendering toolchain",
+            "fail" if required else "warn",
+            "Project-local WeasyPrint is not prepared"
+            + (" but is required by this project" if required else " (optional)"),
+            details,
+            {
+                "required": required,
+                "backend": "project-cache",
+                "path": None,
+                "version": None,
+                "sha256": None,
+            },
+        )
+    try:
+        version = probe_runtime(active.path, render=False)
+    except Exception as error:
+        safe_error = _sanitise_text(f"{type(error).__name__}: {error}", root)
+        return DiagnosticResult(
+            "renderer.weasyprint",
+            "Rendering toolchain",
+            "fail" if required else "warn",
+            "Project-local WeasyPrint failed its health check",
+            (safe_error,),
+            {
+                "required": required,
+                "backend": "project-cache",
+                "path": _display_path(active.path, root),
+                "version": active.version,
+                "sha256": active.sha256,
+            },
+        )
+    return DiagnosticResult(
+        "renderer.weasyprint",
+        "Rendering toolchain",
+        "pass",
+        f"Project-local WeasyPrint {version} is healthy",
+        (
+            f"path: {_display_path(active.path, root)}",
+            f"sha256: {active.sha256}",
+        ),
+        {
+            "required": required,
+            "backend": "project-cache",
+            "path": _display_path(active.path, root),
+            "version": version,
+            "sha256": active.sha256,
+        },
+    )
+
+
+def _system_weasyprint_check(
+    root: Path,
+    *,
+    required: bool,
+    retry_reporter: RetryReporter | None,
+) -> DiagnosticResult:
+    imported: ProbeResult | subprocess.CompletedProcess[str] | None = None
+    try:
+        imported = _probe_weasyprint_import(retry_reporter)
+        if imported.returncode != 0:
+            detail = "\n".join(
+                part.strip() for part in (imported.stdout, imported.stderr) if part.strip()
+            )
+            raise RuntimeError(detail or f"fresh interpreter exited {imported.returncode}")
+        if isinstance(imported, ProbeResult) and imported.pending:
+            raise RuntimeError("WeasyPrint Python package is not installed")
+        version = (
+            imported.version or "unknown"
+            if isinstance(imported, ProbeResult)
+            else imported.stdout.strip().splitlines()[-1]
+            if imported.stdout.strip()
+            else "unknown"
+        )
+        details = (
+            (f"health check recovered after {len(imported.attempts)} attempts",)
+            if isinstance(imported, ProbeResult) and len(imported.attempts) > 1
+            else ()
+        )
+        return DiagnosticResult(
+            "renderer.weasyprint",
+            "Rendering toolchain",
+            "pass",
+            f"WeasyPrint {version} imports with its native libraries",
+            details,
+            {
+                "required": required,
+                "version": version,
+                **(
+                    {"health_probe": imported.evidence()}
+                    if isinstance(imported, ProbeResult)
+                    else {}
+                ),
+            },
+        )
+    except Exception as error:
+        safe_error = _sanitise_text(f"{type(error).__name__}: {error}", root)
+        return DiagnosticResult(
+            "renderer.weasyprint",
+            "Rendering toolchain",
+            "fail" if required else "warn",
+            "WeasyPrint cannot import"
+            + (" but is required by this project" if required else " (optional)"),
+            (safe_error,),
+            {
+                "required": required,
+                **(
+                    {"health_probe": imported.evidence()}
+                    if isinstance(imported, ProbeResult)
+                    else {}
+                ),
+            },
+        )
+
+
 def _renderer_checks(
     config: ProjectConfig | None,
     root: Path,
@@ -3314,93 +3480,15 @@ def _renderer_checks(
     node_required = maths_required
     checks = [_tool_result("renderer.pandoc", "Pandoc", "pandoc", root=root, required=pdf_required)]
 
-    pango_details: list[str] = []
-    pango_data: dict[str, object] | None = None
-    running_on: str = sys.platform
-    if running_on == "win32":
-        evidence = inspect_windows_pango()
-        pango_data = evidence.as_dict()
-        if evidence.root is None:
-            pango_details.append("MSYS2 installation not found")
-        elif not evidence.dll_exists:
-            pango_details.append(f"expected Pango DLL is missing: {evidence.dll}")
-        if evidence.root is not None and not evidence.package_integrity:
-            pango_details.append(f"MSYS2 package integrity failed: {evidence.package}")
-        if not evidence.environment_persisted:
-            pango_details.append(
-                "WEASYPRINT_DLL_DIRECTORIES is not persisted for the expected Pango directory"
-            )
-        if not evidence.environment_current:
-            pango_details.append("WEASYPRINT_DLL_DIRECTORIES is not active in the current process")
-
-    imported: ProbeResult | subprocess.CompletedProcess[str] | None = None
-    try:
-        # A fresh interpreter proves that DLL discovery works without relying on
-        # an already-imported module. Capturing it also keeps JSON output clean
-        # when WeasyPrint emits its native-library help banner (#722).
-        imported = _probe_weasyprint_import(retry_reporter)
-        if imported.returncode != 0:
-            detail = "\n".join(
-                part.strip() for part in (imported.stdout, imported.stderr) if part.strip()
-            )
-            raise RuntimeError(detail or f"fresh interpreter exited {imported.returncode}")
-        if isinstance(imported, ProbeResult) and imported.pending:
-            raise RuntimeError("WeasyPrint Python package is not installed")
-        if isinstance(imported, ProbeResult):
-            version = imported.version or "unknown"
-        else:
-            version = (
-                imported.stdout.strip().splitlines()[-1]
-                if imported.stdout.strip()
-                else "unknown"
-            )
-        probe_details = (
-            (f"health check recovered after {len(imported.attempts)} attempts",)
-            if isinstance(imported, ProbeResult) and len(imported.attempts) > 1
-            else ()
+    checks.append(
+        _windows_cached_weasyprint_check(config, root, required=pdf_required)
+        if sys.platform == "win32"
+        else _system_weasyprint_check(
+            root,
+            required=pdf_required,
+            retry_reporter=retry_reporter,
         )
-        if pango_details:
-            raise RuntimeError("; ".join(pango_details))
-        checks.append(
-            DiagnosticResult(
-                "renderer.weasyprint",
-                "Rendering toolchain",
-                "pass",
-                f"WeasyPrint {version} imports with its native libraries",
-                (*pango_details, *probe_details),
-                {
-                    "required": pdf_required,
-                    "version": version,
-                    **(
-                        {"health_probe": imported.evidence()}
-                        if isinstance(imported, ProbeResult)
-                        else {}
-                    ),
-                    **({"windows_pango": pango_data} if pango_data is not None else {}),
-                },
-            )
-        )
-    except Exception as error:  # native-loader failures are not ImportError
-        safe_error = _sanitise_text(f"{type(error).__name__}: {error}", root)
-        checks.append(
-            DiagnosticResult(
-                "renderer.weasyprint",
-                "Rendering toolchain",
-                "fail" if pdf_required else "warn",
-                "WeasyPrint cannot import"
-                + (" but is required by this project" if pdf_required else " (optional)"),
-                (*pango_details, safe_error),
-                {
-                    "required": pdf_required,
-                    **(
-                        {"health_probe": imported.evidence()}
-                        if isinstance(imported, ProbeResult)
-                        else {}
-                    ),
-                    **({"windows_pango": pango_data} if pango_data is not None else {}),
-                },
-            )
-        )
+    )
 
     checks.extend(
         (

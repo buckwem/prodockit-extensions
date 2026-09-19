@@ -232,6 +232,7 @@ def build_pdf(
     table_of_contents_title: str = "Table of Contents",
     include_index: bool = False,
     index_title: str = "Index",
+    weasyprint_executable: str = "weasyprint",
     work_dir: str | None = None,
     keep_work_dir: bool = False,
     pandoc_timeout: int | None = 1800,
@@ -242,8 +243,8 @@ def build_pdf(
     absolute or relative; parent directories are not created for you).
 
     Raises `PdfBuildError` if the underlying `pandoc` invocation fails
-    (`pandoc` and a WeasyPrint install are both required on `PATH`/in the
-    current Python environment - this function doesn't install either).
+    (`pandoc` is required on `PATH`; ``weasyprint_executable`` names the
+    selected WeasyPrint CLI and defaults to the system command).
 
     **Content**
 
@@ -559,7 +560,7 @@ def build_pdf(
             concatenated_html_path,
             "-o",
             output_path,
-            "--pdf-engine=weasyprint",
+            f"--pdf-engine={weasyprint_executable}",
             "--pdf-engine-opt=-q",
             "--mathjax",
             # `pagetitle` sets the generated PDF's Title metadata without

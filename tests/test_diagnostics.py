@@ -1103,6 +1103,101 @@ def test_mermaid_diagnostic_rejects_an_unavailable_standalone_runtime(
     assert check.data["error"] == "audited runtime unavailable"
 
 
+def test_windows_weasyprint_diagnostic_reports_a_healthy_project_cache(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from prodockit.pdf.runtime_store import PreparationResult
+
+    prepared = PreparationResult(
+        "weasyprint",
+        tmp_path / ".prodockit/cache/pdf/weasyprint/70.0/windows-amd64/runtime",
+        "70.0",
+        "a" * 64,
+        True,
+    )
+
+    class Store:
+        def __init__(self, root: Path) -> None:
+            assert root == tmp_path
+
+        def active_for(self, descriptor):
+            assert descriptor.component == "weasyprint"
+            return prepared
+
+        def active(self, component: str):
+            assert component == "weasyprint"
+            return prepared
+
+    monkeypatch.setattr(diagnostics, "RuntimeStore", Store)
+    monkeypatch.setattr(
+        diagnostics,
+        "current_runtime_environment",
+        lambda: SimpleNamespace(
+            system="windows",
+            architecture="amd64",
+            python_implementation="cpython",
+            python_version="3.14",
+            identity="windows:amd64:cpython:3.14",
+        ),
+    )
+    monkeypatch.setattr(
+        diagnostics,
+        "probe_runtime",
+        lambda path, *, render: "70.0" if path == prepared.path and not render else "wrong",
+    )
+
+    check = diagnostics._windows_cached_weasyprint_check(None, tmp_path, required=True)
+
+    assert check.status == "pass"
+    assert check.data["backend"] == "project-cache"
+    assert check.data["version"] == "70.0"
+    assert check.data["sha256"] == "a" * 64
+
+
+def test_windows_weasyprint_diagnostic_does_not_prepare_a_missing_cache(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    class Store:
+        def __init__(self, root: Path) -> None:
+            assert root == tmp_path
+
+        def active_for(self, descriptor):
+            assert descriptor.component == "weasyprint"
+            return None
+
+        def active(self, component: str):
+            assert component == "weasyprint"
+            return None
+
+    monkeypatch.setattr(diagnostics, "RuntimeStore", Store)
+    monkeypatch.setattr(
+        diagnostics,
+        "current_runtime_environment",
+        lambda: SimpleNamespace(
+            system="windows",
+            architecture="amd64",
+            python_implementation="cpython",
+            python_version="3.14",
+            identity="windows:amd64:cpython:3.14",
+        ),
+    )
+
+    check = diagnostics._windows_cached_weasyprint_check(None, tmp_path, required=True)
+
+    assert check.status == "fail"
+    assert check.data["path"] is None
+    assert "pdk pdf --prepare weasyprint" in check.details[0]
+
+    dry_run = diagnostics.build_repair_dry_run(
+        DiagnosticReport("zensical.toml", str(tmp_path), False, (check,))
+    )
+    candidate = dry_run.candidates[0]
+    assert candidate.id == "renderer.weasyprint.prepare-project-cache"
+    assert candidate.status == "manual"
+    assert candidate.choices == ()
+    assert "pdk pdf --prepare weasyprint" in candidate.remediation
+
+
 def test_mermaid_diagnostic_accepts_the_standalone_runtime(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

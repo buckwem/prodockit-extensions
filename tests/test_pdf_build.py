@@ -63,6 +63,24 @@ def test_writes_the_pdf_to_the_given_output_path(tmp_path: Path, fake_pandoc_on_
     assert output_path.read_text(encoding="utf-8").startswith("%PDF")
 
 
+def test_pandoc_receives_the_selected_weasyprint_executable(
+    tmp_path: Path, fake_pandoc_on_path
+) -> None:
+    args_path = tmp_path / "args.txt"
+    selected = tmp_path / "cache with spaces" / "weasyprint.exe"
+    fake_pandoc_on_path(
+        f'printf "%s\\n" "$@" > "{args_path}"; echo "%PDF-1.4 stub" > "$3"'
+    )
+
+    build_pdf(
+        [Page(docs_rel_path="index.md", html="<h1>Report</h1>", is_index=True)],
+        str(tmp_path / "out.pdf"),
+        weasyprint_executable=str(selected),
+    )
+
+    assert f"--pdf-engine={selected}" in args_path.read_text(encoding="utf-8").splitlines()
+
+
 def test_raises_pdf_build_error_when_pandoc_fails(tmp_path: Path, fake_pandoc_on_path) -> None:
     fake_pandoc_on_path('echo "boom" >&2; exit 1')
     with pytest.raises(PdfBuildError) as exc_info:

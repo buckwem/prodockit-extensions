@@ -622,26 +622,16 @@ def test_windows_node_repair_is_fully_non_interactive(tmp_path: Path) -> None:
     assert "--disable-interactivity" in repair
 
 
-@pytest.mark.parametrize(
-    ("python_machine", "package", "environment"),
-    [
-        ("0x8664", "mingw-w64-ucrt-x86_64-pango", "ucrt64"),
-        ("0xaa64", "mingw-w64-clang-aarch64-pango", "clangarm64"),
-    ],
-)
-def test_windows_pango_matches_the_python_process_architecture(
+def test_windows_pandoc_plan_is_independent_of_python_architecture(
     tmp_path: Path,
-    python_machine: str,
-    package: str,
-    environment: str,
 ) -> None:
-    runner = CliFakeRunner({"int.from_bytes": CommandResult(0, python_machine)})
+    runner = CliFakeRunner({"int.from_bytes": CommandResult(0, "0xaa64")})
     plan = stages._plan_pandoc(_context(tmp_path, platform=WINDOWS, runner=runner))
     rendered = " ".join(" ".join(command) for command in plan.commands)
 
-    assert package in rendered
-    assert f"$msysEnv = '{environment}'" in rendered
-    assert "PROCESSOR_ARCHITEW6432" not in rendered
+    assert "JohnMacFarlane.Pandoc" in rendered
+    assert "pango" not in rendered.lower()
+    assert "MSYS2" not in rendered
 
 
 def _write_usable_github_keypair(tmp_path: Path) -> None:

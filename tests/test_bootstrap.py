@@ -4007,7 +4007,9 @@ def test_weasyprint_is_verified_from_the_projects_venv(tmp_path: Path) -> None:
     assert "pandoc stage" in result.detail, "point at the fix, not at pip"
 
 
-def test_windows_weasyprint_failure_names_msys2_not_homebrew(tmp_path: Path) -> None:
+def test_windows_project_environment_does_not_import_python_weasyprint(
+    tmp_path: Path,
+) -> None:
     project = tmp_path / "GitLab" / "report-al01234"
     (project / ".git").mkdir(parents=True)
     (project / "requirements.txt").write_text("zensical\n", encoding="utf-8")
@@ -4027,9 +4029,8 @@ def test_windows_weasyprint_failure_names_msys2_not_homebrew(tmp_path: Path) -> 
         _context(tmp_path, platform=WINDOWS, runner=runner)
     )
 
-    assert "MSYS2" in result.detail
-    assert "Python's architecture" in result.detail
-    assert "Homebrew" not in result.detail
+    assert "MSYS2" not in result.detail
+    assert "graphics libraries" not in result.detail
 
 
 def test_the_pandoc_stage_no_longer_claims_what_it_cannot_check() -> None:
@@ -4677,51 +4678,34 @@ def test_no_winget_call_can_stop_for_a_human(tmp_path: Path) -> None:
     assert seen >= 4, "vscode, git, pandoc, MSYS2 and node between them"
 
 
-def test_windows_installs_pango_rather_than_describing_it(tmp_path: Path) -> None:
-    """WeasyPrint draws text through Pango, which on Windows comes from
-    MSYS2. The guide walks the reader through a MINGW64 shell and the
-    Environment Variables dialog; all three steps run unattended."""
+def test_windows_preparation_does_not_install_msys2_or_pango(tmp_path: Path) -> None:
     runner = FakeRunner({"int.from_bytes": CommandResult(0, "0x8664\n")})
     plan = next(s for s in STAGES if s.id == "pandoc").plan(
         _context(tmp_path, platform=WINDOWS, runner=runner)
     )
     flat = " ".join(" ".join(c) for c in plan.commands)
 
-    assert "MSYS2.MSYS2" in flat
-    assert 'Test-Path "$_\\usr\\bin\\bash.exe"' in flat
-    assert "Reusing MSYS2 at $root" in flat
-    assert "-m prodockit.windows_msys2 --root $root" in flat
-    assert "SetEnvironmentVariable" in flat
-    assert "WEASYPRINT_DLL_DIRECTORIES" in flat
-    assert "mingw-w64-ucrt-x86_64-pango" in flat
-    assert "mingw-w64-clang-aarch64-pango" not in flat
-    assert "PROCESSOR_ARCHITECTURE" not in flat
-    assert "PROCESSOR_ARCHITEW6432" not in flat
+    assert "JohnMacFarlane.Pandoc" in flat
+    assert "MSYS2.MSYS2" not in flat
+    assert "pango" not in flat.lower()
+    assert "WEASYPRINT_DLL_DIRECTORIES" not in flat
 
 
-def test_windows_native_arm64_python_installs_arm64_pango(tmp_path: Path) -> None:
+def test_windows_native_arm64_python_does_not_restore_pango(tmp_path: Path) -> None:
     runner = FakeRunner({"int.from_bytes": CommandResult(0, "0xaa64\n")})
     plan = next(s for s in STAGES if s.id == "pandoc").plan(
         _context(tmp_path, platform=WINDOWS, runner=runner)
     )
     flat = " ".join(" ".join(command) for command in plan.commands)
 
-    assert "mingw-w64-clang-aarch64-pango" in flat
-    assert "$msysEnv = 'clangarm64'" in flat
-    assert 'Join-Path $root "$msysEnv\\bin"' in flat
+    assert "mingw-w64-clang-aarch64-pango" not in flat
     assert "mingw-w64-ucrt-x86_64-pango" not in flat
 
 
-def test_arm64_host_with_x64_python_requires_ucrt64_pango_evidence(tmp_path: Path) -> None:
-    """The real failure: host ARM64 is irrelevant when python.exe is x64."""
-
-    evidence = _windows_pango_response()["ConvertTo-Json"]
+def test_windows_pandoc_check_defers_weasyprint_to_pdk_pdf(tmp_path: Path) -> None:
     runner = FakeRunner(
         {
             "pandoc": CommandResult(0, "pandoc 3.10.1\n"),
-            "pango-view": CommandResult(0, "pango-view (pango) 1.57.1\n"),
-            "int.from_bytes": CommandResult(0, "0x8664\n"),
-            "ConvertTo-Json": evidence,
             "fc-match": CommandResult(0, "Inter\nJetBrains Mono"),
         }
     )
@@ -4731,23 +4715,21 @@ def test_arm64_host_with_x64_python_requires_ucrt64_pango_evidence(tmp_path: Pat
     )
 
     assert result.status is Status.OK
-    assert "ucrt64" in result.detail
-    assert "x64 Python" in result.detail
-    assert not any("pango-view" in " ".join(command) for command in runner.calls)
+    assert "prepared project-locally" in result.detail
+    assert not any("pango" in " ".join(command).lower() for command in runner.calls)
 
 
-def test_the_selected_msys2_path_entry_is_moved_to_the_front_once(tmp_path: Path) -> None:
-    """The selected environment must win without accumulating duplicates."""
+def test_windows_pandoc_plan_does_not_mutate_the_loader_environment(tmp_path: Path) -> None:
     plan = next(s for s in STAGES if s.id == "pandoc").plan(_context(tmp_path, platform=WINDOWS))
-    path_command = next(c for c in plan.commands if "SetEnvironmentVariable" in " ".join(c))
+    rendered = " ".join(" ".join(command) for command in plan.commands)
 
-    rendered = " ".join(path_command)
-    assert "TrimEnd" in rendered
-    assert "(@($bin) + $entries)" in rendered
+    assert "WEASYPRINT_DLL_DIRECTORIES" not in rendered
+    assert "SetEnvironmentVariable('Path'" not in rendered
 
 
-def test_windows_pango_is_verified_before_the_project_environment(tmp_path: Path) -> None:
-    """The architecture-specific package and DLL are checked before import."""
+def test_windows_pdf_prerequisites_are_checked_before_the_project_environment(
+    tmp_path: Path,
+) -> None:
     ids = [s.id for s in STAGES]
 
     assert ids.index("pandoc") < ids.index("project-env")
@@ -4785,18 +4767,19 @@ def test_windows_fonts_are_checked_even_though_they_are_installed_by_hand(
     assert result.status is Status.OK
 
 
-def test_a_windows_machine_with_no_font_directory_requires_a_verifiable_pango(
+def test_a_windows_machine_with_no_font_directory_reports_unverified_fonts(
     tmp_path: Path,
 ) -> None:
-    """A clean install cannot finish while its native renderer is unverified."""
+    """G3 removes Pango setup but retains the G4 host-font warning."""
     runner = FakeRunner({"pandoc": CommandResult(0, "pandoc 3.10.1\n")})
 
     result = next(s for s in STAGES if s.id == "pandoc").check(
         _context(tmp_path, runner=runner, platform=WINDOWS)
     )
 
-    assert result.status is Status.WRONG
-    assert "architecture-matched Windows Pango" in result.detail
+    assert result.status is Status.WARNING
+    assert "fonts could not be verified" in result.detail
+    assert "Pango" not in result.detail
 
 
 def test_every_windows_stage_produces_something_to_do(tmp_path: Path) -> None:
@@ -6294,41 +6277,16 @@ def test_npm_is_left_alone_where_it_works(tmp_path: Path) -> None:
     assert npm_command(_context(tmp_path, platform=WINDOWS)) == "npm"
 
 
-def test_msys2_says_where_it_looked_rather_than_failing_on_a_guess(tmp_path: Path) -> None:
-    """`C:\\msys64` is winget's default, not a guarantee - and on an arm64
-    Windows winget installs a different build again
-    (prodockit-extensions#393).
-
-        MSYS2 is not at C:\\msys64 - install it there, or run ...
-
-    was said of a machine that had just installed MSYS2 successfully. So
-    the script looks in several places, names all of them when it finds
-    none, and picks the environment from the architecture rather than
-    from an assumption: an arm64 install has no MINGW64 at all.
-    """
-    from prodockit.bootstrap.stages import _MSYS2_ROOTS
-
+def test_windows_pandoc_plan_has_no_msys2_recovery_script(tmp_path: Path) -> None:
     runner = FakeRunner({"int.from_bytes": CommandResult(0, "0xaa64\n")})
     plan = next(s for s in STAGES if s.id == "pandoc").plan(
         _context(tmp_path, platform=WINDOWS, runner=runner)
     )
-    pacman = next(c for c in plan.commands if "prodockit.windows_msys2" in " ".join(c))
-    script = " ".join(pacman)
+    rendered = " ".join(" ".join(command) for command in plan.commands)
 
-    assert len(_MSYS2_ROOTS) > 1
-    for root in _MSYS2_ROOTS:
-        assert root in script, root
-    assert "was not found" in script
-    assert "Looked in:" in script, "say where, not just that it failed"
-    assert "exit 1" in script, "and fail, rather than carrying on without Pango"
-
-    # The PATH entry follows the same environment, or WeasyPrint is
-    # pointed at a directory that does not exist on this machine.
-    path_command = next(c for c in plan.commands if "SetEnvironmentVariable" in " ".join(c))
-    entry = " ".join(path_command)
-    assert "clangarm64" in entry
-    assert "ucrt64" not in entry
-    assert "Join-Path" in entry
+    assert "MSYS2" not in rendered
+    assert "windows_msys2" not in rendered
+    assert "pacman" not in rendered
 
 
 def test_the_csl_download_turns_powershells_progress_bar_off(tmp_path: Path) -> None:
@@ -8691,14 +8649,12 @@ def test_windows_installs_the_pandoc_the_builds_pin(tmp_path: Path) -> None:
     assert pandoc[pandoc.index("--version") + 1] == PANDOC_VERSION, pandoc
 
 
-def test_only_pandoc_is_pinned_at_the_winget_line(tmp_path: Path) -> None:
-    """MSYS2 and the rest are machine plumbing - pinning them would buy
-    nothing and break whenever winget pruned an old build. The version
-    argument exists for inputs that change this project's *output*."""
+def test_windows_pandoc_is_the_only_pdf_winget_package(tmp_path: Path) -> None:
     plan = next(s for s in STAGES if s.id == "pandoc").plan(_context(tmp_path, platform=WINDOWS))
-    msys2 = next(c for c in plan.commands if "MSYS2.MSYS2" in " ".join(c))
+    winget = [command for command in plan.commands if command and command[0] == "winget"]
 
-    assert "--version" not in msys2, msys2
+    assert len(winget) == 1
+    assert "JohnMacFarlane.Pandoc" in winget[0]
 
 
 def _ubuntu_vscode_commands(tmp_path: Path) -> list[list[str]]:
