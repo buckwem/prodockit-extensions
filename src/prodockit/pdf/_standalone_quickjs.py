@@ -24,6 +24,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, NoReturn, Protocol, cast
+from urllib.parse import urlsplit
 from xml.etree import ElementTree
 
 from ._mermaid_provenance import load_mermaid_provenance
@@ -41,6 +42,7 @@ _ASSET_HASHES = {
 
 _UNSAFE_SVG_ELEMENTS = {"foreignobject", "iframe", "object", "script"}
 _EXTERNAL_URL = re.compile(r"url\(\s*['\"]?(?!#)", re.IGNORECASE)
+_NAVIGATION_SCHEMES = {"https", "mailto"}
 _PNG_DATA_URI_PREFIX = "data:image/png;base64,"
 _PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 _MAX_EMBEDDED_PNG_BYTES = 256 * 1024
@@ -132,6 +134,29 @@ def _require_range(
         raise TypeError(f"{name} must be a number")
     if not minimum <= value <= maximum:
         raise ValueError(f"{name} must be between {minimum} and {maximum}")
+
+
+def _is_safe_navigation_href(value: str) -> bool:
+    """Allow links that navigate without loading content into the SVG."""
+    if (
+        value != value.strip()
+        or "\\" in value
+        or value.startswith("//")
+        or any(character.isspace() or ord(character) == 127 for character in value)
+    ):
+        return False
+    try:
+        parsed = urlsplit(value)
+    except ValueError:
+        return False
+    scheme = parsed.scheme.lower()
+    if scheme not in _NAVIGATION_SCHEMES and scheme:
+        return False
+    if scheme == "https":
+        return bool(parsed.netloc)
+    if scheme == "mailto":
+        return not parsed.netloc and bool(parsed.path)
+    return not parsed.netloc and bool(parsed.path or parsed.query)
 
 
 def _invalid_embedded_png() -> NoReturn:
@@ -285,6 +310,11 @@ def _validate_static_svg(svg: str) -> None:
                 name in {"href", "src"}
                 and normalized_value
                 and not normalized_value.startswith("#")
+                and not (
+                    element_name == "a"
+                    and name == "href"
+                    and _is_safe_navigation_href(value)
+                )
             ):
                 if (
                     element_name == "image"
