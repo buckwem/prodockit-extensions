@@ -78,5 +78,10 @@
     "id": "packet",
     "source": "packet-beta\n  title Network header\n  0-15: \"Source Port\"\n  16-31: \"Destination Port\"\n  32-63: \"Sequence Number\"",
     "expected_text": ["Network header", "Source Port", "Destination Port", "Sequence Number"]
+  },
+  {
+    "id": "c4-person",
+    "source": "C4Context\n title System Context diagram\n Person(user, \"User\")\n System(system, \"System\")\n Rel(user, system, \"Uses\")",
+    "expected_text": ["System Context diagram", "User", "System", "Uses"]
   }
 ]

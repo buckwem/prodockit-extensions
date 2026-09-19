@@ -9,13 +9,17 @@ QuickJS context so every untrusted render has memory, time, and stack limits.
 
 from __future__ import annotations
 
+import base64
+import binascii
 import hashlib
 import importlib
 import importlib.metadata
 import json
 import re
+import struct
 import threading
 import time
+import zlib
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
@@ -37,6 +41,21 @@ _ASSET_HASHES = {
 
 _UNSAFE_SVG_ELEMENTS = {"foreignobject", "iframe", "object", "script"}
 _EXTERNAL_URL = re.compile(r"url\(\s*['\"]?(?!#)", re.IGNORECASE)
+_PNG_DATA_URI_PREFIX = "data:image/png;base64,"
+_PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
+_MAX_EMBEDDED_PNG_BYTES = 256 * 1024
+_MAX_EMBEDDED_PNG_DIMENSION = 512
+_MAX_EMBEDDED_PNG_PIXELS = 512 * 512
+_MAX_PNG_CHUNKS = 128
+_PNG_BIT_DEPTHS = {
+    0: {1, 2, 4, 8, 16},
+    2: {8, 16},
+    3: {1, 2, 4, 8},
+    4: {8, 16},
+    6: {8, 16},
+}
+_PNG_CHANNELS = {0: 1, 2: 3, 3: 1, 4: 2, 6: 4}
+_PNG_CRITICAL_CHUNKS = {b"IHDR", b"PLTE", b"IDAT", b"IEND"}
 
 _BOOTSTRAP_JS = """
 globalThis.__log = () => {};
@@ -111,6 +130,124 @@ def _require_range(
         raise ValueError(f"{name} must be between {minimum} and {maximum}")
 
 
+def _invalid_embedded_png() -> NoReturn:
+    raise StandaloneRenderError("Mermaid SVG contains an invalid embedded PNG image.")
+
+
+def _validate_png_bytes(data: bytes) -> None:
+    """Accept only a small, structurally complete, non-interlaced PNG."""
+    if len(data) > _MAX_EMBEDDED_PNG_BYTES or not data.startswith(_PNG_SIGNATURE):
+        _invalid_embedded_png()
+
+    offset = len(_PNG_SIGNATURE)
+    chunks = 0
+    width = height = bit_depth = color_type = 0
+    seen_ihdr = seen_plte = seen_idat = False
+    idat_ended = False
+    compressed = bytearray()
+
+    while offset < len(data):
+        if len(data) - offset < 12 or chunks >= _MAX_PNG_CHUNKS:
+            _invalid_embedded_png()
+        length = int.from_bytes(data[offset : offset + 4], "big")
+        chunk_type = data[offset + 4 : offset + 8]
+        chunk_end = offset + 12 + length
+        if (
+            chunk_end > len(data)
+            or len(chunk_type) != 4
+            or not all(65 <= byte <= 90 or 97 <= byte <= 122 for byte in chunk_type)
+        ):
+            _invalid_embedded_png()
+        chunk_data = data[offset + 8 : offset + 8 + length]
+        expected_crc = int.from_bytes(data[offset + 8 + length : chunk_end], "big")
+        if zlib.crc32(chunk_type + chunk_data) & 0xFFFFFFFF != expected_crc:
+            _invalid_embedded_png()
+
+        chunks += 1
+        if chunks == 1 and chunk_type != b"IHDR":
+            _invalid_embedded_png()
+        if chunk_type == b"IHDR":
+            if seen_ihdr or length != 13:
+                _invalid_embedded_png()
+            width, height, bit_depth, color_type, compression, filtering, interlace = struct.unpack(
+                ">IIBBBBB", chunk_data
+            )
+            if (
+                width < 1
+                or height < 1
+                or width > _MAX_EMBEDDED_PNG_DIMENSION
+                or height > _MAX_EMBEDDED_PNG_DIMENSION
+                or width * height > _MAX_EMBEDDED_PNG_PIXELS
+                or bit_depth not in _PNG_BIT_DEPTHS.get(color_type, set())
+                or compression != 0
+                or filtering != 0
+                or interlace != 0
+            ):
+                _invalid_embedded_png()
+            seen_ihdr = True
+        elif not seen_ihdr:
+            _invalid_embedded_png()
+        elif chunk_type == b"PLTE":
+            if seen_plte or seen_idat or color_type in {0, 4}:
+                _invalid_embedded_png()
+            entries, remainder = divmod(length, 3)
+            if remainder or not 1 <= entries <= 256:
+                _invalid_embedded_png()
+            if color_type == 3 and entries > 2**bit_depth:
+                _invalid_embedded_png()
+            seen_plte = True
+        elif chunk_type == b"IDAT":
+            if idat_ended or (color_type == 3 and not seen_plte):
+                _invalid_embedded_png()
+            seen_idat = True
+            compressed.extend(chunk_data)
+        else:
+            if seen_idat:
+                idat_ended = True
+            if chunk_type == b"IEND":
+                if length or not seen_idat or chunk_end != len(data):
+                    _invalid_embedded_png()
+                break
+            if chunk_type[0] & 0x20 == 0 and chunk_type not in _PNG_CRITICAL_CHUNKS:
+                _invalid_embedded_png()
+        offset = chunk_end
+    else:
+        _invalid_embedded_png()
+
+    channels = _PNG_CHANNELS[color_type]
+    row_bytes = (width * channels * bit_depth + 7) // 8
+    expected_size = height * (row_bytes + 1)
+    decompressor = zlib.decompressobj()
+    try:
+        pixels = decompressor.decompress(bytes(compressed), expected_size + 1)
+    except zlib.error:
+        _invalid_embedded_png()
+    if (
+        len(pixels) != expected_size
+        or not decompressor.eof
+        or decompressor.unconsumed_tail
+        or decompressor.unused_data
+        or any(pixels[row * (row_bytes + 1)] > 4 for row in range(height))
+    ):
+        _invalid_embedded_png()
+
+
+def _validate_embedded_png_data_uri(value: str) -> None:
+    if not value.startswith(_PNG_DATA_URI_PREFIX):
+        _invalid_embedded_png()
+    encoded = value[len(_PNG_DATA_URI_PREFIX) :]
+    maximum_encoded = ((_MAX_EMBEDDED_PNG_BYTES + 2) // 3) * 4
+    if not encoded or len(encoded) > maximum_encoded:
+        _invalid_embedded_png()
+    try:
+        data = base64.b64decode(encoded, validate=True)
+    except (binascii.Error, ValueError):
+        _invalid_embedded_png()
+    if base64.b64encode(data).decode("ascii") != encoded:
+        _invalid_embedded_png()
+    _validate_png_bytes(data)
+
+
 def _validate_static_svg(svg: str) -> None:
     """Reject active or externally loaded content before SVG leaves the worker."""
     lowered = svg.lower()
@@ -145,7 +282,14 @@ def _validate_static_svg(svg: str) -> None:
                 and normalized_value
                 and not normalized_value.startswith("#")
             ):
-                raise StandaloneRenderError("Mermaid SVG references an external resource.")
+                if (
+                    element_name == "image"
+                    and name == "href"
+                    and value.startswith(_PNG_DATA_URI_PREFIX)
+                ):
+                    _validate_embedded_png_data_uri(value)
+                else:
+                    raise StandaloneRenderError("Mermaid SVG references an external resource.")
             if name == "style" and _EXTERNAL_URL.search(value):
                 raise StandaloneRenderError("Mermaid SVG CSS references an external resource.")
 

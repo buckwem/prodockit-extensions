@@ -3,6 +3,9 @@
 
 from __future__ import annotations
 
+import base64
+import struct
+import zlib
 from typing import Any
 
 import pytest
@@ -63,6 +66,23 @@ def _fake_runtime(context: FakeContext) -> runtime_module._Runtime:
         path_bbox_js="path geometry",
         patch_svg=lambda svg: svg,
     )
+
+
+def _png_chunk(kind: bytes, data: bytes) -> bytes:
+    crc = zlib.crc32(kind + data) & 0xFFFFFFFF
+    return len(data).to_bytes(4, "big") + kind + data + crc.to_bytes(4, "big")
+
+
+def _png_data_uri(width: int = 1, height: int = 1) -> str:
+    header = struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0)
+    pixels = b"".join(b"\x00" + b"\x00\x00\x00" * width for _ in range(height))
+    png = (
+        b"\x89PNG\r\n\x1a\n"
+        + _png_chunk(b"IHDR", header)
+        + _png_chunk(b"IDAT", zlib.compress(pixels))
+        + _png_chunk(b"IEND", b"")
+    )
+    return "data:image/png;base64," + base64.b64encode(png).decode("ascii")
 
 
 def test_engine_configures_all_three_quickjs_limits_before_render(
@@ -162,6 +182,50 @@ def test_source_and_output_limits_fail_closed(monkeypatch: pytest.MonkeyPatch) -
     ],
 )
 def test_engine_rejects_active_or_external_svg(
+    monkeypatch: pytest.MonkeyPatch,
+    svg: str,
+) -> None:
+    context = FakeContext(svg=svg)
+    monkeypatch.setattr(runtime_module, "_load_runtime", lambda: _fake_runtime(context))
+    engine = StandaloneQuickJSMermaidEngine()
+    engine.start()
+
+    with pytest.raises(StandaloneRenderError):
+        engine.render_svg("graph LR; A-->B")
+
+
+def test_engine_accepts_a_bounded_valid_png_in_an_svg_image(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    svg = f'<svg xmlns="http://www.w3.org/2000/svg"><image href="{_png_data_uri()}"/></svg>'
+    context = FakeContext(svg=svg)
+    monkeypatch.setattr(runtime_module, "_load_runtime", lambda: _fake_runtime(context))
+    engine = StandaloneQuickJSMermaidEngine()
+    engine.start()
+
+    assert engine.render_svg('C4Context\n Person(user, "User")') == svg
+
+
+@pytest.mark.parametrize(
+    "svg",
+    [
+        '<svg xmlns="http://www.w3.org/2000/svg"><image href="data:image/svg+xml;base64,PHN2Zy8+"/></svg>',
+        '<svg xmlns="http://www.w3.org/2000/svg"><image href="data:image/png;base64,not-base64"/></svg>',
+        '<svg xmlns="http://www.w3.org/2000/svg"><image href="data:image/png;base64,iVBORw0KGgo="/></svg>',
+        f'<svg xmlns="http://www.w3.org/2000/svg"><a href="{_png_data_uri()}"/></svg>',
+        f'<svg xmlns="http://www.w3.org/2000/svg"><image src="{_png_data_uri()}"/></svg>',
+        f'<svg xmlns="http://www.w3.org/2000/svg"><image href="{_png_data_uri(513, 1)}"/></svg>',
+    ],
+    ids=[
+        "svg-data-uri",
+        "invalid-base64",
+        "truncated-png",
+        "png-on-link",
+        "png-in-src",
+        "oversized-dimension",
+    ],
+)
+def test_engine_rejects_unapproved_or_invalid_embedded_data(
     monkeypatch: pytest.MonkeyPatch,
     svg: str,
 ) -> None:

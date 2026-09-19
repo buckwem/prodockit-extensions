@@ -228,3 +228,24 @@ def test_renderer_adapter_writes_svg_without_node_or_npm_on_path(
     semantics = _semantics(Path(rendered).read_text(encoding="utf-8"))
     assert "Python" in semantics.text
     assert "SVG" in semantics.text
+
+
+def test_renderer_adapter_writes_c4_person_with_an_internal_png(
+    worker: StandaloneMermaidWorker,
+    tmp_path: Path,
+) -> None:
+    renderer = StandaloneMermaidRenderer(str(tmp_path / "diagrams"), worker=worker)
+
+    rendered = renderer.render_source(
+        'C4Context\n title System Context diagram\n Person(user, "User")\n'
+        ' System(system, "System")\n Rel(user, system, "Uses")'
+    )
+
+    assert rendered is not None
+    svg = Path(rendered).read_text(encoding="utf-8")
+    semantics = _semantics(svg)
+    assert "System Context diagram" in semantics.text
+    assert "User" in semantics.text
+    assert "System" in semantics.text
+    assert "Uses" in semantics.text
+    assert 'href="data:image/png;base64,' in svg
