@@ -3130,6 +3130,16 @@ def test_ubuntu_vscode_is_downloaded_rather_than_asked_for(tmp_path: Path) -> No
     assert "linux-deb-x64/stable" in flat
 
 
+def test_ubuntu_vscode_refreshes_apt_before_installing(tmp_path: Path) -> None:
+    """A stale package index can name dependency builds no longer on the mirror."""
+    plan = next(s for s in STAGES if s.id == "vscode").plan(_context(tmp_path, platform=UBUNTU))
+
+    assert plan.commands[0] == ["sudo", "apt", "-o", "DPkg::Lock::Timeout=600", "update"]
+    assert plan.commands.index(plan.commands[0]) < next(
+        index for index, command in enumerate(plan.commands) if command[-1] == "/tmp/code.deb"
+    )
+
+
 def test_ubuntu_vscode_installs_the_file_it_just_downloaded(tmp_path: Path) -> None:
     """The download path and the install path have to be the same one -
     the previous plan's did not, which is the whole of #233."""
