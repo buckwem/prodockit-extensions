@@ -441,8 +441,8 @@ def verify_deliverables(python: Path, project: Path, config: Path) -> None:
         )
         if command == "diag":
             allowed = {
-                "Standalone Mermaid runtime is unavailable (optional)",
-                "MathJax PDF renderer is incomplete (optional)",
+                "Project-local Mermaid is not prepared (optional)",
+                "Project-local MathJax is not prepared (optional)",
                 "Project is not inside a Git repository",
                 # This local-only fixture deliberately has no hosting identity.
                 "Publishing details need attention; local testing can continue",

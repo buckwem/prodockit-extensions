@@ -22,7 +22,6 @@ from click.testing import CliRunner
 import prodockit
 from prodockit import diagnostics
 from prodockit.cli import main as prodockit_cli
-from prodockit.init_tools import init_tools
 
 REPAIRABLE_CHECKS = frozenset(
     {
@@ -30,7 +29,6 @@ REPAIRABLE_CHECKS = frozenset(
         "project.configuration",
         "dependencies.pins",
         "dependencies.shared-files",
-        "renderer.mathjax",
     }
 )
 EXPECTED_ACTIONS = Counter(
@@ -39,7 +37,6 @@ EXPECTED_ACTIONS = Counter(
         "project.configuration": 1,
         "dependencies.pins": 1,
         "dependencies.shared-files": 2,
-        "renderer.mathjax": 1,
     }
 )
 
@@ -61,7 +58,7 @@ def _site_packages() -> Path:
 
 
 def write_fixture(project: Path) -> Path:
-    """Create all five independently repairable diagnostic failures."""
+    """Create all four independently repairable diagnostic failures."""
     project.mkdir(parents=True)
     config = project / "zensical.toml"
     _write(
@@ -72,11 +69,6 @@ site_name = "Diagnostic repair acceptance"
 docs_dir = "docs"
 nav = [{ Home = "index.md" }]
 extra_css = ["stylesheets/pdk.css", "stylesheets/pdk-pdf.css"]
-extra_javascript = [
-  "javascripts/mathjax.js",
-  "javascripts/vendor/mathjax/tex-svg-full.js",
-]
-
 [project.markdown_extensions.pymdownx.arithmatex]
 
 """,
@@ -111,16 +103,6 @@ target = "docs/stylesheets/pdk-pdf.css"
 """,
     )
     _write(project / "docs" / "stylesheets" / "pdk.css", "/* deliberately stale */\n")
-
-    # The configured MathJax browser assets exist so configuration inspection
-    # is clean apart from the missing refs extension. Its Node inputs are
-    # deliberately absent until repair runs npm ci.
-    _write(project / "docs" / "javascripts" / "mathjax.js", "// deliberately stale\n")
-    _write(
-        project / "docs" / "javascripts" / "vendor" / "mathjax" / "tex-svg-full.js",
-        "// deliberately stale\n",
-    )
-    init_tools(project / "tools")
 
     zensical_version = importlib.metadata.version("zensical")
     _write(project / "requirements.txt", "zensical>=0.0.1\n")
@@ -231,7 +213,7 @@ def exercise(project: Path) -> dict[str, Any]:
             "fixture did not create every repairable diagnostic failure: " + ", ".join(missing)
         )
 
-    # This fixture deliberately creates these five project/environment failures.
+    # This fixture deliberately creates these four project/environment failures.
     # Limit the repair plan to them so an unrelated host-level finding (for
     # example Windows Pango discovery) is reported after the repair but is not
     # silently selected for a system mutation by this project-local harness.
