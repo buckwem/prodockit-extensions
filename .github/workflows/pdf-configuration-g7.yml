@@ -47,6 +47,11 @@ jobs:
         run: |
           python -m pip install -r template/requirements.txt
           python -m pip install -e ".[testing]"
+      - name: Fetch template citation style
+        run: >-
+          curl -fsSL --retry 3 --max-time 60
+          https://www.zotero.org/styles/harvard-cite-them-right
+          -o template/harvard-cite-them-right.csl
       - name: Exercise migration, real first use, cached reuse and failure recovery
         run: >-
           python tools/pdf_configuration_g7_acceptance.py
