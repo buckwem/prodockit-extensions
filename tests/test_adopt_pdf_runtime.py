@@ -124,7 +124,8 @@ def test_windows_font_check_uses_the_native_installed_font_collection(
 
     assert not runtime._font_problem(context(tmp_path, WINDOWS))
     assert calls[0][:3] == ["powershell", "-NoProfile", "-Command"]
-    assert "InstalledFontCollection" in calls[0][3]
+    assert "CurrentVersion\\Fonts" in calls[0][3]
+    assert "Test-Path -LiteralPath $path -PathType Leaf" in calls[0][3]
 
 
 def test_loader_repair_can_run_offline_without_package_install(tmp_path, monkeypatch):

@@ -128,12 +128,23 @@ def _font_problem(context: Context) -> str:
 
 
 def _windows_font_problem(context: Context) -> str:
-    """Verify installed families through Windows rather than MSYS2 fontconfig."""
+    """Verify registered font files through Windows rather than MSYS2 fontconfig."""
 
     script = (
-        "Add-Type -AssemblyName System.Drawing; "
-        "(New-Object System.Drawing.Text.InstalledFontCollection).Families | "
-        "ForEach-Object { $_.Name }"
+        "$locations = @( "
+        "@{Key='HKCU:\\Software\\Microsoft\\Windows NT\\CurrentVersion\\Fonts'; "
+        "Dir=(Join-Path $env:LOCALAPPDATA 'Microsoft\\Windows\\Fonts')}, "
+        "@{Key='HKLM:\\Software\\Microsoft\\Windows NT\\CurrentVersion\\Fonts'; "
+        "Dir=(Join-Path $env:WINDIR 'Fonts')}); "
+        "foreach ($location in $locations) { "
+        "if (-not (Test-Path -LiteralPath $location.Key)) { continue }; "
+        "$properties = (Get-ItemProperty -LiteralPath $location.Key).PSObject.Properties | "
+        "Where-Object { $_.Name -notlike 'PS*' }; "
+        "foreach ($property in $properties) { "
+        "$value = [Environment]::ExpandEnvironmentVariables([string]$property.Value); "
+        "$path = if ([IO.Path]::IsPathRooted($value)) { $value } "
+        "else { Join-Path $location.Dir $value }; "
+        "if (Test-Path -LiteralPath $path -PathType Leaf) { $property.Name } } }"
     )
     try:
         match = subprocess.run(
@@ -151,9 +162,15 @@ def _windows_font_problem(context: Context) -> str:
     if match.returncode:
         detail = match.stderr.strip() or f"PowerShell exited {match.returncode}"
         return f"PDF font health could not be verified: {detail[-400:]}"
-    installed = {line.strip().casefold() for line in match.stdout.splitlines() if line.strip()}
+    installed = tuple(
+        line.strip().casefold() for line in match.stdout.splitlines() if line.strip()
+    )
     required = ("Inter", "JetBrains Mono")
-    missing = [family for family in required if family.casefold() not in installed]
+    missing = [
+        family
+        for family in required
+        if not any(name.startswith(family.casefold()) for name in installed)
+    ]
     return "" if not missing else "PDF fonts are missing: " + ", ".join(missing)
 
 
