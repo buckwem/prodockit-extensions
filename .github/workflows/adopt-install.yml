@@ -75,6 +75,11 @@ jobs:
           architecture: ${{ matrix.architecture }}
           cache: pip
           cache-dependency-path: pyproject.toml
+      - name: Install the test-only macOS Pango prerequisite
+        if: runner.os == 'macOS'
+        run: |
+          brew install pango
+          echo "DYLD_FALLBACK_LIBRARY_PATH=$(brew --prefix)/lib" >> "$GITHUB_ENV"
       - name: Build the candidate wheel
         run: |
           python -m pip install build

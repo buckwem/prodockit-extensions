@@ -387,6 +387,8 @@ def test_adopt_matrix_needs_no_node_packages_and_excludes_windows_arm64() -> Non
     assert "runner: windows-2025" in workflow
     assert "runner: windows-11-arm" not in workflow
     assert "timeout-minutes: 40" in workflow
+    installed = workflow.split("\n  installed-wheel:", 1)[1].split("\n  template-sync:", 1)[0]
+    assert "Install the test-only macOS Pango prerequisite" in installed
 
 
 def test_template_sync_wheel_handoff_runs_on_all_five_environments() -> None:
@@ -440,6 +442,8 @@ def test_bootstrap_release_gate_runs_real_installs_on_every_supported_runner() -
     assert "timeout-minutes: 60" in workflow
     assert "--scenario ${{ matrix.scenario.id }}" not in workflow
     assert "Remove runner tools, then execute Bootstrap's real install plans" in workflow
+    native = workflow.split("\n  native-install:", 1)[1].split("\n  result:", 1)[0]
+    assert "Install the test-only macOS Pango prerequisite" in native
     for runner in (
         "ubuntu-24.04",
         "ubuntu-24.04-arm",
