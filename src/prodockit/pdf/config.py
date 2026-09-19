@@ -23,7 +23,7 @@ from collections.abc import Callable
 from pathlib import Path
 
 from prodockit._zensical import _installed_zensical_version
-from prodockit.pdf.build import Page, StageReporter, build_pdf
+from prodockit.pdf.build import Page, StageReporter, build_pdf, detect_renderer_requirements
 from prodockit.pdf.icons import (
     build_icon_registry,
     build_site_icon_registry,
@@ -462,29 +462,6 @@ def _build_pdf_from_config(
         with open(full_css_path, encoding="utf-8") as f:
             extra_css += _inline_css_urls(f.read(), os.path.dirname(full_css_path)) + "\n"
 
-    mmdc_bin = (
-        _find_mmdc_bin(extra.get("pdf_mmdc_bin"))
-        if mermaid_backend is MermaidBackend.MMDC
-        else None
-    )
-    mermaid_renderer: MermaidRenderer | None = create_mermaid_renderer(
-        mermaid_backend,
-        mmdc_bin=mmdc_bin,
-        output_dir=os.path.join(source_docs_dir, ".prodockit-pdf-mermaid"),
-    )
-    render_mermaid: Callable[[str], str | None] | None = (
-        mermaid_renderer.render_source if mermaid_renderer is not None else None
-    )
-
-    tex2svg_script = _find_tex2svg_script(extra.get("pdf_tex2svg_script"))
-    math_dir = extra.get("pdf_math_dir")
-    if math_dir:
-        # build_lua_filter()'s math_dir "must already exist or be creatable
-        # by the caller" - only relevant here for an explicitly configured
-        # directory; the default (build_pdf()'s own work_dir) already
-        # exists by the time the Lua filter needs it.
-        os.makedirs(math_dir, exist_ok=True)
-
     page_objects: list[Page] = []
     source_paths = [Path(source_docs_dir) / page["url"] for page in nav_pages]
     revision_dates = resolve_revision_dates(
@@ -540,6 +517,40 @@ def _build_pdf_from_config(
                 ),
             )
         )
+
+    # Built HTML is the authoritative lazy boundary. Optional renderer
+    # discovery and construction can import native packages, inspect the
+    # filesystem, create directories, or start a worker, so none of it runs
+    # for a document that does not contain the matching active markup.
+    renderer_requirements = detect_renderer_requirements(page_objects)
+
+    mermaid_renderer: MermaidRenderer | None = None
+    render_mermaid: Callable[[str], str | None] | None = None
+    if renderer_requirements.mermaid:
+        mmdc_bin = (
+            _find_mmdc_bin(extra.get("pdf_mmdc_bin"))
+            if mermaid_backend is MermaidBackend.MMDC
+            else None
+        )
+        mermaid_renderer = create_mermaid_renderer(
+            mermaid_backend,
+            mmdc_bin=mmdc_bin,
+            output_dir=os.path.join(source_docs_dir, ".prodockit-pdf-mermaid"),
+        )
+        if mermaid_renderer is not None:
+            render_mermaid = mermaid_renderer.render_source
+
+    tex2svg_script = None
+    math_dir = None
+    if renderer_requirements.maths:
+        tex2svg_script = _find_tex2svg_script(extra.get("pdf_tex2svg_script"))
+        math_dir = extra.get("pdf_math_dir")
+        if math_dir:
+            # build_lua_filter()'s math_dir "must already exist or be creatable
+            # by the caller" - only relevant here for an explicitly configured
+            # directory; the default (build_pdf()'s own work_dir) already
+            # exists by the time the Lua filter needs it.
+            os.makedirs(math_dir, exist_ok=True)
 
     if project_config is not None:
         theme_features = (config.get("theme") or {}).get("features") or []

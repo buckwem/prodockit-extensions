@@ -273,7 +273,7 @@ def test_hidden_legacy_command_does_not_advertise_or_accept_swap(monkeypatch) ->
     assert result.exit_code == 2, result.output
 
 
-def test_pdf_default_reports_unavailable_backend_without_a_traceback(
+def test_pdf_default_reports_unavailable_backend_when_mermaid_is_used(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     import prodockit.cli as cli_module
@@ -281,6 +281,14 @@ def test_pdf_default_reports_unavailable_backend_without_a_traceback(
     from prodockit.pdf._standalone_quickjs import StandaloneBackendUnavailableError
 
     _write_project(tmp_path)
+    (tmp_path / "docs" / "index.md").write_text(
+        "# Cover\n\n```mermaid\nflowchart LR\n  A --> B\n```\n", encoding="utf-8"
+    )
+    (tmp_path / "site" / "index.html").write_text(
+        '<article class="md-content__inner md-typeset"><h1>Cover</h1>'
+        '<pre class="mermaid">flowchart LR\n  A --&gt; B</pre></article>',
+        encoding="utf-8",
+    )
     monkeypatch.setattr(cli_module, "check_pdf_environment", lambda _config: None)
 
     def unavailable() -> None:
@@ -299,6 +307,29 @@ def test_pdf_default_reports_unavailable_backend_without_a_traceback(
     assert "Traceback" not in result.output
     assert not (tmp_path / "docs" / ".prodockit-pdf-mermaid").exists()
     assert not (tmp_path / "docs" / "site_documentation.pdf").exists()
+
+
+def test_pdf_default_does_not_load_an_unavailable_mermaid_backend_when_unused(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import prodockit.cli as cli_module
+    import prodockit.pdf.mermaid as mermaid_module
+
+    _write_project(tmp_path)
+    _install_fake_pandoc(tmp_path, monkeypatch, 'echo "%PDF-1.4 stub" > "$3"')
+    monkeypatch.setattr(cli_module, "check_pdf_environment", lambda _config: None)
+
+    def unexpected() -> None:
+        raise AssertionError("an unused Mermaid backend must not be loaded")
+
+    monkeypatch.setattr(mermaid_module, "require_standalone_runtime", unexpected)
+    monkeypatch.chdir(tmp_path)
+
+    result = CliRunner().invoke(main, ["pdf"])
+
+    assert result.exit_code == 0, result.output
+    assert (tmp_path / "docs" / "site_documentation.pdf").is_file()
+    assert not (tmp_path / "docs" / ".prodockit-pdf-mermaid").exists()
 
 
 def test_public_pdf_stops_before_building_when_the_active_environment_is_old(monkeypatch) -> None:

@@ -97,6 +97,34 @@ class _RendererMarkup(HTMLParser):
             self.maths = True
 
 
+@dataclass(frozen=True)
+class RendererRequirements:
+    """Optional renderers required by the active HTML in a PDF build."""
+
+    mermaid: bool = False
+    maths: bool = False
+
+
+def detect_renderer_requirements(pages: Sequence[Page]) -> RendererRequirements:
+    """Inspect built HTML without importing, probing, or starting a renderer.
+
+    Parsing active elements rather than searching strings avoids enabling a
+    renderer for documentation examples, escaped markup, or HTML comments.
+    This is the shared decision point for both high-level lazy construction
+    and the lower-level missing-renderer warnings.
+    """
+    mermaid = False
+    maths = False
+    for page in pages:
+        markup = _RendererMarkup()
+        markup.feed(page.html)
+        mermaid = mermaid or markup.mermaid
+        maths = maths or markup.maths
+        if mermaid and maths:
+            break
+    return RendererRequirements(mermaid=mermaid, maths=maths)
+
+
 def _warn_about_unrendered_content(
     pages: Sequence[Page],
     *,
@@ -116,20 +144,19 @@ def _warn_about_unrendered_content(
     build still succeeds; this only makes the degradation visible.
     """
     warnings = []
-    detected: list[_RendererMarkup] = []
-    if render_mermaid is None or not mathjax_available:
-        for page in pages:
-            markup = _RendererMarkup()
-            markup.feed(page.html)
-            detected.append(markup)
-    if render_mermaid is None and any(markup.mermaid for markup in detected):
+    requirements = (
+        detect_renderer_requirements(pages)
+        if render_mermaid is None or not mathjax_available
+        else RendererRequirements()
+    )
+    if render_mermaid is None and requirements.mermaid:
         warnings.append(
             "⚠️  This document contains Mermaid diagrams, but no `mmdc` "
             "(mermaid-cli) binary was found - they will appear in the PDF as "
             "raw diagram source instead of rendered images. Install `mmdc` "
             "outside ProDockit or set `pdf_mmdc_bin` to an existing install."
         )
-    if not mathjax_available and any(markup.maths for markup in detected):
+    if not mathjax_available and requirements.maths:
         warnings.append(
             "⚠️  This document contains TeX maths, but no `tex2svg` script was "
             "found - formulas will appear in the PDF as raw LaTeX instead of "
