@@ -116,6 +116,12 @@ from prodockit.pdf.config import (
     build_source_bundle_from_zensical_config,
 )
 from prodockit.pdf.mermaid import MermaidBackend, MermaidBackendUnavailableError
+from prodockit.pdf.runtime_config import COMPONENTS, PdfRuntimeConfigError
+from prodockit.pdf.runtime_prepare import (
+    RuntimeProviderUnavailableError,
+    prepare_runtime_components,
+)
+from prodockit.pdf.runtime_store import RuntimeStoreError
 from prodockit.pdf.site import BuiltSiteError
 from prodockit.pdf.source_bundle import SourceBundleError
 from prodockit.project_config import ProjectConfigError, load_project_config
@@ -2825,11 +2831,44 @@ def _pdf_options(command: Callable[_P, _R]) -> Callable[_P, _R]:
     is_flag=True,
     help="Use the legacy mermaid-cli (mmdc) backend instead of standalone Mermaid.",
 )
+@click.option(
+    "--prepare",
+    "prepare_components",
+    multiple=True,
+    type=click.Choice([*COMPONENTS, "all"], case_sensitive=False),
+    help=(
+        "Validate and prepare a project-local PDF component, then exit without "
+        "building a PDF. Repeat the option or use 'all'."
+    ),
+)
 @_pdf_options
-def pdf(config_file: str, markdown_file: str | None, swap: bool) -> None:
+def pdf(
+    config_file: str,
+    markdown_file: str | None,
+    swap: bool,
+    prepare_components: tuple[str, ...],
+) -> None:
     """Check built website markup and maths, then build a PDF from the
     completed Zensical site. CONFIG_FILE supplies nav, docs directory, fonts,
     page size, and other PDF settings."""
+    if prepare_components:
+        if swap:
+            raise click.ClickException(
+                "--swap is a compatibility renderer selector and cannot provision dependencies"
+            )
+        try:
+            prepared = prepare_runtime_components(config_file, prepare_components)
+        except (
+            PdfRuntimeConfigError,
+            RuntimeProviderUnavailableError,
+            RuntimeStoreError,
+            OSError,
+        ) as error:
+            raise click.ClickException(str(error)) from error
+        for result in prepared:
+            state = "Already prepared" if result.cached else "Prepared"
+            click.echo(f"{state} {result.component} {result.version} in {result.path}")
+        return
     try:
         check_pdf_environment(config_file)
     except BuildEnvironmentError as error:

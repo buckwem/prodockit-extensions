@@ -100,6 +100,9 @@ module to the transformation it owns.
 | `prodockit.pdf.source_bundle` | Markdown/configuration source PDF |
 | `prodockit.pdf.index` | Marker extraction, term-page mapping, and generated index |
 | `prodockit.pdf.release` | Host release lookup for cover markers |
+| `prodockit.pdf.runtime_config` | Strict project-root `pdk-pdf.toml` policy and supported defaults |
+| `prodockit.pdf.runtime_store` | Project-local locks, archive validation, smoke tests, atomic activation, and fallback state |
+| `prodockit.pdf.runtime_prepare` | Provider-gated `pdk pdf --prepare` orchestration |
 /// table-caption | <
     attrs: {id: tab-devcons-pdf-internals-know-the-internal-modules}
 
@@ -131,6 +134,43 @@ into a CSS string. The PDF pipeline writes it as an HTML element and places it
 in the repeated footer with CSS Paged Media's `position: running()` and
 `content: element()`. Check the finished PDF when changing this path;
 intermediate HTML alone does not prove that links or line breaks survived.
+
+## Preserve the runtime trust boundary {: #pdf-runtime-trust-boundary }
+
+`pdk-pdf.toml` contains committed intent only. Machine-specific resolved
+state belongs below `.prodockit/cache/pdf/`, rooted beside the selected
+Zensical configuration so separate projects and virtual environments never
+share an active runtime accidentally.
+
+Providers may resolve an approved artifact and copy it into a requested
+staging path. They do not choose its activation path or extract it themselves.
+The common store verifies the exact SHA-256, rejects traversal, links,
+duplicate paths, encrypted ZIP members, special TAR members, excessive entry
+counts and excessive expansion, checks required content, then runs the
+provider's fresh-runtime probe. Only that validated staging directory can be
+atomically activated. A failure retains and reports the current or previous
+known-good runtime.
+
+The first G1 dependency baseline was measured on the development macOS ARM64
+environment on 19 September 2026. These are installed-file sizes rather than
+download sizes and are evidence for later optionalisation, not release
+budgets. \ref{tab-pdf-runtime-baseline} records that starting point.
+
+| Base distribution | Resolved version | Installed files | Installed bytes |
+|---|---:|---:|---:|
+| `pypdf` | 6.18.0 | 124 | 3,990,895 |
+| `mermaidx` | 0.9.5 | 48 | 5,364,347 |
+| `quickjs-ng` | 0.16.2.1 | 9 | 1,249,527 |
+/// table-caption | <
+    attrs: {id: tab-pdf-runtime-baseline}
+
+G1 base dependency baseline
+///
+
+Importing `prodockit.cli` did not import any of those three distributions;
+the measured wall time was 0.36 seconds on that host. Repeat the installed
+size and cold-import measurement in G5 before removing the PDF-only packages
+from the base dependency set.
 
 ## Preserve actionable errors
 

@@ -1383,6 +1383,7 @@ LOCAL_IGNORE_PATTERNS = (
     "/docs/site_documentation.pdf",
     "/docs/source_bundle.pdf",
     "/docs/.prodockit-pdf-mermaid/",
+    "/.prodockit/cache/pdf/",
     "/.prodockit-adopt-backups/",
 )
 

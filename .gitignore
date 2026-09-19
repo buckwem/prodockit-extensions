@@ -10,6 +10,7 @@ venv/
 .mypy_cache/
 .ruff_cache/
 .prodockit-quarantine/
+/.prodockit/cache/pdf/
 .coverage
 htmlcov/
 .DS_Store

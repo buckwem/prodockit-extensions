@@ -17,7 +17,8 @@ the document, and resolve build failures.
 Use the complete-document form or select one Markdown page for focused review.
 
 ```text
-pdk pdf [--config-file PATH] [--markdown-file PAGE]
+pdk pdf [--config-file PATH] [--markdown-file PAGE] [--swap]
+pdk pdf --prepare COMPONENT [--prepare COMPONENT ...]
 ```
 
 ## Working directory {: #cmd-pdf-working-directory }
@@ -38,6 +39,8 @@ built, expect `built site not found: ...; run zensical build first` instead.
 |---|---|
 | `-f`, `--config-file PATH` | Read another Zensical configuration; defaults to `zensical.toml`. |
 | `-m`, `--markdown-file PAGE` | Build only one Markdown page relative to `docs_dir`, ignoring `nav` for the PDF contents. |
+| `--prepare COMPONENT` | Validate and prepare one project-local PDF component without requiring a built site or producing a PDF; repeat it or use `all`. |
+| `--swap` | Use the legacy author-supplied Mermaid CLI as a compatibility fallback; this path never provisions dependencies. |
 | `-h`, `--help` | Show installed help and exit. |
 /// table-caption | <
     attrs: {id: tab-cmd-pdf-options}
@@ -54,6 +57,28 @@ to write the configured PDF path.
 
 The single-page option still reads layout, fonts, styles, and renderer settings
 from the configuration. It changes only the scope of the PDF contents.
+
+### PDF runtime policy {: #cmd-pdf-runtime-policy }
+
+Optional runtime policy lives in `pdk-pdf.toml` beside the selected Zensical
+configuration. A missing file uses supported defaults and an ordinary build
+does not create one. The minimal file is:
+
+```toml
+schema_version = 1
+```
+
+Renderer overrides may select `latest`, `supported`, or an exact version and
+may set `preload = true`. Runtime overrides may select a version. G1 accepts
+only `location = "cache"`: it means the derived project-local store at
+`.prodockit/cache/pdf/`, never an absolute path committed to the repository.
+Resolved versions, hashes, platform identity and last-known-good state are
+recorded inside that store rather than in `pdk-pdf.toml`.
+
+The preparation interface is intentionally provider-gated. A component whose
+qualified acquisition phase has not shipped fails before downloading or
+changing the active runtime. A healthy prepared component is a fast local
+validation with no provider or network call.
 
 ## Exit status {: #cmd-pdf-exit-status }
 
