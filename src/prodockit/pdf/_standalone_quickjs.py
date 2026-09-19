@@ -94,6 +94,10 @@ class StandaloneResourceLimitError(RuntimeError):
     """QuickJS stopped a render at an explicit resource boundary."""
 
 
+class StandaloneStackLimitError(StandaloneResourceLimitError):
+    """QuickJS stopped a render at its bounded native stack allowance."""
+
+
 class StandaloneRenderError(RuntimeError):
     """Mermaid or QuickJS failed without crossing a resource boundary."""
 
@@ -103,7 +107,7 @@ class QuickJSMermaidLimits:
     """Fail-closed limits for one in-process QuickJS context."""
 
     memory_bytes: int = 256 * 1024 * 1024
-    maximum_stack_bytes: int = 512 * 1024
+    maximum_stack_bytes: int = 1024 * 1024
     execution_time_seconds: float = 5.0
     promise_jobs: int = 200_000
     source_bytes: int = 1024 * 1024
@@ -491,6 +495,10 @@ class StandaloneQuickJSMermaidEngine:
             self._pump_jobs(context, deadline)
             error = self._eval_untrusted(context, "globalThis.__renderError", deadline)
             if error:
+                if "maximum call stack size exceeded" in str(error).lower():
+                    raise StandaloneStackLimitError(
+                        "Mermaid rendering exceeded the QuickJS stack limit."
+                    )
                 raise StandaloneRenderError(f"Mermaid rendering failed: {error}")
             svg = self._eval_untrusted(context, "globalThis.__renderResult", deadline)
         except (StandaloneRenderError, StandaloneResourceLimitError):
@@ -571,13 +579,13 @@ class StandaloneQuickJSMermaidEngine:
     @staticmethod
     def _raise_quickjs_error(exc: Exception) -> NoReturn:
         detail = str(exc).lower()
-        if any(marker in detail for marker in ("interrupted", "out of memory", "stack size")):
+        if "stack size" in detail or type(exc).__name__ == "StackOverflow":
+            raise StandaloneStackLimitError(
+                "QuickJS stopped Mermaid at the stack limit."
+            ) from exc
+        if any(marker in detail for marker in ("interrupted", "out of memory")):
             raise StandaloneResourceLimitError(
                 "QuickJS stopped Mermaid at a resource limit."
-            ) from exc
-        if type(exc).__name__ == "StackOverflow":
-            raise StandaloneResourceLimitError(
-                "QuickJS stopped Mermaid at the stack limit."
             ) from exc
         raise StandaloneRenderError("QuickJS failed while rendering Mermaid.") from exc
 
