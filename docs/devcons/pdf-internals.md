@@ -30,9 +30,10 @@ PDF generation pipeline
 
 The public `prodockit pdf` command validates the completed Zensical site, reads
 each navigation page's generated article, and constructs `Page` objects from
-that output. It then pre-renders diagrams and maths and calls the lower-level
-builder. A generated index adds a second layout pass after term pages are
-known.
+that output. It inspects those objects for active Mermaid and arithmatex
+elements before discovering or constructing either optional renderer, then
+pre-renders only the content that is present and calls the lower-level builder.
+A generated index adds a second layout pass after term pages are known.
 
 The command never invokes Zensical or cleans the configured `site_dir`.
 Passing `--markdown-file` narrows only the pages assembled into the PDF; the
@@ -171,6 +172,18 @@ Importing `prodockit.cli` did not import any of those three distributions;
 the measured wall time was 0.36 seconds on that host. Repeat the installed
 size and cold-import measurement in G5 before removing the PDF-only packages
 from the base dependency set.
+
+The G2 lazy boundary uses the same HTML parser as the lower-level missing-
+renderer warnings. On the 60-page contributor guide built on macOS ARM64, a
+20-run sample detected the required renderers in a median 84.39 ms (maximum
+89.79 ms). The parser is platform-independent Python and is covered on the
+supported macOS, Ubuntu, and Windows test matrix. Plain-page configuration
+tests replace Mermaid and MathJax discovery and construction with hard
+failures, proving that unused components perform no probe, worker, directory,
+install, or network work; active Mermaid and maths fixtures prove the existing
+callbacks and output inputs remain selected when required. G2 keeps `--swap`
+as the rollback selector and changes no default renderer. This boundary makes
+the legacy Mermaid CLI path independently deletable in the following gate.
 
 ## Preserve actionable errors
 

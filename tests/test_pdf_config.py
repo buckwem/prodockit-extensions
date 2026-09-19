@@ -79,6 +79,10 @@ class _RecordingMermaidRenderer:
         self.closed = True
 
 
+def _page_with_mermaid(_project, source: str) -> str:
+    return f'<h1>{source}</h1><pre class="mermaid">flowchart LR; A --&gt; B</pre>'
+
+
 @pytest.fixture()
 def project(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     def _make(*, extra: str = "", pandoc_script: str = 'echo "%PDF-1.4 stub" > "$3"') -> Path:
@@ -1487,7 +1491,8 @@ def test_mermaid_renderer_created_from_mmdc_and_closed_after_build(
     monkeypatch.setattr(config, "_find_mmdc_bin", lambda _configured: str(root / "mmdc"))
     monkeypatch.setattr(mermaid_module, "MmdcMermaidRenderer", renderer_factory)
     monkeypatch.setattr(config, "validate_built_site", lambda *_args, **_kwargs: None)
-    monkeypatch.setattr(config, "page_html", lambda _project, source: f"<h1>{source}</h1>")
+    monkeypatch.setattr(config, "page_html", _page_with_mermaid)
+    monkeypatch.setattr(config, "check_web_rendering", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(config, "publish_pdf_to_built_site", lambda *_args: None)
 
     def _spy(_pages, _output_path, **kwargs):
@@ -1521,7 +1526,8 @@ def test_mermaid_renderer_is_closed_when_build_pdf_raises(
     monkeypatch.setattr(config, "_find_mmdc_bin", lambda _configured: str(root / "mmdc"))
     monkeypatch.setattr(mermaid_module, "MmdcMermaidRenderer", renderer_factory)
     monkeypatch.setattr(config, "validate_built_site", lambda *_args, **_kwargs: None)
-    monkeypatch.setattr(config, "page_html", lambda _project, source: f"<h1>{source}</h1>")
+    monkeypatch.setattr(config, "page_html", _page_with_mermaid)
+    monkeypatch.setattr(config, "check_web_rendering", lambda *_args, **_kwargs: None)
 
     def _fail(*_args, **_kwargs):
         raise RuntimeError("boom")
@@ -1545,7 +1551,8 @@ def test_mermaid_renderer_is_absent_when_mmdc_is_not_found(
 
     monkeypatch.setattr(config, "_find_mmdc_bin", lambda _configured: None)
     monkeypatch.setattr(config, "validate_built_site", lambda *_args, **_kwargs: None)
-    monkeypatch.setattr(config, "page_html", lambda _project, source: f"<h1>{source}</h1>")
+    monkeypatch.setattr(config, "page_html", _page_with_mermaid)
+    monkeypatch.setattr(config, "check_web_rendering", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(config, "publish_pdf_to_built_site", lambda *_args: None)
 
     def _spy(_pages, _output_path, **kwargs):
@@ -1584,7 +1591,8 @@ def test_standalone_backend_skips_mmdc_and_closes_after_pdf_build(
     monkeypatch.setattr(config, "_find_mmdc_bin", no_discovery)
     monkeypatch.setattr(config, "create_mermaid_renderer", renderer_factory)
     monkeypatch.setattr(config, "validate_built_site", lambda *_args, **_kwargs: None)
-    monkeypatch.setattr(config, "page_html", lambda _project, source: f"<h1>{source}</h1>")
+    monkeypatch.setattr(config, "page_html", _page_with_mermaid)
+    monkeypatch.setattr(config, "check_web_rendering", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(config, "publish_pdf_to_built_site", lambda *_args: None)
     monkeypatch.setattr(config, "build_pdf", build)
 
@@ -1592,3 +1600,69 @@ def test_standalone_backend_skips_mmdc_and_closes_after_pdf_build(
 
     assert captured["render_mermaid"].__self__ is instances[0]
     assert instances[0].closed is True
+
+
+def test_unused_renderers_do_no_discovery_construction_or_directory_work(
+    project, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = project(extra='[project.extra]\npdf_math_dir = "unused-maths"')
+    captured = {}
+
+    def unexpected(*_args, **_kwargs):
+        raise AssertionError("unused renderer work must stay behind the HTML boundary")
+
+    monkeypatch.setattr(config, "_find_mmdc_bin", unexpected)
+    monkeypatch.setattr(config, "_find_tex2svg_script", unexpected)
+    monkeypatch.setattr(config, "create_mermaid_renderer", unexpected)
+    monkeypatch.setattr(config, "validate_built_site", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(config, "page_html", lambda _project, source: f"<h1>{source}</h1>")
+    monkeypatch.setattr(config, "publish_pdf_to_built_site", lambda *_args: None)
+
+    def build(_pages, _output_path, **kwargs):
+        captured.update(kwargs)
+
+    monkeypatch.setattr(config, "build_pdf", build)
+
+    build_pdf_from_built_site(str(root / "zensical.toml"))
+
+    assert captured["render_mermaid"] is None
+    assert captured["mathjax_available"] is False
+    assert captured["tex2svg_script"] == ""
+    assert captured["math_dir"] is None
+    assert not (root / "unused-maths").exists()
+
+
+def test_mathjax_discovery_and_directory_work_remain_enabled_for_used_maths(
+    project, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = project(extra='[project.extra]\npdf_math_dir = "math-assets"')
+    captured = {}
+    discoveries = []
+
+    monkeypatch.setattr(config, "validate_built_site", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(
+        config,
+        "page_html",
+        lambda _project, source: f'<h1>{source}</h1>'
+        '<span class="arithmatex">\\(x^2\\)</span>',
+    )
+    monkeypatch.setattr(config, "check_web_rendering", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(config, "publish_pdf_to_built_site", lambda *_args: None)
+
+    def find_tex2svg(configured):
+        discoveries.append(configured)
+        return "tools/mathjax/tex2svg.js"
+
+    def build(_pages, _output_path, **kwargs):
+        captured.update(kwargs)
+
+    monkeypatch.setattr(config, "_find_tex2svg_script", find_tex2svg)
+    monkeypatch.setattr(config, "build_pdf", build)
+
+    build_pdf_from_built_site(str(root / "zensical.toml"))
+
+    assert discoveries == [None]
+    assert captured["mathjax_available"] is True
+    assert captured["tex2svg_script"] == "tools/mathjax/tex2svg.js"
+    assert captured["math_dir"] == "math-assets"
+    assert (root / "math-assets").is_dir()
