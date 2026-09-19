@@ -194,13 +194,12 @@ TeX maths still uses the local Node-based MathJax renderer. From the project
 root, initialise it with the \index{commands!`prodockit init-tools`} command:
 
 ```bash
-prodockit init-tools --no-mermaid
+prodockit init-tools
 ```
 
 The command creates the expected MathJax files under `tools/` and prints the
 `npm` installation command to run next. Existing files are preserved unless
-you explicitly add `--force`. Use `prodockit pdf --swap` only when deliberately
-testing or rolling back to the legacy project-local `mermaid-cli` renderer.
+you explicitly add `--force`.
 
 Once installed, ordinary Markdown maths works in both outputs. For example,
 the inline formula $c = \sqrt{a^2 + b^2}$ and the display formula below are
@@ -271,7 +270,6 @@ are described under [Test the built output](devcons/testing.md#testing-quick-sta
 | \index{PDF settings!`reference_style`} | `"european"` | `"european"` (tight, single-line citation entries) or `"global"` (double-spaced, hanging indent - the common APA/MLA/Chicago style). |
 | \index{PDF settings!`pdf_include_table_of_contents`} | `true` | Whether to generate and insert a table of contents. |
 | \index{PDF settings!`pdf_table_of_contents_title`} | `"Table of Contents"` | That page's own heading text. |
-| \index{PDF settings!`pdf_mmdc_bin`} | auto-detected | Path to the legacy [mermaid-cli](https://github.com/mermaid-js/mermaid-cli) `mmdc` binary used only with `prodockit pdf --swap`. |
 | \index{PDF settings!`pdf_tex2svg_script`} / `pdf_math_dir` | auto-detected | A local MathJax `tex2svg`-style Node script, for pre-rendering TeX math (WeasyPrint has no JS engine to run MathJax client-side). Formulas are left as literal text if none is found - see [Mermaid diagrams and TeX maths](#mermaid-diagrams-and-tex-maths). |
 | \index{PDF settings!`pdf_extra_css`} | none | A list of `docs_dir`-relative stylesheet paths, same shape as `extra_css` above but meant *only* for the PDF. The standard order is managed `pdk-pdf.css` followed by author-owned `print.css`; both are loaded after the renderer foundations and the website styles, so `print.css` has the final say at equal specificity. |
 /// table-caption | <
@@ -704,7 +702,7 @@ Repeat the import check before retrying `prodockit pdf`.
 
 For Mermaid, confirm the active Python environment contains the exact runtime
 dependencies installed with ProDockit and build again. For maths, run
-`prodockit init-tools --no-mermaid`, follow the `npm` command it prints, and
+`prodockit init-tools`, follow the `npm` command it prints, and
 then rebuild. `prodockit pdf` reports a missing default Mermaid runtime before
 PDF work begins and warns when maths source cannot be rendered.
 

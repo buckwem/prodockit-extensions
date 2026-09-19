@@ -265,9 +265,8 @@ def fix_up_page_html(
     diagram's own source text and should return an image src (a file path
     or ``data:`` URI) or None if rendering failed (in which case the
     diagram is left as an unrendered ``<pre>``, rather than raising) - see
-    :func:`prodockit.pdf.mermaid.render_mermaid_diagram` for a ready-made
-    callback (partially applied with its own `mmdc_bin`/`output_dir`
-    arguments).
+    :class:`prodockit.pdf.mermaid.StandaloneMermaidRenderer` for the
+    high-level command's implementation.
     """
     soup = BeautifulSoup(html, "html.parser")
 
@@ -440,8 +439,7 @@ def fix_up_page_html(
 
     # Mermaid diagrams: WeasyPrint has no JS engine to run Mermaid.js
     # client-side - pre-render each <pre class="mermaid">'s source to a
-    # static image via the caller-supplied `render_mermaid` callback (see
-    # prodockit.pdf.mermaid.render_mermaid_diagram for a ready-made one).
+    # static image via the caller-supplied `render_mermaid` callback.
     if render_mermaid is not None:
         for pre in soup.select("pre.mermaid"):
             img_src = render_mermaid(pre.get_text())

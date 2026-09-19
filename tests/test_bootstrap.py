@@ -190,12 +190,7 @@ def _ready_machine(tmp_path: Path) -> dict[str, CommandResult]:
     _write_ssh_config(tmp_path)
     project = tmp_path / "GitLab" / "report-al01234"
     (project / ".git").mkdir(parents=True, exist_ok=True)
-    for toolchain in ("mermaid", "mathjax"):
-        (project / "tools" / toolchain / "node_modules").mkdir(parents=True, exist_ok=True)
-    mermaid_bin = project / "tools" / "mermaid" / "node_modules" / ".bin"
-    mermaid_bin.mkdir(parents=True, exist_ok=True)
-    for executable in ("mmdc", "mmdc.cmd"):
-        (mermaid_bin / executable).write_text("", encoding="utf-8")
+    (project / "tools" / "mathjax" / "node_modules").mkdir(parents=True, exist_ok=True)
     (project / "requirements.txt").write_text("zensical\n", encoding="utf-8")
     (project / ".prodockit-components.toml").write_text(
         "schema = 1\n\n[components]\nmermaid = true\nmaths = true\n", encoding="utf-8"
@@ -4515,11 +4510,7 @@ def test_ubuntu_notices_puppeteer_has_no_browser_to_point_at(tmp_path: Path) -> 
     downloading its own; the exports without a Chromium point at
     nothing. Both halves are the stage's own plan, so both are checked."""
     project = tmp_path / "GitLab" / "report-al01234"
-    for toolchain in ("mermaid", "mathjax"):
-        (project / "tools" / toolchain / "node_modules").mkdir(parents=True)
-    mermaid = project / "tools" / "mermaid" / "node_modules" / ".bin" / "mmdc"
-    mermaid.parent.mkdir(parents=True)
-    mermaid.write_text("", encoding="utf-8")
+    (project / "tools" / "mathjax" / "node_modules").mkdir(parents=True)
     mathjax_bundle = (
         project / "tools" / "mathjax" / "node_modules" / "mathjax-full" / "es5" / "tex-svg-full.js"
     )
@@ -4545,9 +4536,6 @@ def test_ubuntu_notices_puppeteer_has_no_browser_to_point_at(tmp_path: Path) -> 
 
 def test_ubuntu_rejects_chromium_older_than_the_puppeteer_floor(tmp_path: Path) -> None:
     project = tmp_path / "GitLab" / "report-al01234"
-    mermaid = project / "tools" / "mermaid" / "node_modules" / ".bin" / "mmdc"
-    mermaid.parent.mkdir(parents=True)
-    mermaid.write_text("", encoding="utf-8")
     mathjax_bundle = (
         project / "tools" / "mathjax" / "node_modules" / "mathjax-full" / "es5" / "tex-svg-full.js"
     )
@@ -4586,9 +4574,6 @@ def test_node_stage_warns_when_a_runtime_version_cannot_be_read(
     tmp_path: Path, unreadable: str, detail: str
 ) -> None:
     project = tmp_path / "GitLab" / "report-al01234"
-    mermaid = project / "tools" / "mermaid" / "node_modules" / ".bin" / "mmdc"
-    mermaid.parent.mkdir(parents=True)
-    mermaid.write_text("", encoding="utf-8")
     mathjax_bundle = (
         project / "tools" / "mathjax" / "node_modules" / "mathjax-full" / "es5" / "tex-svg-full.js"
     )

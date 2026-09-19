@@ -330,12 +330,12 @@ def test_configured_mermaid_is_optional_until_a_diagram_uses_it(
         },
     )
 
-    assert not any("standalone runtime" in message for message in _messages(config))
+    assert not any("Python renderer is unavailable" in message for message in _messages(config))
 
     (tmp_path / "docs" / "index.md").write_text(
         "# Diagram\n\n```mermaid\ngraph LR\n  A --> B\n```\n", encoding="utf-8"
     )
-    assert any("standalone runtime is unavailable" in message for message in _messages(config))
+    assert any("Python renderer is unavailable" in message for message in _messages(config))
 
 
 @pytest.mark.parametrize(
@@ -357,7 +357,7 @@ def test_quoted_or_commented_mermaid_fence_does_not_require_a_renderer(
         {"index.md": f"# Examples\n\n{example}\n"},
     )
 
-    assert not any("mmdc renderer" in message for message in _messages(config))
+    assert not any("Python renderer is unavailable" in message for message in _messages(config))
 
 
 def test_real_mermaid_fence_beside_quoted_example_still_requires_a_renderer(
@@ -380,31 +380,7 @@ def test_real_mermaid_fence_beside_quoted_example_still_requires_a_renderer(
         },
     )
 
-    assert any("standalone runtime is unavailable" in message for message in _messages(config))
-
-
-def test_mermaid_renderer_must_run_not_merely_exist(tmp_path: Path, monkeypatch) -> None:
-    monkeypatch.setenv("PATH", "")
-    monkeypatch.setattr(
-        "prodockit.project_integrity.require_standalone_runtime", _standalone_unavailable
-    )
-    config = _project(
-        tmp_path,
-        '[project.extra]\npdf_mmdc_bin = "tools/mermaid/mmdc"\n'
-        "[project.markdown_extensions.pymdownx.superfences]\n"
-        'custom_fences = [{name = "mermaid"}]\n',
-        {"index.md": "```mermaid\ngraph LR\n  A --> B\n```\n"},
-    )
-    binary = tmp_path / "tools" / "mermaid" / "mmdc"
-    binary.parent.mkdir(parents=True)
-    binary.write_text("incomplete", encoding="utf-8")
-    monkeypatch.setattr(
-        "prodockit.project_integrity.probe_mermaid",
-        lambda path: SimpleNamespace(path=path, ok=False, error="ERR_MODULE_NOT_FOUND"),
-    )
-
-    assert any("no usable external mmdc" in message for message in _messages(config))
-    assert any("ERR_MODULE_NOT_FOUND" in message for message in _messages(config))
+    assert any("Python renderer is unavailable" in message for message in _messages(config))
 
 
 def test_configured_maths_is_optional_until_notation_uses_it(tmp_path: Path) -> None:

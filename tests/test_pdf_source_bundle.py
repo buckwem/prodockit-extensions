@@ -258,7 +258,7 @@ def test_discover_source_files_excludes_common_lockfiles(tmp_path: Path) -> None
     never hand-written by a student, and can run to thousands of lines -
     excluded by exact file name regardless of which directory holds them."""
     _init_git_repo(tmp_path)
-    (tmp_path / "tools" / "mermaid").mkdir(parents=True)
+    (tmp_path / "tools" / "mathjax").mkdir(parents=True)
     lockfile_names = [
         "package-lock.json",
         "npm-shrinkwrap.json",
@@ -269,10 +269,10 @@ def test_discover_source_files_excludes_common_lockfiles(tmp_path: Path) -> None
         "Cargo.lock",
     ]
     for name in lockfile_names:
-        (tmp_path / "tools" / "mermaid" / name).write_text("{}\n", encoding="utf-8")
+        (tmp_path / "tools" / "mathjax" / name).write_text("{}\n", encoding="utf-8")
     (tmp_path / "kept.txt").write_text("keep me\n", encoding="utf-8")
     subprocess.run(
-        ["git", "add"] + [f"tools/mermaid/{name}" for name in lockfile_names] + ["kept.txt"],
+        ["git", "add"] + [f"tools/mathjax/{name}" for name in lockfile_names] + ["kept.txt"],
         cwd=tmp_path,
         check=True,
     )

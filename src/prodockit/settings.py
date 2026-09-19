@@ -103,7 +103,6 @@ EXTRA_SETTINGS = (
     ExtraSetting("pdf_header_footer_divider_color", "#e2e8f0", "PDF"),
     ExtraSetting("pdf_include_table_of_contents", True, "PDF"),
     ExtraSetting("pdf_table_of_contents_title", "Table of Contents", "PDF"),
-    ExtraSetting("pdf_mmdc_bin", None, "PDF"),
     ExtraSetting("pdf_tex2svg_script", None, "PDF"),
     ExtraSetting("pdf_math_dir", None, "PDF"),
     ExtraSetting("pdf_extra_css", (), "PDF"),

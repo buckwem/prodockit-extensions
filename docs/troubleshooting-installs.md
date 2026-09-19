@@ -389,12 +389,6 @@ Node.js](manual-install.md#install-nodejs) and use the supported installer for
 the operating system rather than combining Node.js from one source with npm
 from another.
 
-If Adopt stops with `mermaid was selected but npm is not available`, no
-project rollback is needed. Install or repair Node.js, open a new terminal,
-activate the project environment, confirm both version commands above, and
-rerun `pdk adopt --apply`. Completed Adopt stages are detected and are not
-needlessly repeated.
-
 ## Recover a failed or interrupted installation {: #installtooling-download-fails }
 
 A timeout, connection reset, or temporary `503` normally does not require the

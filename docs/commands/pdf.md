@@ -17,7 +17,7 @@ the document, and resolve build failures.
 Use the complete-document form or select one Markdown page for focused review.
 
 ```text
-pdk pdf [--config-file PATH] [--markdown-file PAGE] [--swap]
+pdk pdf [--config-file PATH] [--markdown-file PAGE]
 pdk pdf --prepare COMPONENT [--prepare COMPONENT ...]
 ```
 
@@ -40,7 +40,6 @@ built, expect `built site not found: ...; run zensical build first` instead.
 | `-f`, `--config-file PATH` | Read another Zensical configuration; defaults to `zensical.toml`. |
 | `-m`, `--markdown-file PAGE` | Build only one Markdown page relative to `docs_dir`, ignoring `nav` for the PDF contents. |
 | `--prepare COMPONENT` | Validate and prepare one project-local PDF component without requiring a built site or producing a PDF; repeat it or use `all`. |
-| `--swap` | Use the legacy author-supplied Mermaid CLI as a compatibility fallback; this path never provisions dependencies. |
 | `-h`, `--help` | Show installed help and exit. |
 /// table-caption | <
     attrs: {id: tab-cmd-pdf-options}

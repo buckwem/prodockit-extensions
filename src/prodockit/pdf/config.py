@@ -18,7 +18,6 @@ from __future__ import annotations
 import base64
 import os
 import re
-import shutil
 from collections.abc import Callable
 from pathlib import Path
 
@@ -30,7 +29,7 @@ from prodockit.pdf.icons import (
     discover_icon_dirs,
     discover_legacy_icon_dirs,
 )
-from prodockit.pdf.mermaid import MermaidBackend, MermaidRenderer, create_mermaid_renderer
+from prodockit.pdf.mermaid import MermaidRenderer, create_mermaid_renderer
 from prodockit.pdf.release import get_latest_release_tag
 from prodockit.pdf.site import (
     page_html,
@@ -125,72 +124,13 @@ def _css_escape_content_string(text: str) -> str:
     return escaped_text.replace('"', '\\"')
 
 
-# Windows cannot start the extensionless `mmdc` that `npm` writes into
-# `node_modules/.bin`: that one is a POSIX shell script, and the runnable
-# shims sit beside it as `mmdc.cmd` and `mmdc.ps1`. The bare name is the
-# spelling every platform's documentation uses, and `os.path.exists`
-# confirms it happily - so it resolves, then fails at the point of use with
-# `[WinError 193] %1 is not a valid Win32 application`, which surfaces as a
-# per-diagram render warning rather than anything naming the real cause.
-#
-# A fixed suffix list rather than `PATHEXT`: this is about what
-# `CreateProcess` can start, which does not vary per machine, and a user who
-# has added `.PS1` to their own `PATHEXT` would otherwise steer us onto a
-# shim that is not directly executable either.
-_WINDOWS = os.name == "nt"
-_EXECUTABLE_SUFFIXES = (".cmd", ".exe", ".bat", ".com")
-
-
-def _runnable_spellings(path: str) -> list[str]:
-    """Returns the ways `path` might name something this platform can
-    actually execute, most preferred first. Everywhere but Windows, and for
-    a path that already carries a suffix, that is just `path` itself."""
-    if not _WINDOWS or os.path.splitext(path)[1]:
-        return [path]
-    return [path + suffix for suffix in _EXECUTABLE_SUFFIXES] + [path]
-
-
-def _find_mmdc_bin(configured: str | None) -> str | None:
-    """Resolves a usable `mmdc` (mermaid-cli) binary path: an explicit
-    `configured` path if given and it exists, else whatever `mmdc` is found
-    on `PATH`, else a couple of common local-install locations, else None
-    (Mermaid diagrams are then left unrendered rather than failing the
-    whole build).
-
-    A relative `configured` path resolves against the current working
-    directory, not wherever the `zensical.toml` it came from lives - fine
-    for the common case of running `prodockit pdf` from the project root
-    (the same directory both `configured` and `config_path` are typically
-    relative to), but a `-f`/`--config-file` pointing at a project in a
-    different directory needs an absolute `pdf_mmdc_bin` instead.
-
-    On Windows every location is tried with an executable suffix first, so
-    a `configured` or default path naming the bare `mmdc` still resolves to
-    the runnable `mmdc.cmd` beside it - see `_runnable_spellings`.
-    """
-    if configured:
-        for candidate in _runnable_spellings(configured):
-            if os.path.exists(candidate):
-                return candidate
-    found = shutil.which("mmdc")
-    if found:
-        return found
-    for base in (
-        os.path.join("node_modules", ".bin", "mmdc"),
-    ):
-        for candidate in _runnable_spellings(base):
-            if os.path.exists(candidate):
-                return os.path.abspath(candidate)
-    return None
-
-
 def _find_tex2svg_script(configured: str | None) -> str | None:
     """Resolves a usable `tex2svg`-style Node script path for TeX math
     pre-rendering: an explicit `configured` path if given and it exists,
     else a common local-install location, else None (math formulas are
     then left as literal, unrendered text rather than failing the whole
-    build). Same CWD-relative caveat for a relative `configured` path as
-    `_find_mmdc_bin` above."""
+    build). A relative configured path resolves against the current working
+    directory."""
     if configured and os.path.exists(configured):
         return os.path.abspath(configured)
     candidate = os.path.join("tools", "mathjax", "tex2svg.js")
@@ -260,7 +200,6 @@ def build_pdf_from_zensical_config(
         markdown_file=markdown_file,
         on_stage=on_stage,
         built_site=False,
-        mermaid_backend=MermaidBackend.MMDC,
     )
 
 
@@ -269,7 +208,6 @@ def build_pdf_from_built_site(
     *,
     markdown_file: str | None = None,
     on_stage: StageReporter | None = None,
-    mermaid_backend: MermaidBackend = MermaidBackend.STANDALONE,
 ) -> str:
     """Build from the output of Zensical's documented build command.
 
@@ -282,7 +220,6 @@ def build_pdf_from_built_site(
         markdown_file=markdown_file,
         on_stage=on_stage,
         built_site=True,
-        mermaid_backend=mermaid_backend,
     )
 
 
@@ -292,7 +229,6 @@ def _build_pdf_from_config(
     markdown_file: str | None = None,
     on_stage: StageReporter | None = None,
     built_site: bool,
-    mermaid_backend: MermaidBackend = MermaidBackend.STANDALONE,
 ) -> str:
     """Builds a PDF entirely from `config_path` (a Zensical config file)
     and returns the path it was written to.
@@ -337,10 +273,9 @@ def _build_pdf_from_config(
       `heading_numbering` (default `true`), `reference_style` (`"european"`
       - the default - or `"global"`), `reference_spacing_european`,
       `reference_indent_global`, `reference_spacing_global`,
-      `pdf_mmdc_bin` (the legacy ``--swap`` path) and `pdf_tex2svg_script`
-      (both auto-detected if unset - see `_find_mmdc_bin`/
-      `_find_tex2svg_script`). The default Mermaid renderer uses the audited
-      Python runtime; maths remains browser-checked when it appears),
+      `pdf_tex2svg_script` (auto-detected if unset - see
+      `_find_tex2svg_script`). Mermaid uses the audited Python runtime;
+      maths remains browser-checked when it appears),
       `pdf_math_dir`, `pdf_include_table_of_contents`
       (default `true`), `pdf_table_of_contents_title`, `pdf_extra_css` (a
       list of `docs_dir`-relative stylesheet paths, same
@@ -527,18 +462,10 @@ def _build_pdf_from_config(
     mermaid_renderer: MermaidRenderer | None = None
     render_mermaid: Callable[[str], str | None] | None = None
     if renderer_requirements.mermaid:
-        mmdc_bin = (
-            _find_mmdc_bin(extra.get("pdf_mmdc_bin"))
-            if mermaid_backend is MermaidBackend.MMDC
-            else None
-        )
         mermaid_renderer = create_mermaid_renderer(
-            mermaid_backend,
-            mmdc_bin=mmdc_bin,
             output_dir=os.path.join(source_docs_dir, ".prodockit-pdf-mermaid"),
         )
-        if mermaid_renderer is not None:
-            render_mermaid = mermaid_renderer.render_source
+        render_mermaid = mermaid_renderer.render_source
 
     tex2svg_script = None
     math_dir = None
@@ -558,7 +485,7 @@ def _build_pdf_from_config(
             project_config,
             page_objects,
             instant_navigation=not markdown_file and "navigation.instant" in theme_features,
-            verify_mermaid=mermaid_backend is MermaidBackend.MMDC,
+            verify_mermaid=False,
         )
 
     # Cover-page markers (see this function's own docs below) - a

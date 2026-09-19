@@ -97,7 +97,7 @@ module to the transformation it owns.
 | `prodockit.pdf.css` | Renderer foundations, dynamic page settings, running headers/footers, and duplex layout |
 | `docs/stylesheets/pdk-pdf.css` | Managed PDF presentation defaults that authors can override in `print.css` |
 | `prodockit.pdf.icons` | Project icon discovery and SVG recovery from built CSS |
-| `prodockit.pdf.mermaid` | Mermaid CLI invocation and diagram assets |
+| `prodockit.pdf.mermaid` | Isolated Python Mermaid rendering and diagram assets |
 | `prodockit.pdf.source_bundle` | Markdown/configuration source PDF |
 | `prodockit.pdf.index` | Marker extraction, term-page mapping, and generated index |
 | `prodockit.pdf.release` | Host release lookup for cover markers |
@@ -181,9 +181,9 @@ supported macOS, Ubuntu, and Windows test matrix. Plain-page configuration
 tests replace Mermaid and MathJax discovery and construction with hard
 failures, proving that unused components perform no probe, worker, directory,
 install, or network work; active Mermaid and maths fixtures prove the existing
-callbacks and output inputs remain selected when required. G2 keeps `--swap`
-as the rollback selector and changes no default renderer. This boundary makes
-the legacy Mermaid CLI path independently deletable in the following gate.
+callbacks and output inputs remain selected when required. G2 changed no
+default renderer and made the external Mermaid fallback independently deletable;
+that fallback and its configuration were subsequently removed.
 
 ## Preserve actionable errors
 

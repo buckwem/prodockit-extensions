@@ -130,30 +130,6 @@ def test_deliverables_reject_unexpected_diagnostics(tmp_path, monkeypatch, outpu
         adopt_acceptance.verify_deliverables(Path("python"), tmp_path, tmp_path / "zensical.toml")
 
 
-def test_deliverables_can_exercise_the_legacy_pdf_backend(tmp_path, monkeypatch):
-    calls = []
-
-    def run(command, **kwargs):
-        calls.append(command)
-        name = command[3]
-        if name == "diag":
-            output = "Result: PASS (1 passed)"
-        else:
-            filename = f"{name}.pdf"
-            (tmp_path / filename).write_bytes(b"%PDF-1.7\n")
-            output = f"Wrote {filename}" + (" in 1.2s" if name == "pdf" else "")
-        return subprocess.CompletedProcess(command, 0, stdout=output)
-
-    monkeypatch.setattr(adopt_acceptance, "run", run)
-    adopt_acceptance.verify_deliverables(
-        Path("python"), tmp_path, tmp_path / "zensical.toml", pdf_swap=True
-    )
-
-    assert "--swap" not in calls[0]
-    assert "--swap" in calls[1]
-    assert "--swap" not in calls[2]
-
-
 def test_an_ambiguous_wheel_directory_is_rejected(tmp_path: Path) -> None:
     (tmp_path / "prodockit-1-py3-none-any.whl").write_bytes(b"one")
     (tmp_path / "prodockit-2-py3-none-any.whl").write_bytes(b"two")
@@ -234,11 +210,11 @@ def test_scenario_workers_must_be_positive() -> None:
 
 def test_only_external_renderer_failures_are_classified_as_transient() -> None:
     assert adopt_acceptance.transient_renderer_failure(
-        "npm completed but Mermaid CLI timed out after 30 seconds"
+        "npm completed but MathJax timed out after 30 seconds"
     )
     assert adopt_acceptance.transient_renderer_failure("npm ERR! code ECONNRESET")
     assert adopt_acceptance.transient_renderer_failure(
-        "Mermaid failed: Content snap GPU wrapper missing; ensure slot is connected"
+        "Chrome failed: Content snap GPU wrapper missing; ensure slot is connected"
     )
     assert not adopt_acceptance.transient_renderer_failure(
         "configuration changed beyond the selected assets"
@@ -247,13 +223,7 @@ def test_only_external_renderer_failures_are_classified_as_transient() -> None:
 
 @pytest.mark.parametrize(
     "failure",
-    [
-        ("Error: could not install mermaid: Command ['npm', 'ci'] timed out after 600 seconds"),
-        (
-            "Error: npm completed but Mermaid CLI is unusable: Command "
-            "['mmdc', '-i', 'health.mmd'] timed out after 30.0 seconds"
-        ),
-    ],
+    ["Error: could not install MathJax: Command ['npm', 'ci'] timed out after 600 seconds"],
 )
 def test_each_failure_seen_on_pr_718_is_retried_once(
     tmp_path: Path, monkeypatch, failure: str
@@ -362,7 +332,7 @@ def test_a_failed_run_still_writes_an_acceptance_report(tmp_path: Path, monkeypa
         adopt_acceptance,
         "exercise_fixture",
         lambda *args, **kwargs: (_ for _ in ()).throw(
-            adopt_acceptance.AcceptanceError("Mermaid mmdc timed out after two attempts")
+            adopt_acceptance.AcceptanceError("MathJax browser timed out after two attempts")
         ),
     )
 

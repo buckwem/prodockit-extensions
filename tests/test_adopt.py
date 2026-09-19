@@ -24,7 +24,6 @@ from prodockit.adopt import (
     AdoptError,
     AdoptOptions,
     Step,
-    _mermaid_bin,
     apply_step,
     assess,
     ensure_javascripts,
@@ -1174,7 +1173,6 @@ def test_missing_manifest_keeps_optional_renderers_off_despite_capable_configura
 site_name = "Existing document"
 
 [project.extra]
-pdf_mmdc_bin = "tools/mermaid/node_modules/.bin/mmdc"
 pdf_tex2svg_script = "tools/mathjax/tex2svg.js"
 
 [project.markdown_extensions.pymdownx.arithmatex]
@@ -1223,7 +1221,7 @@ def test_mermaid_adoption_does_not_own_or_modify_node_project(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     project = _project(tmp_path)
-    author_file = project / "tools/mermaid/package.json"
+    author_file = project / "tools/author-renderer/package.json"
     author_file.parent.mkdir(parents=True)
     author_file.write_text('{"name": "author-owned"}\n', encoding="utf-8")
     monkeypatch.setattr("prodockit.adopt.require_standalone_runtime", lambda: None)
@@ -1231,22 +1229,8 @@ def test_mermaid_adoption_does_not_own_or_modify_node_project(
     written = apply_step(project, AdoptOptions(mermaid=True), "mermaid")
 
     assert author_file.read_text(encoding="utf-8") == '{"name": "author-owned"}\n'
-    assert not (project / "tools/mermaid/package-lock.json").exists()
-    assert all("tools/mermaid" not in path.as_posix() for path in written)
-
-
-def test_mermaid_health_prefers_the_runnable_windows_command_shim(
-    tmp_path: Path, monkeypatch
-) -> None:
-    project = _project(tmp_path)
-    bin_dir = project / "tools" / "mermaid" / "node_modules" / ".bin"
-    bin_dir.mkdir(parents=True)
-    (bin_dir / "mmdc").write_text("posix shim", encoding="utf-8")
-    windows_shim = bin_dir / "mmdc.cmd"
-    windows_shim.write_text("windows shim", encoding="utf-8")
-    monkeypatch.setattr("prodockit.adopt.sys.platform", "win32")
-
-    assert _mermaid_bin(project) == windows_shim
+    assert not (project / "tools/author-renderer/package-lock.json").exists()
+    assert all("tools/author-renderer" not in path.as_posix() for path in written)
 
 
 def test_maths_install_copies_the_browser_bundle_after_npm(tmp_path: Path, monkeypatch) -> None:

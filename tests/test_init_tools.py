@@ -31,7 +31,6 @@ def test_scaffolds_mathjax_by_default(tmp_path: Path) -> None:
     assert (tmp_path / "tools/mathjax/package.json").is_file()
     assert (tmp_path / "tools/mathjax/package-lock.json").is_file()
     assert (tmp_path / "tools/mathjax/tex2svg.js").is_file()
-    assert not (tmp_path / "tools/mermaid").exists()
     assert result.skipped == []
 
 

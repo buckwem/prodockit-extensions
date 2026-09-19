@@ -116,11 +116,6 @@ def parser() -> argparse.ArgumentParser:
     )
     result.add_argument("--wheel", type=Path, required=True, help="Wheel file or directory")
     result.add_argument(
-        "--pdf-swap",
-        action="store_true",
-        help="Exercise the legacy PDF Mermaid backend on unsupported runtime platforms",
-    )
-    result.add_argument(
         "--old-version",
         default=OLD_PRODOCKIT_VERSION,
         help=(
@@ -196,7 +191,6 @@ def main(arguments: list[str] | None = None) -> int:
             maths=True,
             fixture_content=True,
             use_defaults=True,
-            pdf_swap=args.pdf_swap,
         )
         expected = {
             "requirements.txt",

@@ -1103,49 +1103,6 @@ def test_mermaid_diagnostic_rejects_an_unavailable_standalone_runtime(
     assert check.data["error"] == "audited runtime unavailable"
 
 
-def test_mermaid_diagnostic_accepts_external_mmdc_when_standalone_is_unavailable(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    config = _project(tmp_path, required=True)
-    mmdc = tmp_path / "external" / "mmdc"
-    mmdc.parent.mkdir()
-    mmdc.touch()
-    monkeypatch.setattr(
-        diagnostics,
-        "_command",
-        lambda name: diagnostics.CommandInfo(name, "/usr/bin/tool", "1.0"),
-    )
-    monkeypatch.setattr(
-        diagnostics.shutil,
-        "which",
-        lambda name: str(mmdc) if name == "mmdc" else None,
-    )
-
-    def unavailable() -> None:
-        raise diagnostics.StandaloneRuntimeUnavailableError("audited runtime unavailable")
-
-    monkeypatch.setattr(diagnostics, "require_standalone_runtime", unavailable)
-    monkeypatch.setattr(
-        diagnostics,
-        "probe_mermaid",
-        lambda path, **_kwargs: SimpleNamespace(
-            path=Path(path), ok=True, version="11.16.0", error=None
-        ),
-    )
-
-    check = next(
-        item
-        for item in diagnostics._renderer_checks(config, tmp_path)
-        if item.id == "renderer.mermaid"
-    )
-
-    assert check.status == "pass"
-    assert check.summary == "External mmdc 11.16.0 for --swap"
-    assert check.data["backend"] == "mmdc"
-    assert check.data["path"] == "external/mmdc"
-    assert check.data["standalone_error"] == "audited runtime unavailable"
-
-
 def test_mermaid_diagnostic_accepts_the_standalone_runtime(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

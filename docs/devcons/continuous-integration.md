@@ -173,7 +173,7 @@ connects each runner requirement to the build feature that needs it.
 | Pandoc | PDF conversion and `prodockit.bibliography` | The build fails |
 | WeasyPrint native libraries | PDF layout | Import or PDF build fails |
 | Document fonts | Correct PDF typography and pagination | A fallback font may be substituted silently |
-| Node, Mermaid CLI, and Chrome | Mermaid diagrams in the PDF | The PDF can contain raw diagram source |
+| Python Mermaid runtime | Mermaid diagrams in the PDF | The PDF can contain raw diagram source |
 | Node and MathJax | TeX maths in the PDF and website bundle | The output can contain raw TeX |
 | Citation style files | Bibliography formatting | A configured missing style stops rendering |
 | Suitable Git history or release metadata | Version text used by a cover or macro | The field can be empty or one release behind |

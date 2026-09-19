@@ -115,7 +115,7 @@ from prodockit.pdf.config import (
     build_pdf_from_zensical_config,
     build_source_bundle_from_zensical_config,
 )
-from prodockit.pdf.mermaid import MermaidBackend, MermaidBackendUnavailableError
+from prodockit.pdf.mermaid import MermaidBackendUnavailableError
 from prodockit.pdf.runtime_config import COMPONENTS, PdfRuntimeConfigError
 from prodockit.pdf.runtime_prepare import (
     RuntimeProviderUnavailableError,
@@ -2175,7 +2175,7 @@ def diag_command(
                 "installation.metadata": "distribution discovery is readable and unique",
                 "dependencies.shared-files": "the selected file matches the installed bytes",
                 "dependencies.pins": "all selected package declarations use the chosen version",
-                "renderer.mermaid": "mmdc renders a health-check diagram",
+                "renderer.mermaid": "the Python Mermaid runtime passes its preflight",
                 "renderer.mathjax": (
                     "MathJax renders a health-check expression and website assets exist"
                 ),
@@ -2749,7 +2749,6 @@ def _run_pdf_command(
     markdown_file: str | None,
     *,
     legacy: bool,
-    mermaid_backend: MermaidBackend = MermaidBackend.STANDALONE,
 ) -> None:
     """Shared presentation for the public and legacy PDF renderers."""
     if markdown_file:
@@ -2787,7 +2786,6 @@ def _run_pdf_command(
                 config_file,
                 markdown_file=markdown_file,
                 on_stage=say,
-                mermaid_backend=mermaid_backend,
             )
     except (
         BuiltSiteError,
@@ -2827,11 +2825,6 @@ def _pdf_options(command: Callable[_P, _R]) -> Callable[_P, _R]:
 
 @main.command()
 @click.option(
-    "--swap",
-    is_flag=True,
-    help="Use the legacy mermaid-cli (mmdc) backend instead of standalone Mermaid.",
-)
-@click.option(
     "--prepare",
     "prepare_components",
     multiple=True,
@@ -2845,17 +2838,12 @@ def _pdf_options(command: Callable[_P, _R]) -> Callable[_P, _R]:
 def pdf(
     config_file: str,
     markdown_file: str | None,
-    swap: bool,
     prepare_components: tuple[str, ...],
 ) -> None:
     """Check built website markup and maths, then build a PDF from the
     completed Zensical site. CONFIG_FILE supplies nav, docs directory, fonts,
     page size, and other PDF settings."""
     if prepare_components:
-        if swap:
-            raise click.ClickException(
-                "--swap is a compatibility renderer selector and cannot provision dependencies"
-            )
         try:
             prepared = prepare_runtime_components(config_file, prepare_components)
         except (
@@ -2873,12 +2861,7 @@ def pdf(
         check_pdf_environment(config_file)
     except BuildEnvironmentError as error:
         raise click.ClickException(str(error)) from error
-    _run_pdf_command(
-        config_file,
-        markdown_file,
-        legacy=False,
-        mermaid_backend=MermaidBackend.MMDC if swap else MermaidBackend.STANDALONE,
-    )
+    _run_pdf_command(config_file, markdown_file, legacy=False)
 
 
 @main.command("pdf-legacy", hidden=True)

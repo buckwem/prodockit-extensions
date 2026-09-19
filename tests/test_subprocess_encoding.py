@@ -9,7 +9,7 @@ cp1252 on a default Windows install - so the same call that works
 everywhere in development raises `UnicodeDecodeError` on Windows the moment
 a tool emits a byte cp1252 has no character for.
 
-Every tool prodockit shells out to emits UTF-8: pandoc, git, mermaid-cli.
+Every tool prodockit shells out to emits UTF-8, including Pandoc and Git.
 An accented author name in a `.bib` file, an en dash in a commit message or
 a curly quote in a diagram label is enough.
 

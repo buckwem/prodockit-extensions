@@ -17,7 +17,7 @@ from prodockit.testing.checks import (
     find_unrendered_tex_pages,
 )
 
-# Extracted verbatim from a PDF built without mermaid-cli installed.
+# Extracted verbatim from a PDF whose Mermaid callback was unavailable.
 UNRENDERED_MERMAID = (
     "they're a paid, approved service for hosting confidential company data.\n"
     "graph LR\n"
@@ -109,7 +109,7 @@ def test_assertions_fail_with_the_page_number_and_the_fix() -> None:
         assert_no_unrendered_mermaid(["clean", UNRENDERED_MERMAID])
     message = str(excinfo.value)
     assert "[1]" in message
-    assert "Python-only default renderer" in message, "the failure should name the fix"
+    assert "Python Mermaid dependencies" in message, "the failure should name the fix"
 
     with pytest.raises(AssertionError, match="prodockit init-tools"):
         assert_no_unrendered_tex([UNRENDERED_TEX])

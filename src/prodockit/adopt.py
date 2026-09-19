@@ -55,7 +55,7 @@ from prodockit.pdf._standalone_quickjs import (
 )
 from prodockit.pdf._standalone_quickjs import require_standalone_runtime
 from prodockit.pins import TESTED_VERSIONS
-from prodockit.renderer_health import probe_mathjax, probe_mermaid
+from prodockit.renderer_health import probe_mathjax
 from prodockit.renderer_resilience import DEFAULT_RETRY_DELAYS, RetryReporter, run_npm_with_retries
 from prodockit.settings import EXTRA_SETTINGS
 from prodockit.shared_files import resource_bytes, same_text_content
@@ -1300,15 +1300,6 @@ def _tool_files_ok(root: Path, component: str) -> bool:
     return all((root / "tools" / component / name).is_file() for name in COMPONENT_FILES[component])
 
 
-def _mermaid_bin(root: Path) -> Path | None:
-    bin_dir = root / "tools" / "mermaid" / "node_modules" / ".bin"
-    names = ("mmdc.cmd", "mmdc") if sys.platform == "win32" else ("mmdc",)
-    return next(
-        (candidate for name in names if (candidate := bin_dir / name).is_file()),
-        None,
-    )
-
-
 def _tool_health(
     root: Path,
     component: str,
@@ -1319,20 +1310,8 @@ def _tool_health(
         try:
             require_standalone_runtime()
             return True, "standalone Python Mermaid runtime is available"
-        except StandaloneRuntimeUnavailableError as standalone_error:
-            binary = _mermaid_bin(root)
-            if binary is None and (found := shutil.which("mmdc")):
-                binary = Path(found)
-            if binary is None:
-                return False, str(standalone_error)
-            probe = (
-                probe_mermaid(binary, reporter=retry_reporter)
-                if retry_reporter is not None
-                else probe_mermaid(binary)
-            )
-            if probe.ok:
-                return True, f"external mmdc {probe.version or 'is available'} for --swap"
-            return False, f"external mmdc health check failed: {probe.error}"
+        except StandaloneRuntimeUnavailableError as error:
+            return False, str(error)
     if not _tool_files_ok(root, component):
         return False, (
             "renderer scaffold is incomplete; restore release files, preserving existing "
