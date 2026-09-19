@@ -2172,6 +2172,7 @@ def repair_locked_renderer(
         modules = tool_root / "node_modules"
         if modules.exists() or modules.is_symlink():
             transaction.quarantine_path(modules, backup_name=f"tools/{component}/node_modules")
+            transaction.record_creation(modules)
         elif tool_root.exists():
             transaction.record_creation(modules)
 
