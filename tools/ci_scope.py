@@ -184,6 +184,7 @@ _COMPONENT_FILES: dict[str, frozenset[str]] = {
     "tools/bootstrap_live_provider_github_lifecycle.py": frozenset({"bootstrap"}),
     "tools/bootstrap_live_provider_ephemeral_key.py": frozenset({"bootstrap"}),
     "tools/bootstrap_live_provider_surrey_fixture.py": frozenset({"bootstrap"}),
+    "tools/ci_disable_chrome_source.py": frozenset({"bootstrap"}),
     "tools/surrey_retained_state.py": frozenset({"bootstrap"}),
     "tools/canonical_wheel.py": frozenset({"bootstrap"}),
     "tools/live_provider_state.py": frozenset({"bootstrap"}),
@@ -348,6 +349,7 @@ def _run_git(command: Sequence[str]) -> subprocess.CompletedProcess[bytes]:
 
 
 _NATIVE_BOOTSTRAP_FILES = {
+    "tools/ci_disable_chrome_source.py",
     ".github/workflows/bootstrap-install.yml",
     "tools/ci_scope.py",
     "tools/bootstrap_native_install.py",
