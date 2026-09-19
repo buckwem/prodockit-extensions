@@ -124,15 +124,12 @@ checks the inspected file fingerprint, backs up every file it will change, and
 delegates one package and version to the existing typed pin service. It never
 selects an online latest release.
 
-For `renderer.mermaid` and `renderer.mathjax`, installation is offered only by
-`pdk diag --online --apply`. Node and npm must pass, the project must use the
-standard local renderer path, and `package.json` plus `package-lock.json` must
-be valid, mutually consistent, and contain no author lifecycle scripts. A
-missing pair can be created by the packaged `init-tools` scaffold; a partial,
-custom, unpinned, or symlinked pair is refused. After confirmation the adapter
-quarantines `node_modules`, runs immutable `npm ci`, and probes a real render.
-MathJax then uses `init-mathjax` to regenerate the project-local website assets.
-The warning notes that locked third-party install scripts can execute.
+For `renderer.mermaid` and `renderer.mathjax`, diagnostics inspects the selected
+project-local cache and runs a real fresh-process render probe without
+downloading or changing it. A missing, incompatible or corrupt runtime points
+to `pdk pdf --prepare mermaid` or `pdk pdf --prepare mathjax`. Mermaid requires
+only its reviewed Python wheels; MathJax additionally requires Node.js on
+`PATH`. Neither production path uses npm, Puppeteer or a browser.
 
 For `project.configuration`, automatic edits are restricted to
 `zensical.toml`. Each unique spelling correction, obsolete index-setting move,
@@ -249,13 +246,9 @@ install the PDF toolchain merely to make diagnostics pass.
 | `renderer.fonts` | The selected project-local Inter/JetBrains Mono bundle is absent, incompatible, corrupt, or incomplete. | Run `pdk pdf --prepare fonts`; diagnostics itself never downloads or changes the cache. |
 | `renderer.weasyprint` | On Windows x64, the project-local runtime is absent, incompatible, corrupt, or fails its absolute-path CLI probe. Elsewhere, a fresh Python process could not import system-backed WeasyPrint. | On Windows, run `pdk pdf --prepare weasyprint`; diagnostics itself never downloads or changes the cache. On other platforms, run `python -c "import weasyprint; print(weasyprint.__version__)"`, then install the native libraries described in the installation guide. |
 | `renderer.node` | Node is missing or cannot report its version. | Install the project's supported Node version, reopen the terminal, and confirm with `node --version`. |
-| `renderer.npm` | npm is missing or cannot report its version, even if Node itself exists. | Repair or reinstall the Node distribution so `npm --version` works. Avoid mixing Node and npm from different installations on `PATH`. |
-| `renderer.mermaid` | The audited Python-packaged standalone Mermaid runtime is unavailable or fails preflight. | Repair the declared Python requirements and reinstall Prodockit. Diagnostics does not create or repair an npm Mermaid installation. |
-| `renderer.browser` | An explicit Chrome or Chromium executable was not found, or its configured path does not name a file. This browser remains relevant to MathJax website verification, not default Mermaid PDF rendering. | Install Chrome/Chromium or set `PUPPETEER_EXECUTABLE_PATH` to its executable when MathJax website verification is selected. |
-| `renderer.mathjax` | Authored Markdown uses mathematical notation but `tools/mathjax/tex2svg.js` is missing or cannot convert a minimal expression using the installed `mathjax-full` inputs. | With standard locked project tooling, use `pdk diag --online --apply --apply-check renderer.mathjax`; it also regenerates website assets. Custom paths and manifests require manual review. |
-| `renderer.mathjax-security` | Offline diagnostics explicitly skip the advisory lookup. With `--online`, a warning means npm found a moderate-or-higher production dependency advisory, npm is missing, or the advisory service could not be queried. This check is separate from `renderer.mathjax`: a renderer can execute correctly while depending on vulnerable packages. | Run `npm audit --omit=dev` in `tools/mathjax`, review the advisory and update the committed manifest and lockfile together. Rerun `npm ci`, confirm `pdk diag` still renders MathJax, then rerun `pdk diag --online`. For an unavailable lookup, retry online later; the default offline diagnostics make no network request. |
+| `renderer.mermaid` | The selected project-local Mermaid cache is absent, incompatible, corrupt, or fails its fresh-process SVG probe. | Run `pdk pdf --prepare mermaid`; diagnostics itself never downloads or changes the cache. |
+| `renderer.mathjax` | The selected project-local MathJax 4 cache is absent, incompatible, corrupt, Node.js is missing, or a real TeX-to-SVG probe fails. | Install Node.js if required, then run `pdk pdf --prepare mathjax`; no npm installation is used. |
 | `renderer.inspection` | An operating-system error prevented the rendering tools from being inspected. | Correct the path or permissions named in the detail. Run each shown executable with `--version`, then rerun `pdk diag --verbose`. |
-| `renderer.security-inspection` | An operating-system, decoding, or subprocess error prevented the MathJax advisory check from completing. Other diagnostic sections still run. | Confirm `npm audit --omit=dev --json` works in `tools/mathjax`, correct the reported environment or permission problem, then rerun `pdk diag --online --verbose`. |
 /// table-caption | <
     attrs: {id: tab-diagnostics-rendering-toolchain}
 

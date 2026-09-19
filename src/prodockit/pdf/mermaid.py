@@ -35,6 +35,7 @@ from ._standalone_worker import (
     StandaloneWorkerProtocolError,
     StandaloneWorkerTimeoutError,
 )
+from .mermaid_runtime import runtime_site_packages
 
 # Forces plain SVG text labels instead of the <foreignObject>-based default
 # WeasyPrint can't render (see module docstring).
@@ -92,9 +93,14 @@ class StandaloneMermaidRenderer:
         output_dir: str,
         *,
         worker: _StandaloneWorker | None = None,
+        runtime_path: Path | None = None,
     ) -> None:
         self._output_dir = Path(output_dir)
-        self._worker = worker or StandaloneMermaidWorker()
+        self._worker = worker or StandaloneMermaidWorker(
+            runtime_site_packages=(
+                str(runtime_site_packages(runtime_path)) if runtime_path is not None else None
+            )
+        )
         self._next_index = 0
 
     def render_source(self, source: str) -> str | None:
@@ -125,10 +131,19 @@ class StandaloneMermaidRenderer:
 def create_mermaid_renderer(
     *,
     output_dir: str,
+    runtime_path: Path | None = None,
 ) -> MermaidRenderer:
     """Create the audited Python renderer without an external fallback."""
-    try:
-        require_standalone_runtime()
-    except StandaloneRuntimeUnavailableError as error:
-        raise MermaidBackendUnavailableError(str(error)) from error
-    return StandaloneMermaidRenderer(output_dir)
+    if runtime_path is None:
+        try:
+            require_standalone_runtime()
+        except StandaloneRuntimeUnavailableError as error:
+            raise MermaidBackendUnavailableError(str(error)) from error
+    else:
+        try:
+            runtime_site_packages(runtime_path)
+        except RuntimeError as error:
+            raise MermaidBackendUnavailableError(str(error)) from error
+    if runtime_path is None:
+        return StandaloneMermaidRenderer(output_dir)
+    return StandaloneMermaidRenderer(output_dir, runtime_path=runtime_path)

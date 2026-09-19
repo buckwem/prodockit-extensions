@@ -66,8 +66,6 @@ def test_readme_distinguishes_python_and_external_pdf_requirements() -> None:
 def test_readme_inventories_every_public_command_and_alias() -> None:
     for command in (
         "prodockit bootstrap",
-        "prodockit init-tools",
-        "prodockit init-mathjax",
         "prodockit pdf",
         "prodockit source-bundle",
         "prodockit sync-repo",

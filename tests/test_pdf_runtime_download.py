@@ -21,6 +21,17 @@ def test_download_rejects_unapproved_hosts_before_opening(tmp_path: Path) -> Non
         )
 
 
+@pytest.mark.parametrize(
+    "url",
+    [
+        "https://codeload.github.com/mathjax/MathJax/zip/commit",
+        "https://files.pythonhosted.org/packages/example.whl",
+    ],
+)
+def test_download_accepts_reviewed_distribution_hosts(url: str) -> None:
+    runtime_download.validate_release_url(url)
+
+
 def test_download_enforces_declared_size(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

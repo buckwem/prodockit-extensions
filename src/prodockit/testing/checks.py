@@ -148,6 +148,6 @@ def assert_no_unrendered_tex(page_texts: Sequence[str]) -> None:
     pages = find_unrendered_tex_pages(page_texts)
     assert not pages, (
         f"Literal TeX source found on PDF page(s) {pages} (0-based) - the "
-        "formula reached the PDF unrendered. Run `prodockit init-tools` and "
-        "install the tooling, or set `pdf_tex2svg_script` in your config."
+        "formula reached the PDF unrendered. Run `pdk pdf --prepare mathjax` "
+        "and confirm that Node.js is on PATH."
     )

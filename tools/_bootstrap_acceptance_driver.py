@@ -108,18 +108,9 @@ repo = "fontawesome/brands/github"
 ''',
         encoding="utf-8",
     )
-    if real_toolchains:
-        # The fast harness simulates npm.  Native release acceptance crosses
-        # that boundary, so its template and existing-project repositories
-        # need the same tracked manifests that a real template supplies.
-        source = Path(__file__).resolve().parent
-        for tool, names in {
-            "mathjax": ("package.json", "package-lock.json", "tex2svg.js"),
-        }.items():
-            destination = path / "tools" / tool
-            destination.mkdir(parents=True)
-            for name in names:
-                shutil.copy2(source / tool / name, destination / name)
+    # Optional PDF renderers are prepared by `pdk pdf` in the project cache;
+    # even native acceptance projects no longer carry npm toolchain locks.
+    del real_toolchains
 
 
 def initialise_worktree(

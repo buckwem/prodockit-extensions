@@ -148,35 +148,21 @@ def test_the_cli_reports_what_it_wrote(tmp_path: Path) -> None:
     assert all(name in result.output for name in ("mathjax.js", "tex-svg-full.js", "LICENSE"))
 
 
-def test_repository_generates_mathjax_before_every_site_build() -> None:
+def test_repository_uses_zensical_owned_website_mathjax() -> None:
     root = Path(__file__).resolve().parent.parent
     for name in ("ci.yml", "docs.yml", "drift.yml"):
         workflow = (root / ".github" / "workflows" / name).read_text(encoding="utf-8")
-        install = "prodockit init-mathjax --no-gitignore"
-        build = "zensical build --clean --strict"
-        assert "npm ci --prefix tools/mathjax" in workflow
-        assert install in workflow
-        assert workflow.index(install) < workflow.index(build), (
-            f"{name} builds before installing the website MathJax assets"
-        )
+        assert "npm ci --prefix tools/mathjax" not in workflow
+        assert "prodockit init-mathjax" not in workflow
+    config = (root / "zensical.toml").read_text(encoding="utf-8")
+    assert '"javascripts/mathjax.js"' in config
+    assert '"https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js"' in config
 
 
-def test_repository_does_not_track_generated_mathjax_assets() -> None:
-    import subprocess
-
+def test_repository_tracks_only_the_website_mathjax_configuration() -> None:
     root = Path(__file__).resolve().parent.parent
-    ignored = (root / ".gitignore").read_text(encoding="utf-8").splitlines()
-    assert "docs/javascripts/vendor/" in ignored
-    assert "docs/javascripts/mathjax.js" in ignored
-
-    tracked = subprocess.run(
-        ["git", "ls-files", "docs/javascripts/mathjax.js", "docs/javascripts/vendor"],
-        cwd=root,
-        check=True,
-        capture_output=True,
-        text=True,
-    ).stdout.splitlines()
-    assert not tracked, f"generated MathJax assets are still tracked: {tracked}"
+    assert (root / "docs/javascripts/mathjax.js").is_file()
+    assert not (root / "docs/javascripts/vendor").exists()
 
 
 def test_the_cli_fails_clearly_without_the_toolchain(tmp_path: Path) -> None:

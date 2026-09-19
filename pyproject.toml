@@ -77,13 +77,6 @@ dependencies = [
   # already-adopted project is upgraded rather than accepted merely because
   # some older ``>=`` requirement is present.
   "packaging>=24.0",
-  "pypdf>=4.0",
-  # Exact pins are part of the standalone Mermaid trust boundary: the
-  # integration verifies private symbols and committed asset hashes from
-  # these audited distributions before Mermaid starts a PDF build. Platforms
-  # without an audited quickjs-ng wheel retain ordinary ProDockit support.
-  "mermaidx==0.9.5; (sys_platform != 'win32' or (platform_machine != 'ARM64' and platform_machine != 'arm64')) and (sys_platform != 'darwin' or (platform_machine != 'x86_64' and platform_machine != 'AMD64'))",
-  "quickjs-ng==0.16.2.1; (sys_platform != 'win32' or (platform_machine != 'ARM64' and platform_machine != 'arm64')) and (sys_platform != 'darwin' or (platform_machine != 'x86_64' and platform_machine != 'AMD64'))",
 ]
 classifiers = [
   "Development Status :: 3 - Alpha",
@@ -138,6 +131,7 @@ dev = [
   "pytest",
   "pytest-cov",
   "pymupdf>=1.24",
+  "pypdf>=4.0",
 ]
 # Only needed for prodockit.pdf.index's own back-of-book index -
 # a real Python import (not shelled out to, unlike pandoc/weasyprint), and a
@@ -170,6 +164,7 @@ packages = ["src/prodockit"]
 "docs/stylesheets/pdk-pdf.css" = "prodockit/assets/pdk-pdf.css"
 "docs/javascripts/pdk.js" = "prodockit/assets/pdk.js"
 "src/prodockit/pdf/web_render.cjs" = "prodockit/pdf/web_render.cjs"
+"src/prodockit/pdf/tex2svg.cjs" = "prodockit/pdf/tex2svg.cjs"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

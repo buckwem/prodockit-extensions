@@ -29,16 +29,16 @@ import prodockit
 from prodockit.config_diagnostics import inspect_config
 from prodockit.init_tools import COMPONENT_FILES, init_tools
 from prodockit.mathjax import MathJaxError, install_mathjax
-from prodockit.pdf._standalone_quickjs import (
-    StandaloneBackendUnavailableError as StandaloneRuntimeUnavailableError,
-)
-from prodockit.pdf._standalone_quickjs import require_standalone_runtime
 from prodockit.pdf.font_runtime import FontProvider
 from prodockit.pdf.font_runtime import probe_runtime as probe_font_runtime
+from prodockit.pdf.mathjax_runtime import MathJaxProvider
+from prodockit.pdf.mathjax_runtime import probe_runtime as probe_mathjax_runtime
+from prodockit.pdf.mermaid_runtime import MermaidProvider
+from prodockit.pdf.mermaid_runtime import probe_runtime as probe_mermaid_runtime
 from prodockit.pdf.pandoc_runtime import PandocProvider
 from prodockit.pdf.pandoc_runtime import probe_runtime as probe_pandoc_runtime
 from prodockit.pdf.runtime_config import load_pdf_runtime_config
-from prodockit.pdf.runtime_prepare import current_runtime_environment
+from prodockit.pdf.runtime_prepare import RuntimeProvider, current_runtime_environment
 from prodockit.pdf.runtime_store import RuntimeStore
 from prodockit.pdf.weasyprint_runtime import WindowsWeasyPrintProvider, probe_runtime
 from prodockit.pins import (
@@ -51,7 +51,7 @@ from prodockit.pins import (
 )
 from prodockit.project_config import ProjectConfig, ProjectConfigError, load_project_config
 from prodockit.project_integrity import renderer_requirements
-from prodockit.renderer_health import find_browser, probe_mathjax
+from prodockit.renderer_health import probe_mathjax
 from prodockit.renderer_resilience import RetryReporter, run_npm_with_retries, run_with_retries
 from prodockit.shared_files import SharedFileError
 from prodockit.shared_files import apply as apply_shared_files
@@ -332,9 +332,9 @@ REPAIR_REGISTRY: dict[str, RepairPolicy] = {
         "Repair or reinstall the selected Node distribution.",
     ),
     "renderer.mermaid": RepairPolicy(
-        "prohibited",
-        "The standalone Mermaid runtime is part of the Python installation.",
-        "Repair the declared Python requirements and reinstall Prodockit.",
+        "manual",
+        "Diagnostics is read-only and does not download optional PDF runtimes.",
+        "Run `pdk pdf --prepare mermaid` to prepare or repair the project cache.",
     ),
     "renderer.browser": RepairPolicy(
         "prohibited",
@@ -342,10 +342,9 @@ REPAIR_REGISTRY: dict[str, RepairPolicy] = {
         "Install or select Chrome/Chromium outside diagnostics.",
     ),
     "renderer.mathjax": RepairPolicy(
-        "online",
-        "Committed project inputs can rebuild project-local MathJax tooling and assets.",
-        "Prefer Adoption, `pdk init-tools --mathjax`, or `pdk init-mathjax`; "
-        "no template is required.",
+        "manual",
+        "Diagnostics is read-only and does not download optional PDF runtimes.",
+        "Run `pdk pdf --prepare mathjax` to prepare or repair the project cache.",
     ),
     "renderer.mathjax-security": RepairPolicy(
         "prohibited",
@@ -1364,8 +1363,6 @@ def build_repair_dry_run(
             candidates.extend(_pin_candidates(check))
         elif check.id == "renderer.weasyprint":
             candidates.append(_windows_pango_candidate(check))
-        elif check.id == "renderer.mathjax":
-            candidates.append(_renderer_candidate(check, report))
         elif check.id == "project.configuration" and check.data.get("repairable_problems"):
             candidates.extend(_configuration_candidates(check))
         elif check.id == "maintenance.adopt-readiness":
@@ -3325,11 +3322,23 @@ def _project_cached_runtime_check(
     config: ProjectConfig | None,
     root: Path,
     *,
-    component: Literal["pandoc", "fonts"],
+    component: Literal["pandoc", "fonts", "mathjax", "mermaid"],
     required: bool,
 ) -> DiagnosticResult:
-    label = "Pandoc" if component == "pandoc" else "PDF fonts"
-    provider = PandocProvider() if component == "pandoc" else FontProvider()
+    labels = {
+        "pandoc": "Pandoc",
+        "fonts": "PDF fonts",
+        "mathjax": "MathJax",
+        "mermaid": "Mermaid",
+    }
+    providers: dict[str, RuntimeProvider] = {
+        "pandoc": PandocProvider(),
+        "fonts": FontProvider(),
+        "mathjax": MathJaxProvider(),
+        "mermaid": MermaidProvider(),
+    }
+    label = labels[component]
+    provider: RuntimeProvider = providers[component]
     environment = current_runtime_environment()
     try:
         policy = load_pdf_runtime_config(
@@ -3375,11 +3384,15 @@ def _project_cached_runtime_check(
             },
         )
     try:
-        version = (
-            probe_pandoc_runtime(active.path, environment)
-            if component == "pandoc"
-            else probe_font_runtime(active.path)
-        )
+        if component == "pandoc":
+            version = probe_pandoc_runtime(active.path, environment)
+        elif component == "fonts":
+            version = probe_font_runtime(active.path)
+        elif component == "mathjax":
+            version = probe_mathjax_runtime(active.path)
+        else:
+            probe_mermaid_runtime(active.path)
+            version = active.version
     except Exception as error:
         safe_error = _sanitise_text(f"{type(error).__name__}: {error}", root)
         return DiagnosticResult(
@@ -3607,150 +3620,23 @@ def _renderer_checks(
         )
     )
 
+    checks.append(
+        _tool_result("renderer.node", "Node", "node", root=root, required=node_required)
+    )
     checks.extend(
         (
-            _tool_result("renderer.node", "Node", "node", root=root, required=node_required),
-            _tool_result("renderer.npm", "npm", "npm", root=root, required=node_required),
-        )
-    )
-
-    tex2svg = None
-    if config:
-        tex2svg = _project_tool(
-            root,
-            config.extra.get("pdf_tex2svg_script"),
-            ("tools/mathjax/tex2svg.js",),
-        )
-    standalone_error = None
-    try:
-        require_standalone_runtime()
-    except StandaloneRuntimeUnavailableError as error:
-        standalone_error = _sanitise_text(str(error), root)
-    standalone_ok = standalone_error is None
-    mermaid_ok = standalone_ok
-    if standalone_ok:
-        mermaid_summary = "Standalone Mermaid runtime is available"
-        mermaid_details: tuple[str, ...] = ()
-        mermaid_backend = "standalone"
-    else:
-        mermaid_summary = "Standalone Mermaid runtime is unavailable" + (
-            " but required by this project" if mermaid_required else " (optional)"
-        )
-        mermaid_details = (standalone_error,) if standalone_error else ()
-        mermaid_backend = "unavailable"
-    checks.append(
-        DiagnosticResult(
-            "renderer.mermaid",
-            "Rendering toolchain",
-            "pass" if mermaid_ok else ("fail" if mermaid_required else "warn"),
-            mermaid_summary,
-            mermaid_details,
-            {
-                "required": mermaid_required,
-                "backend": mermaid_backend,
-                "path": None,
-                "version": None,
-                "error": None if mermaid_ok else standalone_error,
-                "standalone_error": standalone_error,
-            },
-        )
-    )
-
-    browser = find_browser()
-    browser_error = None
-    if browser:
-        # Do not execute a desktop browser merely to ask for its version.
-        # Microsoft Edge can open a visible window for ``--version`` on
-        # Windows and return no text. The Mermaid health probe above already
-        # exercises the browser when the project needs it (#712, #713).
-        try:
-            if not Path(browser).is_file():
-                browser_error = "path does not name a file"
-        except OSError as error:
-            browser_error = _sanitise_text(str(error), root)
-    browser_ok = bool(browser and not browser_error)
-    browser_status: Status = (
-        "pass" if browser_ok else ("fail" if maths_required else "warn")
-    )
-    checks.append(
-        DiagnosticResult(
-            "renderer.browser",
-            "Rendering toolchain",
-            browser_status,
-            "Browser executable found"
-            if browser_ok
-            else (
-                "Browser executable is unusable"
-                if browser
-                else "No explicit Chrome/Chromium executable found"
-            )
-            + (
-                "; required for MathJax website verification"
-                if not browser and maths_required
-                else " (optional)"
-                if not maths_required
-                else ""
+            _project_cached_runtime_check(
+                config,
+                root,
+                component="mermaid",
+                required=mermaid_required,
             ),
-            tuple(
-                detail
-                for detail in (
-                    f"path: {_display_path(browser, root)}" if browser else None,
-                    f"health probe: {browser_error}" if browser_error else None,
-                )
-                if detail
+            _project_cached_runtime_check(
+                config,
+                root,
+                component="mathjax",
+                required=maths_required,
             ),
-            {
-                "required": maths_required,
-                "path": _display_path(browser, root) if browser else None,
-                "bundled": False,
-                "version": None,
-                "error": browser_error,
-            },
-        )
-    )
-
-    mathjax_modules = root / "tools" / "mathjax" / "node_modules" / "mathjax-full"
-    node = shutil.which("node")
-    mathjax_probe = probe_mathjax(node, tex2svg) if node and tex2svg else None
-    mathjax_ok = bool(mathjax_modules.is_dir() and mathjax_probe and mathjax_probe.ok)
-    mathjax_error = (
-        _sanitise_text(mathjax_probe.error, root) if mathjax_probe and mathjax_probe.error else None
-    )
-    math_details = []
-    if tex2svg:
-        math_details.append(f"script: {_display_path(tex2svg, root)}")
-    if mathjax_modules.is_dir():
-        math_details.append(f"inputs: {_display_path(mathjax_modules, root)}")
-    if tex2svg and node is None:
-        math_details.append("health probe: node is not found on PATH")
-    elif mathjax_error:
-        math_details.append(f"health probe: {mathjax_error}")
-    checks.append(
-        DiagnosticResult(
-            "renderer.mathjax",
-            "Rendering toolchain",
-            "pass" if mathjax_ok else ("fail" if maths_required else "warn"),
-            "MathJax can render an expression"
-            if mathjax_ok
-            else "MathJax PDF renderer is incomplete"
-            + (" but required by this project" if maths_required else " (optional)"),
-            tuple(math_details),
-            {
-                "required": maths_required,
-                "script": _display_path(tex2svg, root) if tex2svg else None,
-                "inputs": _display_path(mathjax_modules, root)
-                if mathjax_modules.is_dir()
-                else None,
-                "error": (
-                    mathjax_error
-                    if mathjax_probe
-                    else "node is not found on PATH"
-                    if tex2svg
-                    else None
-                ),
-                "repair_refusal": _locked_renderer_refusal(root, config, "mathjax"),
-                "repair_fingerprint": _renderer_plan_fingerprint(root, "mathjax"),
-            },
         )
     )
     return checks
@@ -4392,12 +4278,6 @@ def inspect(
             if retry_reporter is not None
             else _renderer_checks(config, root)
         ),
-    )
-    collect(
-        "renderer.security-inspection",
-        "Rendering toolchain",
-        "The renderer security audits",
-        lambda: _node_security_checks(root, online),
     )
     collect(
         "repository.inspection",

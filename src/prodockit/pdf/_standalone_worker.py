@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import multiprocessing
+import sys
 import threading
 from collections.abc import Callable
 from dataclasses import asdict
@@ -112,11 +113,17 @@ def _error_response(kind: str) -> bytes:
     return _json_bytes({"version": _PROTOCOL_VERSION, "status": "error", "kind": kind})
 
 
-def _worker_entry(send_connection: Connection, request_payload: bytes) -> None:
+def _worker_entry(
+    send_connection: Connection,
+    request_payload: bytes,
+    runtime_site_packages: str | None = None,
+) -> None:
     """Runs in the spawned child; never returns exception details to its parent."""
     response = _error_response("worker")
     engine: StandaloneQuickJSMermaidEngine | None = None
     try:
+        if runtime_site_packages is not None:
+            sys.path.insert(0, runtime_site_packages)
         source, theme, config, css, limits = _decode_request(request_payload)
         engine = StandaloneQuickJSMermaidEngine(limits)
         engine.start()
@@ -175,12 +182,14 @@ class StandaloneMermaidWorker:
         *,
         hard_timeout_seconds: float = 15.0,
         context: _WorkerContext | None = None,
+        runtime_site_packages: str | None = None,
     ) -> None:
         if isinstance(hard_timeout_seconds, bool) or hard_timeout_seconds <= 0:
             raise ValueError("hard_timeout_seconds must be greater than zero")
         self._limits = limits or QuickJSMermaidLimits()
         self._hard_timeout_seconds = hard_timeout_seconds
         self._context = context or cast(_WorkerContext, multiprocessing.get_context("spawn"))
+        self._runtime_site_packages = runtime_site_packages
         self._lock = threading.Lock()
         self._stop_lock = threading.Lock()
         self._closed = False
@@ -235,7 +244,7 @@ class StandaloneMermaidWorker:
         receive_connection, send_connection = self._context.Pipe(duplex=False)
         process = self._context.Process(
             target=_worker_entry,
-            args=(send_connection, request),
+            args=(send_connection, request, self._runtime_site_packages),
             daemon=False,
         )
         started = False

@@ -1,0 +1,12 @@
+{
+  "name": "prodockit-browser-tests",
+  "private": true,
+  "description": "CI-only browser rendering checks; never installed for production use.",
+  "devDependencies": {
+    "mathjax-full": "3.2.2",
+    "puppeteer-core": "25.9.0"
+  },
+  "overrides": {
+    "@xmldom/xmldom": "0.9.12"
+  }
+}

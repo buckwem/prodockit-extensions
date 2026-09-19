@@ -148,6 +148,17 @@ def test_worker_returns_svg_and_reaps_the_process() -> None:
     assert context.send.closed
 
 
+def test_cached_runtime_is_passed_only_to_the_spawned_child() -> None:
+    context = FakeContext(_response(status="ok", svg="<svg/>"))
+    worker = StandaloneMermaidWorker(
+        context=context,
+        runtime_site_packages="/project/.prodockit/cache/pdf/site-packages",
+    )
+
+    assert worker.render_svg("graph LR; A-->B") == "<svg/>"
+    assert context.args[2] == "/project/.prodockit/cache/pdf/site-packages"
+
+
 def test_hard_timeout_terminates_the_worker_without_a_leak() -> None:
     context = FakeContext(b"", ready=False)
     worker = StandaloneMermaidWorker(context=context, hard_timeout_seconds=0.01)

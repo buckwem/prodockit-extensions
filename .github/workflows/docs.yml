@@ -192,7 +192,7 @@ jobs:
       # first page to add one is rendered rather than silently published as
       # raw LaTeX, the way the Mermaid diagram above once was. Needs no
       # browser: tex2svg.js is plain Node.
-      - run: npm ci --prefix tools/mathjax
+      - run: npm ci --prefix tools/browser-test
       # The [testing] extra brings pytest/pymupdf for the built-output
       # checks below. pymupdf is also what extra.pdf_include_index needs to
       # read page numbers back out of the first pass, so this one install
@@ -246,7 +246,6 @@ jobs:
       # appearance.
       - run: pip install -e ".[testing]" "zensical==0.0.61" "weasyprint==69.0" "Markdown==3.10.3" "pymdown-extensions==11.0.2"
       - run: pytest tests/test_pdf_web_render.py -k real_browser -q
-      - run: prodockit init-mathjax --no-gitignore
       # The PDF renderer consumes this completed site; it never invokes
       # Zensical itself or cleans the generated output.
       - run: python tools/docs_page_pdfs.py check

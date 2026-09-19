@@ -34,8 +34,7 @@ jobs:
     if: needs.scope.outputs.relevant == 'true'
     name: ${{ matrix.name }} ${{ matrix.architecture }}
     runs-on: ${{ matrix.runner }}
-    # Windows x64 can exceed 20 minutes while repairing both renderers. Leave
-    # five minutes after the driver limit to publish its report and logs.
+    # Leave five minutes after the driver limit to publish its report and logs.
     timeout-minutes: 35
     strategy:
       fail-fast: false
@@ -69,16 +68,7 @@ jobs:
           architecture: ${{ matrix.architecture }}
           cache: pip
           cache-dependency-path: pyproject.toml
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-          cache: npm
-          cache-dependency-path: |
-            src/prodockit/_tools_template/mathjax/package-lock.json
-      - name: Install Chromium for Mermaid on Linux ARM64
-        if: runner.os == 'Linux' && matrix.architecture == 'arm64'
-        run: sudo apt -o DPkg::Lock::Timeout=600 install -y chromium-browser
-      - name: Use a Chromium-accessible temporary directory on Linux
+      - name: Use a repository-owned temporary directory on Linux
         if: runner.os == 'Linux'
         run: |
           mkdir -p "$HOME/prodockit-diagnostics-tmp"

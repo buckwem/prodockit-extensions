@@ -249,10 +249,7 @@ def test_all_failures_fixture_contains_every_repair_shape(
     assert "\\ref{target}" in (project / "docs/index.md").read_text(encoding="utf-8")
     assert (project / "docs/stylesheets/pdk.css").is_file()
     assert not (project / "docs/stylesheets/pdk-pdf.css").exists()
-    for component in ("mathjax",):
-        assert (project / "tools" / component / "package.json").is_file()
-        assert (project / "tools" / component / "package-lock.json").is_file()
-        assert not (project / "tools" / component / "node_modules").exists()
+    assert not (project / "tools").exists()
 
 
 def test_acceptance_resolves_project_absolute_and_home_report_paths(tmp_path: Path) -> None:
@@ -315,13 +312,12 @@ def test_diagnostic_repair_workflow_has_five_repair_and_ten_toolchain_environmen
     assert 'pip install -e ".[dev]"' not in workflow
 
 
-def test_acceptance_requires_all_five_repairable_checks_and_six_confirmations() -> None:
+def test_acceptance_requires_all_four_repairable_checks_and_five_confirmations() -> None:
     assert {
         "installation.metadata",
         "project.configuration",
         "dependencies.pins",
         "dependencies.shared-files",
-        "renderer.mathjax",
     } == diagnostics_acceptance_driver.REPAIRABLE_CHECKS
-    assert sum(diagnostics_acceptance_driver.EXPECTED_ACTIONS.values()) == 6
+    assert sum(diagnostics_acceptance_driver.EXPECTED_ACTIONS.values()) == 5
     assert diagnostics_acceptance_driver.EXPECTED_ACTIONS["dependencies.shared-files"] == 2

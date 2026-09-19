@@ -5,6 +5,7 @@ import os
 import stat
 import subprocess
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from zensical.config import parse_config as parse_zensical_config
@@ -17,7 +18,6 @@ from prodockit.pdf.config import (
     build_pdf_from_zensical_config,
     build_source_bundle_from_zensical_config,
 )
-from prodockit.pdf.web_render import WebRenderError
 from prodockit.settings import SettingError
 
 _ZENSICAL_TOML = """
@@ -234,31 +234,6 @@ def test_built_site_pdf_is_written_to_author_and_published_paths(project) -> Non
     published_pdf = root / "site" / "site_documentation.pdf"
     assert author_pdf.read_bytes() == b"%PDF-1.4 exact"
     assert published_pdf.read_bytes() == author_pdf.read_bytes()
-
-
-def test_default_built_site_pdf_checks_browser_before_writing_output(
-    project, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    root = project()
-    (root / "docs" / "chapter1.md").write_text("# Chapter One\n\n$$x^2$$\n", encoding="utf-8")
-    (root / "site" / "chapter1" / "index.html").write_text(
-        '<article class="md-content__inner md-typeset">'
-        '<div class="arithmatex">\\[x^2\\]</div></article>',
-        encoding="utf-8",
-    )
-    seen = []
-
-    def reject_rendering(project_config, pages, *, instant_navigation, verify_mermaid):
-        assert verify_mermaid is False
-        seen.append([page.docs_rel_path for page in pages])
-        raise WebRenderError("browser-rendered equation is missing")
-
-    monkeypatch.setattr(config, "check_web_rendering", reject_rendering)
-    with pytest.raises(WebRenderError, match="browser-rendered equation is missing"):
-        build_pdf_from_built_site(str(root / "zensical.toml"))
-
-    assert seen == [["index.md", "chapter1.md"]]
-    assert not (root / "docs" / "site_documentation.pdf").exists()
 
 
 def test_built_site_pdf_outside_docs_is_not_published(project) -> None:
@@ -1450,15 +1425,24 @@ def test_mermaid_renderer_is_created_and_closed_after_build(
     instances: list[_RecordingMermaidRenderer] = []
     captured = {}
 
-    def renderer_factory(*, output_dir: str) -> _RecordingMermaidRenderer:
+    runtime = root / "cached-mermaid"
+
+    def renderer_factory(*, output_dir: str, runtime_path: Path) -> _RecordingMermaidRenderer:
+        assert runtime_path == runtime
         renderer = _RecordingMermaidRenderer(output_dir)
         instances.append(renderer)
         return renderer
 
+    monkeypatch.setattr(
+        config,
+        "prepare_runtime_components",
+        lambda *_args, **_kwargs: (
+            SimpleNamespace(component="mermaid", path=runtime),
+        ),
+    )
     monkeypatch.setattr(config, "create_mermaid_renderer", renderer_factory)
     monkeypatch.setattr(config, "validate_built_site", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(config, "page_html", _page_with_mermaid)
-    monkeypatch.setattr(config, "check_web_rendering", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(config, "publish_pdf_to_built_site", lambda *_args: None)
 
     def _spy(_pages, _output_path, **kwargs):
@@ -1480,15 +1464,24 @@ def test_mermaid_renderer_is_closed_when_build_pdf_raises(
     root = project()
     instances: list[_RecordingMermaidRenderer] = []
 
-    def renderer_factory(*, output_dir: str) -> _RecordingMermaidRenderer:
+    runtime = root / "cached-mermaid"
+
+    def renderer_factory(*, output_dir: str, runtime_path: Path) -> _RecordingMermaidRenderer:
+        assert runtime_path == runtime
         renderer = _RecordingMermaidRenderer(output_dir)
         instances.append(renderer)
         return renderer
 
+    monkeypatch.setattr(
+        config,
+        "prepare_runtime_components",
+        lambda *_args, **_kwargs: (
+            SimpleNamespace(component="mermaid", path=runtime),
+        ),
+    )
     monkeypatch.setattr(config, "create_mermaid_renderer", renderer_factory)
     monkeypatch.setattr(config, "validate_built_site", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(config, "page_html", _page_with_mermaid)
-    monkeypatch.setattr(config, "check_web_rendering", lambda *_args, **_kwargs: None)
 
     def _fail(*_args, **_kwargs):
         raise RuntimeError("boom")
@@ -1544,7 +1537,6 @@ def test_mathjax_discovery_and_directory_work_remain_enabled_for_used_maths(
         lambda _project, source: f'<h1>{source}</h1>'
         '<span class="arithmatex">\\(x^2\\)</span>',
     )
-    monkeypatch.setattr(config, "check_web_rendering", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(config, "publish_pdf_to_built_site", lambda *_args: None)
 
     def find_tex2svg(configured):
@@ -1564,3 +1556,39 @@ def test_mathjax_discovery_and_directory_work_remain_enabled_for_used_maths(
     assert captured["tex2svg_script"] == "tools/mathjax/tex2svg.js"
     assert captured["math_dir"] == "math-assets"
     assert (root / "math-assets").is_dir()
+
+
+def test_used_maths_prepares_project_mathjax_and_passes_cached_runtime(
+    project, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = project()
+    cached = root / ".prodockit/cache/pdf/mathjax"
+    captured = {}
+    prepared = []
+
+    monkeypatch.setattr(config, "validate_built_site", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(
+        config,
+        "page_html",
+        lambda _project, source: f'<h1>{source}</h1><span class="arithmatex">\\(x^2\\)</span>',
+    )
+    monkeypatch.setattr(config, "_find_tex2svg_script", lambda _configured: None)
+    monkeypatch.setattr(config, "publish_pdf_to_built_site", lambda *_args: None)
+
+    def prepare(_config_path, components):
+        prepared.append(components)
+        return (SimpleNamespace(component="mathjax", path=cached),)
+
+    monkeypatch.setattr(config, "prepare_runtime_components", prepare)
+    monkeypatch.setattr(config, "mathjax_component_root", lambda path: path / "MathJax")
+    monkeypatch.setattr(config, "mathjax_adapter_path", lambda: Path("adapter.cjs"))
+    monkeypatch.setattr(
+        config, "build_pdf", lambda _pages, _output_path, **kwargs: captured.update(kwargs)
+    )
+
+    build_pdf_from_built_site(str(root / "zensical.toml"))
+
+    assert prepared == [("mathjax",)]
+    assert captured["tex2svg_script"] == "adapter.cjs"
+    assert captured["mathjax_runtime"] == str(cached / "MathJax")
+    assert captured["mathjax_available"] is True
