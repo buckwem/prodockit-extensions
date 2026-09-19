@@ -52,8 +52,6 @@ from prodockit.bootstrap.stages import (
     NPM_MIN_VERSION,
     PANDOC_VERSION,
     PANGO_MIN_VERSION,
-    PDF_FONT_CASKS,
-    PDF_FONT_PACKAGES,
     PUBLIC_KEY_MARKER,
     PUPPETEER_SKIP_VAR,
     VSCODE_EXTENSION_MIN_VERSIONS,
@@ -1793,6 +1791,7 @@ def _machine_ready_except_ssh(tmp_path: Path) -> dict[str, CommandResult]:
         "config --local user.name": CommandResult(0, "Ada Lovelace\n"),
         "config --local user.email": CommandResult(0, "al01234@surrey.ac.uk\n"),
         "pandoc": CommandResult(0, "pandoc 3.10.1"),
+        "pango-view": CommandResult(0, "pango-view (pango) 1.56.3"),
         "node": CommandResult(0, "v22.14.0\n"),
         "npm": CommandResult(0, "10.9.2\n"),
     }
@@ -2447,7 +2446,6 @@ def test_a_key_not_yet_uploaded_is_guided_not_treated_as_a_failed_command(
     # where to go before anything is run on their behalf.
     assert "What you need to do:" in result.output
     assert SURREY_GITLAB.ssh_keys_url in result.output
-    assert "Run 1 command?" not in result.output
     # And "not yet" is answered by asking again, not by exiting.
     assert "not there yet" in result.output
 
@@ -2748,70 +2746,41 @@ def test_the_help_text_does_not_claim_a_stale_stage_count(cli_bootstrap) -> None
 # ---------------------------------------------------------------------------
 
 
-def test_ubuntu_pandoc_is_downloaded_not_apt_installed(tmp_path: Path) -> None:
-    """Ubuntu's own pandoc package is several major versions behind -
-    far enough to change how the PDF renders (#207). The CI workflows
-    and the User Guide both download the pinned release from GitHub
-    releases, and bootstrap must do the same.
-
-    `apt install pandoc` would give you 2.x on some LTS releases, which
-    renders code blocks as justified prose."""
-    context = _context(tmp_path, platform=UBUNTU)
-    plan = next(s for s in STAGES if s.id == "pandoc").plan(context)
-    joined = " ".join(" ".join(cmd) for cmd in plan.commands)
-    assert "github.com/jgm/pandoc/releases" in joined
-    # The architecture-detection command, so arm64 and amd64 both work.
-    assert "dpkg --print-architecture" in joined
-    # Should NOT install pandoc from apt.
-    assert "apt install" not in joined or "pandoc.deb" in joined
-
-
-def test_ubuntu_pandoc_version_is_pinned(tmp_path: Path) -> None:
-    """The version in the download URL must match the constant, which
-    tracks the CI pin."""
-    from prodockit.bootstrap.stages import PANDOC_VERSION
-
-    context = _context(tmp_path, platform=UBUNTU)
-    plan = next(s for s in STAGES if s.id == "pandoc").plan(context)
-    joined = " ".join(" ".join(cmd) for cmd in plan.commands)
-    assert PANDOC_VERSION in joined
-
-
-def test_pandoc_too_old_is_wrong_not_ok(tmp_path: Path) -> None:
-    """Ubuntu's apt pandoc is often 2.x. A check that only asks "is
-    pandoc installed?" passes on those, and the first `prodockit pdf`
-    fails with justified prose where code blocks should be (#207)."""
-    runner = FakeRunner({"pandoc": CommandResult(0, "pandoc 2.17.1.1\n")})
-    result = next(s for s in STAGES if s.id == "pandoc").check(_context(tmp_path, runner=runner))
-    assert result.status is Status.WRONG
-    assert "too old" in result.detail
-
-
-def test_old_windows_pandoc_is_an_explicit_pinned_upgrade(tmp_path: Path) -> None:
-    runner = FakeRunner({"pandoc --version": CommandResult(0, "pandoc 2.19.2\n")})
-
+@pytest.mark.parametrize("platform", [MACOS, UBUNTU, WINDOWS])
+def test_bootstrap_never_installs_pandoc_or_pdf_fonts(
+    tmp_path: Path, platform: str
+) -> None:
     plan = next(s for s in STAGES if s.id == "pandoc").plan(
-        _context(tmp_path, platform=WINDOWS, runner=runner)
+        _context(tmp_path, platform=platform)
     )
-    command = plan.commands[0]
+    joined = " ".join(" ".join(command) for command in plan.commands).lower()
 
-    assert command[:4] == ["winget", "install", "--id", "JohnMacFarlane.Pandoc"]
-    assert command[command.index("--version") + 1] == PANDOC_VERSION
-    assert plan.destructive
-    assert plan.describe.startswith("Upgrade Pandoc")
+    assert "pandoc" not in joined
+    assert "font-inter" not in joined
+    assert "jetbrains" not in joined
+    assert "fonts-inter" not in joined
+    assert not plan.follow_up
 
 
-@pytest.mark.parametrize("platform", [MACOS, UBUNTU])
-def test_old_pandoc_is_an_explicit_upgrade_on_unix(tmp_path: Path, platform: str) -> None:
-    runner = FakeRunner({"pandoc --version": CommandResult(0, "pandoc 2.19.2\n")})
-
+def test_windows_has_no_machine_level_pdf_install(tmp_path: Path) -> None:
     plan = next(s for s in STAGES if s.id == "pandoc").plan(
-        _context(tmp_path, platform=platform, runner=runner)
+        _context(tmp_path, platform=WINDOWS)
     )
+    assert not plan.commands
 
-    assert plan.action == "UPGRADE"
-    assert plan.destructive
-    assert plan.describe.startswith("Upgrade Pandoc")
+
+def test_host_pandoc_does_not_affect_native_library_check(tmp_path: Path) -> None:
+    runner = FakeRunner(
+        {
+            "pandoc": CommandResult(0, "pandoc 2.17.1.1\n"),
+            "pango-view": CommandResult(0, "pango-view (pango) 1.56.3\n"),
+        }
+    )
+    result = next(s for s in STAGES if s.id == "pandoc").check(
+        _context(tmp_path, runner=runner)
+    )
+    assert result.status is Status.OK
+    assert "project-locally" in result.detail
 
 
 def test_mac_old_pandoc_also_installs_a_missing_pango(tmp_path: Path) -> None:
@@ -2828,7 +2797,7 @@ def test_mac_old_pandoc_also_installs_a_missing_pango(tmp_path: Path) -> None:
     joined = "\n".join(" ".join(command) for command in plan.commands)
 
     assert "brew install --force pango" in joined
-    assert "brew upgrade" in joined and "pandoc" in joined
+    assert "pandoc" not in joined
 
 
 def test_mac_brew_commands_verify_a_receipt_after_post_install_failure(
@@ -2846,42 +2815,20 @@ def test_mac_brew_commands_verify_a_receipt_after_post_install_failure(
     )
     scripts = [command[-1] for command in plan.commands if command[:2] == ["bash", "-c"]]
 
-    assert len(scripts) == 2
-    assert any("pandoc" in script for script in scripts)
-    assert any("pango" in script for script in scripts)
+    assert len(scripts) == 1
+    assert "pango" in scripts[0]
     assert all("|| brew list --formula" in script for script in scripts)
 
 
-def test_windows_pandoc_repair_does_not_reinstall_a_working_version(
-    tmp_path: Path,
-) -> None:
-    """A font-download failure happens after Pandoc has installed. The next
-    run must be able to reach the font command instead of stopping at a
-    redundant pinned install that winget reports as an error."""
-    fonts = tmp_path / "AppData" / "Local" / "Microsoft" / "Windows" / "Fonts"
-    fonts.mkdir(parents=True)
-    runner = FakeRunner({"pandoc --version": CommandResult(0, "pandoc 3.10.1\n")})
-
-    plan = next(s for s in STAGES if s.id == "pandoc").plan(
-        _context(tmp_path, platform=WINDOWS, runner=runner)
-    )
-    joined = "\n".join(" ".join(command) for command in plan.commands)
-
-    assert "JohnMacFarlane.Pandoc" not in joined
-    assert "prodockit-bootstrap-fonts-" in joined
-
-
-def test_pandoc_current_version_is_ok(tmp_path: Path) -> None:
+def test_current_pango_is_ok(tmp_path: Path) -> None:
     runner = FakeRunner(
         {
-            "pandoc": CommandResult(0, "pandoc 3.10.1\n"),
             "pango-view": CommandResult(0, "pango-view (pango) 1.56.3\n"),
-            "fc-match": CommandResult(0, "Inter\nJetBrains Mono\n"),
         }
     )
     result = next(s for s in STAGES if s.id == "pandoc").check(_context(tmp_path, runner=runner))
     assert result.status is Status.OK
-    assert "3.10.1" in result.detail
+    assert "1.56.3" in result.detail
 
 
 def test_pango_below_weasyprints_floor_is_reported_as_wrong(tmp_path: Path) -> None:
@@ -3252,20 +3199,14 @@ def test_every_apt_command_waits_for_the_dpkg_lock(tmp_path: Path) -> None:
     assert seen >= 4, "the Ubuntu plans should have several apt commands between them"
 
 
-def test_bootstrap_keeps_privileged_apt_out_of_download_shells(tmp_path: Path) -> None:
-    """A download failure and a privileged install have separate outcomes.
-
-    This also keeps sudo at the front of its own command, where prodockit bootstrap can
-    authenticate before the timed, captured installer starts.
-    """
+def test_bootstrap_installs_only_native_pdf_libraries_with_apt(tmp_path: Path) -> None:
     context = _context(tmp_path, platform=UBUNTU)
-    for stage_id in ("pandoc",):
-        plan = next(s for s in STAGES if s.id == stage_id).plan(context)
-        script = next(c for c in plan.commands if c[0] == "bash")[-1]
-        assert "sudo" not in script, stage_id
-        install = next(c for c in plan.commands if c[-1] == "/tmp/pandoc.deb")
-        assert install[:2] == ["sudo", "apt"]
-        assert "DPkg::Lock::Timeout" in " ".join(install)
+    plan = next(s for s in STAGES if s.id == "pandoc").plan(context)
+    assert len(plan.commands) == 1
+    install = plan.commands[0]
+    assert install[:2] == ["sudo", "apt"]
+    assert "DPkg::Lock::Timeout" in " ".join(install)
+    assert "pandoc" not in " ".join(install).lower()
 
 
 def test_an_install_gets_longer_than_a_check(tmp_path: Path) -> None:
@@ -4004,7 +3945,7 @@ def test_weasyprint_is_verified_from_the_projects_venv(tmp_path: Path) -> None:
 
     assert result.status is Status.WRONG, "installed but unusable is not missing"
     assert "graphics libraries" in result.detail
-    assert "pandoc stage" in result.detail, "point at the fix, not at pip"
+    assert "PDF libraries stage" in result.detail, "point at the fix, not at pip"
 
 
 def test_windows_project_environment_does_not_import_python_weasyprint(
@@ -4039,7 +3980,7 @@ def test_the_pandoc_stage_no_longer_claims_what_it_cannot_check() -> None:
     otherwise."""
     pandoc = next(s for s in STAGES if s.id == "pandoc")
 
-    assert "libraries WeasyPrint needs" in pandoc.summary
+    assert pandoc.summary == "PDF native libraries"
 
 
 def test_the_editor_settings_associate_markdown_for_zensical_studio(tmp_path: Path) -> None:
@@ -4207,36 +4148,16 @@ def test_other_platforms_are_left_alone(tmp_path: Path) -> None:
         assert "puppeteer browsers install" not in flat, platform
 
 
-def test_the_pdf_fonts_are_installed_with_the_graphics_stack(tmp_path: Path) -> None:
-    """prodockit-userguide#101: the website loads these from a CDN at
-    view time, but a PDF has to embed the files - and WeasyPrint
-    substitutes a fallback *silently* when they are absent. The build
-    succeeds, the PDF looks plausible, and the only symptom is a test
-    reporting `No 'Inter' font found`."""
-    ubuntu = next(s for s in STAGES if s.id == "pandoc").plan(_context(tmp_path, platform=UBUNTU))
-    flat = " ".join(" ".join(c) for c in ubuntu.commands)
-    for package in PDF_FONT_PACKAGES:
-        assert package in flat
-
-    macos = next(s for s in STAGES if s.id == "pandoc").plan(_context(tmp_path, platform=MACOS))
-    flat = " ".join(" ".join(c) for c in macos.commands)
-    for cask in PDF_FONT_CASKS:
-        assert cask in flat
-
-
-def test_bootstrap_windows_installs_pinned_verified_pdf_fonts(tmp_path: Path) -> None:
-    """The Windows font step is automated without trusting a moving URL."""
-    plan = next(s for s in STAGES if s.id == "pandoc").plan(_context(tmp_path, platform=WINDOWS))
+@pytest.mark.parametrize("platform", [MACOS, UBUNTU, WINDOWS])
+def test_bootstrap_does_not_install_pdf_fonts(tmp_path: Path, platform: str) -> None:
+    plan = next(s for s in STAGES if s.id == "pandoc").plan(
+        _context(tmp_path, platform=platform)
+    )
     joined = "\n".join(" ".join(command) for command in plan.commands)
 
-    assert "Inter" in joined and "JetBrains Mono" in joined
-    assert "Inter-4.1.zip" in joined
-    assert "JetBrainsMono-2.304.zip" in joined
-    assert "Security.Cryptography.SHA256" in joined
-    assert "Get-FileHash" not in joined
-    assert "Microsoft\\Windows\\Fonts" in joined
-    assert "CurrentVersion\\Fonts" in joined
-    assert not plan.follow_up, "the font install no longer needs a human step"
+    assert "Inter" not in joined
+    assert "JetBrains" not in joined
+    assert "CurrentVersion\\Fonts" not in joined
 
 
 def test_the_citation_style_is_fetched_because_the_first_build_needs_it(tmp_path: Path) -> None:
@@ -4459,6 +4380,10 @@ def test_a_stage_with_commands_is_never_satisfied_by_an_empty_machine(
                 # there is nothing here for a reader to switch on.
                 assert "configures Pages from its CI job" in result.detail
                 continue
+            if stage.id == "pandoc" and platform == WINDOWS:
+                assert result.status is Status.OK
+                assert not stage.plan(context).commands
+                continue
             if stage.id == "site" and not context.host.pages_url:
                 # The one honest exception. A self-hosted GitLab publishes
                 # at no address bootstrap can work out, so this stage
@@ -4604,25 +4529,24 @@ def test_node_stage_warns_when_a_runtime_version_cannot_be_read(
     assert detail in result.detail
 
 
-def test_the_pandoc_stage_notices_its_own_fonts_are_missing(tmp_path: Path) -> None:
-    """Added to the plan in #249 with nothing checking them."""
+def test_native_pdf_stage_ignores_host_fonts(tmp_path: Path) -> None:
     runner = FakeRunner(
         {
-            "pandoc": CommandResult(0, "pandoc 3.10.1\n"),
+            "pango-view": CommandResult(0, "pango-view (pango) 1.56.3\n"),
             "fc-match": CommandResult(0, "DejaVu Sans\n"),
         }
     )
     result = next(s for s in STAGES if s.id == "pandoc").check(_context(tmp_path, runner=runner))
 
-    assert result.needs_work
-    assert "Inter" in result.detail and "JetBrains Mono" in result.detail
+    assert result.status is Status.OK
+    assert "Inter" not in result.detail and "JetBrains Mono" not in result.detail
 
 
 def test_an_unreadable_pango_version_warns_without_blocking(tmp_path: Path) -> None:
     """ "I could not tell" must not read as "they are missing". A false
     alarm sends the reader to reinstall fonts they already have, which is
     worse than the silence this replaced."""
-    runner = FakeRunner({"pandoc": CommandResult(0, "pandoc 3.10.1\n")})  # no fc-list
+    runner = FakeRunner({"pango-view": CommandResult(0, "pango-view development\n")})
 
     result = next(s for s in STAGES if s.id == "pandoc").check(_context(tmp_path, runner=runner))
 
@@ -4675,7 +4599,7 @@ def test_no_winget_call_can_stop_for_a_human(tmp_path: Path) -> None:
             assert "--source winget" in joined, (
                 "an unrelated msstore failure must not block a community package"
             )
-    assert seen >= 4, "vscode, git, pandoc, MSYS2 and node between them"
+    assert seen >= 3, "vscode, git and node should exercise winget"
 
 
 def test_windows_preparation_does_not_install_msys2_or_pango(tmp_path: Path) -> None:
@@ -4685,7 +4609,7 @@ def test_windows_preparation_does_not_install_msys2_or_pango(tmp_path: Path) -> 
     )
     flat = " ".join(" ".join(c) for c in plan.commands)
 
-    assert "JohnMacFarlane.Pandoc" in flat
+    assert not flat
     assert "MSYS2.MSYS2" not in flat
     assert "pango" not in flat.lower()
     assert "WEASYPRINT_DLL_DIRECTORIES" not in flat
@@ -4735,7 +4659,7 @@ def test_windows_pdf_prerequisites_are_checked_before_the_project_environment(
     assert ids.index("pandoc") < ids.index("project-env")
 
 
-def test_windows_fonts_are_checked_even_though_they_are_installed_by_hand(
+def test_windows_native_stage_does_not_check_host_fonts(
     tmp_path: Path,
 ) -> None:
     """Windows has no package manager for these, which is a reason to
@@ -4756,7 +4680,8 @@ def test_windows_fonts_are_checked_even_though_they_are_installed_by_hand(
     result = next(s for s in STAGES if s.id == "pandoc").check(
         _context(tmp_path, runner=runner, platform=WINDOWS)
     )
-    assert result.needs_work and "Inter" in result.detail
+    assert result.status is Status.OK
+    assert "Inter" not in result.detail
 
     for name in ("Inter-Regular.ttf", "JetBrainsMono-Regular.ttf"):
         (fonts / name).write_text("", encoding="utf-8")
@@ -4767,18 +4692,18 @@ def test_windows_fonts_are_checked_even_though_they_are_installed_by_hand(
     assert result.status is Status.OK
 
 
-def test_a_windows_machine_with_no_font_directory_reports_unverified_fonts(
+def test_a_windows_machine_with_no_font_directory_is_ready_for_project_cache(
     tmp_path: Path,
 ) -> None:
-    """G3 removes Pango setup but retains the G4 host-font warning."""
+    """G4 makes host fonts irrelevant to PDF rendering."""
     runner = FakeRunner({"pandoc": CommandResult(0, "pandoc 3.10.1\n")})
 
     result = next(s for s in STAGES if s.id == "pandoc").check(
         _context(tmp_path, runner=runner, platform=WINDOWS)
     )
 
-    assert result.status is Status.WARNING
-    assert "fonts could not be verified" in result.detail
+    assert result.status is Status.OK
+    assert "project-locally" in result.detail
     assert "Pango" not in result.detail
 
 
@@ -4793,6 +4718,9 @@ def test_every_windows_stage_produces_something_to_do(tmp_path: Path) -> None:
             # reports the stage satisfied - so this plan is never built
             # in a real run. Empty is the correct answer, not an
             # oversight (#360).
+            assert not stage.check(context).needs_work
+            continue
+        if stage.id == "pandoc":
             assert not stage.check(context).needs_work
             continue
         plan = stage.plan(context)
@@ -8478,7 +8406,7 @@ def test_every_host_says_something_about_its_own_site(tmp_path: Path) -> None:
         assert host.site_missing_note, key
 
 
-def test_pandoc_and_node_are_not_reported_missing_when_PATH_is_stale(
+def test_node_is_not_reported_missing_when_path_is_stale(
     tmp_path: Path,
 ) -> None:
     """prodockit-extensions#450.
@@ -8494,16 +8422,13 @@ def test_pandoc_and_node_are_not_reported_missing_when_PATH_is_stale(
     resolver, and that is precisely the bug - the helper existed for
     git and these two checks did not use one.
     """
-    pandoc_exe = r"C:\Program Files\Pandoc\pandoc.exe"
     node_exe = r"C:\Program Files\nodejs\node.exe"
-    installed = {Path(pandoc_exe), Path(node_exe)}
+    installed = {Path(node_exe)}
 
     machine = _ready_machine(tmp_path)
     # Bare names answer as they do on a machine whose PATH is stale:
     # not found. Only the full paths work.
-    machine["pandoc --version"] = CommandResult(127, stderr="not found")
     machine["node --version"] = CommandResult(127, stderr="not found")
-    machine[pandoc_exe] = CommandResult(0, "pandoc 3.10.1\n")
     machine[node_exe] = CommandResult(0, "v22.0.0\n")
 
     context = build_context(
@@ -8514,9 +8439,8 @@ def test_pandoc_and_node_are_not_reported_missing_when_PATH_is_stale(
         exists=lambda path: path in installed or path.exists(),
     )
 
-    pandoc = next(s for s in STAGES if s.id == "pandoc").check(context)
-    assert "not installed" not in pandoc.detail, pandoc.detail
-    assert "3.10.1" in pandoc.detail, pandoc.detail
+    node = next(s for s in STAGES if s.id == "node").check(context)
+    assert "not installed" not in node.detail, node.detail
 
 
 def test_a_program_on_PATH_is_used_by_its_bare_name(tmp_path: Path) -> None:
@@ -8542,7 +8466,7 @@ def test_the_names_are_resolved_when_the_plan_runs_not_when_it_is_built(
     yet" - which is #405, and the reason this table exists."""
     from prodockit.bootstrap import stages as stage_module
 
-    for name in ("pandoc", "node", "npm"):
+    for name in ("node", "npm"):
         assert name in stage_module._RESOLVE_BEFORE_RUNNING, name
 
 
@@ -8606,55 +8530,17 @@ def _pandoc_saying(tmp_path: Path, version: str, **kw) -> CheckResult:
     )
 
 
-def test_a_pandoc_that_differs_from_the_pin_is_named(tmp_path: Path) -> None:
-    """prodockit-extensions#454.
-
-    Pandoc decides how the PDF renders - #207 was code blocks coming out
-    as justified prose on an older major, and limitations.md records
-    3.1.3 accepting markup that 3.10 does not. So a student writing on
-    one pandoc while CI publishes on another gets a PDF they never
-    checked, and nothing says so: both builds succeed.
-    """
-    exact = _pandoc_saying(tmp_path, PANDOC_VERSION)
-    assert exact.status is Status.OK
-    assert "the builds pin" not in exact.detail, "nothing to say when it matches"
-
-    differs = _pandoc_saying(tmp_path, "3.10.2")
-    assert "3.10.2" in differs.detail
-    assert f"the builds pin {PANDOC_VERSION}" in differs.detail, differs.detail
-
-
-def test_a_pandoc_that_differs_is_told_not_failed(tmp_path: Path) -> None:
-    """The deviation from #454's own suggestion, and the reason for it.
-
-    Homebrew cannot install an old pandoc, so a failing status would be
-    one no macOS reader could ever clear - a stage stuck for good, which
-    is precisely the failure this project has had to undo twice already
-    (#443, #451). A note they can act on beats a red mark they cannot.
-
-    A pandoc too old to render correctly is still a failure: that one is
-    fixable, and #207 is what happens when it is ignored.
-    """
+def test_host_pandoc_version_is_irrelevant_to_bootstrap(tmp_path: Path) -> None:
+    assert _pandoc_saying(tmp_path, PANDOC_VERSION).status is Status.OK
     assert _pandoc_saying(tmp_path, "3.10.2").status is Status.OK
-    assert _pandoc_saying(tmp_path, "2.9.2").status is Status.WRONG
+    assert _pandoc_saying(tmp_path, "2.9.2").status is Status.OK
 
 
-def test_windows_installs_the_pandoc_the_builds_pin(tmp_path: Path) -> None:
-    """Ubuntu has always downloaded an exact release; Windows took
-    whatever winget was serving, which is how a machine bootstrap had
-    just set up came to run 3.10.2 against builds pinning 3.10.1."""
-    plan = next(s for s in STAGES if s.id == "pandoc").plan(_context(tmp_path, platform=WINDOWS))
-    pandoc = next(c for c in plan.commands if "JohnMacFarlane.Pandoc" in c)
-
-    assert pandoc[pandoc.index("--version") + 1] == PANDOC_VERSION, pandoc
-
-
-def test_windows_pandoc_is_the_only_pdf_winget_package(tmp_path: Path) -> None:
+def test_windows_pdf_stage_uses_no_winget_package(tmp_path: Path) -> None:
     plan = next(s for s in STAGES if s.id == "pandoc").plan(_context(tmp_path, platform=WINDOWS))
     winget = [command for command in plan.commands if command and command[0] == "winget"]
 
-    assert len(winget) == 1
-    assert "JohnMacFarlane.Pandoc" in winget[0]
+    assert not winget
 
 
 def _ubuntu_vscode_commands(tmp_path: Path) -> list[list[str]]:

@@ -67,14 +67,13 @@ def test_missing_winget_installs_microsofts_signed_release(monkeypatch, tmp_path
 @pytest.mark.parametrize(
     ("recipe", "expected"),
     (
-        (_MODULE.MACOS, ("visual-studio-code", "git", "pandoc", "pango", "node")),
+        (_MODULE.MACOS, ("visual-studio-code", "git", "pango", "node")),
         (
             _MODULE.UBUNTU,
             (
                 "code",
                 "git",
                 "git-man",
-                "pandoc",
                 "nodejs",
                 "chromium-browser",
             ),
@@ -84,8 +83,6 @@ def test_missing_winget_installs_microsofts_signed_release(monkeypatch, tmp_path
             (
                 "Microsoft.VisualStudioCode",
                 "Git.Git",
-                "JohnMacFarlane.Pandoc",
-                "MSYS2.MSYS2",
                 "OpenJS.NodeJS.LTS",
             ),
         ),

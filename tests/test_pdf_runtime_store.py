@@ -264,6 +264,29 @@ def test_zip_archive_rejects_symbolic_links(tmp_path: Path) -> None:
         )
 
 
+def test_descriptor_can_ignore_one_reviewed_link_without_extracting_it(tmp_path: Path) -> None:
+    archive = tmp_path / "runtime.zip"
+    with zipfile.ZipFile(archive, "w") as bundle:
+        bundle.writestr("bin/tool", b"runtime")
+        bundle.writestr("LICENSE", b"licence")
+        link = zipfile.ZipInfo("bin/tool-alias")
+        link.external_attr = (stat.S_IFLNK | 0o777) << 16
+        bundle.writestr(link, "tool")
+    descriptor = ArtifactDescriptor(
+        **{
+            **_descriptor(hashlib.sha256(archive.read_bytes()).hexdigest()).__dict__,
+            "ignored_link_paths": ("bin/tool-alias",),
+        }
+    )
+
+    result = RuntimeStore(tmp_path / "project").prepare(
+        descriptor, acquire=_copy_from(archive, []), probe=lambda _root: None
+    )
+
+    assert (result.path / "bin/tool").is_file()
+    assert not (result.path / "bin/tool-alias").exists()
+
+
 def test_zip_archive_rejects_special_entries(tmp_path: Path) -> None:
     archive = tmp_path / "runtime.zip"
     with zipfile.ZipFile(archive, "w") as bundle:

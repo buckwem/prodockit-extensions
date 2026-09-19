@@ -8,6 +8,9 @@ on:
       - .github/workflows/weasyprint-windows-s0.yml
       - src/prodockit/pdf/build.py
       - src/prodockit/pdf/config.py
+      - src/prodockit/pdf/font_runtime.py
+      - src/prodockit/pdf/pandoc_runtime.py
+      - src/prodockit/pdf/runtime_download.py
       - src/prodockit/pdf/runtime_prepare.py
       - src/prodockit/pdf/runtime_store.py
       - src/prodockit/pdf/source_bundle.py
@@ -45,17 +48,15 @@ jobs:
           python tools/weasyprint_windows_s0.py
           --work-dir weasyprint-s0-work
           --report weasyprint-windows-s0.json
-      - name: Install the candidate and supported Pandoc
-        run: |
-          python -m pip install -e ".[testing]" "zensical==0.0.61"
-          python -m prodockit.toolchain install-pandoc --version 3.10.1
+      - name: Install the candidate
+        run: python -m pip install -e ".[testing]" "zensical==0.0.61"
       - name: Build the completed website
         run: zensical build --clean --strict
       - name: Exercise cold and warm production preparation
         shell: pwsh
         run: |
-          $cold = Measure-Command { pdk pdf --prepare weasyprint }
-          $warm = Measure-Command { pdk pdf --prepare weasyprint }
+          $cold = Measure-Command { pdk pdf --prepare pandoc --prepare fonts --prepare weasyprint }
+          $warm = Measure-Command { pdk pdf --prepare pandoc --prepare fonts --prepare weasyprint }
           @{
             cold_seconds = $cold.TotalSeconds
             warm_seconds = $warm.TotalSeconds

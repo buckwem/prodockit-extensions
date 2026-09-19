@@ -1198,6 +1198,69 @@ def test_windows_weasyprint_diagnostic_does_not_prepare_a_missing_cache(
     assert "pdk pdf --prepare weasyprint" in candidate.remediation
 
 
+@pytest.mark.parametrize("component", ["pandoc", "fonts"])
+def test_project_runtime_diagnostic_is_read_only_when_cache_is_missing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, component: str
+) -> None:
+    class Store:
+        def __init__(self, root: Path) -> None:
+            assert root == tmp_path
+
+        def active_for(self, descriptor):
+            assert descriptor.component == component
+            return None
+
+        def active(self, selected: str):
+            assert selected == component
+            return None
+
+    monkeypatch.setattr(diagnostics, "RuntimeStore", Store)
+
+    check = diagnostics._project_cached_runtime_check(
+        None, tmp_path, component=component, required=True
+    )
+
+    assert check.status == "fail"
+    assert check.data["backend"] == "project-cache"
+    assert any(f"pdk pdf --prepare {component}" in detail for detail in check.details)
+    candidate = diagnostics.build_repair_dry_run(
+        DiagnosticReport("zensical.toml", str(tmp_path), False, (check,))
+    ).candidates[0]
+    assert candidate.status == "manual"
+    assert not candidate.choices
+    assert f"pdk pdf --prepare {component}" in candidate.remediation
+
+
+def test_bibliography_configuration_requires_project_pandoc(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config = ProjectConfig(
+        tmp_path / "zensical.toml",
+        {"site_name": "Bibliography"},
+        (),
+        {"prodockit.bibliography": {"bib_file": "refs.bib"}},
+    )
+    monkeypatch.setattr(
+        diagnostics,
+        "_project_cached_runtime_check",
+        lambda _config, _root, *, component, required: DiagnosticResult(
+            f"renderer.{component}",
+            "Rendering toolchain",
+            "warn",
+            component,
+            (),
+            {"required": required},
+        ),
+    )
+
+    checks = diagnostics._renderer_checks(config, tmp_path)
+    pandoc = next(check for check in checks if check.id == "renderer.pandoc")
+    fonts = next(check for check in checks if check.id == "renderer.fonts")
+
+    assert pandoc.data["required"] is True
+    assert fonts.data["required"] is False
+
+
 def test_mermaid_diagnostic_accepts_the_standalone_runtime(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

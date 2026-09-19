@@ -6,7 +6,6 @@
 from __future__ import annotations
 
 import os
-import shutil
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -39,7 +38,7 @@ from prodockit.weasyprint_probe import clear_probe_cache, run_probe
 @dataclass(frozen=True)
 class NativePlan:
     commands: tuple[tuple[str, ...], ...] = ()
-    detail: str = "PDF libraries and fonts are available"
+    detail: str = "PDF native libraries are available"
     blocked: str = ""
     environment_repair: bool = False
 
@@ -95,11 +94,8 @@ def _probe(
         if result.pending:
             return "WeasyPrint Python package is pending"
 
-        font_problem = _font_problem(context)
-        if font_problem:
-            return font_problem
     except (OSError, subprocess.SubprocessError) as error:
-        return f"PDF library or font health could not be verified: {error}"
+        return f"PDF library health could not be verified: {error}"
     return ""
 
 
@@ -191,16 +187,10 @@ def plan(
     except UnsupportedHostError as error:
         return NativePlan(blocked=str(error))
     if context.platform == WINDOWS:
-        # A previous Adopt process may have installed the libraries/fonts,
-        # while this command still inherits the original terminal environment.
-        # Discover persisted paths before deciding another install is needed,
-        # including during an offline assessment.
-        refresh_windows_path()
-    problem = (
-        _font_problem(context)
-        if context.platform == WINDOWS
-        else _probe(context, reporter=reporter)
-    )
+        # G4: Pandoc, fonts and WeasyPrint are all project-local on Windows.
+        # Adopt no longer has a machine-level PDF runtime to install or probe.
+        return NativePlan()
+    problem = _probe(context, reporter=reporter)
     if problem == "WeasyPrint Python package is pending":
         return NativePlan(
             environment_repair=True,
@@ -223,7 +213,7 @@ def plan(
     commands = _plan_pandoc(context, native_only=True).commands
     return NativePlan(
         manager.commands + tuple(tuple(command) for command in commands),
-        problem + "; install or repair PDF libraries and fonts",
+        problem + "; install or repair PDF native libraries",
     )
 
 
@@ -282,20 +272,9 @@ def apply(root: Path, *, offline: bool = False, reporter: RetryReporter | None =
         label="PDF runtime",
     )
     _persist_loader(context)
-    if commands and shutil.which("fc-cache"):
-        run_commands(
-            root,
-            (("fc-cache", "-f"),),
-            offline=offline,
-            reporter=reporter,
-            refresh=lambda: _refresh(context),
-            label="font cache",
-        )
     clear_probe_cache()
-    problem = (
-        _font_problem(context)
-        if context.platform == WINDOWS
-        else _probe(context, render=True, reporter=reporter)
+    problem = "" if context.platform == WINDOWS else _probe(
+        context, render=True, reporter=reporter
     )
     if problem:
         raise ToolchainError(

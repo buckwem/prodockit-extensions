@@ -83,7 +83,7 @@ def test_remove_tree_retries_transient_windows_permission_error(
     assert not tmp_path.exists()
 
 
-def test_prepare_windows_pdf_runtime_is_explicit(
+def test_prepare_pdf_runtime_includes_windows_weasyprint(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     calls: list[tuple[list[str], Path]] = []
@@ -96,7 +96,7 @@ def test_prepare_windows_pdf_runtime_is_explicit(
         lambda command, *, cwd: calls.append((command, cwd)),
     )
 
-    acceptance.prepare_windows_pdf_runtime(python, project)
+    acceptance.prepare_pdf_runtime(python, project)
 
     assert calls == [
         (
@@ -106,6 +106,10 @@ def test_prepare_windows_pdf_runtime_is_explicit(
                 "prodockit",
                 "pdf",
                 "--prepare",
+                "pandoc",
+                "--prepare",
+                "fonts",
+                "--prepare",
                 "weasyprint",
             ],
             project,
@@ -113,14 +117,33 @@ def test_prepare_windows_pdf_runtime_is_explicit(
     ]
 
 
-def test_prepare_windows_pdf_runtime_is_skipped_elsewhere(
+def test_prepare_pdf_runtime_uses_portable_components_elsewhere(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    calls: list[tuple[list[str], Path]] = []
+    python = tmp_path / "venv" / "bin" / "python"
+    project = tmp_path / "project"
     monkeypatch.setattr(acceptance.platform, "system", lambda: "Linux")
     monkeypatch.setattr(
         acceptance.acceptance,
         "run",
-        lambda *args, **kwargs: pytest.fail("preparation should be Windows-only"),
+        lambda command, *, cwd: calls.append((command, cwd)),
     )
 
-    acceptance.prepare_windows_pdf_runtime(tmp_path / "python", tmp_path / "project")
+    acceptance.prepare_pdf_runtime(python, project)
+
+    assert calls == [
+        (
+            [
+                str(python),
+                "-m",
+                "prodockit",
+                "pdf",
+                "--prepare",
+                "pandoc",
+                "--prepare",
+                "fonts",
+            ],
+            project,
+        )
+    ]

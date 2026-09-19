@@ -164,9 +164,8 @@ def run(
         "Scripts",
     }:
         # Calling a venv's interpreter by absolute path does not activate its
-        # executable search path. Adopt installs Pandoc alongside that Python,
-        # so the harness must expose the same environment that an author gets
-        # after activating the venv before verification and subsequent runs.
+        # executable search path. Expose the same environment that an author
+        # gets after activation before verification and subsequent runs.
         virtual_environment = executable.parent.parent.resolve()
         environment["VIRTUAL_ENV"] = str(virtual_environment)
         environment["PATH"] = os.pathsep.join(

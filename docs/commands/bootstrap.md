@@ -99,7 +99,7 @@ phase and identifies whether Bootstrap can automate it.
 | | 12 | A history of your own | yes |
 | | 13 | Clone pointed at your project | yes |
 | | 14 | Commit identity in the project | yes |
-| 5. Build toolchain {: rowspan=3 } | 15 | Pandoc, and the libraries WeasyPrint needs | yes |
+| 5. Build toolchain {: rowspan=3 } | 15 | PDF native libraries | yes |
 | | 16 | Project environment, dependencies and Adoption component choices | yes |
 | | 17 | Node.js and the render toolchains | yes |
 | 6. Editor and project {: rowspan=4 } | 18 | VS Code extensions | yes |

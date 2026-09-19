@@ -984,7 +984,6 @@ def main() -> None:
         expected_upgrades = {
             "vscode",
             "git",
-            "pandoc",
             "node",
             "npm",
             "vscode-extensions",
@@ -998,7 +997,8 @@ def main() -> None:
                 "the old-software route did not accept every upgrade; "
                 f"got {sorted(harness.upgraded)}, expected {sorted(expected_upgrades)}"
             )
-        if apply_output.count("Action:   UPGRADE") < 5:
+        expected_upgrade_actions = 4 if current_platform() == "windows" else 5
+        if apply_output.count("Action:   UPGRADE") < expected_upgrade_actions:
             raise AcceptanceError(
                 "the old-software route did not present each software upgrade explicitly"
             )
@@ -1006,7 +1006,6 @@ def main() -> None:
         expected = {
             "Visual Studio Code",
             "Git, installed and configured",
-            "Pandoc, and the libraries WeasyPrint needs",
             "Node.js and the render toolchains",
             "VS Code extensions",
         }

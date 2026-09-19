@@ -1,0 +1,82 @@
+# Copyright (c) 2026 Mark Buckwell and contributors
+# SPDX-License-Identifier: MIT
+
+name: Project-local PDF runtime G4 acceptance
+on:
+  pull_request:
+    paths:
+      - .github/workflows/pdf-runtime-g4.yml
+      - src/prodockit/bibliography.py
+      - src/prodockit/pdf/**
+      - tools/pdf_runtime_g4_acceptance.py
+      - pdk-pdf.toml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  production-path:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Ubuntu x64
+            artifact: ubuntu-x64
+            runner: ubuntu-24.04
+          - name: Ubuntu ARM64
+            artifact: ubuntu-arm64
+            runner: ubuntu-24.04-arm
+          - name: macOS ARM64
+            artifact: macos-arm64
+            runner: macos-15
+          - name: macOS x64
+            artifact: macos-x64
+            runner: macos-15-intel
+          - name: Windows x64
+            artifact: windows-x64
+            runner: windows-2025
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version-file: .python-version
+          cache: pip
+      - name: Install Linux PDF libraries
+        if: runner.os == 'Linux'
+        run: >-
+          sudo apt-get update && sudo apt-get install -y
+          libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz-subset0
+      - name: Install macOS PDF libraries
+        if: runner.os == 'macOS'
+        run: |
+          brew install pango
+          echo "DYLD_FALLBACK_LIBRARY_PATH=$(brew --prefix)/lib" >> "$GITHUB_ENV"
+      - name: Install candidate
+        run: >-
+          python -m pip install -e ".[testing]"
+          "zensical==0.0.61" "weasyprint==69.0"
+      - name: Run cold, warm, build, font and bibliography acceptance
+        run: >-
+          python tools/pdf_runtime_g4_acceptance.py
+          --project .
+          --work-dir pdf-runtime-g4-work
+          --report pdf-runtime-g4.json
+      - name: Keep acceptance evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pdf-runtime-g4-${{ matrix.artifact }}
+          path: |
+            pdf-runtime-g4.json
+            docs/gettingstarted.pdf
+          if-no-files-found: warn

@@ -93,7 +93,7 @@ supply:
 
 - on Windows x64, let `pdk pdf` acquire its verified project-local WeasyPrint
   runtime; macOS and Linux currently use the Python package and native Pango;
-- install Pandoc for PDF generation and BibTeX/BibLaTeX bibliographies; and
+- let `pdk pdf` acquire verified project-local Pandoc and PDF fonts on first use; and
 - install the optional Node tools and Chrome or Chromium only when the PDF
   contains TeX maths.
 

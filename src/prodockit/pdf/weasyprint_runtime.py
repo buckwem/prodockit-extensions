@@ -13,14 +13,11 @@ from __future__ import annotations
 
 import subprocess
 import tempfile
-import time
-import urllib.error
-import urllib.request
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlparse
 
 from prodockit.pdf.runtime_config import ComponentPolicy
+from prodockit.pdf.runtime_download import download_release_asset
 from prodockit.pdf.runtime_prepare import (
     RuntimeEnvironment,
     RuntimeProviderUnavailableError,
@@ -40,86 +37,16 @@ WEASYPRINT_EXECUTABLE = Path("onedir/weasyprint/weasyprint.exe")
 WEASYPRINT_LICENCE = Path("LICENSE")
 
 _WINDOWS_X64 = frozenset({"amd64", "x86_64"})
-_DOWNLOAD_HOSTS = frozenset(
-    {
-        "github.com",
-        "release-assets.githubusercontent.com",
-        "objects.githubusercontent.com",
-    }
-)
-_DOWNLOAD_TIMEOUT = 45.0
-_DOWNLOAD_ATTEMPTS = 3
 _PROBE_TIMEOUT = 120.0
 
 
-def _validate_download_url(url: str) -> None:
-    parsed = urlparse(url)
-    if parsed.scheme != "https" or parsed.hostname not in _DOWNLOAD_HOSTS:
-        raise RuntimeStoreError(f"refusing unapproved WeasyPrint download URL: {url}")
-    if parsed.username or parsed.password:
-        raise RuntimeStoreError("refusing a WeasyPrint download URL containing credentials")
-
-
-class _TrustedRedirectHandler(urllib.request.HTTPRedirectHandler):
-    def redirect_request(
-        self,
-        req: urllib.request.Request,
-        fp: Any,
-        code: int,
-        msg: str,
-        headers: Any,
-        newurl: str,
-    ) -> urllib.request.Request | None:
-        _validate_download_url(newurl)
-        return super().redirect_request(req, fp, code, msg, headers, newurl)
-
-
-def _open_download(request: urllib.request.Request, timeout: float) -> Any:
-    opener = urllib.request.build_opener(_TrustedRedirectHandler())
-    return opener.open(request, timeout=timeout)
-
-
 def _download_official_artifact(url: str, destination: Path) -> None:
-    _validate_download_url(url)
-    request = urllib.request.Request(url, headers={"User-Agent": "Prodockit-PDF-Runtime/1"})
-    last_error: Exception | None = None
-    for attempt in range(_DOWNLOAD_ATTEMPTS):
-        destination.unlink(missing_ok=True)
-        try:
-            with _open_download(request, _DOWNLOAD_TIMEOUT) as response:
-                final_url = response.geturl()
-                _validate_download_url(final_url)
-                content_length = response.headers.get("Content-Length")
-                if content_length is not None and int(content_length) != WEASYPRINT_ASSET_BYTES:
-                    raise RuntimeStoreError(
-                        "official WeasyPrint artifact size changed: expected "
-                        f"{WEASYPRINT_ASSET_BYTES}, got {content_length}"
-                    )
-                written = 0
-                with destination.open("xb") as output:
-                    while chunk := response.read(1024 * 1024):
-                        written += len(chunk)
-                        if written > WEASYPRINT_ASSET_BYTES:
-                            raise RuntimeStoreError(
-                                "official WeasyPrint artifact exceeded its reviewed size"
-                            )
-                        output.write(chunk)
-                if written != WEASYPRINT_ASSET_BYTES:
-                    raise RuntimeStoreError(
-                        "official WeasyPrint artifact was truncated: expected "
-                        f"{WEASYPRINT_ASSET_BYTES} bytes, got {written}"
-                    )
-            return
-        except (OSError, ValueError, urllib.error.URLError, RuntimeStoreError) as error:
-            last_error = error
-            destination.unlink(missing_ok=True)
-            if attempt + 1 < _DOWNLOAD_ATTEMPTS:
-                time.sleep(2**attempt)
-    assert last_error is not None
-    raise RuntimeStoreError(
-        f"could not download the official WeasyPrint artifact after "
-        f"{_DOWNLOAD_ATTEMPTS} attempts: {last_error}"
-    ) from last_error
+    download_release_asset(
+        url,
+        destination,
+        expected_bytes=WEASYPRINT_ASSET_BYTES,
+        label="WeasyPrint",
+    )
 
 
 def executable_in_runtime(runtime: Path) -> Path:

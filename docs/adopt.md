@@ -104,8 +104,8 @@ See [Template settings and the review ledger](commands/adopt.md#template-setting
 for the source, cache, exceptions and reset behaviour.
 
 Adoption installs, upgrades or downgrades the managed Python packages in the
-active virtual environment and installs the supported Pandoc executable into
-that environment. It does not replace the Python interpreter that is running
+active virtual environment. Pandoc and PDF fonts are prepared separately in
+the project cache by `pdk pdf`. Adoption does not replace the Python interpreter that is running
 it: a different Python minor release blocks the whole stage before packages or
 project files are changed, and the report gives the exact Bootstrap or virtual
 environment remediation.
@@ -113,7 +113,7 @@ environment remediation.
 Adoption is not a whole-machine native-library installer. On macOS and Ubuntu,
 WeasyPrint's Pango, GLib, HarfBuzz and fontconfig libraries remain part of the
 existing machine setup. Windows x64 instead uses the standalone project cache
-owned by `pdk pdf`; document fonts remain host-managed until G4. Follow the
+owned by `pdk pdf`; Pandoc and document fonts are project-local on every supported host. Follow the
 adoption row under [Prepare the PDF tools](pdf.md#pdf-requirements).
 
 ## Adoption stages

@@ -78,6 +78,7 @@ class ArtifactDescriptor:
     environment_identity: str
     archive_format: str
     expected_paths: tuple[str, ...]
+    ignored_link_paths: tuple[str, ...] = ()
 
     def validate(self) -> None:
         if self.component not in COMPONENTS:
@@ -109,6 +110,14 @@ class ArtifactDescriptor:
             raise RuntimeStoreError("artifact expected_paths must not be empty")
         for expected in self.expected_paths:
             _safe_archive_path(expected)
+        for ignored in self.ignored_link_paths:
+            _safe_archive_path(ignored)
+        overlap = set(self.expected_paths) & set(self.ignored_link_paths)
+        if overlap:
+            raise RuntimeStoreError(
+                "artifact paths cannot be both expected and ignored links: "
+                + ", ".join(sorted(overlap))
+            )
 
     @property
     def platform_key(self) -> str:
@@ -201,7 +210,11 @@ def _validated_member_path(name: str, seen: set[str]) -> PurePosixPath:
     return path
 
 
-def _extract_zip(archive_path: Path, destination: Path) -> None:
+def _extract_zip(
+    archive_path: Path,
+    destination: Path,
+    ignored_link_paths: frozenset[str],
+) -> None:
     with zipfile.ZipFile(archive_path) as archive:
         members = archive.infolist()
         _check_archive_budget(len(members), sum(member.file_size for member in members))
@@ -211,6 +224,8 @@ def _extract_zip(archive_path: Path, destination: Path) -> None:
             path = _validated_member_path(member.filename, seen)
             mode = member.external_attr >> 16
             if stat.S_ISLNK(mode):
+                if path.as_posix() in ignored_link_paths:
+                    continue
                 raise RuntimeStoreError(f"archive contains a symbolic link: {member.filename!r}")
             kind = stat.S_IFMT(mode)
             if kind and kind not in {stat.S_IFREG, stat.S_IFDIR}:
@@ -233,7 +248,11 @@ def _extract_zip(archive_path: Path, destination: Path) -> None:
                 target.chmod(permissions)
 
 
-def _extract_tar(archive_path: Path, destination: Path) -> None:
+def _extract_tar(
+    archive_path: Path,
+    destination: Path,
+    ignored_link_paths: frozenset[str],
+) -> None:
     with tarfile.open(archive_path, mode="r:*") as archive:
         members = archive.getmembers()
         _check_archive_budget(len(members), sum(member.size for member in members))
@@ -241,6 +260,12 @@ def _extract_tar(archive_path: Path, destination: Path) -> None:
         validated: list[tuple[tarfile.TarInfo, PurePosixPath]] = []
         for member in members:
             path = _validated_member_path(member.name, seen)
+            if member.issym() or member.islnk():
+                if path.as_posix() in ignored_link_paths:
+                    continue
+                raise RuntimeStoreError(
+                    f"archive contains a link or special entry: {member.name!r}"
+                )
             if not (member.isfile() or member.isdir()):
                 raise RuntimeStoreError(
                     f"archive contains a link or special entry: {member.name!r}"
@@ -260,16 +285,23 @@ def _extract_tar(archive_path: Path, destination: Path) -> None:
             target.chmod(member.mode & 0o777)
 
 
-def extract_archive(archive_path: Path, destination: Path, archive_format: str) -> None:
+def extract_archive(
+    archive_path: Path,
+    destination: Path,
+    archive_format: str,
+    *,
+    ignored_link_paths: tuple[str, ...] = (),
+) -> None:
     """Extract a validated archive without trusting archive-owned paths."""
 
     if any(destination.iterdir()):
         raise RuntimeStoreError(f"staging directory is not empty: {destination}")
+    ignored = frozenset(path.as_posix() for path in map(_safe_archive_path, ignored_link_paths))
     try:
         if archive_format == "zip":
-            _extract_zip(archive_path, destination)
+            _extract_zip(archive_path, destination, ignored)
         elif archive_format == "tar":
-            _extract_tar(archive_path, destination)
+            _extract_tar(archive_path, destination, ignored)
         else:
             raise RuntimeStoreError(f"unsupported archive format {archive_format!r}")
     except (OSError, tarfile.TarError, zipfile.BadZipFile) as error:
@@ -510,6 +542,12 @@ class RuntimeStore:
         if descriptor is not None:
             expected = asdict(descriptor)
             expected["expected_paths"] = list(descriptor.expected_paths)
+            expected["ignored_link_paths"] = list(descriptor.ignored_link_paths)
+            if not descriptor.ignored_link_paths and "ignored_link_paths" not in marker:
+                # G3 descriptors predate this narrowly scoped Pandoc field.
+                # An empty omission is semantically identical and avoids a
+                # needless redownload of a healthy WeasyPrint runtime.
+                expected.pop("ignored_link_paths")
             if any(marker.get(key) != value for key, value in expected.items()):
                 return None
         try:
@@ -611,7 +649,12 @@ class RuntimeStore:
         _safe_mkdir(self.project_root, staging.parent)
         staging.mkdir(parents=True)
         try:
-            extract_archive(archive, staging, descriptor.archive_format)
+            extract_archive(
+                archive,
+                staging,
+                descriptor.archive_format,
+                ignored_link_paths=descriptor.ignored_link_paths,
+            )
             for expected in descriptor.expected_paths:
                 path = staging.joinpath(*_safe_archive_path(expected).parts)
                 if not path.is_file() or path.is_symlink():

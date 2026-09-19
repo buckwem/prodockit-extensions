@@ -90,8 +90,8 @@ installed depends on the route used to prepare the project:
 
 | Setup route {: width="28%" } | PDF preparation |
 |---|---|
-| [Bootstrap](devcons/bootstrap.md) | `prodockit bootstrap --apply` installs and verifies the required PDF tools. Continue with the verification commands below. |
-| [Adoption](adopt.md) | `prodockit adopt --apply` installs the current Pandoc/font prerequisites. On Windows x64, `pdk pdf` owns the project-local WeasyPrint runtime and neither Adopt nor Bootstrap installs MSYS2/Pango for it. |
+| [Bootstrap](devcons/bootstrap.md) | `prodockit bootstrap --apply` installs only the native Pango libraries needed on macOS/Linux. `pdk pdf` owns Pandoc and PDF fonts. |
+| [Adoption](adopt.md) | `prodockit adopt --apply` repairs only native Pango on macOS/Linux. On Windows x64, all PDF runtimes are project-local. |
 | [Manual installation](installation.md) | Install the PDF dependencies the document uses by following the operating-system instructions below. |
 /// table-caption | <
     attrs: {id: tab-pdf-prepare-the-pdf-tools}
@@ -101,6 +101,15 @@ Prepare the PDF tools
 
 Activate the project's virtual environment, then use the instructions for its
 operating system when the route above requires them:
+
+Pandoc and the Inter/JetBrains Mono PDF fonts require no host installation.
+The first applicable build downloads verified archives into
+`.prodockit/cache/pdf/`; bibliography-only use prepares Pandoc without fonts.
+To force preparation before a build, run:
+
+```bash
+pdk pdf --prepare pandoc --prepare fonts
+```
 
 === ":material-apple: macOS"
 
@@ -117,10 +126,10 @@ operating system when the route above requires them:
 
     No MSYS2, Pango installation, PATH change, registry change, or Python
     WeasyPrint package is required for the Windows x64 PDF engine. Prepare the
-    official verified runtime explicitly, or let the first PDF build do it:
+    official verified runtimes explicitly, or let the first PDF build do it:
 
     ```powershell
-    pdk pdf --prepare weasyprint
+    pdk pdf --prepare pandoc --prepare fonts --prepare weasyprint
     ```
 
     The runtime is cached beneath `.prodockit/cache/pdf/` for this project.

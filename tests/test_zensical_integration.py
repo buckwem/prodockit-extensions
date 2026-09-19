@@ -42,6 +42,11 @@ def _isolated_zensical_registry(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(prodockit_glossary, "_ZENSICAL_SHARED_REGISTRY", GlossaryRegistry())
     monkeypatch.setattr(prodockit_bibliography, "_ZENSICAL_SHARED_CACHES", {})
     monkeypatch.setattr(
+        prodockit_bibliography,
+        "_project_pandoc_executable",
+        lambda: Path(shutil.which("pandoc") or "pandoc"),
+    )
+    monkeypatch.setattr(
         prodockit_zensical,
         "current_page_path",
         lambda md: getattr(md, "_prodockit_test_page_path", None),

@@ -74,11 +74,10 @@ only `location = "cache"`: it means the derived project-local store at
 Resolved versions, hashes, platform identity and last-known-good state are
 recorded inside that store rather than in `pdk-pdf.toml`.
 
-The preparation interface is intentionally provider-gated. Windows x64 can
-prepare the official digest-pinned WeasyPrint 70 runtime; a healthy cache is a
-fast local validation with no provider or network call. Components whose
-qualified acquisition phase has not shipped fail before changing runtime
-state.
+The preparation interface is intentionally provider-gated. Pandoc 3.10.1 and
+the Inter 4.1/JetBrains Mono 2.304 font bundle are available on supported
+macOS, Linux, and Windows x64 targets; Windows x64 also provides WeasyPrint 70.
+A healthy cache is a fast local validation with no provider or network call.
 
 ## Exit status {: #cmd-pdf-exit-status }
 

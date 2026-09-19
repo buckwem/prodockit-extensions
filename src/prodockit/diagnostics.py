@@ -33,6 +33,10 @@ from prodockit.pdf._standalone_quickjs import (
     StandaloneBackendUnavailableError as StandaloneRuntimeUnavailableError,
 )
 from prodockit.pdf._standalone_quickjs import require_standalone_runtime
+from prodockit.pdf.font_runtime import FontProvider
+from prodockit.pdf.font_runtime import probe_runtime as probe_font_runtime
+from prodockit.pdf.pandoc_runtime import PandocProvider
+from prodockit.pdf.pandoc_runtime import probe_runtime as probe_pandoc_runtime
 from prodockit.pdf.runtime_config import load_pdf_runtime_config
 from prodockit.pdf.runtime_prepare import current_runtime_environment
 from prodockit.pdf.runtime_store import RuntimeStore
@@ -85,6 +89,7 @@ DIAGNOSTIC_IDS = frozenset(
         "dependencies.shared-files",
         "dependencies.inspection",
         "renderer.pandoc",
+        "renderer.fonts",
         "renderer.weasyprint",
         "renderer.node",
         "renderer.npm",
@@ -300,9 +305,14 @@ REPAIR_REGISTRY: dict[str, RepairPolicy] = {
         "Correct the reported path, encoding, syntax, or permission problem.",
     ),
     "renderer.pandoc": RepairPolicy(
-        "prohibited",
-        "Pandoc is system software and its installer is platform-dependent.",
-        "Install the project's pinned Pandoc version outside diagnostics.",
+        "manual",
+        "Diagnostics are read-only and do not download project runtimes.",
+        "Run `pdk pdf --prepare pandoc` or let the next PDF or bibliography build prepare it.",
+    ),
+    "renderer.fonts": RepairPolicy(
+        "manual",
+        "Diagnostics are read-only and do not download project runtimes.",
+        "Run `pdk pdf --prepare fonts` or let the next PDF build prepare them.",
     ),
     "renderer.weasyprint": RepairPolicy(
         "confirmable",
@@ -3311,6 +3321,97 @@ def _tool_result(
     )
 
 
+def _project_cached_runtime_check(
+    config: ProjectConfig | None,
+    root: Path,
+    *,
+    component: Literal["pandoc", "fonts"],
+    required: bool,
+) -> DiagnosticResult:
+    label = "Pandoc" if component == "pandoc" else "PDF fonts"
+    provider = PandocProvider() if component == "pandoc" else FontProvider()
+    environment = current_runtime_environment()
+    try:
+        policy = load_pdf_runtime_config(
+            config.path if config is not None else root / "zensical.toml"
+        ).policy_for(component)
+        descriptor = provider.resolve(policy, environment)
+        store = RuntimeStore(root)
+        active = store.active_for(descriptor)
+        incompatible = store.active(component) if active is None else None
+    except Exception as error:
+        active = None
+        incompatible = None
+        cache_error = _sanitise_text(f"{type(error).__name__}: {error}", root)
+    else:
+        cache_error = ""
+    if active is None:
+        details = tuple(
+            item
+            for item in (
+                cache_error,
+                (
+                    "The active cache belongs to a different version or environment."
+                    if incompatible is not None
+                    else ""
+                ),
+                f"Run `pdk pdf --prepare {component}` or let the next applicable build prepare it.",
+            )
+            if item
+        )
+        return DiagnosticResult(
+            f"renderer.{component}",
+            "Rendering toolchain",
+            "fail" if required else "warn",
+            f"Project-local {label} is not prepared"
+            + (" but is required by this project" if required else " (optional)"),
+            details,
+            {
+                "required": required,
+                "backend": "project-cache",
+                "path": None,
+                "version": None,
+                "sha256": None,
+            },
+        )
+    try:
+        version = (
+            probe_pandoc_runtime(active.path, environment)
+            if component == "pandoc"
+            else probe_font_runtime(active.path)
+        )
+    except Exception as error:
+        safe_error = _sanitise_text(f"{type(error).__name__}: {error}", root)
+        return DiagnosticResult(
+            f"renderer.{component}",
+            "Rendering toolchain",
+            "fail" if required else "warn",
+            f"Project-local {label} failed its health check",
+            (safe_error,),
+            {
+                "required": required,
+                "backend": "project-cache",
+                "path": _display_path(active.path, root),
+                "version": active.version,
+                "sha256": active.sha256,
+            },
+        )
+    return DiagnosticResult(
+        f"renderer.{component}",
+        "Rendering toolchain",
+        "pass",
+        f"Project-local {label} {version} is healthy",
+        (f"path: {_display_path(active.path, root)}", f"sha256: {active.sha256}"),
+        {
+            "required": required,
+            "backend": "project-cache",
+            "path": _display_path(active.path, root),
+            "version": version,
+            "sha256": active.sha256,
+        },
+    )
+
+
 def _windows_cached_weasyprint_check(
     config: ProjectConfig | None,
     root: Path,
@@ -3478,7 +3579,23 @@ def _renderer_checks(
     )
     mermaid_required, maths_required = renderer_requirements(config) if config else (False, False)
     node_required = maths_required
-    checks = [_tool_result("renderer.pandoc", "Pandoc", "pandoc", root=root, required=pdf_required)]
+    bibliography_required = bool(
+        config and "prodockit.bibliography" in config.markdown_extensions
+    )
+    checks = [
+        _project_cached_runtime_check(
+            config,
+            root,
+            component="pandoc",
+            required=pdf_required or bibliography_required,
+        ),
+        _project_cached_runtime_check(
+            config,
+            root,
+            component="fonts",
+            required=pdf_required,
+        ),
+    ]
 
     checks.append(
         _windows_cached_weasyprint_check(config, root, required=pdf_required)

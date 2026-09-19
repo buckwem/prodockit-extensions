@@ -41,6 +41,11 @@ def _isolated_cache(monkeypatch: pytest.MonkeyPatch) -> None:
     process-lifetime singleton (in production, deliberately shared for the
     whole build's lifetime)."""
     monkeypatch.setattr(prodockit_bibliography, "_ZENSICAL_SHARED_CACHES", {})
+    monkeypatch.setattr(
+        prodockit_bibliography,
+        "_project_pandoc_executable",
+        lambda: Path(shutil.which("pandoc") or "pandoc"),
+    )
 
 
 @pytest.fixture()
@@ -112,7 +117,6 @@ def test_run_pandoc_citeproc_includes_csl_only_when_configured(
         captured["cmd"] = cmd
         return _Result()
 
-    monkeypatch.setattr(prodockit_bibliography.shutil, "which", lambda _: "/usr/bin/pandoc")
     monkeypatch.setattr(prodockit_bibliography.subprocess, "run", fake_run)
 
     prodockit_bibliography._run_pandoc_citeproc("body", bib_files=["x.bib"], csl_style="apa.csl")
@@ -140,7 +144,6 @@ def test_run_pandoc_citeproc_merges_multiple_bibliography_files(
         captured["cmd"] = cmd
         return _Result()
 
-    monkeypatch.setattr(prodockit_bibliography.shutil, "which", lambda _: "/usr/bin/pandoc")
     monkeypatch.setattr(prodockit_bibliography.subprocess, "run", fake_run)
 
     prodockit_bibliography._run_pandoc_citeproc(
@@ -151,8 +154,11 @@ def test_run_pandoc_citeproc_merges_multiple_bibliography_files(
 
 
 def test_missing_pandoc_raises_a_clear_error(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(prodockit_bibliography.shutil, "which", lambda _: None)
-    with pytest.raises(BibliographyError, match="pandoc not found"):
+    def missing() -> Path:
+        raise RuntimeError("no qualified artifact")
+
+    monkeypatch.setattr(prodockit_bibliography, "_project_pandoc_executable", missing)
+    with pytest.raises(BibliographyError, match="could not be prepared"):
         prodockit_bibliography._run_pandoc_citeproc("body", bib_files=["x.bib"], csl_style="")
 
 
@@ -162,7 +168,6 @@ def test_pandoc_failure_raises_a_clear_error(monkeypatch: pytest.MonkeyPatch) ->
         stdout = ""
         stderr = "boom"
 
-    monkeypatch.setattr(prodockit_bibliography.shutil, "which", lambda _: "/usr/bin/pandoc")
     monkeypatch.setattr(prodockit_bibliography.subprocess, "run", lambda *a, **k: _Result())
     with pytest.raises(BibliographyError, match="boom"):
         prodockit_bibliography._run_pandoc_citeproc("body", bib_files=["x.bib"], csl_style="")

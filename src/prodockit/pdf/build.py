@@ -232,7 +232,9 @@ def build_pdf(
     table_of_contents_title: str = "Table of Contents",
     include_index: bool = False,
     index_title: str = "Index",
+    pandoc_executable: str = "pandoc",
     weasyprint_executable: str = "weasyprint",
+    font_face_css: str = "",
     work_dir: str | None = None,
     keep_work_dir: bool = False,
     pandoc_timeout: int | None = 1800,
@@ -243,8 +245,8 @@ def build_pdf(
     absolute or relative; parent directories are not created for you).
 
     Raises `PdfBuildError` if the underlying `pandoc` invocation fails
-    (`pandoc` is required on `PATH`; ``weasyprint_executable`` names the
-    selected WeasyPrint CLI and defaults to the system command).
+    (``pandoc_executable`` and ``weasyprint_executable`` name the selected
+    absolute CLIs; their defaults retain the library API's PATH behaviour).
 
     **Content**
 
@@ -262,8 +264,8 @@ def build_pdf(
 
     **Typography and layout**
 
-    `main_font`/`mono_font` are font family names (already installed/
-    available to WeasyPrint - this function doesn't fetch fonts).
+    `main_font`/`mono_font` are font family names. ``font_face_css`` can bind
+    those names to prepared project-local files without host installation.
     `page_size` is any WeasyPrint-supported CSS page size (`"A4"`,
     `"Letter"`, ...). `margin_*`/`header_footer_*` are CSS length/colour
     values for the page margins and running header/footer. `site_name`
@@ -553,10 +555,18 @@ def build_pdf(
             # extra.css can customise both outputs and print.css can override
             # PDF presentation at equal specificity. The final guard protects
             # only the page canvas and removes website chrome.
-            f.write(css + "\n\n" + extra_css + "\n\n" + build_structural_guard_css())
+            f.write(
+                font_face_css
+                + "\n\n"
+                + css
+                + "\n\n"
+                + extra_css
+                + "\n\n"
+                + build_structural_guard_css()
+            )
 
         cmd = [
-            "pandoc",
+            pandoc_executable,
             concatenated_html_path,
             "-o",
             output_path,
