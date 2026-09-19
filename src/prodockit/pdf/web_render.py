@@ -102,14 +102,8 @@ def static_render_targets(
 
 
 def _puppeteer_module(root: Path) -> Path | None:
-    for component, package in (
-        ("mermaid", "puppeteer"),
-        ("mathjax", "puppeteer-core"),
-    ):
-        candidate = root / "tools" / component / "node_modules" / package
-        if candidate.is_dir():
-            return candidate
-    return None
+    candidate = root / "tools" / "browser-test" / "node_modules" / "puppeteer-core"
+    return candidate if candidate.is_dir() else None
 
 
 def check_web_rendering(
@@ -131,7 +125,7 @@ def check_web_rendering(
         if not node:
             missing.append("Node.js")
         if not module:
-            missing.append("Puppeteer Core (run `npm ci --prefix tools/mathjax`)")
+            missing.append("test-only Puppeteer Core")
         if not browser or not Path(browser).is_file():
             missing.append("Chrome/Chromium (or PUPPETEER_EXECUTABLE_PATH)")
         raise WebRenderError(

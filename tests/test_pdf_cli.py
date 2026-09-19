@@ -216,20 +216,29 @@ def test_pdf_prepare_all_is_accepted_by_the_public_interface(monkeypatch) -> Non
     assert calls == [("zensical.toml", ("all",))]
 
 
-def test_pdf_prepare_reports_an_unavailable_provider_without_a_traceback() -> None:
+def test_pdf_prepare_reports_an_unavailable_provider_without_a_traceback(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import prodockit.cli as cli_module
+    from prodockit.pdf.runtime_prepare import RuntimeProviderUnavailableError
+
+    def unavailable(*_args, **_kwargs):
+        raise RuntimeProviderUnavailableError("unsupported test host")
+
+    monkeypatch.setattr(cli_module, "prepare_runtime_components", unavailable)
     result = CliRunner().invoke(main, ["pdf", "--prepare", "mermaid"])
 
     assert result.exit_code == 1, result.output
-    assert "preparation is not available in this release" in result.output
+    assert "unsupported test host" in result.output
     assert "Traceback" not in result.output
 
 
-def test_pdf_default_reports_unavailable_backend_when_mermaid_is_used(
+def test_pdf_default_reports_failed_mermaid_preparation_when_mermaid_is_used(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     import prodockit.cli as cli_module
-    import prodockit.pdf.mermaid as mermaid_module
-    from prodockit.pdf._standalone_quickjs import StandaloneBackendUnavailableError
+    import prodockit.pdf.config as config_module
+    from prodockit.pdf.runtime_store import RuntimeStoreError
 
     _write_project(tmp_path)
     (tmp_path / "docs" / "index.md").write_text(
@@ -242,19 +251,16 @@ def test_pdf_default_reports_unavailable_backend_when_mermaid_is_used(
     )
     monkeypatch.setattr(cli_module, "check_pdf_environment", lambda _config: None)
 
-    def unavailable() -> None:
-        raise StandaloneBackendUnavailableError(
-            "The standalone Mermaid backend requires mermaidx==0.9.5 and "
-            "quickjs-ng==0.16.2.1."
-        )
+    def unavailable(*_args, **_kwargs) -> None:
+        raise RuntimeStoreError("could not prepare the project Mermaid cache")
 
-    monkeypatch.setattr(mermaid_module, "require_standalone_runtime", unavailable)
+    monkeypatch.setattr(config_module, "prepare_runtime_components", unavailable)
     monkeypatch.chdir(tmp_path)
 
     result = CliRunner().invoke(main, ["pdf"])
 
     assert result.exit_code == 1, result.output
-    assert "requires mermaidx==0.9.5 and quickjs-ng==0.16.2.1" in result.output
+    assert "could not prepare the project Mermaid cache" in result.output
     assert "Traceback" not in result.output
     assert not (tmp_path / "docs" / ".prodockit-pdf-mermaid").exists()
     assert not (tmp_path / "docs" / "site_documentation.pdf").exists()

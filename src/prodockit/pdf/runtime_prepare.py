@@ -76,10 +76,14 @@ def default_runtime_providers(
     """Return only providers qualified for this release and host family."""
 
     from prodockit.pdf.font_runtime import FontProvider
+    from prodockit.pdf.mathjax_runtime import MathJaxProvider
+    from prodockit.pdf.mermaid_runtime import MermaidProvider
     from prodockit.pdf.pandoc_runtime import PandocProvider
 
     providers: dict[str, RuntimeProvider] = {
         "fonts": FontProvider(),
+        "mathjax": MathJaxProvider(),
+        "mermaid": MermaidProvider(),
         "pandoc": PandocProvider(),
     }
     if environment.system != "windows":

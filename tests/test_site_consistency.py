@@ -138,7 +138,7 @@ def test_reference_site_enables_website_heading_numbering() -> None:
     assert config["extra_javascript"] == [
         "javascripts/pdk.js",
         "javascripts/mathjax.js",
-        "javascripts/vendor/mathjax/tex-svg-full.js",
+        "https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js",
         "javascripts/extra.js",
     ]
     assert "config.extra.website_heading_numbering == false" in _text("overrides/main.html")

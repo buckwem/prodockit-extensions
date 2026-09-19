@@ -42,15 +42,12 @@ extra.website_heading_numbering = true
 # load-bearing: the config file must come first, because MathJax reads
 # `window.MathJax` once at startup.
 #
-# `prodockit init-mathjax` copies these ignored files from tools/mathjax's
-# pinned install before each build. The site remains self-contained and the
-# website and PDF use byte-identical MathJax without committing third-party
-# code. Its Apache-2.0 licence is published beside the bundle at
-# javascripts/vendor/mathjax/LICENSE.
+# Website maths follows Zensical's authoring configuration and is deliberately
+# independent of the private MathJax 4 runtime cached by `pdk pdf`.
 extra_javascript = [
   "javascripts/pdk.js",
   "javascripts/mathjax.js",
-  "javascripts/vendor/mathjax/tex-svg-full.js",
+  "https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js",
   "javascripts/extra.js",
 ]
 
@@ -243,7 +240,7 @@ include = true
 # `<script type="math/tex">` would reach the PDF untouched.
 #
 # Enabled here so the toolchain this project ships is exercised by the
-# project itself: tools/mathjax could not fire without it - no arithmatex
+# project itself: the PDF renderer cannot fire without it - no arithmatex
 # markup means nothing for the Lua filter to act on - and
 # test_no_page_contains_unrendered_tex_source could never fail. Both
 # prodockit-template and prodockit-userguide already enable it; this repo

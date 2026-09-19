@@ -199,21 +199,24 @@ the PDF index:
 
 ### Add Mermaid diagrams or TeX maths only when used {: #mermaid-diagrams-and-tex-maths }
 
-\index{WeasyPrint} does not run browser JavaScript. ProDockit's default
-\index{Mermaid} renderer therefore uses its installed Python dependencies to
-turn diagrams into static SVG before \index{Pandoc} assembles the document.
-It needs no Node.js, npm, browser, or project-local Mermaid installation.
+\index{WeasyPrint} does not run browser JavaScript. ProDockit therefore
+prepares a verified Python-only \index{Mermaid} runtime in the project cache
+and turns diagrams into static SVG before \index{Pandoc} assembles the
+document. It needs no Node.js, npm, browser, MSYS2 or virtual-environment
+package installation.
 
-TeX maths still uses the local Node-based MathJax renderer. From the project
-root, initialise it with the \index{commands!`prodockit init-tools`} command:
+TeX maths uses a verified project-local MathJax 4 distribution. Its adapter
+currently requires Node.js on `PATH`, but it needs no npm package installation.
+Both renderers are prepared transparently only when the built content uses
+them. Prepare them in advance when required:
 
 ```bash
-prodockit init-tools
+pdk pdf --prepare mermaid --prepare mathjax
 ```
 
-The command creates the expected MathJax files under `tools/` and prints the
-`npm` installation command to run next. Existing files are preserved unless
-you explicitly add `--force`.
+The command validates an existing healthy cache without contacting the network.
+Website mathematics remains separately configured by the author using the
+[Zensical MathJax instructions](https://zensical.org/docs/authoring/math/#mathjax).
 
 Once installed, ordinary Markdown maths works in both outputs. For example,
 the inline formula $c = \sqrt{a^2 + b^2}$ and the display formula below are
@@ -714,15 +717,13 @@ Repeat the platform-appropriate check before retrying `prodockit pdf`.
 
 ### A diagram or formula remains as source {: #pdf-unrendered-source }
 
-For Mermaid, confirm the active Python environment contains the exact runtime
-dependencies installed with ProDockit and build again. For maths, run
-`prodockit init-tools`, follow the `npm` command it prints, and
-then rebuild. `prodockit pdf` reports a missing default Mermaid runtime before
-PDF work begins and warns when maths source cannot be rendered.
+Run `pdk pdf --prepare mermaid` or `pdk pdf --prepare mathjax` to validate or
+repair the relevant project cache, then rebuild. MathJax also requires Node.js
+on `PATH`; neither renderer requires npm, Puppeteer, Chrome/Chromium or MSYS2
+in production.
 
-Continuous integration does not need Puppeteer or a browser for Mermaid PDF
-rendering. Maths website verification still uses the browser settings printed
-by `init-tools`.
+Browser-level website checks are test-only. Configure website mathematics
+using Zensical's own authoring instructions rather than the private PDF cache.
 
 After the build, open a page containing a real diagram or formula. Automated
 [output checks](devcons/testing.md) can also detect raw Mermaid or TeX left in

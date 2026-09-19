@@ -110,12 +110,9 @@ def test_every_declared_template_file_is_packaged() -> None:
         assert (TEMPLATE_DIR / "mathjax" / filename).is_file()
 
 
-def test_documentation_mathjax_fixture_matches_the_packaged_template() -> None:
+def test_repository_no_longer_carries_the_mathjax_npm_scaffold() -> None:
     root = Path(__file__).resolve().parents[1]
-    for filename in COMPONENT_FILES["mathjax"]:
-        assert (root / "tools/mathjax" / filename).read_bytes() == (
-            TEMPLATE_DIR / "mathjax" / filename
-        ).read_bytes()
+    assert not (root / "tools/mathjax").exists()
 
 
 def test_guidance_targets_only_mathjax(tmp_path: Path) -> None:
