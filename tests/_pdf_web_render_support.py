@@ -6,8 +6,10 @@
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import subprocess
+import sys
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
@@ -18,7 +20,41 @@ from prodockit.pdf.build import Page
 from prodockit.pdf.site import BuiltSiteError, output_path
 from prodockit.project_config import ProjectConfig
 from prodockit.project_integrity import count_math_expressions, count_mermaid_fences
-from prodockit.renderer_health import find_browser
+
+
+def find_browser() -> str | None:
+    """Find a browser for the test-only Puppeteer verification."""
+    if configured := os.environ.get("PUPPETEER_EXECUTABLE_PATH"):
+        return configured
+    for name in (
+        "google-chrome-stable",
+        "google-chrome",
+        "chromium",
+        "chromium-browser",
+        "chrome",
+        "msedge",
+    ):
+        if found := shutil.which(name):
+            return found
+    candidates: list[Path] = []
+    if sys.platform == "darwin":
+        candidates.extend(
+            (
+                Path("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"),
+                Path("/Applications/Chromium.app/Contents/MacOS/Chromium"),
+            )
+        )
+    elif os.name == "nt":
+        for variable in ("PROGRAMFILES", "PROGRAMFILES(X86)", "LOCALAPPDATA"):
+            if base := os.environ.get(variable):
+                root = Path(base)
+                candidates.extend(
+                    (
+                        root / "Google" / "Chrome" / "Application" / "chrome.exe",
+                        root / "Microsoft" / "Edge" / "Application" / "msedge.exe",
+                    )
+                )
+    return next((str(path) for path in candidates if path.is_file()), None)
 
 
 class WebRenderError(BuiltSiteError):

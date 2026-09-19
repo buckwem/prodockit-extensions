@@ -27,8 +27,6 @@ from packaging.version import InvalidVersion, Version
 
 import prodockit
 from prodockit.config_diagnostics import inspect_config
-from prodockit.init_tools import COMPONENT_FILES, init_tools
-from prodockit.mathjax import MathJaxError, install_mathjax
 from prodockit.pdf.font_runtime import FontProvider
 from prodockit.pdf.font_runtime import probe_runtime as probe_font_runtime
 from prodockit.pdf.mathjax_runtime import MathJaxProvider
@@ -51,14 +49,12 @@ from prodockit.pins import (
 )
 from prodockit.project_config import ProjectConfig, ProjectConfigError, load_project_config
 from prodockit.project_integrity import renderer_requirements
-from prodockit.renderer_health import probe_mathjax
-from prodockit.renderer_resilience import RetryReporter, run_npm_with_retries, run_with_retries
+from prodockit.renderer_resilience import RetryReporter, run_with_retries
 from prodockit.shared_files import SharedFileError
 from prodockit.shared_files import apply as apply_shared_files
 from prodockit.shared_files import inspect as inspect_shared_files
 from prodockit.text_encoding import inspect_project_text_encoding
 from prodockit.weasyprint_probe import ProbeResult, run_probe
-from prodockit.windows_pango import inspect_windows_pango, pango_spec, repair_script
 
 if sys.version_info >= (3, 11):
     import tomllib
@@ -70,7 +66,6 @@ RepairDisposition = Literal[
     "confirmable", "online", "manual", "ambiguous", "prohibited", "not-applicable"
 ]
 DryRunStatus = Literal["available", "manual", "refused", "not-needed"]
-NODE_AUDIT_LEVEL = "moderate"
 REPAIRABLE_DISTRIBUTIONS = ("prodockit", "zensical")
 
 DIAGNOSTIC_IDS = frozenset(
@@ -92,11 +87,8 @@ DIAGNOSTIC_IDS = frozenset(
         "renderer.fonts",
         "renderer.weasyprint",
         "renderer.node",
-        "renderer.npm",
         "renderer.mermaid",
-        "renderer.browser",
         "renderer.mathjax",
-        "renderer.mathjax-security",
         "renderer.inspection",
         "renderer.security-inspection",
         "repository.git",
@@ -315,41 +307,25 @@ REPAIR_REGISTRY: dict[str, RepairPolicy] = {
         "Run `pdk pdf --prepare fonts` or let the next PDF build prepare them.",
     ),
     "renderer.weasyprint": RepairPolicy(
-        "confirmable",
-        "A Windows MSYS2 Pango package and its discovery environment can be "
-        "repaired independently.",
-        "On Windows, verify and reinstall the architecture-matched Pango package; elsewhere, "
-        "repair native libraries outside diagnostics.",
+        "manual",
+        "Diagnostics are read-only and do not install PDF runtimes or host libraries.",
+        "Run `pdk pdf --prepare weasyprint` on Windows; on macOS or Linux, install the "
+        "documented Pango prerequisite with the operating-system package manager.",
     ),
     "renderer.node": RepairPolicy(
         "prohibited",
         "Node is system software and cannot be replaced as a project-local repair.",
         "Install the supported Node version, then rerun diagnostics.",
     ),
-    "renderer.npm": RepairPolicy(
-        "prohibited",
-        "npm belongs to the system Node installation.",
-        "Repair or reinstall the selected Node distribution.",
-    ),
     "renderer.mermaid": RepairPolicy(
         "manual",
         "Diagnostics is read-only and does not download optional PDF runtimes.",
         "Run `pdk pdf --prepare mermaid` to prepare or repair the project cache.",
     ),
-    "renderer.browser": RepairPolicy(
-        "prohibited",
-        "Browser installation and executable selection affect the host environment.",
-        "Install or select Chrome/Chromium outside diagnostics.",
-    ),
     "renderer.mathjax": RepairPolicy(
         "manual",
         "Diagnostics is read-only and does not download optional PDF runtimes.",
         "Run `pdk pdf --prepare mathjax` to prepare or repair the project cache.",
-    ),
-    "renderer.mathjax-security": RepairPolicy(
-        "prohibited",
-        "Security upgrades require advisory and rendered-output review.",
-        "Review `npm audit --omit=dev` and update the lockfile explicitly.",
     ),
     "renderer.inspection": RepairPolicy(
         "manual",
@@ -904,62 +880,6 @@ def _interpreter_candidate(check: DiagnosticResult) -> RepairCandidate:
     )
 
 
-def _windows_pango_candidate(check: DiagnosticResult) -> RepairCandidate:
-    if check.data.get("backend") == "project-cache":
-        return RepairCandidate(
-            "renderer.weasyprint.prepare-project-cache",
-            check.id,
-            "manual",
-            "manual",
-            check.summary,
-            "Diagnostics are read-only and do not download project runtimes.",
-            "Run `pdk pdf --prepare weasyprint` or let the next PDF build prepare it.",
-        )
-    policy = REPAIR_REGISTRY[check.id]
-    raw = check.data.get("windows_pango")
-    if not isinstance(raw, dict):
-        return _generic_candidate(check)
-    if raw.get("healthy") is True:
-        return _generic_candidate(check)
-    affected = tuple(
-        str(value)
-        for value in (
-            raw.get("dll"),
-            raw.get("bin"),
-            "User environment: WEASYPRINT_DLL_DIRECTORIES",
-        )
-        if value
-    )
-    return RepairCandidate(
-        "renderer.weasyprint.repair-windows-pango",
-        check.id,
-        policy.disposition,
-        "available",
-        check.summary,
-        policy.reason,
-        policy.remediation,
-        (
-            RepairChoice(
-                "repair-windows-pango",
-                "Verify or reinstall the architecture-matched MSYS2 Pango package",
-                internal_operation="renderer.weasyprint.repair-windows-pango",
-                affected_paths=affected,
-                prerequisites=("Windows", "MSYS2", "PowerShell"),
-                warning=(
-                    "This may reinstall an MSYS2 system package and changes the user's PATH "
-                    "and WEASYPRINT_DLL_DIRECTORIES environment variables."
-                ),
-                warning_severity="warning",
-                network=True,
-                rollback=(
-                    "pacman retains its package cache; restore the prior user environment values"
-                ),
-            ),
-            _leave_unchanged(),
-        ),
-    )
-
-
 def _metadata_candidate(check: DiagnosticResult) -> RepairCandidate:
     policy = REPAIR_REGISTRY[check.id]
     candidates = tuple(str(item) for item in check.data.get("fix_candidates", ()))
@@ -1229,66 +1149,6 @@ def _configuration_candidates(check: DiagnosticResult) -> list[RepairCandidate]:
     return candidates or [_generic_candidate(check)]
 
 
-def _renderer_candidate(check: DiagnosticResult, report: DiagnosticReport) -> RepairCandidate:
-    policy = REPAIR_REGISTRY[check.id]
-    component = "mathjax"
-    if not report.online:
-        return RepairCandidate(
-            f"{check.id}.online-required",
-            check.id,
-            "online",
-            "manual",
-            check.summary,
-            "Renderer installation is disabled unless --online is explicitly supplied.",
-            f"Rerun `pdk diag --online --apply --apply-check {check.id}`.",
-        )
-    node = next((item for item in report.checks if item.id == "renderer.node"), None)
-    npm = next((item for item in report.checks if item.id == "renderer.npm"), None)
-    refusal = check.data.get("repair_refusal")
-    if refusal or node is None or npm is None or node.status != "pass" or npm.status != "pass":
-        reason = str(refusal or "Node and npm must both pass their health checks.")
-        return RepairCandidate(
-            f"{check.id}.refused",
-            check.id,
-            "prohibited",
-            "refused",
-            check.summary,
-            reason,
-            policy.remediation,
-        )
-    paths = ("tools/mathjax", "docs/javascripts/mathjax.js", "docs/javascripts/vendor/mathjax")
-    return RepairCandidate(
-        f"{check.id}.install-locked",
-        check.id,
-        policy.disposition,
-        "available",
-        check.summary,
-        policy.reason,
-        policy.remediation,
-        (
-            RepairChoice(
-                f"install-locked-{component}",
-                f"Rebuild project-local {component} support from its lockfile",
-                internal_operation=f"{check.id}.install-locked",
-                affected_paths=paths,
-                prerequisites=(
-                    "Node and npm passed diagnostics",
-                    "package.json and package-lock.json are valid and mutually consistent",
-                    "no author package lifecycle scripts are present",
-                ),
-                warning=(
-                    "npm ci can download and execute locked third-party package install "
-                    "scripts. Existing generated files are quarantined before replacement."
-                ),
-                warning_severity="warning",
-                network=True,
-                rollback="restore project files and the quarantined generated directory",
-            ),
-            _leave_unchanged(),
-        ),
-    )
-
-
 def _adopt_candidates(check: DiagnosticResult) -> list[RepairCandidate]:
     """Offer only the deterministic core-asset part of pending Adopt work."""
     policy = REPAIR_REGISTRY[check.id]
@@ -1362,7 +1222,7 @@ def build_repair_dry_run(
         elif check.id == "dependencies.pins":
             candidates.extend(_pin_candidates(check))
         elif check.id == "renderer.weasyprint":
-            candidates.append(_windows_pango_candidate(check))
+            candidates.append(_generic_candidate(check))
         elif check.id == "project.configuration" and check.data.get("repairable_problems"):
             candidates.extend(_configuration_candidates(check))
         elif check.id == "maintenance.adopt-readiness":
@@ -2112,234 +1972,6 @@ def repair_pin_declarations(
         changed_paths,
         _display_path(transaction.quarantine, project),
         _display_path(transaction.manifest_path, project),
-    )
-
-
-def _renderer_plan_fingerprint(root: Path, component: str) -> str:
-    digest = hashlib.sha256()
-    tool_root = root / "tools" / component
-    for filename in COMPONENT_FILES[component]:
-        path = tool_root / filename
-        digest.update(filename.encode("utf-8"))
-        digest.update(b"\0")
-        digest.update(_content_sha256(path).encode("ascii") if path.exists() else b"missing")
-        digest.update(b"\0")
-    return digest.hexdigest()
-
-
-def repair_locked_renderer(
-    root: Path,
-    component: Literal["mathjax"],
-    *,
-    expected_fingerprint: str,
-    timestamp: str | None = None,
-    retry_reporter: RetryReporter | None = None,
-) -> RepairApplyResult:
-    """Rebuild one project-local renderer from a validated lockfile."""
-    project = root.resolve()
-    try:
-        config_path = next(
-            path
-            for name in (
-                "zensical.toml",
-                "zensical.yml",
-                "zensical.yaml",
-                "mkdocs.yml",
-                "mkdocs.yaml",
-            )
-            if (path := project / name).is_file()
-        )
-        config = load_project_config(config_path)
-    except (StopIteration, ProjectConfigError) as error:
-        raise RepairTransactionError(f"cannot load project configuration: {error}") from error
-    refusal = _locked_renderer_refusal(project, config, component)
-    if refusal:
-        raise RepairTransactionError(f"renderer repair refused: {refusal}")
-    if _renderer_plan_fingerprint(project, component) != expected_fingerprint:
-        raise RepairTransactionError(
-            f"{component} repair plan became stale; rerun `pdk diag --online --apply`"
-        )
-    npm = shutil.which("npm")
-    node = shutil.which("node")
-    if npm is None or node is None:
-        raise RepairTransactionError("Node and npm must both be available on PATH")
-    for command_name in ("node", "npm"):
-        command = _command(command_name)
-        if command.path is None or command.error is not None:
-            raise RepairTransactionError(
-                f"{command_name} health check failed: {command.error or 'not found'}"
-            )
-
-    tool_root = project / "tools" / component
-    transaction = RepairTransaction(
-        project,
-        action_id=f"renderer.{component}.install-locked",
-        check_id=f"renderer.{component}",
-        choice_id=f"install-locked-{component}",
-        timestamp=timestamp,
-    )
-    changed: list[str] = []
-    try:
-        transaction.begin()
-        if not tool_root.exists():
-            transaction.record_creation(tool_root)
-        else:
-            if tool_root.is_symlink():
-                raise RepairTransactionError(f"refusing symlinked repair target: {tool_root}")
-            for filename in COMPONENT_FILES[component]:
-                path = tool_root / filename
-                if not path.exists():
-                    transaction.record_creation(path)
-        modules = tool_root / "node_modules"
-        if modules.exists() or modules.is_symlink():
-            transaction.quarantine_path(modules, backup_name=f"tools/{component}/node_modules")
-            transaction.record_creation(modules)
-        elif tool_root.exists():
-            transaction.record_creation(modules)
-
-        scaffold = init_tools(project / "tools", components=(component,))
-        changed.extend(_display_path(path, project) for path in scaffold.written)
-        refusal = _locked_renderer_refusal(project, config, component)
-        if refusal:
-            raise RepairTransactionError(f"renderer scaffold verification failed: {refusal}")
-        environment = dict(os.environ)
-        environment["PUPPETEER_SKIP_DOWNLOAD"] = "true"
-        npm_result = run_npm_with_retries(
-            [
-                npm,
-                "ci",
-                *(["--legacy-peer-deps"] if component == "mathjax" else []),
-                "--no-audit",
-                "--no-fund",
-                "--prefer-offline",
-            ],
-            cwd=tool_root,
-            timeout=600,
-            environment=environment,
-            reporter=retry_reporter,
-        )
-        completed = npm_result.completed
-        if completed.returncode:
-            detail = npm_result.failure_detail
-            raise RepairTransactionError(f"npm ci failed: {_sanitise_text(detail, project)}")
-        changed.append(_display_path(modules, project))
-
-        asset_paths = (
-            project / "docs" / "javascripts" / "mathjax.js",
-            project / "docs" / "javascripts" / "vendor" / "mathjax" / "tex-svg-full.js",
-            project / "docs" / "javascripts" / "vendor" / "mathjax" / "LICENSE",
-        )
-        for path in asset_paths:
-            if path.exists() or path.is_symlink():
-                transaction.backup_path(path, backup_name=_display_path(path, project))
-            else:
-                transaction.record_creation(path)
-        try:
-            installed = install_mathjax(project, update_gitignore=False)
-        except MathJaxError as error:
-            raise RepairTransactionError(str(error)) from error
-        changed.extend(
-            _display_path(path, project)
-            for path in (installed.config, installed.bundle, installed.license)
-        )
-        probe = probe_mathjax(node, tool_root / "tex2svg.js")
-        if not probe.ok:
-            raise RepairTransactionError(f"MathJax verification failed: {probe.error}")
-        transaction.commit()
-    except (OSError, subprocess.SubprocessError, RepairTransactionError) as error:
-        try:
-            transaction.rollback(str(error))
-        except RepairRollbackError:
-            raise
-        raise RepairTransactionError(
-            f"{component} repair failed and was rolled back: {error}"
-        ) from error
-    return RepairApplyResult(
-        "applied",
-        tuple(dict.fromkeys(changed)),
-        _display_path(transaction.quarantine, project),
-        _display_path(transaction.manifest_path, project),
-    )
-
-
-def repair_windows_pango(
-    *,
-    expected: dict[str, object] | None = None,
-    retry_reporter: RetryReporter | None = None,
-) -> RepairApplyResult:
-    """Repair and independently verify Windows Pango without a template."""
-    running_on: str = sys.platform
-    if running_on != "win32":
-        raise RepairTransactionError("Windows Pango repair is only available on Windows")
-    before = inspect_windows_pango()
-    if before.healthy:
-        return RepairApplyResult("not-needed")
-    if expected is not None:
-        observed = before.as_dict()
-        for key in ("architecture", "environment", "package"):
-            if expected.get(key) != observed.get(key):
-                raise RepairTransactionError(
-                    "the Windows Pango repair plan became stale; rerun `pdk diag --apply`"
-                )
-    spec = pango_spec(arm64=before.architecture == "arm64")
-    command = ["powershell", "-NoProfile", "-Command", repair_script(spec)]
-
-    def run() -> subprocess.CompletedProcess[str]:
-        return subprocess.run(
-            command,
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            timeout=900,
-            check=False,
-        )
-
-    retried = run_with_retries(
-        "Windows Pango repair",
-        run,
-        succeeded=lambda completed: completed.returncode == 0,
-        failure_detail=lambda completed: "\n".join(
-            part.strip() for part in (completed.stdout, completed.stderr) if part and part.strip()
-        ),
-        reporter=retry_reporter,
-    )
-    if retried.value.returncode != 0:
-        detail = retried.value.stderr.strip() or retried.value.stdout.strip()
-        raise RepairTransactionError(f"Windows Pango repair failed: {detail}")
-
-    # A child PowerShell can persist a value but cannot mutate its parent.
-    # Refresh exactly as bootstrap does, then prove a newly spawned Python can
-    # load WeasyPrint's native libraries without requiring a restart.
-    from prodockit.bootstrap.model import refresh_windows_path
-
-    refresh_windows_path()
-    after = inspect_windows_pango()
-    if not after.healthy:
-        raise RepairTransactionError(
-            "Windows Pango repair completed but DLL, package integrity, or environment "
-            "verification still fails"
-        )
-    imported = _run(
-        [sys.executable, "-c", "import weasyprint; print(weasyprint.__version__)"],
-        timeout=30,
-    )
-    if imported.returncode != 0:
-        detail = imported.stderr.strip() or imported.stdout.strip()
-        raise RepairTransactionError(
-            f"Windows Pango repaired, but fresh-process WeasyPrint verification failed: {detail}"
-        )
-    return RepairApplyResult(
-        "applied",
-        tuple(
-            value
-            for value in (
-                after.dll,
-                after.bin,
-                "User environment: WEASYPRINT_DLL_DIRECTORIES",
-            )
-            if value
-        ),
     )
 
 
@@ -3244,52 +2876,6 @@ def _project_tool(root: Path, configured: object, defaults: tuple[str, ...]) -> 
     return None
 
 
-def _locked_renderer_refusal(
-    root: Path, config: ProjectConfig | None, component: str
-) -> str | None:
-    """Return why a renderer cannot be rebuilt without resolving author intent."""
-    if config is None:
-        return "Project configuration is not readable."
-    custom_key = "pdf_tex2svg_script"
-    if config.extra.get(custom_key):
-        return f"project.extra.{custom_key} selects a custom executable path"
-    tool_root = root / "tools" / component
-    manifest = tool_root / "package.json"
-    lockfile = tool_root / "package-lock.json"
-    if manifest.exists() != lockfile.exists():
-        return "package.json and package-lock.json must either both exist or both be absent"
-    if not manifest.exists():
-        return None
-    if manifest.is_symlink() or lockfile.is_symlink():
-        return "renderer manifests must not be symlinks"
-    try:
-        package = json.loads(manifest.read_text(encoding="utf-8"))
-        lock = json.loads(lockfile.read_text(encoding="utf-8"))
-    except (OSError, UnicodeError, json.JSONDecodeError) as error:
-        return f"renderer manifest is not valid UTF-8 JSON: {error}"
-    if not isinstance(package, dict) or not isinstance(lock, dict):
-        return "renderer manifests must contain JSON objects"
-    if package.get("scripts"):
-        return "package.json contains author lifecycle scripts"
-    dependencies = package.get("dependencies")
-    root_package = (
-        (lock.get("packages") or {}).get("") if isinstance(lock.get("packages"), dict) else None
-    )
-    if not isinstance(dependencies, dict) or not isinstance(root_package, dict):
-        return "renderer manifests do not declare a locked dependency graph"
-    if root_package.get("dependencies") != dependencies:
-        return "package.json and package-lock.json dependency declarations do not match"
-    package_name = "mathjax-full"
-    locked = (lock.get("packages") or {}).get(f"node_modules/{package_name}")
-    if not isinstance(locked, dict) or not locked.get("version") or not locked.get("integrity"):
-        return f"package-lock.json does not pin {package_name} with an integrity hash"
-    for filename in COMPONENT_FILES[component]:
-        candidate = tool_root / filename
-        if candidate.exists() and candidate.is_symlink():
-            return f"{candidate.relative_to(root)} must not be a symlink"
-    return None
-
-
 def _tool_result(
     check_id: str,
     name: str,
@@ -3650,115 +3236,6 @@ def _probe_weasyprint_import(
         environment=dict(os.environ),
         reporter=reporter,
     )
-
-
-def _node_security_checks(root: Path, online: bool) -> list[DiagnosticResult]:
-    """Audit the remaining managed Node renderer."""
-    return _node_security_check(root, online, "mathjax", "MathJax")
-
-
-def _node_security_check(
-    root: Path, online: bool, component: str, name: str
-) -> list[DiagnosticResult]:
-    tool_root = root / "tools" / component
-    lockfile = tool_root / "package-lock.json"
-    if not lockfile.is_file():
-        return [
-            DiagnosticResult(
-                f"renderer.{component}-security",
-                "Rendering toolchain",
-                "pass",
-                f"{name} security audit is not applicable",
-                (f"tools/{component}/package-lock.json is not present",),
-                {"checked": False, "reason": "not-configured"},
-            )
-        ]
-    if not online:
-        return [
-            DiagnosticResult(
-                f"renderer.{component}-security",
-                "Rendering toolchain",
-                "pass",
-                f"{name} security audit skipped in offline mode",
-                ("run `pdk diag --online` to query the npm advisory service",),
-                {"checked": False, "reason": "offline", "level": NODE_AUDIT_LEVEL},
-            )
-        ]
-    npm = shutil.which("npm")
-    if npm is None:
-        return [
-            DiagnosticResult(
-                f"renderer.{component}-security",
-                "Rendering toolchain",
-                "warn",
-                f"{name} security audit could not run because npm is missing",
-                ("install npm, then rerun `pdk diag --online`",),
-                {"checked": False, "reason": "npm-missing", "level": NODE_AUDIT_LEVEL},
-            )
-        ]
-    command = [npm, "audit", "--omit=dev", f"--audit-level={NODE_AUDIT_LEVEL}", "--json"]
-    completed = _run(command, cwd=tool_root, timeout=60)
-    try:
-        payload = json.loads(completed.stdout)
-    except json.JSONDecodeError:
-        payload = {}
-    metadata = payload.get("metadata", {}) if isinstance(payload, dict) else {}
-    raw_counts = metadata.get("vulnerabilities") if isinstance(metadata, dict) else None
-    valid_counts = isinstance(raw_counts, dict) and all(
-        type(raw_counts.get(severity)) is int and raw_counts[severity] >= 0
-        for severity in ("low", "moderate", "high", "critical")
-    )
-    counts = {
-        severity: int(raw_counts[severity]) if valid_counts and isinstance(raw_counts, dict) else 0
-        for severity in ("low", "moderate", "high", "critical")
-    }
-    affected = sum(counts[severity] for severity in ("moderate", "high", "critical"))
-    data = {
-        "checked": True,
-        "level": NODE_AUDIT_LEVEL,
-        "vulnerabilities": counts,
-    }
-    if affected:
-        details = (
-            *(f"{severity}: {count}" for severity, count in counts.items() if count),
-            f"run `npm audit --omit=dev` in tools/{component} for remediation detail",
-        )
-        return [
-            DiagnosticResult(
-                f"renderer.{component}-security",
-                "Rendering toolchain",
-                "warn",
-                f"{name} dependencies have {affected} moderate-or-higher advisories",
-                details,
-                data,
-            )
-        ]
-    if completed.returncode or not valid_counts:
-        evidence = (
-            completed.stderr.strip()
-            or completed.stdout.strip()
-            or f"npm audit exited {completed.returncode}"
-        )
-        return [
-            DiagnosticResult(
-                f"renderer.{component}-security",
-                "Rendering toolchain",
-                "warn",
-                f"{name} security audit was unavailable",
-                (_sanitise_text(evidence, root),),
-                {**data, "checked": False, "reason": "audit-error"},
-            )
-        ]
-    return [
-        DiagnosticResult(
-            f"renderer.{component}-security",
-            "Rendering toolchain",
-            "pass",
-            f"{name} dependencies have no moderate-or-higher advisories",
-            (),
-            data,
-        )
-    ]
 
 
 def _repository_checks(root: Path, online: bool) -> list[DiagnosticResult]:
@@ -4320,7 +3797,6 @@ __all__ = [
     "build_repair_dry_run",
     "command_in_environment",
     "inspect",
-    "repair_locked_renderer",
     "repair_mixed_virtual_environment",
     "repair_pin_declarations",
     "repair_project_configuration",

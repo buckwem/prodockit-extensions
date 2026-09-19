@@ -9,9 +9,7 @@ import re
 import subprocess
 import sys
 from pathlib import Path
-from types import SimpleNamespace
 
-import click
 import pytest
 from click.testing import CliRunner
 
@@ -31,7 +29,6 @@ from prodockit.adopt import (
     ensure_stylesheet,
     ensure_stylesheets,
     ensure_zensical_config,
-    install_tool,
     load_manifest,
     resolve_options,
     write_manifest,
@@ -40,9 +37,6 @@ from prodockit.adopt import (
     apply as apply_adoption,
 )
 from prodockit.cli import main
-from prodockit.pdf._standalone_quickjs import (
-    StandaloneBackendUnavailableError as StandaloneRuntimeUnavailableError,
-)
 from prodockit.pins import TESTED_VERSIONS
 from prodockit.project_config import load_project_config
 from prodockit.shared_files import resource_bytes
@@ -56,9 +50,6 @@ def _supported_toolchain(monkeypatch: pytest.MonkeyPatch) -> None:
     tests describe an already-supported active environment.
     """
 
-    from prodockit.adopt_node import NodePlan
-
-    monkeypatch.setattr("prodockit.adopt_node.plan", lambda **kwargs: NodePlan())
     monkeypatch.setattr(
         "prodockit.toolchain.installed_python_version",
         lambda: TESTED_VERSIONS["python"],
@@ -70,10 +61,6 @@ def _supported_toolchain(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         "prodockit.toolchain._fresh_distribution_versions",
         lambda packages: {package: TESTED_VERSIONS[package] for package in packages},
-    )
-    monkeypatch.setattr(
-        "prodockit.toolchain.installed_pandoc_version",
-        lambda: TESTED_VERSIONS["pandoc"],
     )
     # Individual adoption tests use temporary project roots while pytest runs
     # from this repository's own virtual environment. Environment-boundary
@@ -128,7 +115,7 @@ def test_report_uses_prominent_phases_and_stages(tmp_path: Path, monkeypatch) ->
     assert result.exit_code == 0, result.output
     assert "Phase 1/5 — Assess" in result.output
     assert "Phase 5/5 — Site and repository details" in result.output
-    assert "Activity [3/11] Supported toolchain" in result.output
+    assert "Activity [3/9] Supported toolchain" in result.output
     assert "Component choices" in result.output
     assert "\x1b[94m" in result.output
     assert "\x1b[34m" in result.output
@@ -140,7 +127,7 @@ def test_report_uses_prominent_phases_and_stages(tmp_path: Path, monkeypatch) ->
     assert "apply the selected integration activities" in result.output
     assert "zensical build --clean --strict" in result.output
     assert (
-        "active project environment, local project files and selected runtime prerequisites"
+        "active project environment and local project files"
         in result.output
     )
     assert "Excluded: SSH, editors, commits, pushes and Pages configuration" in result.output
@@ -191,85 +178,6 @@ def test_assessment_warns_without_venv_and_rejects_wrong_active_venv(tmp_path, m
     environment = next(step for step in steps if step.id == "environment")
     assert environment.status == "wrong"
     assert "Active Python is not the project's .venv" in environment.detail
-
-
-def test_assessment_blocks_selected_renderers_when_node_is_unavailable(tmp_path, monkeypatch):
-    from prodockit.adopt import AdoptOptions, assess
-    from prodockit.adopt_node import NodePlan
-
-    monkeypatch.setattr(
-        "prodockit.adopt_node.plan",
-        lambda **kwargs: NodePlan(
-            blocked="Node.js/npm needs installation or repair, but Adopt is offline"
-        ),
-    )
-
-    project = _project(tmp_path)
-    monkeypatch.setattr("prodockit.adopt._in_venv", lambda: False)
-    monkeypatch.setattr("prodockit.adopt.shutil.which", lambda _name: None)
-
-    steps = assess(project, AdoptOptions(mermaid=True, maths=True), offline=True)
-
-    step = next(item for item in steps if item.id == "node")
-    assert step.status == "wrong"
-    assert "Adopt is offline" in step.detail
-
-
-def test_apply_checks_renderer_prerequisites_before_changing_project(tmp_path, monkeypatch):
-    from prodockit.adopt_node import NodePlan
-
-    monkeypatch.setattr(
-        "prodockit.adopt_node.plan",
-        lambda **kwargs: NodePlan(blocked="Node.js/npm cannot be installed offline"),
-    )
-    project = _project(tmp_path)
-    config = project / "zensical.toml"
-    before = config.read_bytes()
-    monkeypatch.chdir(project)
-    monkeypatch.setattr("prodockit.adopt._in_venv", lambda: True)
-    monkeypatch.setattr("prodockit.adopt.shutil.which", lambda _name: None)
-
-    result = CliRunner().invoke(
-        main,
-        ["adopt", "--apply", "--mermaid", "--maths"],
-    )
-
-    assert result.exit_code != 0
-    assert "ADOPT CANNOT CONTINUE" in result.output
-    assert "Problem:  Node.js/npm cannot be installed offline" in result.output
-    assert "no project files have been changed" in result.output
-    assert "Apply this stage?" not in result.output
-    assert config.read_bytes() == before
-    assert not (project / MANIFEST).exists()
-    assert not (project / "requirements.txt").exists()
-
-
-def test_renderer_blocker_summary_is_prominently_coloured(tmp_path, monkeypatch):
-    from prodockit.adopt_node import NodePlan
-
-    monkeypatch.setattr(
-        "prodockit.adopt_node.plan",
-        lambda **kwargs: NodePlan(blocked="Node.js/npm cannot be installed offline"),
-    )
-    project = _project(tmp_path)
-    monkeypatch.chdir(project)
-    monkeypatch.setattr("prodockit.adopt._in_venv", lambda: True)
-    monkeypatch.setattr("prodockit.adopt.shutil.which", lambda _name: None)
-
-    result = CliRunner().invoke(
-        main,
-        ["adopt", "--apply", "--no-mermaid", "--maths"],
-        color=True,
-    )
-
-    assert result.exit_code != 0
-    assert click.style("ADOPT CANNOT CONTINUE", bold=True, fg="bright_magenta") in (result.output)
-    assert (
-        click.style(
-            "Problem:  Node.js/npm cannot be installed offline", fg="bright_magenta", bold=True
-        )
-        in result.output
-    )
 
 
 def test_reusable_apply_runs_selected_stages_and_verifies(monkeypatch, tmp_path) -> None:
@@ -1262,8 +1170,6 @@ def test_mermaid_adoption_does_not_own_or_modify_node_project(
     author_file = project / "tools/author-renderer/package.json"
     author_file.parent.mkdir(parents=True)
     author_file.write_text('{"name": "author-owned"}\n', encoding="utf-8")
-    monkeypatch.setattr("prodockit.adopt.require_standalone_runtime", lambda: None)
-
     written = apply_step(project, AdoptOptions(mermaid=True), "mermaid")
 
     assert author_file.read_text(encoding="utf-8") == '{"name": "author-owned"}\n'
@@ -1283,70 +1189,6 @@ def test_selected_renderers_are_configured_without_eager_tool_installation(tmp_p
     assert load_manifest(project) == options
 
 
-def test_maths_install_copies_the_browser_bundle_after_npm(tmp_path: Path, monkeypatch) -> None:
-    project = _project(tmp_path)
-    monkeypatch.setattr("prodockit.adopt.shutil.which", lambda _name: "/usr/bin/npm")
-
-    def npm(command, **kwargs):
-        assert command[0] == "/usr/bin/npm"
-        assert command == [
-            "/usr/bin/npm",
-            "ci",
-            "--legacy-peer-deps",
-            "--no-audit",
-            "--no-fund",
-            "--prefer-offline",
-        ]
-        assert kwargs["cwd"] == project / "tools" / "mathjax"
-        bundle = (
-            project
-            / "tools"
-            / "mathjax"
-            / "node_modules"
-            / "mathjax-full"
-            / "es5"
-            / "tex-svg-full.js"
-        )
-        bundle.parent.mkdir(parents=True)
-        bundle.write_text("bundle", encoding="utf-8")
-        (bundle.parent.parent / "LICENSE").write_text("Apache-2.0", encoding="utf-8")
-        return SimpleNamespace(returncode=0, stdout="", stderr="")
-
-    monkeypatch.setattr("prodockit.renderer_resilience.run_installer", npm)
-    monkeypatch.setattr(
-        "prodockit.adopt.probe_mathjax",
-        lambda node, script: SimpleNamespace(path=script, ok=True, version=None, error=None),
-    )
-
-    install_tool(project, "mathjax")
-
-    assert (project / "docs" / "javascripts" / "mathjax.js").is_file()
-    assert (project / "docs" / "javascripts" / "vendor" / "mathjax" / "tex-svg-full.js").is_file()
-    assert (project / "docs" / "javascripts" / "vendor" / "mathjax" / "LICENSE").is_file()
-    assert not (project / "tools" / "mermaid").exists()
-
-
-def test_maths_install_rejects_npm_success_when_renderer_probe_fails(
-    tmp_path: Path, monkeypatch
-) -> None:
-    project = _project(tmp_path)
-    monkeypatch.setattr("prodockit.adopt.shutil.which", lambda _name: "/usr/bin/tool")
-
-    def npm(_command, **_kwargs):
-        return SimpleNamespace(returncode=0, stdout="", stderr="")
-
-    monkeypatch.setattr("prodockit.renderer_resilience.run_installer", npm)
-    monkeypatch.setattr(
-        "prodockit.adopt.probe_mathjax",
-        lambda node, script: SimpleNamespace(
-            path=script, ok=False, version=None, error="Cannot find module"
-        ),
-    )
-
-    with pytest.raises(AdoptError, match="npm completed but MathJax is unusable"):
-        install_tool(project, "mathjax")
-
-
 def test_adoption_readiness_defers_mermaid_runtime_to_the_project_cache(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -1356,11 +1198,6 @@ def test_adoption_readiness_defers_mermaid_runtime_to_the_project_cache(
     ensure_stylesheet(project)
     ensure_zensical_config(project, options)
     monkeypatch.setattr("prodockit.adopt.shutil.which", lambda _name: None)
-
-    def unavailable() -> None:
-        raise StandaloneRuntimeUnavailableError("audited runtime unavailable")
-
-    monkeypatch.setattr("prodockit.adopt.require_standalone_runtime", unavailable)
 
     steps = {step.id: step for step in assess(project, options)}
 
@@ -1624,10 +1461,6 @@ markdown_extensions:
     (project / "requirements.txt").write_text("mkdocs-material==9.7.7\n", encoding="utf-8")
     monkeypatch.chdir(project)
     monkeypatch.setattr("prodockit.adopt._in_venv", lambda: True)
-    monkeypatch.setattr(
-        "prodockit.adopt._tool_health",
-        lambda root, component, **_kwargs: (True, "test renderer"),
-    )
 
     preview = CliRunner().invoke(main, ["adopt", "--dry-run", "--mermaid", "--no-maths"])
     assert preview.exit_code == 0, preview.output

@@ -24,7 +24,7 @@ import pytest
 
 import prodockit as prodockit_module
 import prodockit.bootstrap.stages as stages_module
-from prodockit import __version__, mathjax
+from prodockit import __version__
 from prodockit.bootstrap import (
     HOSTS,
     PROMPTS,
@@ -48,8 +48,6 @@ from prodockit.bootstrap.model import GITHUB_COM, MACOS, SURREY_GITLAB, UBUNTU, 
 from prodockit.bootstrap.stages import (
     DEFAULT_CSL_STYLE,
     GIT_MIN_VERSION,
-    PANDOC_VERSION,
-    PANGO_MIN_VERSION,
     PUBLIC_KEY_MARKER,
     VSCODE_EXTENSION_MIN_VERSIONS,
     VSCODE_EXTENSIONS,
@@ -146,32 +144,6 @@ def _before_the_clone(machine: dict[str, CommandResult]) -> dict[str, CommandRes
     return machine | {"remote get-url origin": CommandResult(2, stderr="No such remote")}
 
 
-def _windows_pango_response(*, arm64: bool = False) -> dict[str, CommandResult]:
-    environment = "clangarm64" if arm64 else "ucrt64"
-    architecture = "arm64" if arm64 else "x64"
-    package = "mingw-w64-clang-aarch64-pango" if arm64 else "mingw-w64-ucrt-x86_64-pango"
-    directory = rf"C:\msys64\{environment}\bin"
-    return {
-        "ConvertTo-Json": CommandResult(
-            0,
-            json.dumps(
-                {
-                    "architecture": architecture,
-                    "environment": environment,
-                    "package": package,
-                    "root": r"C:\msys64",
-                    "bin": directory,
-                    "dll": directory + r"\libpango-1.0-0.dll",
-                    "dll_exists": True,
-                    "package_integrity": True,
-                    "user_environment": directory,
-                    "process_environment": directory,
-                }
-            ),
-        )
-    }
-
-
 def _ready_machine(tmp_path: Path) -> dict[str, CommandResult]:
     """A machine on which every stage is satisfied.
 
@@ -185,7 +157,6 @@ def _ready_machine(tmp_path: Path) -> dict[str, CommandResult]:
     _write_ssh_config(tmp_path)
     project = tmp_path / "GitLab" / "report-al01234"
     (project / ".git").mkdir(parents=True, exist_ok=True)
-    (project / "tools" / "mathjax" / "node_modules").mkdir(parents=True, exist_ok=True)
     (project / "requirements.txt").write_text("zensical\n", encoding="utf-8")
     (project / ".prodockit-components.toml").write_text(
         "schema = 1\n\n[components]\nmermaid = true\nmaths = true\n", encoding="utf-8"
@@ -193,25 +164,8 @@ def _ready_machine(tmp_path: Path) -> dict[str, CommandResult]:
     venv_python = project / ".venv" / "bin" / "python"
     venv_python.parent.mkdir(parents=True, exist_ok=True)
     venv_python.write_text("", encoding="utf-8")
-    (venv_python.parent / "activate").write_text(
-        "# Added by prodockit bootstrap for WeasyPrint\n"
-        'export DYLD_FALLBACK_LIBRARY_PATH="/opt/homebrew/lib'
-        '${DYLD_FALLBACK_LIBRARY_PATH:+:$DYLD_FALLBACK_LIBRARY_PATH}"\n',
-        encoding="utf-8",
-    )
+    (venv_python.parent / "activate").touch()
     (project / "harvard-cite-them-right.csl").write_text("<style/>", encoding="utf-8")
-    pinned = project / "tools" / "mathjax" / "node_modules" / "mathjax-full" / "es5"
-    pinned.mkdir(parents=True, exist_ok=True)
-    (pinned / "tex-svg-full.js").write_text("BUNDLE", encoding="utf-8")
-    (pinned.parent / "LICENSE").write_text("APACHE", encoding="utf-8")
-    vendor = project / "docs" / "javascripts" / "vendor" / "mathjax"
-    vendor.mkdir(parents=True, exist_ok=True)
-    (vendor / "tex-svg-full.js").write_text("BUNDLE", encoding="utf-8")
-    (vendor / "LICENSE").write_text("APACHE", encoding="utf-8")
-    (project / "docs" / "javascripts" / "mathjax.js").write_text(
-        mathjax.CONFIG_SOURCE, encoding="utf-8"
-    )
-    (project / ".gitignore").write_text("\n".join(mathjax.IGNORED) + "\n", encoding="utf-8")
     (project / ".vscode").mkdir(exist_ok=True)
     (project / ".vscode" / "settings.json").write_text(
         '{"files.associations": {"*.md": "python-markdown"}}', encoding="utf-8"
@@ -244,14 +198,8 @@ def _ready_machine(tmp_path: Path) -> dict[str, CommandResult]:
         "prodockit sync-repo --check": CommandResult(0),
         "config --local user.name": CommandResult(0, "Ada Lovelace\n"),
         "config --local user.email": CommandResult(0, "al01234@surrey.ac.uk\n"),
-        "pandoc": CommandResult(0, "pandoc 3.10.1"),
-        "pango-view": CommandResult(0, "pango-view (pango) 1.56.3"),
-        **_windows_pango_response(),
-        "node": CommandResult(0, "v22.14.0\n"),
-        "npm": CommandResult(0, "10.9.2\n"),
         "import zensical": CommandResult(0),
         "-m pip --version": CommandResult(0, "pip 26.0.1"),
-        "fc-match": CommandResult(0, "Inter\nJetBrains Mono\nDejaVu Sans\n"),
         "config core.fileMode": CommandResult(0, "false\n"),
         # A finished project has nothing uncommitted and something on the
         # remote - without both, the first-push stage is rightly not done.
@@ -648,22 +596,8 @@ def test_a_truncated_private_key_is_archived_instead_of_reused(tmp_path: Path) -
     assert "-y" not in plan.commands[-1]
 
 
-def test_node_without_npm_is_supported(tmp_path: Path) -> None:
-    (tmp_path / "GitLab" / "report-al01234").mkdir(parents=True)
-    runner = FakeRunner({"node": CommandResult(0, "v22.14.0\n")})
-    context = _context(tmp_path, runner=runner)
-    result = next(s for s in STAGES if s.id == "node").check(context)
-    assert result.status is Status.OK
-    assert result.detail == "node 22.14.0"
 
 
-def test_node_older_than_the_builds_use_is_wrong(tmp_path: Path) -> None:
-    (tmp_path / "GitLab" / "report-al01234").mkdir(parents=True)
-    runner = FakeRunner(
-        {"node": CommandResult(0, "v18.19.0\n"), "npm": CommandResult(0, "10.2.3\n")}
-    )
-    context = _context(tmp_path, runner=runner)
-    assert next(s for s in STAGES if s.id == "node").check(context).status is Status.WRONG
 
 
 def test_stages_needing_project_details_report_unknown_not_missing(tmp_path: Path) -> None:
@@ -2189,45 +2123,6 @@ def test_a_first_run_does_not_pay_for_that_question(tmp_path: Path) -> None:
     assert not any("--dry-run" in " ".join(c) for c in runner.calls), runner.calls
 
 
-def test_npm_is_found_after_the_command_that_installed_it(tmp_path: Path) -> None:
-    """prodockit-extensions#405, reported from Windows on ARM.
-
-        Successfully installed
-        ...
-        failed: npm: not found
-
-    Two things are true at once. The plan is written before any of it
-    runs, so `npm_command` resolves npm while Node is still absent and
-    falls back to the bare name - and a bare `npm` can never run on
-    Windows, because `CreateProcess` appends `.exe` and npm is a `.cmd`.
-
-    `refresh_windows_path()` cannot help: the problem is the name, not
-    PATH. So the name is resolved when the command is about to run, which
-    is the only point at which the answer can be right.
-    """
-    from prodockit.bootstrap.stages import resolve_for_execution
-
-    npm = tmp_path / "Program Files" / "nodejs" / "npm.cmd"
-    npm.parent.mkdir(parents=True)
-    npm.write_text("", encoding="utf-8")
-    monkey = {"npm": CommandResult(127, stderr="not found")}
-    context = _context(tmp_path, platform=WINDOWS, runner=FakeRunner(monkey))
-
-    from prodockit.bootstrap import stages as stage_module
-
-    original = stage_module._NPM_PATHS
-    stage_module._NPM_PATHS = (str(npm.parent),)
-    try:
-        resolved = resolve_for_execution(context, ["npm", "ci", "--prefix", "x"])
-    finally:
-        stage_module._NPM_PATHS = original
-
-    assert resolved == [str(npm), "ci", "--prefix", "x"], "the shim, by its full path"
-    # Everything else is passed through untouched, including the winget
-    # line that precedes it in the very same plan.
-    winget = ["winget", "install", "--id", "OpenJS.NodeJS.LTS"]
-    assert resolve_for_execution(context, winget) == winget
-    assert resolve_for_execution(context, []) == []
 
 
 def test_the_apply_loop_resolves_before_it_runs(tmp_path: Path) -> None:
@@ -2741,117 +2636,6 @@ def test_the_help_text_does_not_claim_a_stale_stage_count(cli_bootstrap) -> None
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize("platform", [MACOS, UBUNTU, WINDOWS])
-def test_bootstrap_never_installs_pandoc_or_pdf_fonts(
-    tmp_path: Path, platform: str
-) -> None:
-    plan = next(s for s in STAGES if s.id == "pandoc").plan(
-        _context(tmp_path, platform=platform)
-    )
-    joined = " ".join(" ".join(command) for command in plan.commands).lower()
-
-    assert "pandoc" not in joined
-    assert "font-inter" not in joined
-    assert "jetbrains" not in joined
-    assert "fonts-inter" not in joined
-    assert not plan.follow_up
-
-
-def test_windows_has_no_machine_level_pdf_install(tmp_path: Path) -> None:
-    plan = next(s for s in STAGES if s.id == "pandoc").plan(
-        _context(tmp_path, platform=WINDOWS)
-    )
-    assert not plan.commands
-
-
-def test_host_pandoc_does_not_affect_native_library_check(tmp_path: Path) -> None:
-    runner = FakeRunner(
-        {
-            "pandoc": CommandResult(0, "pandoc 2.17.1.1\n"),
-            "pango-view": CommandResult(0, "pango-view (pango) 1.56.3\n"),
-        }
-    )
-    result = next(s for s in STAGES if s.id == "pandoc").check(
-        _context(tmp_path, runner=runner)
-    )
-    assert result.status is Status.OK
-    assert "project-locally" in result.detail
-
-
-def test_mac_old_pandoc_also_installs_a_missing_pango(tmp_path: Path) -> None:
-    runner = FakeRunner(
-        {
-            "pandoc --version": CommandResult(0, "pandoc 2.19.2\n"),
-            "pango-view --version": CommandResult(127, stderr="not found"),
-        }
-    )
-
-    plan = next(s for s in STAGES if s.id == "pandoc").plan(
-        _context(tmp_path, platform=MACOS, runner=runner)
-    )
-    joined = "\n".join(" ".join(command) for command in plan.commands)
-
-    assert "brew install --force pango" in joined
-    assert "pandoc" not in joined
-
-
-def test_mac_brew_commands_verify_a_receipt_after_post_install_failure(
-    tmp_path: Path,
-) -> None:
-    runner = FakeRunner(
-        {
-            "pandoc --version": CommandResult(0, "pandoc 2.19.2\n"),
-            "pango-view --version": CommandResult(127, stderr="not found"),
-        }
-    )
-
-    plan = next(s for s in STAGES if s.id == "pandoc").plan(
-        _context(tmp_path, platform=MACOS, runner=runner)
-    )
-    scripts = [command[-1] for command in plan.commands if command[:2] == ["bash", "-c"]]
-
-    assert len(scripts) == 1
-    assert "pango" in scripts[0]
-    assert all("|| brew list --formula" in script for script in scripts)
-
-
-def test_current_pango_is_ok(tmp_path: Path) -> None:
-    runner = FakeRunner(
-        {
-            "pango-view": CommandResult(0, "pango-view (pango) 1.56.3\n"),
-        }
-    )
-    result = next(s for s in STAGES if s.id == "pandoc").check(_context(tmp_path, runner=runner))
-    assert result.status is Status.OK
-    assert "1.56.3" in result.detail
-
-
-def test_pango_below_weasyprints_floor_is_reported_as_wrong(tmp_path: Path) -> None:
-    runner = FakeRunner(
-        {
-            "pandoc": CommandResult(0, f"pandoc {PANDOC_VERSION}\n"),
-            "pango-view": CommandResult(0, "pango-view (pango) 1.42.4\n"),
-        }
-    )
-
-    result = next(s for s in STAGES if s.id == "pandoc").check(_context(tmp_path, runner=runner))
-
-    assert result.status is Status.WRONG
-    assert PANGO_MIN_VERSION in result.detail
-
-
-def test_ubuntu_pango_libraries_are_still_installed(tmp_path: Path) -> None:
-    """WeasyPrint needs Pango et al. These are separate from pandoc -
-    pandoc doesn't depend on them, and neither does the .deb from GitHub
-    releases. They must still be installed."""
-    context = _context(tmp_path, platform=UBUNTU)
-    plan = next(s for s in STAGES if s.id == "pandoc").plan(context)
-    joined = " ".join(" ".join(cmd) for cmd in plan.commands)
-    assert "libpango-1.0-0" in joined
-    assert "libpangoft2-1.0-0" in joined
-    assert "libharfbuzz-subset0" in joined
-
-
 def test_ubuntu_git_plan_runs_apt_update_first(tmp_path: Path) -> None:
     """A clean Ubuntu install's package index may be empty. `apt install`
     without a prior `apt update` can fail to find the package."""
@@ -2862,128 +2646,14 @@ def test_ubuntu_git_plan_runs_apt_update_first(tmp_path: Path) -> None:
     assert plan.commands[0][-1] == "update"
 
 
-def test_ubuntu_node_installs_curl_first(tmp_path: Path) -> None:
-    """A clean Ubuntu install does not necessarily have `curl`. Without
-    it the NodeSource setup command fails, and the `apt install nodejs`
-    on the next line still succeeds - quietly fitting Ubuntu's own older
-    Node.js instead of NodeSource's. You then have node without npm and
-    the toolchains fail for an apparently unrelated reason."""
-    context = _context(tmp_path, platform=UBUNTU)
-    plan = next(s for s in STAGES if s.id == "node").plan(context)
-    first_install = plan.commands[0]
-    assert "curl" in first_install
 
 
-def test_current_node_needs_no_project_toolchain_install(tmp_path: Path) -> None:
-    runner = FakeRunner(
-        {
-            "node --version": CommandResult(0, "v22.14.0\n"),
-            "npm --version": CommandResult(0, "10.9.2\n"),
-        }
-    )
-
-    plan = next(s for s in STAGES if s.id == "node").plan(
-        _context(tmp_path, platform=WINDOWS, runner=runner)
-    )
-
-    assert not plan.commands
 
 
-def test_old_windows_node_uses_an_upgrade_or_install_command(tmp_path: Path) -> None:
-    runner = FakeRunner(
-        {
-            "node --version": CommandResult(0, "v18.20.0\n"),
-            "npm --version": CommandResult(0, "10.9.2\n"),
-        }
-    )
-
-    plan = next(s for s in STAGES if s.id == "node").plan(
-        _context(tmp_path, platform=WINDOWS, runner=runner)
-    )
-
-    assert plan.commands[0][:4] == ["winget", "install", "--id", "OpenJS.NodeJS.LTS"]
-    assert "--source winget" in " ".join(plan.commands[0])
-    assert "--no-upgrade" not in plan.commands[0]
-    assert plan.destructive, "the upgrade must default to No until explicitly approved"
-    assert plan.describe.startswith("Upgrade Node")
 
 
-def test_old_x64_node_is_replaced_before_native_windows_arm64_install(
-    tmp_path: Path,
-) -> None:
-    """Windows Installer cannot change one Node product's architecture."""
-    runner = FakeRunner(
-        {
-            "node --version": CommandResult(0, "v18.20.0\n"),
-            "npm --version": CommandResult(0, "10.9.2\n"),
-            "node -p process.arch": CommandResult(0, "x64\n"),
-            "OSArchitecture.ToString": CommandResult(0, "Arm64\n"),
-        }
-    )
-
-    plan = next(s for s in STAGES if s.id == "node").plan(
-        _context(tmp_path, platform=WINDOWS, runner=runner)
-    )
-
-    assert plan.commands[0][:3] == ["powershell", "-NoProfile", "-Command"]
-    assert "DisplayName -like 'Node.js*'" in plan.commands[0][-1]
-    assert "msiexec.exe" in plan.commands[0][-1]
-    assert "@('/x', $product, '/qn', '/norestart')" in plan.commands[0][-1]
-    assert plan.commands[1][:4] == ["winget", "install", "--id", "OpenJS.NodeJS.LTS"]
-    assert plan.action == "UPGRADE"
-    assert plan.destructive
 
 
-def test_old_npm_is_irrelevant_when_node_is_current(tmp_path: Path) -> None:
-    runner = FakeRunner(
-        {
-            "node --version": CommandResult(0, "v22.14.0\n"),
-            "npm --version": CommandResult(0, "6.14.18\n"),
-        }
-    )
-
-    plan = next(s for s in STAGES if s.id == "node").plan(
-        _context(tmp_path, platform=MACOS, runner=runner)
-    )
-
-    assert not plan.commands
-    assert not plan.action
-    assert not plan.destructive
-
-
-@pytest.mark.parametrize("platform", [MACOS, UBUNTU])
-def test_old_node_is_an_explicit_upgrade_on_unix(tmp_path: Path, platform: str) -> None:
-    (tmp_path / "GitLab" / "report-al01234").mkdir(parents=True)
-    runner = FakeRunner(
-        {
-            "node --version": CommandResult(0, "v18.20.0\n"),
-            "npm --version": CommandResult(0, "10.9.2\n"),
-        }
-    )
-
-    plan = next(s for s in STAGES if s.id == "node").plan(
-        _context(tmp_path, platform=platform, runner=runner)
-    )
-
-    assert plan.action == "UPGRADE"
-    assert plan.destructive
-    assert plan.describe.startswith("Upgrade Node")
-
-
-def test_windows_node_without_npm_needs_no_repair(tmp_path: Path) -> None:
-    runner = FakeRunner(
-        {
-            "node --version": CommandResult(0, "v22.14.0\n"),
-            "npm --version": CommandResult(127, stderr="not found"),
-        }
-    )
-
-    plan = next(s for s in STAGES if s.id == "node").plan(
-        _context(tmp_path, platform=WINDOWS, runner=runner)
-    )
-
-    assert not plan.commands
-    assert not plan.destructive
 
 
 # ---------------------------------------------------------------------------
@@ -3185,14 +2855,6 @@ def test_every_apt_command_waits_for_the_dpkg_lock(tmp_path: Path) -> None:
     assert seen >= 4, "the Ubuntu plans should have several apt commands between them"
 
 
-def test_bootstrap_installs_only_native_pdf_libraries_with_apt(tmp_path: Path) -> None:
-    context = _context(tmp_path, platform=UBUNTU)
-    plan = next(s for s in STAGES if s.id == "pandoc").plan(context)
-    assert len(plan.commands) == 1
-    install = plan.commands[0]
-    assert install[:2] == ["sudo", "apt"]
-    assert "DPkg::Lock::Timeout" in " ".join(install)
-    assert "pandoc" not in " ".join(install).lower()
 
 
 def test_an_install_gets_longer_than_a_check(tmp_path: Path) -> None:
@@ -3931,7 +3593,7 @@ def test_weasyprint_is_verified_from_the_projects_venv(tmp_path: Path) -> None:
 
     assert result.status is Status.WRONG, "installed but unusable is not missing"
     assert "graphics libraries" in result.detail
-    assert "PDF libraries stage" in result.detail, "point at the fix, not at pip"
+    assert "Pango" in result.detail, "point at the manual prerequisite, not at pip"
 
 
 def test_windows_project_environment_does_not_import_python_weasyprint(
@@ -3960,13 +3622,6 @@ def test_windows_project_environment_does_not_import_python_weasyprint(
     assert "graphics libraries" not in result.detail
 
 
-def test_the_pandoc_stage_no_longer_claims_what_it_cannot_check() -> None:
-    """It installs the libraries and cannot verify them - importing
-    WeasyPrint does that, one stage later. The summary should not promise
-    otherwise."""
-    pandoc = next(s for s in STAGES if s.id == "pandoc")
-
-    assert pandoc.summary == "PDF native libraries"
 
 
 def test_the_editor_settings_associate_markdown_for_zensical_studio(tmp_path: Path) -> None:
@@ -4094,25 +3749,6 @@ def test_ubuntu_reads_the_language_from_the_locale_command(tmp_path: Path) -> No
     assert '"ltex.language": "en-GB"' in plan.commands[0][-1]
 
 
-def test_node_stage_never_installs_npm_or_a_browser(tmp_path: Path) -> None:
-    for platform in (MACOS, UBUNTU, WINDOWS):
-        plan = next(s for s in STAGES if s.id == "node").plan(_context(tmp_path, platform=platform))
-        flat = " ".join(" ".join(c) for c in plan.commands)
-        assert "chromium" not in flat, platform
-        assert "PUPPETEER" not in flat, platform
-        assert "npm" not in flat, platform
-
-
-@pytest.mark.parametrize("platform", [MACOS, UBUNTU, WINDOWS])
-def test_bootstrap_does_not_install_pdf_fonts(tmp_path: Path, platform: str) -> None:
-    plan = next(s for s in STAGES if s.id == "pandoc").plan(
-        _context(tmp_path, platform=platform)
-    )
-    joined = "\n".join(" ".join(command) for command in plan.commands)
-
-    assert "Inter" not in joined
-    assert "JetBrains" not in joined
-    assert "CurrentVersion\\Fonts" not in joined
 
 
 def test_the_citation_style_is_fetched_because_the_first_build_needs_it(tmp_path: Path) -> None:
@@ -4275,12 +3911,10 @@ PLAN_EFFECTS: dict[str, tuple[str, ...] | None] = {
     "site": None,
     "remote": ("origin", "the synced config"),
     "identity": ("the project's identity",),
-    "pandoc": ("pandoc", "the PDF fonts"),
     # Ubuntu installs the missing package; everywhere else `venv` comes
     # with Python, so a failure there is guided rather than repaired.
     "own-venv": ("the venv machinery",),
     "project-env": ("the venv", "its dependencies"),
-    "node": ("node",),
     "extensions": ("the extensions",),
     "vscode-settings": ("the settings file",),
     "csl-style": ("the style file",),
@@ -4306,91 +3940,12 @@ def test_every_stage_declares_what_its_plan_produces() -> None:
     )
 
 
-def test_a_stage_with_commands_is_never_satisfied_by_an_empty_machine(
-    tmp_path: Path,
-) -> None:
-    """The invariant, as far as a fixed fake can carry it: a stage whose
-    plan installs something must not report `ok` about a machine where
-    nothing is installed.
-
-    This is what caught nothing when `npm ci`, Chromium and the fonts
-    were added: `node --version` answered, so the stage said `ok` while
-    its plan had four more commands the check never looked at."""
-    empty = FakeRunner({})
-    for platform in (MACOS, UBUNTU, WINDOWS):
-        context = _context(tmp_path, runner=empty, platform=platform)
-        for stage in STAGES:
-            result = stage.check(context)
-            if result.status is Status.UNKNOWN:
-                continue  # waiting on configuration, not on the machine
-            if stage.id == "clone-source":
-                # Nothing to decide on a machine with no project on the
-                # host - and "the template" is the honest answer, not a
-                # silent pass.
-                assert "template" in result.detail or result.needs_work
-                continue
-            if stage.id == "pages" and not context.host.pages_setup_steps:
-                # GitLab configures its own Pages from the CI job, so
-                # there is nothing here for a reader to switch on.
-                assert "configures Pages from its CI job" in result.detail
-                continue
-            if stage.id == "pandoc" and platform == WINDOWS:
-                assert result.status is Status.OK
-                assert not stage.plan(context).commands
-                continue
-            if stage.id == "site" and not context.host.pages_url:
-                # The one honest exception. A self-hosted GitLab publishes
-                # at no address bootstrap can work out, so this stage
-                # cannot be checked there at all - and it says exactly
-                # that in its detail rather than claiming a site was
-                # found. Leaving every Surrey run permanently one stage
-                # short would be worse than the gap it reports (#333).
-                assert "not checked" in result.detail
-                continue
-            assert result.needs_work, (
-                f"{stage.id} reports {result.status.value} on {platform} with "
-                f"nothing installed: {result.detail}"
-            )
 
 
-def test_node_stage_ignores_retired_project_toolchain_directories(tmp_path: Path) -> None:
-    project = tmp_path / "GitLab" / "report-al01234"
-    (project / "tools" / "mathjax" / "node_modules").mkdir(parents=True)
-    save(tmp_path / "b.toml", _config())
-    runner = FakeRunner(
-        {"node": CommandResult(0, "v22.14.0\n"), "npm": CommandResult(0, "10.9.2\n")}
-    )
-
-    result = next(s for s in STAGES if s.id == "node").check(_context(tmp_path, runner=runner))
-
-    assert result.status is Status.OK
-    assert result.detail == "node 22.14.0"
 
 
-def test_native_pdf_stage_ignores_host_fonts(tmp_path: Path) -> None:
-    runner = FakeRunner(
-        {
-            "pango-view": CommandResult(0, "pango-view (pango) 1.56.3\n"),
-            "fc-match": CommandResult(0, "DejaVu Sans\n"),
-        }
-    )
-    result = next(s for s in STAGES if s.id == "pandoc").check(_context(tmp_path, runner=runner))
-
-    assert result.status is Status.OK
-    assert "Inter" not in result.detail and "JetBrains Mono" not in result.detail
 
 
-def test_an_unreadable_pango_version_warns_without_blocking(tmp_path: Path) -> None:
-    """ "I could not tell" must not read as "they are missing". A false
-    alarm sends the reader to reinstall fonts they already have, which is
-    worse than the silence this replaced."""
-    runner = FakeRunner({"pango-view": CommandResult(0, "pango-view development\n")})
-
-    result = next(s for s in STAGES if s.id == "pandoc").check(_context(tmp_path, runner=runner))
-
-    assert result.status is Status.WARNING
-    assert not result.needs_work
-    assert "may fail" in result.detail
 
 
 def test_the_history_stage_notices_core_filemode(tmp_path: Path) -> None:
@@ -4440,131 +3995,20 @@ def test_no_winget_call_can_stop_for_a_human(tmp_path: Path) -> None:
     assert seen >= 3, "vscode, git and node should exercise winget"
 
 
-def test_windows_preparation_does_not_install_msys2_or_pango(tmp_path: Path) -> None:
-    runner = FakeRunner({"int.from_bytes": CommandResult(0, "0x8664\n")})
-    plan = next(s for s in STAGES if s.id == "pandoc").plan(
-        _context(tmp_path, platform=WINDOWS, runner=runner)
-    )
-    flat = " ".join(" ".join(c) for c in plan.commands)
-
-    assert not flat
-    assert "MSYS2.MSYS2" not in flat
-    assert "pango" not in flat.lower()
-    assert "WEASYPRINT_DLL_DIRECTORIES" not in flat
 
 
-def test_windows_native_arm64_python_does_not_restore_pango(tmp_path: Path) -> None:
-    runner = FakeRunner({"int.from_bytes": CommandResult(0, "0xaa64\n")})
-    plan = next(s for s in STAGES if s.id == "pandoc").plan(
-        _context(tmp_path, platform=WINDOWS, runner=runner)
-    )
-    flat = " ".join(" ".join(command) for command in plan.commands)
-
-    assert "mingw-w64-clang-aarch64-pango" not in flat
-    assert "mingw-w64-ucrt-x86_64-pango" not in flat
 
 
-def test_windows_pandoc_check_defers_weasyprint_to_pdk_pdf(tmp_path: Path) -> None:
-    runner = FakeRunner(
-        {
-            "pandoc": CommandResult(0, "pandoc 3.10.1\n"),
-            "fc-match": CommandResult(0, "Inter\nJetBrains Mono"),
-        }
-    )
-
-    result = next(s for s in STAGES if s.id == "pandoc").check(
-        _context(tmp_path, runner=runner, platform=WINDOWS)
-    )
-
-    assert result.status is Status.OK
-    assert "prepared project-locally" in result.detail
-    assert not any("pango" in " ".join(command).lower() for command in runner.calls)
 
 
-def test_windows_pandoc_plan_does_not_mutate_the_loader_environment(tmp_path: Path) -> None:
-    plan = next(s for s in STAGES if s.id == "pandoc").plan(_context(tmp_path, platform=WINDOWS))
-    rendered = " ".join(" ".join(command) for command in plan.commands)
-
-    assert "WEASYPRINT_DLL_DIRECTORIES" not in rendered
-    assert "SetEnvironmentVariable('Path'" not in rendered
 
 
-def test_windows_pdf_prerequisites_are_checked_before_the_project_environment(
-    tmp_path: Path,
-) -> None:
-    ids = [s.id for s in STAGES]
-
-    assert ids.index("pandoc") < ids.index("project-env")
 
 
-def test_windows_native_stage_does_not_check_host_fonts(
-    tmp_path: Path,
-) -> None:
-    """Windows has no package manager for these, which is a reason to
-    check rather than a reason not to - an instruction nobody verifies is
-    how a font goes missing silently."""
-    fonts = tmp_path / "AppData" / "Local" / "Microsoft" / "Windows" / "Fonts"
-    fonts.mkdir(parents=True)
-    (fonts / "DejaVuSans.ttf").write_text("", encoding="utf-8")
-    runner = FakeRunner(
-        {
-            "pandoc": CommandResult(0, "pandoc 3.10.1\n"),
-            "pango-view": CommandResult(0, "pango-view (pango) 1.56.3\n"),
-            **_windows_pango_response(),
-            "fc-match": CommandResult(0, "DejaVu Sans"),
-        }
-    )
-
-    result = next(s for s in STAGES if s.id == "pandoc").check(
-        _context(tmp_path, runner=runner, platform=WINDOWS)
-    )
-    assert result.status is Status.OK
-    assert "Inter" not in result.detail
-
-    for name in ("Inter-Regular.ttf", "JetBrainsMono-Regular.ttf"):
-        (fonts / name).write_text("", encoding="utf-8")
-    runner.responses["fc-match"] = CommandResult(0, "Inter\nJetBrains Mono")
-    result = next(s for s in STAGES if s.id == "pandoc").check(
-        _context(tmp_path, runner=runner, platform=WINDOWS)
-    )
-    assert result.status is Status.OK
 
 
-def test_a_windows_machine_with_no_font_directory_is_ready_for_project_cache(
-    tmp_path: Path,
-) -> None:
-    """G4 makes host fonts irrelevant to PDF rendering."""
-    runner = FakeRunner({"pandoc": CommandResult(0, "pandoc 3.10.1\n")})
-
-    result = next(s for s in STAGES if s.id == "pandoc").check(
-        _context(tmp_path, runner=runner, platform=WINDOWS)
-    )
-
-    assert result.status is Status.OK
-    assert "project-locally" in result.detail
-    assert "Pango" not in result.detail
 
 
-def test_every_windows_stage_produces_something_to_do(tmp_path: Path) -> None:
-    """Phase 4's own acceptance test: no stage may be silently empty on
-    Windows. A stage with neither commands nor instructions there would
-    be one nobody had thought about, and would report `nothing to do`."""
-    context = _context(tmp_path, platform=WINDOWS)
-    for stage in STAGES:
-        if stage.id == "pages" and not context.host.pages_setup_steps:
-            # Nothing for a GitLab reader to switch on, and the check
-            # reports the stage satisfied - so this plan is never built
-            # in a real run. Empty is the correct answer, not an
-            # oversight (#360).
-            assert not stage.check(context).needs_work
-            continue
-        if stage.id == "pandoc":
-            assert not stage.check(context).needs_work
-            continue
-        plan = stage.plan(context)
-        assert plan.commands or plan.instructions or plan.follow_up, (
-            f"{stage.id} has no Windows plan at all"
-        )
 
 
 # ---------------------------------------------------------------------------
@@ -5877,52 +5321,12 @@ def test_a_machine_without_vs_code_still_reports_it_missing(tmp_path: Path) -> N
     assert next(s for s in STAGES if s.id == "vscode").check(context).status is Status.MISSING
 
 
-def test_windows_npm_resolution_is_not_used_by_the_node_plan(tmp_path: Path) -> None:
-    from prodockit.bootstrap.stages import npm_command
-
-    context = build_context(
-        _config(),
-        runner=FakeRunner(),
-        platform=WINDOWS,
-        home=tmp_path,
-        exists=lambda path: str(path).endswith("npm.cmd"),
-    )
-
-    assert npm_command(context).endswith("npm.cmd")
-    plan = next(s for s in STAGES if s.id == "node").plan(context)
-    assert not any("npm" in " ".join(command) for command in plan.commands)
 
 
-def test_node_plan_never_runs_npm_ci(tmp_path: Path) -> None:
-    for platform in (MACOS, WINDOWS, UBUNTU):
-        plan = next(s for s in STAGES if s.id == "node").plan(_context(tmp_path, platform=platform))
-        assert not any("npm" in " ".join(command) for command in plan.commands), platform
 
 
-def test_npm_is_left_alone_where_it_works(tmp_path: Path) -> None:
-    """Everywhere else, and on a Windows machine where the bare name runs
-    - a command that fails as `npm` should fail under the name the reader
-    knows, not a path bootstrap guessed."""
-    from prodockit.bootstrap.stages import npm_command
-
-    assert npm_command(_context(tmp_path, platform=MACOS)) == "npm"
-    assert npm_command(_context(tmp_path, platform=UBUNTU)) == "npm"
-    working = FakeRunner({"npm": CommandResult(0, "10.9.2")})
-    assert npm_command(_context(tmp_path, platform=WINDOWS, runner=working)) == "npm"
-    # Nothing found anywhere: still `npm`, not a path that does not exist.
-    assert npm_command(_context(tmp_path, platform=WINDOWS)) == "npm"
 
 
-def test_windows_pandoc_plan_has_no_msys2_recovery_script(tmp_path: Path) -> None:
-    runner = FakeRunner({"int.from_bytes": CommandResult(0, "0xaa64\n")})
-    plan = next(s for s in STAGES if s.id == "pandoc").plan(
-        _context(tmp_path, platform=WINDOWS, runner=runner)
-    )
-    rendered = " ".join(" ".join(command) for command in plan.commands)
-
-    assert "MSYS2" not in rendered
-    assert "windows_msys2" not in rendered
-    assert "pacman" not in rendered
 
 
 def test_the_csl_download_turns_powershells_progress_bar_off(tmp_path: Path) -> None:
@@ -5958,19 +5362,6 @@ def test_an_install_is_never_run_with_its_output_swallowed(tmp_path: Path) -> No
     assert runner.captures[-1] is True
 
 
-def test_checks_are_still_captured(tmp_path: Path) -> None:
-    """The other half. A check *reads* what a command printed - `pandoc
-    --version`, `ssh -T`'s greeting - and there are dozens per run, so
-    they must not spill onto the screen."""
-    runner = FakeRunner(
-        {
-            "pandoc": CommandResult(0, "pandoc 3.10.1"),
-            "fc-match": CommandResult(0, "Inter\nJetBrains Mono"),
-        }
-    )
-    next(s for s in STAGES if s.id == "pandoc").check(_context(tmp_path, runner=runner))
-
-    assert all(runner.captures), "a check that printed its own output would bury the report"
 
 
 def test_a_failure_with_nothing_captured_points_at_the_screen() -> None:
@@ -6372,9 +5763,9 @@ def test_bootstrap_does_not_fallback_for_unreviewed_extensions(
 @pytest.mark.parametrize(
     "message",
     [
-        "Could not resolve host: registry.npmjs.org",
+        "Could not resolve host: pypi.org",
         "The remote name could not be resolved: 'github.com'",
-        "npm ERR! code ECONNRESET",
+        "Connection reset by peer",
         "operation timed out",
     ],
 )
@@ -6396,10 +5787,10 @@ def test_bootstrap_retries_safe_downloads_after_transient_network_errors(
     runner = Recovers()
     context = _context(tmp_path, runner=runner)
     stage = Stage(
-        "node",
-        "Node",
+        "project-env",
+        "Project environment",
         lambda context: CheckResult(Status.OK),
-        lambda context: Plan(commands=[["npm", "ci"]]),
+        lambda context: Plan(commands=[["python", "-m", "pip", "install", "prodockit"]]),
     )
 
     result = apply_stage(context, stage)
@@ -6669,25 +6060,6 @@ def test_applying_never_runs_a_blocked_stage(tmp_path: Path) -> None:
 
     assert "remote" not in would_apply
     assert "own-project" not in would_apply
-
-
-@pytest.mark.parametrize("platform", [MACOS, WINDOWS, UBUNTU])
-def test_project_dependent_stages_have_no_plan_before_the_clone(
-    tmp_path: Path, platform: str
-) -> None:
-    """An interrupted first run may continue machine setup, never project work (#610)."""
-    reports = {
-        report.stage.id: report
-        for report in plan_all(_context(tmp_path, platform=platform, runner=FakeRunner()))
-    }
-
-    for stage_id in ("project-env", "vscode-settings", "csl-style"):
-        report = reports[stage_id]
-        assert report.result.status is Status.BLOCKED, stage_id
-        assert report.plan is None, f"{stage_id} must not run before its working tree exists"
-
-    assert reports["node"].result.status is Status.MISSING
-    assert reports["node"].plan is not None
 
 
 def test_the_reset_unblocks_both_stages(tmp_path: Path) -> None:
@@ -8117,68 +7489,10 @@ def test_every_host_says_something_about_its_own_site(tmp_path: Path) -> None:
         assert host.site_missing_note, key
 
 
-def test_node_is_not_reported_missing_when_path_is_stale(
-    tmp_path: Path,
-) -> None:
-    """prodockit-extensions#450.
-
-    A `winget install` sets the machine's PATH; a process already
-    running never receives it. So `pandoc --version` failed on the
-    machine that had just installed pandoc, and the stage said "pandoc
-    is not installed" about software that was there - while git and VS
-    Code, in the same listing, reported themselves found by full path.
-
-    Driven through the stage's own check rather than the resolver:
-    a resolver nothing calls would pass a test written against the
-    resolver, and that is precisely the bug - the helper existed for
-    git and these two checks did not use one.
-    """
-    node_exe = r"C:\Program Files\nodejs\node.exe"
-    installed = {Path(node_exe)}
-
-    machine = _ready_machine(tmp_path)
-    # Bare names answer as they do on a machine whose PATH is stale:
-    # not found. Only the full paths work.
-    machine["node --version"] = CommandResult(127, stderr="not found")
-    machine[node_exe] = CommandResult(0, "v22.0.0\n")
-
-    context = build_context(
-        _config(project_name="p", namespace="ns"),
-        runner=FakeRunner(machine),
-        platform=WINDOWS,
-        home=tmp_path,
-        exists=lambda path: path in installed or path.exists(),
-    )
-
-    node = next(s for s in STAGES if s.id == "node").check(context)
-    assert "not installed" not in node.detail, node.detail
 
 
-def test_a_program_on_PATH_is_used_by_its_bare_name(tmp_path: Path) -> None:
-    """The resolver must not prefer a guessed location over the copy
-    PATH already resolves - that would pin a machine to whichever
-    install this list happened to name."""
-    machine = _ready_machine(tmp_path)
-    machine["pandoc"] = CommandResult(0, "pandoc 3.10.1\n")
-    machine["node"] = CommandResult(0, "v22.0.0\n")
-    from prodockit.bootstrap import stages as stage_module
-
-    context = _context(tmp_path, platform=WINDOWS, runner=FakeRunner(machine))
-
-    assert stage_module.pandoc_command(context) == "pandoc"
-    assert stage_module.node_command(context) == "node"
 
 
-def test_the_names_are_resolved_when_the_plan_runs_not_when_it_is_built(
-    tmp_path: Path,
-) -> None:
-    """The pandoc and node stages install the program and then use it,
-    in one plan. Resolved at build time the answer is always "not there
-    yet" - which is #405, and the reason this table exists."""
-    from prodockit.bootstrap import stages as stage_module
-
-    for name in ("node", "npm"):
-        assert name in stage_module._RESOLVE_BEFORE_RUNNING, name
 
 
 def test_a_sync_check_that_could_not_run_is_not_called_a_difference(
@@ -8231,27 +7545,10 @@ def test_a_sync_check_that_could_not_run_is_not_called_a_difference(
     assert "still needs syncing" in differs.detail, differs.detail
 
 
-def _pandoc_saying(tmp_path: Path, version: str, **kw) -> CheckResult:
-    """The pandoc stage's verdict on a machine running `version`."""
-    machine = _ready_machine(tmp_path)
-    machine["pandoc --version"] = CommandResult(0, f"pandoc {version}\n")
-    machine["pango-view --version"] = CommandResult(0, "pango-view (pango) 1.56.3\n")
-    return next(s for s in STAGES if s.id == "pandoc").check(
-        _context(tmp_path, runner=FakeRunner(machine), **kw)
-    )
 
 
-def test_host_pandoc_version_is_irrelevant_to_bootstrap(tmp_path: Path) -> None:
-    assert _pandoc_saying(tmp_path, PANDOC_VERSION).status is Status.OK
-    assert _pandoc_saying(tmp_path, "3.10.2").status is Status.OK
-    assert _pandoc_saying(tmp_path, "2.9.2").status is Status.OK
 
 
-def test_windows_pdf_stage_uses_no_winget_package(tmp_path: Path) -> None:
-    plan = next(s for s in STAGES if s.id == "pandoc").plan(_context(tmp_path, platform=WINDOWS))
-    winget = [command for command in plan.commands if command and command[0] == "winget"]
-
-    assert not winget
 
 
 def _ubuntu_vscode_commands(tmp_path: Path) -> list[list[str]]:

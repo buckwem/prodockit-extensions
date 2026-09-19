@@ -1171,7 +1171,7 @@ def test_windows_weasyprint_diagnostic_does_not_prepare_a_missing_cache(
         DiagnosticReport("zensical.toml", str(tmp_path), False, (check,))
     )
     candidate = dry_run.candidates[0]
-    assert candidate.id == "renderer.weasyprint.prepare-project-cache"
+    assert candidate.id == "renderer.weasyprint.remediation"
     assert candidate.status == "manual"
     assert candidate.choices == ()
     assert "pdk pdf --prepare weasyprint" in candidate.remediation
@@ -1462,7 +1462,6 @@ def test_independent_project_repairs_never_use_template_sync() -> None:
                 "Prodockit integration is incomplete",
             ),
             DiagnosticResult("renderer.node", "Rendering toolchain", "pass", "Node is available"),
-            DiagnosticResult("renderer.npm", "Rendering toolchain", "pass", "npm is available"),
             DiagnosticResult(
                 "renderer.mermaid",
                 "Rendering toolchain",
@@ -1597,7 +1596,7 @@ def test_diag_dry_run_is_structured_read_only_and_filterable(
                     "drifted_files": [{"path": "docs/stylesheets/pdk.css", "status": "different"}],
                 },
             ),
-            DiagnosticResult("renderer.browser", "Rendering toolchain", "warn", "browser missing"),
+            DiagnosticResult("renderer.node", "Rendering toolchain", "warn", "Node missing"),
         ),
     )
     monkeypatch.setattr(diagnostics, "inspect", lambda *_args, **_kwargs: report)
@@ -1740,7 +1739,7 @@ def test_diag_warnings_do_not_set_a_failure_exit_status(
         online=False,
         checks=(
             DiagnosticResult(
-                "renderer.browser", "Rendering toolchain", "warn", "optional browser missing"
+                "renderer.node", "Rendering toolchain", "warn", "optional Node missing"
             ),
         ),
     )
@@ -2009,7 +2008,6 @@ def test_diag_does_not_change_project_files(
     monkeypatch.setattr(
         diagnostics, "_renderer_checks", lambda _config, _root, **_kwargs: []
     )
-    monkeypatch.setattr(diagnostics, "_node_security_checks", lambda _root, _online: [])
     monkeypatch.setattr(diagnostics, "_repository_checks", lambda _root, _online: [])
     before = {
         path.relative_to(tmp_path): path.read_bytes()
@@ -2041,7 +2039,6 @@ def test_diag_has_a_named_utf8_check_with_all_affected_files(
     monkeypatch.setattr(diagnostics, "_installation_checks", lambda _root: [])
     monkeypatch.setattr(diagnostics, "_pin_checks", lambda _root, _online: [])
     monkeypatch.setattr(diagnostics, "_renderer_checks", lambda _config, _root: [])
-    monkeypatch.setattr(diagnostics, "_node_security_checks", lambda _root, _online: [])
     monkeypatch.setattr(diagnostics, "_repository_checks", lambda _root, _online: [])
     monkeypatch.setattr(diagnostics, "_adopt_readiness_checks", lambda *_args, **_kwargs: [])
 
@@ -2085,7 +2082,6 @@ def test_diag_cli_reports_invalid_markdown_without_traceback(
     monkeypatch.setattr(
         diagnostics, "_renderer_checks", lambda _config, _root, **_kwargs: []
     )
-    monkeypatch.setattr(diagnostics, "_node_security_checks", lambda _root, _online: [])
     monkeypatch.setattr(diagnostics, "_repository_checks", lambda _root, _online: [])
     monkeypatch.setattr(diagnostics, "_adopt_readiness_checks", lambda *_args, **_kwargs: [])
 
@@ -2253,168 +2249,12 @@ def test_mermaid_runtime_failures_point_to_explicit_cache_preparation() -> None:
     assert "pdk pdf --prepare mermaid" in candidate.remediation
 
 
-def test_stage4_mathjax_repair_regenerates_browser_assets(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    (tmp_path / "zensical.toml").write_text('[project]\nsite_name = "Example"\n', encoding="utf-8")
-    diagnostics.init_tools(tmp_path / "tools", components=("mathjax",))
-    previous = tmp_path / "tools/mathjax/node_modules/previous-install"
-    previous.parent.mkdir(parents=True)
-    previous.write_text("old", encoding="utf-8")
-    expected = diagnostics._renderer_plan_fingerprint(tmp_path, "mathjax")
-    monkeypatch.setattr(
-        "prodockit.diagnostics.shutil.which",
-        lambda name: f"/usr/bin/{name}" if name in {"node", "npm"} else None,
-    )
-    monkeypatch.setattr(
-        diagnostics,
-        "_command",
-        lambda name: diagnostics.CommandInfo(name, f"/usr/bin/{name}", "1.0"),
-    )
-
-    def npm_ci(command: list[str], **kwargs):
-        package = tmp_path / "tools/mathjax/node_modules/mathjax-full"
-        bundle = package / "es5/tex-svg-full.js"
-        bundle.parent.mkdir(parents=True)
-        bundle.write_text("locked browser bundle", encoding="utf-8")
-        (package / "LICENSE").write_text("licence", encoding="utf-8")
-        return subprocess.CompletedProcess(command, 0, "", "")
-
-    monkeypatch.setattr("prodockit.renderer_resilience.run_installer", npm_ci)
-    monkeypatch.setattr(
-        "prodockit.diagnostics.probe_mathjax",
-        lambda node, path: SimpleNamespace(ok=True, error=None, path=path),
-    )
-
-    result = diagnostics.repair_locked_renderer(
-        tmp_path,
-        "mathjax",
-        expected_fingerprint=expected,
-        timestamp="stage4-mathjax",
-    )
-
-    assert result.status == "applied"
-    assert not previous.exists()
-    assert (tmp_path / "docs/javascripts/mathjax.js").is_file()
-    assert (tmp_path / "docs/javascripts/vendor/mathjax/tex-svg-full.js").read_text(
-        encoding="utf-8"
-    ) == "locked browser bundle"
 
 
-def test_stage4_failed_mathjax_verification_restores_previous_install(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    (tmp_path / "zensical.toml").write_text('[project]\nsite_name = "Example"\n', encoding="utf-8")
-    diagnostics.init_tools(tmp_path / "tools", components=("mathjax",))
-    previous = tmp_path / "tools/mathjax/node_modules/previous-install"
-    previous.parent.mkdir(parents=True)
-    previous.write_text("restore me", encoding="utf-8")
-    expected = diagnostics._renderer_plan_fingerprint(tmp_path, "mathjax")
-    monkeypatch.setattr(
-        "prodockit.diagnostics.shutil.which",
-        lambda name: f"/usr/bin/{name}" if name in {"node", "npm"} else None,
-    )
-    monkeypatch.setattr(
-        diagnostics,
-        "_command",
-        lambda name: diagnostics.CommandInfo(name, f"/usr/bin/{name}", "1.0"),
-    )
-
-    def npm_ci(command: list[str], **kwargs):
-        package = tmp_path / "tools/mathjax/node_modules/mathjax-full"
-        bundle = package / "es5/tex-svg-full.js"
-        bundle.parent.mkdir(parents=True)
-        bundle.write_text("unverified replacement", encoding="utf-8")
-        (package / "LICENSE").write_text("replacement licence", encoding="utf-8")
-        return subprocess.CompletedProcess(command, 0, "", "")
-
-    monkeypatch.setattr("prodockit.renderer_resilience.run_installer", npm_ci)
-    monkeypatch.setattr(
-        "prodockit.diagnostics.probe_mathjax",
-        lambda node, path: SimpleNamespace(ok=False, error="controlled verification failure"),
-    )
-
-    with pytest.raises(diagnostics.RepairTransactionError, match="failed and was rolled back"):
-        diagnostics.repair_locked_renderer(
-            tmp_path,
-            "mathjax",
-            expected_fingerprint=expected,
-            timestamp="stage4-mathjax-rollback",
-        )
-
-    assert previous.read_text(encoding="utf-8") == "restore me"
-    assert not (tmp_path / "tools/mathjax/node_modules/mathjax-full").exists()
-    manifest = json.loads(
-        (
-            tmp_path
-            / ".prodockit-quarantine/diagnostics/stage4-mathjax-rollback/manifest.json"
-        ).read_text(encoding="utf-8")
-    )
-    assert manifest["status"] == "rolled-back"
 
 
-def test_stage4_failed_install_restores_generated_content(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    (tmp_path / "zensical.toml").write_text('[project]\nsite_name = "Example"\n', encoding="utf-8")
-    diagnostics.init_tools(tmp_path / "tools", components=("mathjax",))
-    marker = tmp_path / "tools/mathjax/node_modules/author-marker"
-    marker.parent.mkdir(parents=True)
-    marker.write_text("restore me", encoding="utf-8")
-    expected = diagnostics._renderer_plan_fingerprint(tmp_path, "mathjax")
-    monkeypatch.setattr(
-        "prodockit.diagnostics.shutil.which",
-        lambda name: f"/usr/bin/{name}" if name in {"node", "npm"} else None,
-    )
-    monkeypatch.setattr(
-        diagnostics,
-        "_command",
-        lambda name: diagnostics.CommandInfo(name, f"/usr/bin/{name}", "1.0"),
-    )
-    monkeypatch.setattr(
-        "prodockit.diagnostics.subprocess.run",
-        lambda command, **kwargs: subprocess.CompletedProcess(
-            command, 1, "", "registry unavailable"
-        ),
-    )
-
-    with pytest.raises(diagnostics.RepairTransactionError, match="rolled back"):
-        diagnostics.repair_locked_renderer(
-            tmp_path,
-            "mathjax",
-            expected_fingerprint=expected,
-            timestamp="stage4-rollback",
-        )
-
-    assert marker.read_text(encoding="utf-8") == "restore me"
-    manifest = json.loads(
-        (tmp_path / ".prodockit-quarantine/diagnostics/stage4-rollback/manifest.json").read_text(
-            encoding="utf-8"
-        )
-    )
-    assert manifest["status"] == "rolled-back"
 
 
-def test_stage4_refuses_author_package_scripts(tmp_path: Path) -> None:
-    config = ProjectConfig(
-        path=tmp_path / "zensical.toml",
-        project={},
-        nav_pages=(),
-        markdown_extensions={},
-    )
-    tools = tmp_path / "tools/mathjax"
-    tools.mkdir(parents=True)
-    (tools / "package.json").write_text(
-        '{"scripts":{"postinstall":"do-something"},"dependencies":{}}',
-        encoding="utf-8",
-    )
-    (tools / "package-lock.json").write_text(
-        '{"packages":{"":{"dependencies":{}}}}', encoding="utf-8"
-    )
-
-    refusal = diagnostics._locked_renderer_refusal(tmp_path, config, "mathjax")
-
-    assert refusal == "package.json contains author lifecycle scripts"
 
 
 def test_one_unreadable_area_does_not_prevent_the_remaining_diagnostics(
@@ -2431,7 +2271,6 @@ def test_one_unreadable_area_does_not_prevent_the_remaining_diagnostics(
         lambda _root, _online: (_ for _ in ()).throw(OSError("cannot read pins")),
     )
     monkeypatch.setattr(diagnostics, "_renderer_checks", lambda _config, _root: [])
-    monkeypatch.setattr(diagnostics, "_node_security_checks", lambda _root, _online: [])
 
     def repository(_root: Path, _online: bool) -> list[DiagnosticResult]:
         nonlocal reached_repository
@@ -2481,93 +2320,8 @@ def test_supported_combination_warning_is_manual_not_a_diag_fix(tmp_path: Path) 
     assert "Run `pdk pins`" in candidate.remediation
 
 
-def test_windows_pango_failure_offers_one_default_no_system_repair() -> None:
-    check = diagnostics.DiagnosticResult(
-        "renderer.weasyprint",
-        "Rendering toolchain",
-        "fail",
-        "WeasyPrint cannot import",
-        ("expected Pango DLL is missing",),
-        {
-            "required": True,
-            "windows_pango": {
-                "architecture": "x64",
-                "environment": "ucrt64",
-                "package": "mingw-w64-ucrt-x86_64-pango",
-                "bin": r"C:\msys64\ucrt64\bin",
-                "dll": r"C:\msys64\ucrt64\bin\libpango-1.0-0.dll",
-                "healthy": False,
-            },
-        },
-    )
-    dry_run = diagnostics.build_repair_dry_run(
-        DiagnosticReport("zensical.toml", ".", False, (check,))
-    )
-
-    candidate = dry_run.candidates[0]
-    assert candidate.status == "available"
-    assert candidate.id == "renderer.weasyprint.repair-windows-pango"
-    assert candidate.choices[-1].id == "leave-unchanged"
-    assert candidate.choices[-1].default
-    assert candidate.choices[0].warning_severity == "warning"
 
 
-def test_windows_pango_repair_rechecks_and_imports_in_a_fresh_process(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    from prodockit.windows_pango import WindowsPangoEvidence
-
-    directory = r"C:\msys64\ucrt64\bin"
-    unhealthy = WindowsPangoEvidence(
-        "x64",
-        "ucrt64",
-        "mingw-w64-ucrt-x86_64-pango",
-        r"C:\msys64",
-        directory,
-        directory + r"\libpango-1.0-0.dll",
-        False,
-        False,
-        None,
-        None,
-    )
-    healthy = WindowsPangoEvidence(
-        "x64",
-        "ucrt64",
-        "mingw-w64-ucrt-x86_64-pango",
-        r"C:\msys64",
-        directory,
-        directory + r"\libpango-1.0-0.dll",
-        True,
-        True,
-        directory,
-        directory,
-    )
-    evidence = iter((unhealthy, healthy))
-    commands: list[list[str]] = []
-    refreshed: list[bool] = []
-    monkeypatch.setattr(diagnostics.sys, "platform", "win32")
-    monkeypatch.setattr(diagnostics, "inspect_windows_pango", lambda: next(evidence))
-
-    def run(command, **_kwargs):  # type: ignore[no-untyped-def]
-        commands.append(command)
-        return subprocess.CompletedProcess(command, 0, "repaired", "")
-
-    monkeypatch.setattr(diagnostics.subprocess, "run", run)
-    monkeypatch.setattr(
-        "prodockit.bootstrap.model.refresh_windows_path",
-        lambda: refreshed.append(True),
-    )
-    monkeypatch.setattr(
-        diagnostics,
-        "_run",
-        lambda command, **_kwargs: subprocess.CompletedProcess(command, 0, "69.0\n", ""),
-    )
-
-    result = diagnostics.repair_windows_pango(expected=unhealthy.as_dict())
-
-    assert result.status == "applied"
-    assert refreshed == [True]
-    assert commands and "mingw-w64-ucrt-x86_64-pango" in " ".join(commands[0])
 
 
 def test_author_guide_documents_every_stable_check_id() -> None:
@@ -2602,62 +2356,3 @@ def test_author_guide_documents_every_stable_check_id() -> None:
     }
 
     assert not {check_id for check_id in check_ids if f"`{check_id}`" not in guide}
-
-
-def test_managed_mathjax_security_lookup_is_explicit_offline(tmp_path, monkeypatch):
-    tool_root = tmp_path / "tools/mathjax"
-    tool_root.mkdir(parents=True)
-    (tool_root / "package-lock.json").write_text("{}")
-    monkeypatch.setattr(diagnostics, "_run", lambda *a, **kw: pytest.fail("offline network request"))
-    checks = {check.id: check for check in diagnostics._node_security_checks(tmp_path, False)}
-    assert checks["renderer.mathjax-security"].data["reason"] == "offline"
-    assert "renderer.mermaid-security" not in checks
-
-
-def test_mathjax_advisories_are_reported(tmp_path, monkeypatch):
-    tool_root = tmp_path / "tools/mathjax"
-    tool_root.mkdir(parents=True)
-    (tool_root / "package-lock.json").write_text("{}")
-    calls = []
-    monkeypatch.setattr(diagnostics.shutil, "which", lambda name: "/bin/npm")
-
-    def audit(command, *, cwd, timeout):
-        calls.append(cwd.name)
-        assert command == ["/bin/npm", "audit", "--omit=dev", "--audit-level=moderate", "--json"]
-        vulnerable = cwd.name == "mathjax"
-        counts = {"low": 0, "moderate": int(vulnerable), "high": int(vulnerable), "critical": 0}
-        return subprocess.CompletedProcess(command, int(vulnerable), json.dumps({"metadata": {"vulnerabilities": counts}}), "")
-
-    monkeypatch.setattr(diagnostics, "_run", audit)
-    checks = {check.id: check for check in diagnostics._node_security_checks(tmp_path, True)}
-    assert calls == ["mathjax"]
-    mathjax = checks["renderer.mathjax-security"]
-    assert mathjax.status == "warn"
-    assert mathjax.summary == "MathJax dependencies have 2 moderate-or-higher advisories"
-    assert "tools/mathjax" in mathjax.details[-1]
-    assert diagnostics.REPAIR_REGISTRY["renderer.mathjax-security"].disposition == "prohibited"
-
-
-@pytest.mark.parametrize("output,code", [
-    ("not JSON", 0), ("{}", 1),
-    ('{"metadata":{"vulnerabilities":{"low":0,"moderate":"bad","high":0,"critical":0}}}', 0),
-])
-def test_mathjax_audit_errors_do_not_report_a_clean_graph(tmp_path, monkeypatch, output, code):
-    tool_root = tmp_path / "tools/mathjax"
-    tool_root.mkdir(parents=True)
-    (tool_root / "package-lock.json").write_text("{}")
-    monkeypatch.setattr(diagnostics.shutil, "which", lambda name: "/bin/npm")
-    monkeypatch.setattr(diagnostics, "_run", lambda *a, **kw: subprocess.CompletedProcess([], code, output, ""))
-    checks = {check.id: check for check in diagnostics._node_security_checks(tmp_path, True)}
-    assert checks["renderer.mathjax-security"].status == "warn"
-    assert checks["renderer.mathjax-security"].data["reason"] == "audit-error"
-
-
-def test_mathjax_audit_missing_npm_is_a_warning(tmp_path, monkeypatch):
-    tool_root = tmp_path / "tools/mathjax"
-    tool_root.mkdir(parents=True)
-    (tool_root / "package-lock.json").write_text("{}")
-    monkeypatch.setattr(diagnostics.shutil, "which", lambda name: None)
-    checks = {check.id: check for check in diagnostics._node_security_checks(tmp_path, True)}
-    assert checks["renderer.mathjax-security"].status == "warn"
-    assert checks["renderer.mathjax-security"].data["reason"] == "npm-missing"

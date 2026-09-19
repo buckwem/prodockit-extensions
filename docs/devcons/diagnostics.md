@@ -61,9 +61,10 @@ The repair registry classifies every stable check as confirmable, online,
 manual, ambiguous, prohibited, or not applicable. A source-level coverage guard
 rejects a new diagnostic without a disposition. Stage 2 added the shared
 transaction and rollback layer; Stage 3 adapted distribution metadata,
-declared shared files, and bounded inconsistent pins. Stages 4 and 5 add locked
-project-local renderer rebuilds and narrowly lossless TOML repairs. These use
-the existing `pins`, `shared-files`, `init-tools`, and `init-mathjax` services.
+declared shared files, and bounded inconsistent pins. Later stages added
+narrowly lossless TOML repairs and read-only project-cache reporting. Runtime
+acquisition belongs to `pdk pdf`, while Diagnostics uses the existing `pins`
+and `shared-files` services for the mutations it still supports.
 Template metadata and updates remain manual: no diagnostic fix depends on
 `prodockit-template`.
 
@@ -196,9 +197,9 @@ author action.
 | An obsolete Prodockit setting | `pdk diag --apply` can move the two legacy index settings when the destination is unambiguous. Otherwise replace it with the setting named by `pdk config --check`; do not keep both old and new names. |
 | An unknown or misspelled Prodockit setting or extension | `pdk diag --apply` offers a rename only when one supported spelling is uniquely identified. Otherwise use the report to decide manually. If the setting belongs to another Zensical extension, keep it in that extension's own table rather than a `prodockit.*` table. |
 | A setting has the wrong type or an invalid value | Change it to the boolean, string, list, or non-empty value described by `pdk config --check`. |
-| A stylesheet, JavaScript file, navigation page, Markdown image, or configured CSL file is missing | Restore the referenced file or correct its path relative to `zensical.toml`. Generated MathJax assets should be restored with `pdk init-mathjax`; do not commit third-party generated files when the project intentionally ignores them. |
+| A stylesheet, JavaScript file, navigation page, Markdown image, or configured CSL file is missing | Restore the referenced file or correct its path relative to `zensical.toml`. Follow Zensical's MathJax instructions for website assets; PDF renderer caches are managed separately by `pdk pdf`. |
 | A local `.css` or `.js` asset exists but is not configured | `pdk diag --apply` can add only a recognized existing Prodockit stylesheet or MathJax asset. For every other file, choose whether to configure or remove it. |
-| A configured Mermaid, MathJax, Pandoc, browser, or other renderer is unavailable | Install the project's pinned toolchain with `pdk init-tools`, or correct the configured executable/script path. The rendering-tool section identifies the missing component separately. |
+| A configured Mermaid, MathJax, Pandoc or other PDF renderer is unavailable | Run `pdk pdf --prepare COMPONENT` or let the next PDF build prepare its project-local cache. Install a reported manual prerequisite such as Node or system Pango with the operating-system package manager. |
 | Back-of-book index generation is enabled but its optional PyMuPDF package is missing or cannot import | Install the project with the index extra: `python -m pip install "prodockit[index]"`. If it is already installed, reinstall it in the active environment so its native extension matches the Python and operating-system architecture. |
 | Prodockit syntax is present while its extension is disabled | `pdk diag --apply` can enable the uniquely identified extension in TOML. Otherwise enable it manually or remove syntax the project no longer uses. |
 /// table-caption | <

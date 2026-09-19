@@ -15,7 +15,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from prodockit.bootstrap.model import UBUNTU, WINDOWS, CommandResult
+from prodockit.bootstrap.model import WINDOWS, CommandResult
 
 REPORT_SCHEMA = 1
 
@@ -58,30 +58,6 @@ def recovery_advice(
                 "anything is repeated.",
             ),
         )
-
-    if platform == WINDOWS and ("msys2" in output or "pacman" in output):
-        from prodockit.windows_msys2 import failure_category
-
-        category = failure_category(output)
-        if category in {"trust", "lock", "architecture"}:
-            steps = {
-                "trust": (
-                    "MSYS2 signature verification failed. Review the native setup log and "
-                    "check the system clock and https://www.msys2.org/docs/updating/.",
-                    "Keep signature checks enabled. Do not import arbitrary keys or delete "
-                    "the MSYS2 installation; resume after the reported trust problem is fixed.",
-                ),
-                "lock": (
-                    "Wait for the other MSYS2 package manager to finish; do not delete db.lck.",
-                    "Resume when no package-manager process is still running.",
-                ),
-                "architecture": (
-                    "Select Pango for the Python executable's architecture, including x64 "
-                    "Python running on an ARM64 host.",
-                    "Use UCRT64 for x64 Python or CLANGARM64 for ARM64 Python.",
-                ),
-            }[category]
-            return RecoveryAdvice(f"msys2-{category}", steps)
 
     if "sudo:" in output and any(
         marker in output
@@ -261,16 +237,14 @@ def recovery_advice(
         "winget",
         "winget.exe",
     }
-    if package_manager and platform == WINDOWS and stage_id in {"git", "vscode", "node"}:
+    if package_manager and platform == WINDOWS and stage_id in {"git", "vscode"}:
         product = {
             "git": "Git for Windows",
             "vscode": "Visual Studio Code",
-            "node": "the current Node.js LTS",
         }[stage_id]
         verification = {
             "git": "`git --version`",
             "vscode": "`code --version`",
-            "node": "`node --version`",
         }[stage_id]
         return RecoveryAdvice(
             "alternative-installer",
@@ -325,52 +299,6 @@ def recovery_advice(
                 "`.venv` aside and resume to rebuild it cleanly.",
             ),
         )
-    if (
-        stage_id == "node"
-        and platform == UBUNTU
-        and any("nodesource-setup.sh" in argument for argument in command)
-    ):
-        return RecoveryAdvice(
-            "node-repository",
-            (
-                "The NodeSource repository setup failed before Node was installed; "
-                "review its output and confirm the VM's Ubuntu release is supported.",
-                "If NodeSource remains unavailable, install the current Node.js LTS "
-                "with its official Linux instructions, confirm `node --version`, then "
-                "resume prodockit bootstrap.",
-            ),
-        )
-    if stage_id == "node":
-        return RecoveryAdvice(
-            "node-runtime",
-            (
-                "Run `node --version` to confirm whether the runtime is available.",
-                "Resume prodockit bootstrap after correcting the Node installation; "
-                "PDF renderer assets are prepared separately in the project cache.",
-            ),
-        )
-    if stage_id == "pandoc" and platform == UBUNTU:
-        return RecoveryAdvice(
-            "linux-pdf-toolchain",
-            (
-                "Check whether the pinned Pandoc package downloaded to "
-                "`/tmp/pandoc.deb` and whether its architecture matches `dpkg "
-                "--print-architecture`.",
-                "Resume prodockit bootstrap after the download or apt problem is corrected; "
-                "it will recheck Pandoc before installing the remaining PDF libraries.",
-            ),
-        )
-    if stage_id == "pandoc" and platform == WINDOWS:
-        return RecoveryAdvice(
-            "windows-pdf-toolchain",
-            (
-                "Run `winget list --id JohnMacFarlane.Pandoc --exact` and `pandoc "
-                "--version` to check whether Pandoc installed despite the error.",
-                "Check that MSYS2 opens before resuming; prodockit bootstrap will recheck "
-                "Pandoc and the PDF libraries separately.",
-            ),
-        )
-
     return RecoveryAdvice(
         "unclassified",
         (

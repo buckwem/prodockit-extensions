@@ -73,25 +73,17 @@ The standard installation adds:
 
 Mermaid and mathematics are independent options and are off by default. A
 document using neither does not need Node.js, MathJax, Mermaid CLI or a browser
-renderer. Without `.prodockit-components.toml`, existing project-local renderer
-installations (including incomplete scaffolds) are selected for repair. Zensical's
-starter configuration alone does not select a renderer. Run `pdk adopt --configure` or
+renderer. Without `.prodockit-components.toml`, existing renderer configuration
+is used to infer the component choices. Zensical's starter configuration alone
+does not select a renderer. Run `pdk adopt --configure` or
 use explicit command-line flags to select either renderer. Template projects
 ship the component file with both enabled.
 
-When either option is selected, adoption writes the component's `package.json`
-and `package-lock.json` before installing it. The lockfile records the tested
-dependency set, while npm's download cache makes later reinstalls quicker.
-Existing tool manifests, lockfiles and helper scripts are backed up before
-alignment, including customised copies. Unselected renderers are left alone.
-
-Node.js and npm are machine-level prerequisites rather than project-local
-packages. For a selected renderer, Adopt offers a separate runtime activity to
-install, upgrade or repair them using the same package-manager routines as
-Bootstrap. No Node installation is requested when both renderers are off.
-Administrator approval may be required. Offline runs cannot install a missing
-runtime. Homebrew on macOS and Windows App Installer (`winget`) must already
-be available from environment preparation.
+When either option is selected, Adoption records that choice and configures the
+project without installing its renderer. `pdk pdf` transparently prepares and
+verifies the selected project-local runtime on first use. Mermaid is Python-only;
+PDF mathematics requires Node.js on `PATH`, installed separately with the
+operating-system package manager, but does not require npm.
 
 The command never commits, pushes, changes a remote, or writes editor settings.
 

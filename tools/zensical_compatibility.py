@@ -118,7 +118,6 @@ def full_project(
             ("release", [exe("prodockit"), "_record-template-release"]),
             ("sync", [exe("prodockit"), "sync-repo"]),
         ]
-    steps += [("mathjax", [exe("prodockit"), "init-mathjax", "--no-gitignore"])]
     if template:
         steps += [
             ("diagnostics", [exe("prodockit"), "diag", "--json"]),

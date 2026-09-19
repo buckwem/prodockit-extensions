@@ -168,7 +168,7 @@ def test_full_project_stops_on_failed_build(tmp_path, monkeypatch):
     )
     result = _GATE.full_project(tmp_path, tmp_path / "logs", template=False)
     assert result["status"] == "failed"
-    assert result["incomplete_after"] == "mathjax"
+    assert result["incomplete_after"] == "site"
 
 
 def test_workflow_matrix_covers_supported_python_and_os():

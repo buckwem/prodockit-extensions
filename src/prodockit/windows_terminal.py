@@ -37,7 +37,7 @@ def prepare_template_environment(project: Path) -> None:
     from prodockit.bootstrap.model import refresh_windows_path
 
     before = (os.environ.get("PATH"), os.environ.get("WEASYPRINT_DLL_DIRECTORIES"))
-    missing = {name for name in ("git", "pandoc", "node", "npm") if not shutil.which(name)}
+    missing = {"git"} if not shutil.which("git") else set()
     refresh_windows_path()
     refreshed = (os.environ.get("PATH"), os.environ.get("WEASYPRINT_DLL_DIRECTORIES"))
     scripts = str(Path(sys.prefix) / "Scripts")

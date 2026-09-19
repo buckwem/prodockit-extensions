@@ -6,7 +6,7 @@
 The User Guide's install instructions are long, sequential, and easy to
 get half-right in ways that only surface much later (a missing Pango that
 looks fine until the first `prodockit pdf`, or an outdated Node runtime that
-fails in an apparently unrelated step). This turns that sequence into twenty-two
+fails in an apparently unrelated step). This turns that sequence into twenty
 stages that can each be *checked*, and reapplied individually when a
 check fails (prodockit-extensions#217).
 
@@ -195,7 +195,7 @@ def _safe_to_retry(command: list[str]) -> bool:
             ),
             executable,
         )
-    if executable in {"apt", "apt-get", "brew", "curl", "npm", "pip", "winget"}:
+    if executable in {"apt", "apt-get", "brew", "curl", "pip", "winget"}:
         return True
     if executable in {"code", "code.cmd"}:
         return "--install-extension" in command
@@ -208,8 +208,6 @@ def _safe_to_retry(command: list[str]) -> bool:
             for marker in (
                 "curl ",
                 "invoke-webrequest",
-                "npm ci",
-                "pacman -s",
                 "brew install",
                 "brew upgrade",
                 "brew reinstall",
@@ -501,10 +499,7 @@ def apply_stage(
                 # A warning means compatibility could not be proved; it is
                 # not proof that this failed command completed the stage.
                 # Continue through the remaining idempotent repair commands
-                # and let the final check decide. This is important when an
-                # existing MSYS2 installation makes winget return non-zero:
-                # the later commands still install and expose the exact Pango
-                # package WeasyPrint needs.
+                # and let the final check decide.
                 recovered_outcome = outcome
         if progress is not None:
             progress(

@@ -9,11 +9,6 @@ on:
   pull_request:
   merge_group:
   workflow_dispatch:
-    inputs:
-      msys2_cache:
-        description: Reuse the MSYS2 provisioning cache (disable for fresh acceptance)
-        type: boolean
-        default: true
   schedule:
     - cron: "17 3 * * 0"
 
@@ -23,7 +18,6 @@ concurrency:
 
 env:
   GITHUB_TOKEN: ${{ github.token }}
-  PDK_NATIVE_DOWNLOAD_CACHE: ${{ github.workspace }}/.cache/native-downloads
   PIP_RETRIES: 5
   PIP_TIMEOUT: 30
   PIP_PREFER_BINARY: 1
@@ -33,7 +27,6 @@ jobs:
     runs-on: ubuntu-24.04
     outputs:
       relevant: ${{ steps.scope.outputs.adopt }}
-      native: ${{ steps.scope.outputs['adopt-native'] }}
     steps:
       - uses: actions/checkout@v5
         with:
@@ -82,35 +75,16 @@ jobs:
           architecture: ${{ matrix.architecture }}
           cache: pip
           cache-dependency-path: pyproject.toml
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-          cache: npm
-          cache-dependency-path: |
-            src/prodockit/_tools_template/mathjax/package-lock.json
-      - name: Restore validated native download cache
-        uses: actions/cache@v4
-        with:
-          path: .cache/native-downloads
-          key: adopt-pandoc-${{ runner.os }}-${{ matrix.architecture }}-3.10.1
-      - name: Install Chromium for Mermaid on Linux ARM64
-        if: runner.os == 'Linux' && matrix.architecture == 'arm64'
-        run: sudo apt -o DPkg::Lock::Timeout=600 install -y chromium-browser
-      - name: Use a Chromium-accessible temporary directory on Linux ARM64
-        if: runner.os == 'Linux' && matrix.architecture == 'arm64'
+      - name: Install the test-only macOS Pango prerequisite
+        if: runner.os == 'macOS'
         run: |
-          mkdir -p "$HOME/prodockit-acceptance-tmp"
-          echo "TMPDIR=$HOME/prodockit-acceptance-tmp" >> "$GITHUB_ENV"
+          brew install pango
+          echo "DYLD_FALLBACK_LIBRARY_PATH=$(brew --prefix)/lib" >> "$GITHUB_ENV"
       - name: Build the candidate wheel
         run: |
           python -m pip install build
           python -m build --wheel
       - name: Test prodockit adopt from the installed wheel
-        # Adopt owns browser provisioning and verifies a real render. Avoid
-        # npm's implicit download; use a system browser or Adopt's explicit
-        # provisioning step before the PDF acceptance checks.
-        env:
-          PUPPETEER_SKIP_DOWNLOAD: "true"
         run: >-
           python tools/adopt_acceptance.py
           --wheel dist
@@ -123,79 +97,6 @@ jobs:
         with:
           name: adopt-${{ matrix.runner }}-${{ matrix.architecture }}
           path: adopt-acceptance-report.json
-          if-no-files-found: warn
-
-  native-upgrade:
-    needs: scope
-    if: needs.scope.outputs.native == 'true'
-    name: Real upgrade — ${{ matrix.name }} ${{ matrix.architecture }}
-    runs-on: ${{ matrix.runner }}
-    timeout-minutes: 45
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - name: Ubuntu 24.04
-            runner: ubuntu-24.04
-            architecture: x64
-            architecture_check: --require-x64
-          - name: Ubuntu 24.04
-            runner: ubuntu-24.04-arm
-            architecture: arm64
-            architecture_check: --require-arm64
-          - name: Windows 2025
-            runner: windows-2025
-            architecture: x64
-            architecture_check: --require-x64
-          - name: macOS 15
-            runner: macos-15
-            architecture: arm64
-            architecture_check: --require-arm64
-    steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-python@v5
-        with:
-          python-version-file: .python-version
-          architecture: ${{ matrix.architecture }}
-          cache: pip
-          cache-dependency-path: pyproject.toml
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-          cache: npm
-          cache-dependency-path: |
-            src/prodockit/_tools_template/mathjax/package-lock.json
-      - name: Restore validated native download cache
-        uses: actions/cache@v4
-        with:
-          path: .cache/native-downloads
-          key: adopt-pandoc-${{ runner.os }}-${{ matrix.architecture }}-3.10.1
-      - name: Install Chromium for Mermaid on Linux ARM64
-        if: runner.os == 'Linux' && matrix.architecture == 'arm64'
-        run: sudo apt -o DPkg::Lock::Timeout=600 install -y chromium-browser
-      - name: Use a Chromium-accessible temporary directory on Linux ARM64
-        if: runner.os == 'Linux' && matrix.architecture == 'arm64'
-        run: |
-          mkdir -p "$HOME/prodockit-acceptance-tmp"
-          echo "TMPDIR=$HOME/prodockit-acceptance-tmp" >> "$GITHUB_ENV"
-      - name: Build the candidate wheel
-        run: |
-          python -m pip install build
-          python -m build --wheel
-      - name: Upgrade a fully adopted project from an older release
-        env:
-          PUPPETEER_SKIP_DOWNLOAD: "true"
-        run: >-
-          python tools/adopt_native_upgrade.py
-          --wheel dist
-          ${{ matrix.architecture_check }}
-          --report adopt-native-upgrade-report.json
-      - name: Keep the upgrade report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: adopt-upgrade-${{ matrix.runner }}-${{ matrix.architecture }}
-          path: adopt-native-upgrade-report.json
           if-no-files-found: warn
 
   template-sync:
@@ -243,63 +144,6 @@ jobs:
         run: |
           brew install pango
           echo "DYLD_FALLBACK_LIBRARY_PATH=$(brew --prefix)/lib" >> "$GITHUB_ENV"
-      - name: Start Windows native setup diagnostics
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          "phase=base-provisioning status=started architecture=${{ matrix.architecture }} root=${{ runner.temp }}/prodockit-msys2" | Set-Content msys2-setup.log
-      - id: pango-windows
-        name: Provision MSYS2 without package transactions
-        if: runner.os == 'Windows'
-        uses: msys2/setup-msys2@v2
-        with:
-          location: '${{ runner.temp }}/prodockit-msys2'
-          msystem: ${{ matrix.architecture == 'arm64' && 'CLANGARM64' || 'UCRT64' }}
-          update: false
-          # Package transactions belong to the shared recovery engine below.
-          cache: ${{ github.event_name != 'workflow_dispatch' || inputs.msys2_cache }}
-      - name: Install and verify Windows Pango with bounded recovery
-        if: runner.os == 'Windows'
-        shell: pwsh
-        env:
-          PYTHONPATH: src
-          MSYS2_ROOT: ${{ steps.pango-windows.outputs.msys2-location }}
-        run: |
-          python -m prodockit.windows_msys2 --root "$env:MSYS2_ROOT" --log msys2-setup.log
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          # Repeat against the warm installation; both runs must succeed.
-          python -m prodockit.windows_msys2 --root "$env:MSYS2_ROOT" --log msys2-setup.log
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          [Environment]::SetEnvironmentVariable(
-            "WEASYPRINT_DLL_DIRECTORIES",
-            (Get-Content $env:GITHUB_ENV | Where-Object { $_ -like 'WEASYPRINT_DLL_DIRECTORIES=*' } | Select-Object -Last 1).Split('=', 2)[1],
-            "User"
-          )
-      - name: Exercise native signature recovery and terminal failure
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: >-
-          python tools/windows_native_acceptance.py
-          --root '${{ steps.pango-windows.outputs.msys2-location }}'
-      - name: Record MSYS2 provisioning outcome
-        if: always() && runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          "phase=base-provisioning outcome=${{ steps.pango-windows.outcome }}" | Add-Content msys2-setup.log
-      - name: Keep Windows native setup diagnostics
-        if: always() && runner.os == 'Windows'
-        uses: actions/upload-artifact@v4
-        with:
-          name: msys2-setup-${{ matrix.runner }}-${{ matrix.architecture }}
-          path: |
-            msys2-*.log
-            msys2-acceptance.json
-          if-no-files-found: warn
-      - name: Restore validated native download cache
-        uses: actions/cache@v4
-        with:
-          path: .cache/native-downloads
-          key: template-sync-${{ runner.os }}-${{ matrix.architecture }}-3.10.1
       - name: Build the candidate wheel
         run: |
           python -m pip install build
@@ -321,16 +165,14 @@ jobs:
   result:
     name: Adopt installed-wheel result
     if: always()
-    needs: [scope, installed-wheel, native-upgrade, template-sync]
+    needs: [scope, installed-wheel, template-sync]
     runs-on: ubuntu-24.04
     steps:
       - name: Report the selected scope
         env:
           SCOPE_RESULT: ${{ needs.scope.result }}
           RELEVANT: ${{ needs.scope.outputs.relevant }}
-          NATIVE: ${{ needs.scope.outputs.native }}
           MATRIX_RESULT: ${{ needs.installed-wheel.result }}
-          UPGRADE_RESULT: ${{ needs.native-upgrade.result }}
           TEMPLATE_SYNC_RESULT: ${{ needs.template-sync.result }}
         run: |
           if [ "$SCOPE_RESULT" != success ]; then
@@ -339,10 +181,6 @@ jobs:
           fi
           if [ "$RELEVANT" = true ] && [ "$MATRIX_RESULT" != success ]; then
             echo "The adoption installed-wheel matrix did not pass."
-            exit 1
-          fi
-          if [ "$NATIVE" = true ] && [ "$UPGRADE_RESULT" != success ]; then
-            echo "The Adopt real-upgrade release matrix did not pass."
             exit 1
           fi
           if [ "$RELEVANT" = true ] && [ "$TEMPLATE_SYNC_RESULT" != success ]; then

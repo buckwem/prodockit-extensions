@@ -112,8 +112,13 @@ def test_hidden_legacy_command_routes_only_to_the_old_renderer(monkeypatch) -> N
     def built_site(*args, **kwargs):
         raise AssertionError("the hidden command must call only the legacy renderer")
 
+    def provision(*args, **kwargs):
+        raise AssertionError("the hidden legacy command must never provision a runtime")
+
     monkeypatch.setattr(cli_module, "build_pdf_from_zensical_config", legacy)
     monkeypatch.setattr(cli_module, "build_pdf_from_built_site", built_site)
+    monkeypatch.setattr(cli_module, "prepare_runtime_components", provision)
+    monkeypatch.setattr(cli_module, "check_pdf_environment", provision)
 
     result = CliRunner().invoke(
         main,

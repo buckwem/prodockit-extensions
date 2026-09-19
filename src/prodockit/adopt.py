@@ -21,7 +21,6 @@ import json
 import os
 import re
 import shutil
-import subprocess
 import sys
 import tempfile
 from collections.abc import Mapping
@@ -34,7 +33,7 @@ import tomlkit
 import yaml  # type: ignore[import-untyped, unused-ignore]
 from packaging.version import InvalidVersion, Version
 
-from prodockit import __version__, adopt_renderers, adopt_settings, adopt_workflow
+from prodockit import __version__, adopt_settings, adopt_workflow
 from prodockit import toolchain as supported_toolchain
 from prodockit._zensical_defaults import DOCUMENTED_MARKDOWN_DEFAULTS
 from prodockit.csl import (
@@ -49,15 +48,8 @@ from prodockit.csl import (
     install as install_csl,
 )
 from prodockit.csl import validate as validate_csl
-from prodockit.init_tools import COMPONENT_FILES
-from prodockit.mathjax import MathJaxError, install_mathjax
-from prodockit.pdf._standalone_quickjs import (
-    StandaloneBackendUnavailableError as StandaloneRuntimeUnavailableError,
-)
-from prodockit.pdf._standalone_quickjs import require_standalone_runtime
 from prodockit.pins import TESTED_VERSIONS
-from prodockit.renderer_health import probe_mathjax
-from prodockit.renderer_resilience import DEFAULT_RETRY_DELAYS, RetryReporter, run_npm_with_retries
+from prodockit.renderer_resilience import RetryReporter
 from prodockit.settings import EXTRA_SETTINGS
 from prodockit.shared_files import resource_bytes, same_text_content
 
@@ -1360,63 +1352,6 @@ def ensure_stylesheet(root: Path) -> Path:
     return _stylesheet_path(root, _config(root)[2])
 
 
-def _tool_files_ok(root: Path, component: str) -> bool:
-    return all((root / "tools" / component / name).is_file() for name in COMPONENT_FILES[component])
-
-
-def _tool_health(
-    root: Path,
-    component: str,
-    *,
-    retry_reporter: RetryReporter | None = None,
-) -> tuple[bool, str]:
-    if component == "mermaid":
-        try:
-            require_standalone_runtime()
-            return True, "standalone Python Mermaid runtime is available"
-        except StandaloneRuntimeUnavailableError as error:
-            return False, str(error)
-    if not _tool_files_ok(root, component):
-        return False, (
-            "renderer scaffold is incomplete; restore release files, preserving existing "
-            f"files under {adopt_renderers.BACKUPS}"
-        )
-    try:
-        if adopt_renderers.changes(root, component):
-            return False, (
-                "align renderer files to this Prodockit release; existing files will be "
-                f"backed up under {adopt_renderers.BACKUPS}"
-            )
-    except (OSError, ValueError) as error:
-        return False, str(error)
-    docs = root / _docs_dir(_config(root)[2])
-    installed = (
-        root / "tools" / "mathjax" / "node_modules" / "mathjax-full" / "es5" / "tex-svg-full.js"
-    ).is_file() and all(
-        path.is_file()
-        for path in (
-            docs / "javascripts" / "mathjax.js",
-            docs / "javascripts" / "vendor" / "mathjax" / "tex-svg-full.js",
-            docs / "javascripts" / "vendor" / "mathjax" / "LICENSE",
-        )
-    )
-    if not installed:
-        return False, "MathJax inputs are incomplete"
-    version = adopt_renderers.installed_version(root, component)
-    expected = adopt_renderers.expected_version(component)
-    if version != expected:
-        return False, f"align MathJax {version or 'unknown version'} to supported {expected}"
-    node = shutil.which("node")
-    if node is None:
-        return False, "node is unavailable for the MathJax renderer"
-    probe = probe_mathjax(node, root / "tools" / "mathjax" / "tex2svg.js")
-    return (
-        (True, "MathJax can render an expression")
-        if probe.ok
-        else (False, f"MathJax health check failed: {probe.error}")
-    )
-
-
 LOCAL_IGNORE_PATTERNS = (
     ".venv/",
     "__pycache__/",
@@ -1454,100 +1389,6 @@ def ensure_local_ignores(root: Path) -> list[Path]:
         ).encode("utf-8"),
     )
     return [path]
-
-
-def ensure_tools(root: Path, options: AdoptOptions) -> list[Path]:
-    components = ("mathjax",) if options.maths else ()
-    if not components:
-        return []
-    written: list[Path] = []
-    try:
-        for component in components:
-            written.extend(adopt_renderers.align(root, component, write=_atomic_write))
-    except (OSError, ValueError) as error:
-        raise AdoptError(f"cannot align renderer files: {error}") from error
-    ignore = root / ".gitignore"
-    current = ignore.read_text(encoding="utf-8") if ignore.is_file() else ""
-    additions = [f"tools/{name}/node_modules/" for name in components]
-    additions.append("/.prodockit-adopt-backups/")
-    missing = [line for line in additions if line not in current.splitlines()]
-    if missing:
-        lead = "" if not current or current.endswith("\n") else "\n"
-        ignore.write_text(
-            f"{current}{lead}\n# Installed by `prodockit adopt`\n" + "\n".join(missing) + "\n",
-            encoding="utf-8",
-        )
-    return [*written, *([ignore] if missing else [])]
-
-
-def install_tool(
-    root: Path,
-    component: str,
-    *,
-    retry_reporter: RetryReporter | None = None,
-    offline: bool = False,
-) -> list[Path]:
-    """Install the selected MathJax Node renderer after writing its scaffold."""
-    if component != "mathjax":
-        raise AdoptError(f"unknown optional renderer: {component}")
-    npm = shutil.which("npm")
-    if npm is None:
-        raise AdoptError(
-            f"{component} was selected but npm is not available. "
-            "Rerun `prodockit adopt --apply` and approve the Node.js and npm runtime activity."
-        )
-    options = AdoptOptions(maths=True)
-    written = ensure_tools(root, options)
-    # On Windows npm is a command shim named npm.cmd. Passing the path found
-    # by shutil avoids depending on PATHEXT handling inside subprocess.
-    tool_root = root / "tools" / component
-    # Adopt aligns and backs up the manifest/lock pair before installing.
-    # The packaged lock fixes both upgrades and downgrades to this release.
-    command = [
-        npm,
-        "ci",
-        *(
-            ["--legacy-peer-deps"]
-            if component == "mathjax" and (tool_root / "package-lock.json").is_file()
-            else []
-        ),
-        "--no-audit",
-        "--no-fund",
-        "--offline" if offline else "--prefer-offline",
-    ]
-    try:
-        npm_result = run_npm_with_retries(
-            command,
-            cwd=tool_root,
-            timeout=600,
-            reporter=retry_reporter,
-            retry_delays=() if offline else DEFAULT_RETRY_DELAYS,
-        )
-    except (OSError, subprocess.TimeoutExpired) as error:
-        raise AdoptError(f"could not install {component}: {error}") from error
-    completed = npm_result.completed
-    if completed.returncode != 0:
-        detail = npm_result.failure_detail
-        raise AdoptError(f"npm could not install {component}: {detail}")
-    node = shutil.which("node")
-    probe = probe_mathjax(node, tool_root / "tex2svg.js") if node else None
-    if probe is None or not probe.ok:
-        health_detail = probe.error or "health probe failed" if probe else "node is unavailable"
-        raise AdoptError(
-            "npm completed but MathJax is unusable: "
-            f"{health_detail}. Remove tools/mathjax/node_modules and rerun "
-            "`prodockit adopt --apply --maths`."
-        )
-    lock = root / "tools" / component / "package-lock.json"
-    if lock.is_file() and lock not in written:
-        written.append(lock)
-    if component == "mathjax":
-        try:
-            installed = install_mathjax(root)
-        except MathJaxError as error:  # pragma: no cover - npm success without its declared package
-            raise AdoptError(str(error)) from error
-        written.extend((installed.config, installed.bundle))
-    return written
 
 
 def _check_project_release(root: Path) -> None:
@@ -1604,9 +1445,6 @@ def assess(
         config_error = str(error)
 
     toolchain = supported_toolchain.plan(root, offline=offline)
-    from prodockit import adopt_pdf_runtime
-
-    native = adopt_pdf_runtime.plan(offline=offline, reporter=retry_reporter)
     configured = _extensions(parsed)
     missing = _missing_core_extensions(parsed)
     style_paths = _stylesheet_paths(root, parsed)
@@ -1698,13 +1536,6 @@ def assess(
     # runtime lazily when content first needs it.
     mermaid_ok = "pymdownx.superfences" in configured
     maths_ok = "pymdownx.arithmatex" in configured
-    from prodockit import adopt_node
-
-    node = (
-        adopt_node.plan(offline=offline)
-        if options.maths
-        else adopt_node.NodePlan()
-    )
     in_venv = _in_venv()
     project_environment_exists = (root.resolve() / ".venv").is_dir()
     interpreter_problem = _interpreter_problem(root) if in_venv else None
@@ -1713,11 +1544,9 @@ def assess(
         not interpreter_problem
         and not toolchain.blocked
         and not toolchain.needs_work
-        and not native.needs_work
         and core_ok
         and csl.status == "ok"
         and choices_ok
-        and not node.needs_work
         and (not options.mermaid or mermaid_ok)
         and (not options.maths or maths_ok)
     )
@@ -1774,19 +1603,11 @@ def assess(
             )
             + tuple(
                 f"READY: {supported_toolchain.DISPLAY_NAMES[package]} {TESTED_VERSIONS[package]}"
-                for package in (*supported_toolchain.PYTHON_PACKAGES, "pandoc")
+                for package in supported_toolchain.PYTHON_PACKAGES
                 if not toolchain.blocked
                 and not any(action.package == package for action in toolchain.actions)
             )
             + (("CONFIGURE: Project version settings",) if toolchain.declaration_changes else ()),
-        ),
-        Step(
-            "pdf-runtime",
-            "Integrate",
-            "Native PDF libraries and fonts",
-            "wrong" if native.blocked else ("missing" if native.needs_work else "ok"),
-            native.blocked or native.detail,
-            commands=native.commands,
         ),
         Step(
             "core",
@@ -1802,21 +1623,6 @@ def assess(
             "Component choices",
             "ok" if choices_ok else "missing",
             choices_detail,
-        ),
-        Step(
-            "node",
-            "Optional renderers",
-            "Node.js runtime",
-            "wrong" if node.blocked else ("missing" if node.needs_work else "ok"),
-            node.blocked
-            or (
-                "install or repair Node.js using the system package manager; "
-                "administrator approval may be required"
-                if node.needs_work
-                else "Node.js meets the supported runtime requirements"
-            ),
-            commands=node.commands,
-            selected=options.maths,
         ),
         Step(
             "mermaid",
@@ -1884,29 +1690,6 @@ def apply_step(
 
     check_project(root, AdoptError)
     _check_project_release(root)
-    if step_id == "pdf-runtime":
-        from prodockit import adopt_pdf_runtime
-
-        try:
-            adopt_pdf_runtime.apply(root, offline=offline, reporter=retry_reporter)
-        except (OSError, subprocess.SubprocessError, supported_toolchain.ToolchainError) as error:
-            raise AdoptError(str(error)) from error
-        return []
-    if step_id == "maths":
-        from prodockit import adopt_node
-
-        if adopt_node.plan(offline=offline).needs_work:
-            raise AdoptError(
-                "Complete the Node.js and npm runtime activity before installing renderers."
-            )
-    if step_id == "node":
-        from prodockit import adopt_node
-
-        try:
-            adopt_node.apply(root, offline=offline, reporter=retry_reporter)
-        except (OSError, subprocess.SubprocessError, supported_toolchain.ToolchainError) as error:
-            raise AdoptError(str(error)) from error
-        return []
     if step_id == "dependency":
         try:
             return supported_toolchain.apply(root, offline=offline, reporter=retry_reporter)
@@ -2021,9 +1804,7 @@ __all__ = [
     "assess",
     "ensure_requirement",
     "ensure_stylesheet",
-    "ensure_tools",
     "ensure_zensical_config",
-    "install_tool",
     "load_manifest",
     "manifest_source",
     "resolve_options",

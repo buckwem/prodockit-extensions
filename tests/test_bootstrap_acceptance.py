@@ -62,7 +62,7 @@ def test_real_software_keeps_the_same_machine_and_repository_scope() -> None:
         for stage in bootstrap_acceptance_driver.acceptance_stages(real_software=True)
     }
 
-    for stage_id in ("vscode", "git", "pandoc", "node", "extensions"):
+    for stage_id in ("vscode", "git", "extensions"):
         assert stages[stage_id].check.__module__ != bootstrap_acceptance_driver.__name__
 
 
@@ -105,14 +105,14 @@ def test_real_software_commands_cross_the_machine_boundary(monkeypatch, tmp_path
     def execute(command, cwd=None, timeout=None, capture=True):  # type: ignore[no-untyped-def]
         del cwd, timeout, capture
         seen.append(list(command))
-        return bootstrap_acceptance_driver.CommandResult(0, "pandoc 2.19.2\n")
+        return bootstrap_acceptance_driver.CommandResult(0, "1.99.0\n")
 
     monkeypatch.setattr(runner.system, "run", execute)
 
-    result = runner.run(["pandoc", "--version"])
+    result = runner.run(["code", "--version"])
 
-    assert result.stdout == "pandoc 2.19.2\n"
-    assert seen == [["pandoc", "--version"]]
+    assert result.stdout == "1.99.0\n"
+    assert seen == [["code", "--version"]]
 
 
 def test_git_host_rewrites_are_attached_to_each_harness_command(
@@ -188,16 +188,12 @@ def test_template_release_recorder_runs_from_the_installed_wheel(
 
 @pytest.mark.parametrize(
     ("command", "revealed"),
-    [
-        (["winget", "install", "--id", "OpenJS.NodeJS.LTS"], "node"),
-        (["sudo", "apt", "install", "-y", "/tmp/pandoc.deb"], "pandoc"),
-        (["bash", "-c", "brew install git"], "git"),
-    ],
+    [(["bash", "-c", "brew install git"], "git")],
 )
 def test_real_install_reveals_only_the_tool_just_replaced(
     monkeypatch, tmp_path: Path, command: list[str], revealed: str
 ) -> None:
-    old = {name: str(tmp_path / name) for name in ("git", "pandoc", "node")}
+    old = {name: str(tmp_path / name) for name in ("git", "vscode")}
     environment = {
         "PATH": os.pathsep.join([*old.values(), "/new/tools"]),
         "PDKBOOT_ACCEPTANCE_OLD_TOOL_BINS": json.dumps(old),
@@ -246,36 +242,6 @@ def test_simulated_old_software_understands_resilient_homebrew_upgrades(
     )
 
     assert runner.versions["vscode"] == "1.100.0"
-
-
-@pytest.mark.parametrize("arm64", [False, True])
-def test_simulated_windows_pango_upgrade_returns_strict_probe_evidence(
-    monkeypatch, tmp_path: Path, arm64: bool
-) -> None:
-    from prodockit.windows_pango import pango_spec, probe_script, repair_script
-
-    runner = bootstrap_acceptance_driver.HarnessRunner(
-        {},
-        "git@example.invalid:group/project.git",
-        home=tmp_path,
-        old_software=True,
-    )
-    spec = pango_spec(arm64=arm64)
-    monkeypatch.setattr(bootstrap_acceptance_driver, "pango_spec", lambda: spec)
-    probe = ["powershell", "-NoProfile", "-Command", probe_script(spec)]
-
-    before = json.loads(runner.run(probe).stdout)
-    runner.run(["powershell", "-NoProfile", "-Command", repair_script(spec)])
-    after = json.loads(runner.run(probe).stdout)
-
-    assert before["dll_exists"] is False
-    assert before["package_integrity"] is False
-    assert after["architecture"] == spec.architecture
-    assert after["environment"] == spec.environment
-    assert after["dll_exists"] is True
-    assert after["package_integrity"] is True
-    assert after["user_environment"] == rf"C:\msys64\{spec.environment}\bin"
-    assert after["process_environment"] == after["user_environment"]
 
 
 def test_a_wheel_file_or_single_wheel_directory_is_accepted(tmp_path: Path) -> None:

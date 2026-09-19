@@ -12,18 +12,21 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-from bs4 import BeautifulSoup
-
-from prodockit.mathjax import CONFIG_SOURCE
-from prodockit.pdf.build import Page
-from prodockit.pdf.web_render import (
+from _pdf_web_render_support import (
     RenderTarget,
     WebRenderError,
     check_web_rendering,
+    find_browser,
     static_render_targets,
 )
+from bs4 import BeautifulSoup
+
+from prodockit.pdf.build import Page
 from prodockit.project_config import load_project_config
-from prodockit.renderer_health import find_browser
+
+CONFIG_SOURCE = (Path(__file__).parents[1] / "docs/javascripts/mathjax.js").read_text(
+    encoding="utf-8"
+)
 
 
 def _project(tmp_path: Path, source: str):
@@ -104,7 +107,7 @@ def test_standalone_pdf_validates_mermaid_markup_without_requiring_browser(
     def no_browser_lookup(_name: str) -> str | None:
         raise AssertionError("browser lookup is not allowed")
 
-    monkeypatch.setattr("prodockit.pdf.web_render.shutil.which", no_browser_lookup)
+    monkeypatch.setattr("_pdf_web_render_support.shutil.which", no_browser_lookup)
 
     assert static_render_targets(config, [page], verify_mermaid=False) == []
     check_web_rendering(config, [page], verify_mermaid=False)
@@ -172,7 +175,7 @@ def test_browser_prerequisite_is_an_explicit_failure(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     config = _project(tmp_path, "$$x^2$$")
-    monkeypatch.setattr("prodockit.pdf.web_render.shutil.which", lambda _: None)
+    monkeypatch.setattr("_pdf_web_render_support.shutil.which", lambda _: None)
     with pytest.raises(WebRenderError, match=r"Node\.js"):
         check_web_rendering(config, [Page("index.md", '<div class="arithmatex">\\[x^2\\]</div>')])
 
@@ -185,18 +188,20 @@ def test_browser_failure_keeps_diagnostics_and_fails(
     module.mkdir(parents=True)
     browser = tmp_path / "chrome"
     browser.write_text("", encoding="utf-8")
-    monkeypatch.setattr("prodockit.pdf.web_render.shutil.which", lambda _: "/usr/bin/node")
-    monkeypatch.setattr("prodockit.pdf.web_render.find_browser", lambda: str(browser))
+    monkeypatch.setattr("_pdf_web_render_support.shutil.which", lambda _: "/usr/bin/node")
+    monkeypatch.setattr("_pdf_web_render_support.find_browser", lambda: str(browser))
     diagnostics = tmp_path / "diagnostics"
     diagnostics.mkdir()
-    monkeypatch.setattr("prodockit.pdf.web_render.tempfile.mkdtemp", lambda **_: str(diagnostics))
+    monkeypatch.setattr(
+        "_pdf_web_render_support.tempfile.mkdtemp", lambda **_: str(diagnostics)
+    )
     seen: dict = {}
 
     def failed_run(command, **kwargs):
         seen.update(json.loads(kwargs["input"]))
         return SimpleNamespace(returncode=1, stderr="no visible SVG", stdout="")
 
-    monkeypatch.setattr("prodockit.pdf.web_render.subprocess.run", failed_run)
+    monkeypatch.setattr("_pdf_web_render_support.subprocess.run", failed_run)
     with pytest.raises(WebRenderError, match="no visible SVG") as failure:
         check_web_rendering(config, [Page("index.md", '<div class="arithmatex">\\[x^2\\]</div>')])
     assert "`pdk diag --dry-run`" in str(failure.value)
@@ -286,7 +291,7 @@ def test_real_browser_checks_both_renderers_and_navigation(
         "timeoutMs": 1000,
     }
     result = subprocess.run(
-        [node, str(Path(__file__).parents[1] / "src/prodockit/pdf/web_render.cjs")],
+        [node, str(Path(__file__).parent / "web_render.cjs")],
         input=json.dumps(payload),
         capture_output=True,
         text=True,
@@ -348,7 +353,7 @@ def test_real_browser_visits_inactive_content_tabs(
     diagnostics = tmp_path / "diagnostics"
     diagnostics.mkdir()
     result = subprocess.run(
-        [node, str(Path(__file__).parents[1] / "src/prodockit/pdf/web_render.cjs")],
+        [node, str(Path(__file__).parent / "web_render.cjs")],
         input=json.dumps(
             {
                 "siteDir": str(site),
@@ -402,7 +407,7 @@ def test_real_browser_checks_zensical_closed_shadow_diagrams(tmp_path: Path) -> 
     diagnostics = tmp_path / "diagnostics"
     diagnostics.mkdir()
     checked = subprocess.run(
-        [node, str(Path(__file__).parents[1] / "src/prodockit/pdf/web_render.cjs")],
+        [node, str(Path(__file__).parent / "web_render.cjs")],
         input=json.dumps(
             {
                 "siteDir": str(tmp_path / "site"),
@@ -469,7 +474,7 @@ def test_real_browser_mathjax_survives_zensical_instant_navigation(
     diagnostics = tmp_path / "diagnostics"
     diagnostics.mkdir()
     checked = subprocess.run(
-        [node, str(root / "src/prodockit/pdf/web_render.cjs")],
+        [node, str(root / "tests/web_render.cjs")],
         input=json.dumps({
             "siteDir": str(tmp_path / "site"),
             "puppeteerModule": str(module),

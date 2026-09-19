@@ -101,14 +101,6 @@ from prodockit.bootstrap.recovery import (
     recovery_advice,
 )
 from prodockit.environment import BuildEnvironmentError, check_pdf_environment
-from prodockit.init_tools import (
-    COMPONENT_PURPOSE,
-    InitToolsError,
-    gitignore_lines,
-    init_tools,
-    install_commands,
-)
-from prodockit.mathjax import MathJaxError, install_mathjax
 from prodockit.pdf.build import PdfBuildError
 from prodockit.pdf.config import (
     build_pdf_from_built_site,
@@ -163,7 +155,7 @@ _BOOTSTRAP_PHASES: tuple[tuple[str, frozenset[str]], ...] = (
     ),
     (
         "Build toolchain",
-        frozenset({"pandoc", "project-env", "node"}),
+        frozenset({"project-env"}),
     ),
     (
         "Editor and project",
@@ -179,9 +171,7 @@ _BOOTSTRAP_INSTALL_STAGES = frozenset(
         "git",
         "ssh-key",
         "clone",
-        "pandoc",
         "project-env",
-        "node",
         "extensions",
         "csl-style",
     }
@@ -867,7 +857,7 @@ def _offer_to_fill_gaps(config: BootstrapConfig, path: Path) -> tuple[BootstrapC
     report and exit rather than block on a prompt nobody can answer.
 
     Returns the config and whether a *whole* configuration was answered
-    here, which the caller stops on: twenty-two stage lines printed
+    here, which the caller stops on: twenty stage lines printed
     after it scroll the namespace and repository name off the screen, and
     those are the two things a reader has to take to a website
     (prodockit-extensions#433).
@@ -1597,7 +1587,7 @@ def _typed_yes(question: str) -> bool:
     """A question the Enter key cannot answer.
 
     `[Y/n]` is answered by pressing Enter, and a reader twelve stages
-    into a twenty-two stage setup presses it in rhythm. For a browser
+    into a twenty-stage setup presses it in rhythm. For a browser
     step that means claiming to have done something they have not, and
     the run continues as though a manual stage was complete
     (prodockit-extensions#374). Typing the word costs three seconds and
@@ -2007,12 +1997,10 @@ def diag_command(
         inspect,
         repair_adopt_core_assets,
         repair_distribution_metadata,
-        repair_locked_renderer,
         repair_mixed_virtual_environment,
         repair_pin_declarations,
         repair_project_configuration,
         repair_shared_file,
-        repair_windows_pango,
     )
 
     if pathlib.Path(config_file) == pathlib.Path("zensical.toml"):
@@ -2276,20 +2264,6 @@ def diag_command(
                     changed = pin_repair.changed
                     action_manifest = pin_repair.manifest
                     action_quarantine = pin_repair.quarantine
-                elif candidate.check_id == "renderer.mathjax":
-                    renderer_check = next(
-                        check for check in before.checks if check.id == candidate.check_id
-                    )
-                    renderer_repair = repair_locked_renderer(
-                        project_root,
-                        "mathjax",
-                        expected_fingerprint=renderer_check.data["repair_fingerprint"],
-                        retry_reporter=_renderer_retry_warning,
-                    )
-                    result_status = renderer_repair.status
-                    changed = renderer_repair.changed
-                    action_manifest = renderer_repair.manifest
-                    action_quarantine = renderer_repair.quarantine
                 elif candidate.check_id == "maintenance.adopt-readiness":
                     adopt_check = next(
                         check
@@ -2305,18 +2279,6 @@ def diag_command(
                     changed = adopt_repair.changed
                     action_manifest = adopt_repair.manifest
                     action_quarantine = adopt_repair.quarantine
-                elif candidate.check_id == "renderer.weasyprint":
-                    renderer_check = next(
-                        check for check in before.checks if check.id == candidate.check_id
-                    )
-                    pango_repair = repair_windows_pango(
-                        expected=renderer_check.data.get("windows_pango"),
-                        retry_reporter=_renderer_retry_warning,
-                    )
-                    result_status = pango_repair.status
-                    changed = pango_repair.changed
-                    action_manifest = pango_repair.manifest
-                    action_quarantine = pango_repair.quarantine
                 else:
                     configuration_check = next(
                         check for check in before.checks if check.id == "project.configuration"
@@ -2610,9 +2572,9 @@ def bootstrap(
 ) -> None:
     """Set up this machine and a project based on prodockit-template.
 
-    Checks all 22 activities - prodockit's own environment, editor, git, SSH
+    Checks all 20 activities - prodockit's own environment, editor, git, SSH
     key/config/agent/upload, clone, history, remote, commit identity, the
-    project's own environment, pandoc, Node and the rest - and reports
+    project's own environment and the rest - and reports
     which are already done. Rerunnable: an activity that is set up correctly
     is left alone.
 
@@ -3067,94 +3029,6 @@ def sync_repo(
     click.echo(f"Detected {result.label} remote ({result.repo_url}); updated: {changed}")
 
 
-@main.command("init-mathjax")
-@click.option(
-    "--root",
-    default=".",
-    show_default=True,
-    help="Project directory to install into.",
-)
-@click.option(
-    "--no-gitignore",
-    is_flag=True,
-    help="Do not add the installed files to .gitignore.",
-)
-def init_mathjax_command(root: str, no_gitignore: bool) -> None:
-    """Install MathJax for the website, from tools/mathjax's own copy.
-
-    Writes `docs/javascripts/mathjax.js` and copies the browser bundle
-    and its licence out of the `mathjax-full` install `prodockit pdf`
-    already renders through - so a formula cannot typeset one way on
-    screen and another in print, and the site works offline.
-
-    These installed files are not committed: their paths are added to
-    `.gitignore`, because the bundle is third-party code that does not
-    belong in your repository. Anything that builds the site without running
-    `prodockit bootstrap` - a CI job, most obviously - should run this
-    first.
-    """
-    try:
-        result = install_mathjax(root, update_gitignore=not no_gitignore)
-    except MathJaxError as error:
-        click.echo(f"Error: {error}", err=True)
-        sys.exit(1)
-    click.echo(f"Wrote {result.config}")
-    click.echo(f"Copied {result.bundle}")
-    click.echo(f"Copied {result.license}")
-    for line in result.ignored:
-        click.echo(f"Ignored {line}")
-
-
-@main.command("init-tools")
-@click.option(
-    "--dir",
-    "tools_dir",
-    default="tools",
-    show_default=True,
-    help="Directory to scaffold into. Must match what prodockit.pdf looks for.",
-)
-@click.option(
-    "--mathjax/--no-mathjax",
-    default=True,
-    show_default=True,
-    help="Scaffold the mathjax-full tooling, for TeX maths in the PDF.",
-)
-@click.option(
-    "--force",
-    is_flag=True,
-    help="Overwrite files that already exist, instead of leaving them alone.",
-)
-def init_tools_command(tools_dir: str, mathjax: bool, force: bool) -> None:
-    """Set up the remaining Node tooling used to render TeX maths."""
-    components = ("mathjax",) if mathjax else ()
-    if not components:
-        click.echo("Nothing to do: --no-mathjax was given.", err=True)
-        sys.exit(1)
-
-    try:
-        result = init_tools(tools_dir, components=components, force=force)
-    except InitToolsError as error:
-        click.echo(f"Error: {error}", err=True)
-        sys.exit(1)
-
-    for path in result.written:
-        click.echo(f"Wrote {path}")
-    for path in result.skipped:
-        click.echo(f"Kept existing {path} (use --force to overwrite)")
-
-    click.echo("\nScaffolded for:")
-    for component in result.components:
-        click.echo(f"  - {COMPONENT_PURPOSE[component]}")
-
-    click.echo("\nNext, install them:")
-    for command in install_commands(result):
-        click.echo(f"  {command}")
-
-    click.echo("\nAdd to .gitignore (commit the manifests and lockfiles, not the installs):")
-    for line in gitignore_lines(result):
-        click.echo(f"  {line}")
-
-
 
 _ADOPT_PHASES = (
     "Assess",
@@ -3311,14 +3185,6 @@ def _adopt_change_summary(step: Step, *, verbose: bool) -> None:
         "choices": (
             "Your diagram and maths choices need to be saved for future runs.",
             "Save these choices in this project.",
-        ),
-        "pdf-runtime": (
-            "PDF generation needs additional software, fonts or environment settings.",
-            "Prepare PDF support. System software changes may require administrator approval.",
-        ),
-        "node": (
-            "Your selected diagram or maths features need Node.js and its package installer.",
-            "Install or repair Node.js on this computer; administrator approval may be required.",
         ),
         "mermaid": (
             "Diagram rendering is not ready for this project.",
@@ -3584,8 +3450,7 @@ def adopt_command(
         "  Mode:     " + ("Apply — ask before each change" if apply else "Preview — no changes")
     )
     click.echo(
-        "  Changes:  active project environment, local project files "
-        "and selected runtime prerequisites"
+        "  Changes:  active project environment and local project files"
     )
     click.echo(
         "  Options:  "
@@ -3703,11 +3568,6 @@ def adopt_command(
                 ),
                 err=True,
             )
-            if step.id in {"node", "pdf-runtime"}:
-                click.echo(_bootstrap_warning(str(error)), err=True)
-                raise click.ClickException(
-                    f"{step.summary} activity is incomplete; follow the recovery guidance above."
-                ) from error
             raise click.ClickException(str(error)) from error
         applied_stages += 1
         click.echo("  done")

@@ -455,8 +455,6 @@ def test_command_map_lists_every_public_command() -> None:
         "bootstrap",
         "config",
         "diag",
-        "init-mathjax",
-        "init-tools",
         "pdf",
         "pins",
         "shared-files",

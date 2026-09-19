@@ -5,15 +5,10 @@
 
 from __future__ import annotations
 
-import shutil
-import subprocess
 import time
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Generic, TypeVar
-
-from prodockit.installer_process import run_installer
 
 DEFAULT_RETRY_DELAYS = (2.0, 5.0)
 
@@ -81,21 +76,6 @@ class RetryResult(Generic[T]):
     transient_failures: tuple[str, ...] = ()
 
 
-@dataclass(frozen=True)
-class NpmResult:
-    """A completed npm operation and its bounded retry evidence."""
-
-    completed: subprocess.CompletedProcess[str]
-    attempts: int
-    transient_failures: tuple[str, ...] = ()
-
-    @property
-    def failure_detail(self) -> str:
-        """Return the final npm error with bounded prior-attempt evidence."""
-
-        return failure_with_history(_detail(self.completed), self.attempts, self.transient_failures)
-
-
 def transient_renderer_failure(detail: str | None) -> bool:
     """Return whether renderer output names a recognized external failure."""
 
@@ -121,21 +101,6 @@ def transient_runtime_failure(detail: str | None) -> bool:
     return not any(marker in lowered for marker in permanent) and any(
         marker in lowered for marker in _TRANSIENT_MARKERS
     )
-
-
-def _detail(completed: subprocess.CompletedProcess[str]) -> str:
-    return "\n".join(
-        part.strip() for part in (completed.stdout, completed.stderr) if part and part.strip()
-    )
-
-
-def _remove_partial_modules(path: Path) -> None:
-    """Remove an incomplete install without following a directory symlink."""
-
-    if path.is_symlink():
-        path.unlink()
-    elif path.exists():
-        shutil.rmtree(path)
 
 
 def failure_with_history(
@@ -191,57 +156,12 @@ def run_with_retries(
     raise AssertionError("unreachable")
 
 
-def run_npm_with_retries(
-    command: Sequence[str],
-    *,
-    cwd: Path,
-    environment: Mapping[str, str] | None = None,
-    timeout: float = 600,
-    retry_delays: Sequence[float] = DEFAULT_RETRY_DELAYS,
-    reporter: RetryReporter | None = None,
-) -> NpmResult:
-    """Run an idempotent npm install, retrying completed transient failures.
-
-    Completed failures discard generated ``node_modules``, including the last
-    failed attempt, so the next invocation starts clean. Manifests, lockfiles
-    and author files are retained. Timeout/interruption stops the owned process
-    tree but is deliberately not retried or cleaned here: detached installers
-    may still be using those files.
-    """
-
-    modules = cwd / "node_modules"
-
-    def run() -> subprocess.CompletedProcess[str]:
-        return run_installer(
-            list(command),
-            cwd=cwd,
-            timeout=timeout,
-            env=dict(environment) if environment is not None else None,
-        )
-
-    result = run_with_retries(
-        "npm renderer installation",
-        run,
-        succeeded=lambda completed: completed.returncode == 0,
-        failure_detail=_detail,
-        retry_delays=retry_delays,
-        reporter=reporter,
-        before_retry=lambda: _remove_partial_modules(modules),
-        sleeper=time.sleep,
-    )
-    if result.value.returncode != 0:
-        _remove_partial_modules(modules)
-    return NpmResult(result.value, result.attempts, result.transient_failures)
-
-
 __all__ = [
     "DEFAULT_RETRY_DELAYS",
-    "NpmResult",
     "RetryNotice",
     "RetryReporter",
     "RetryResult",
     "failure_with_history",
-    "run_npm_with_retries",
     "run_with_retries",
     "transient_renderer_failure",
 ]

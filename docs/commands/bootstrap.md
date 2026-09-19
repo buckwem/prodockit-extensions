@@ -79,7 +79,7 @@ Bootstrap output structure
 ## Phases and activities {: #cmd-bootstrap-phases }
 
 The task guide uses **stages and steps** for the sequence followed by the
-reader. Bootstrap itself groups 22 independently checked **activities** into
+reader. Bootstrap itself groups 20 independently checked **activities** into
 seven **phases**. \ref{tab-cmd-bootstrap-phases} maps every activity to its
 phase and identifies whether Bootstrap can automate it.
 
@@ -99,14 +99,12 @@ phase and identifies whether Bootstrap can automate it.
 | | 12 | A history of your own | yes |
 | | 13 | Clone pointed at your project | yes |
 | | 14 | Commit identity in the project | yes |
-| 5. Build toolchain {: rowspan=3 } | 15 | PDF native libraries | yes |
-| | 16 | Project environment, dependencies and Adoption component choices | yes |
-| | 17 | Node.js for PDF maths | yes |
-| 6. Editor and project {: rowspan=3 } | 18 | VS Code extensions | yes |
-| | 19 | VS Code settings for the project | yes |
-| | 20 | Citation style for the first build | yes |
-| 7. Publish {: rowspan=2 } | 21 | First commit pushed | yes, after a step of your own |
-| | 22 | Documentation site published | guide and verify |
+| 5. Build toolchain | 15 | Project environment, dependencies and Adoption component choices | yes |
+| 6. Editor and project {: rowspan=3 } | 16 | VS Code extensions | yes |
+| | 17 | VS Code settings for the project | yes |
+| | 18 | Citation style for the first build | yes |
+| 7. Publish {: rowspan=2 } | 19 | First commit pushed | yes, after a step of your own |
+| | 20 | Documentation site published | guide and verify |
 /// table-caption | <
     attrs: {id: tab-cmd-bootstrap-phases}
 

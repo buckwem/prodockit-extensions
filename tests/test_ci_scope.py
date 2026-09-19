@@ -19,7 +19,6 @@ ChangedRange = _MODULE.ChangedRange
 Scope = _MODULE.Scope
 all_scope = _MODULE.all_scope
 bootstrap_native_for_event = _MODULE.bootstrap_native_for_event
-adopt_native_for_event = _MODULE.adopt_native_for_event
 changed_range_for_event = _MODULE.changed_range_for_event
 classify = _MODULE.classify
 output_lines = _MODULE.output_lines
@@ -245,7 +244,6 @@ def test_all_scope_emits_every_supported_python_and_acceptance_suite() -> None:
         "pdf=true",
         "bootstrap=true",
         "diagnostics=true",
-        "adopt-native=false",
         "bootstrap-native=false",
     )
 
@@ -261,38 +259,6 @@ def test_real_bootstrap_installs_are_selected_once_for_release_pull_requests() -
     changes = ChangedRange(("pyproject.toml",), False, "release")
     assert bootstrap_native_for_event("pull_request", event, changes, git=changed_version)
     assert not bootstrap_native_for_event("push", {}, changes, git=changed_version)
-
-
-def test_real_adopt_upgrade_is_selected_for_release_pull_requests() -> None:
-    event = {"pull_request": {"base": {"sha": BASE}, "head": {"sha": HEAD}}}
-
-    def changed_version(command):  # type: ignore[no-untyped-def]
-        ref = command[-1].split(":", 1)[0]
-        version = "0.51.3" if ref == BASE else "0.51.4"
-        return _completed(stdout=f'[project]\nversion = "{version}"\n'.encode())
-
-    changes = ChangedRange(("pyproject.toml",), False, "release")
-    assert adopt_native_for_event("pull_request", event, changes, git=changed_version)
-    assert not adopt_native_for_event("push", {}, changes, git=changed_version)
-
-
-def test_real_adopt_harness_exercises_itself_and_manual_dispatch() -> None:
-    for harness in (
-        ".github/workflows/adopt-install.yml",
-        "tools/adopt_native_upgrade.py",
-        "tools/ci_scope.py",
-    ):
-        assert adopt_native_for_event("pull_request", {}, ChangedRange((harness,)))
-    assert adopt_native_for_event("workflow_dispatch", {}, ChangedRange(full=True))
-    assert not adopt_native_for_event("push", {}, ChangedRange(("tools/adopt_native_upgrade.py",)))
-
-
-def test_real_adopt_upgrade_skips_ordinary_pull_requests() -> None:
-    assert not adopt_native_for_event(
-        "pull_request",
-        {},
-        ChangedRange(("src/prodockit/adopt.py",), False, "ordinary"),
-    )
 
 
 def test_real_bootstrap_installs_skip_an_ordinary_pull_request() -> None:
@@ -312,7 +278,6 @@ def test_real_bootstrap_installs_skip_an_ordinary_pull_request() -> None:
 def test_real_bootstrap_harness_exercises_itself_and_manual_dispatch() -> None:
     for harness in (
         "tools/bootstrap_native_install.py",
-        "tools/bootstrap_native_upgrade.py",
         "tools/native_download.py",
     ):
         assert bootstrap_native_for_event("pull_request", {}, ChangedRange((harness,)))
@@ -322,19 +287,15 @@ def test_real_bootstrap_harness_exercises_itself_and_manual_dispatch() -> None:
     )
 
 
-def test_real_upgrade_workflow_caches_validated_old_software() -> None:
+def test_real_install_workflow_has_no_obsolete_pdf_runtime_cache() -> None:
     workflow = (ROOT / ".github" / "workflows" / "bootstrap-install.yml").read_text(
         encoding="utf-8"
     )
 
-    installed_wheel, native_upgrade = workflow.split("\n  native-upgrade:", 1)
-    native_upgrade = native_upgrade.split("\n  result:", 1)[0]
-
-    assert "Restore validated native-upgrade fixtures" not in installed_wheel
-    assert "Restore validated native-upgrade fixtures" in native_upgrade
-    assert "uses: actions/cache@v4" in native_upgrade
-    assert "PDK_NATIVE_DOWNLOAD_CACHE:" in native_upgrade
-    assert "hashFiles('tools/bootstrap_native_upgrade.py')" in native_upgrade
+    native_install = workflow.split("\n  native-install:", 1)[1].split("\n  result:", 1)[0]
+    assert "python tools/bootstrap_native_install.py" in native_install
+    assert "PDK_NATIVE_DOWNLOAD_CACHE" not in native_install
+    assert "bootstrap_native_upgrade.py" not in native_install
 
 
 def test_standalone_pdf_wheel_matrix_uses_only_published_quickjs_architectures() -> None:
@@ -411,13 +372,13 @@ def test_every_artifact_workflow_uses_the_python_314_project_pin() -> None:
     assert not unpinned, f"setup-python does not use the 3.14 project pin: {unpinned}"
 
 
-def test_adopt_matrix_caches_node_packages_and_excludes_windows_arm64() -> None:
+def test_adopt_matrix_needs_no_node_packages_and_excludes_windows_arm64() -> None:
     workflow = (ROOT / ".github" / "workflows" / "adopt-install.yml").read_text(encoding="utf-8")
 
     assert "run-name: Adopt wheel installation and real project upgrades" in workflow
-    assert "cache: npm" in workflow
-    assert "src/prodockit/_tools_template/mermaid/package-lock.json" not in workflow
-    assert "src/prodockit/_tools_template/mathjax/package-lock.json" in workflow
+    assert "cache: npm" not in workflow
+    assert "setup-node" not in workflow
+    assert "package-lock.json" not in workflow
     assert workflow.count("scenario_args: --scenario toml-default --scenario toml-both") == 1
     assert workflow.count(
         "scenario_args: --scenario toml-default --scenario toml-core "
@@ -426,6 +387,8 @@ def test_adopt_matrix_caches_node_packages_and_excludes_windows_arm64() -> None:
     assert "runner: windows-2025" in workflow
     assert "runner: windows-11-arm" not in workflow
     assert "timeout-minutes: 40" in workflow
+    installed = workflow.split("\n  installed-wheel:", 1)[1].split("\n  template-sync:", 1)[0]
+    assert "Install the test-only macOS Pango prerequisite" in installed
 
 
 def test_template_sync_wheel_handoff_runs_on_all_five_environments() -> None:
@@ -458,27 +421,10 @@ def test_diagnostic_wheel_matrix_runs_only_for_its_selected_scope() -> None:
     assert "python tools/ci_scope.py --github-event" in workflow
     assert "relevant: ${{ steps.scope.outputs.diagnostics }}" in workflow
     assert "if: needs.scope.outputs.relevant == 'true'" in workflow
-    assert "scenario: [upgrade, downgrade]" in workflow
-    assert "python tools/adopt_toolchain_acceptance.py" in workflow
-    assert "PDK_NATIVE_DOWNLOAD_CACHE" in workflow
-    assert "PIP_RETRIES: 5" in workflow
-    assert "timeout-minutes: 40" in workflow
-
-
-def test_adopt_release_gate_upgrades_an_old_full_project_on_every_runner() -> None:
-    workflow = (ROOT / ".github" / "workflows" / "adopt-install.yml").read_text(encoding="utf-8")
-
-    assert "native: ${{ steps.scope.outputs['adopt-native'] }}" in workflow
-    assert "if: needs.scope.outputs.native == 'true'" in workflow
-    assert "python tools/adopt_native_upgrade.py" in workflow
-    assert "--scenario" not in workflow.split("native-upgrade:", 1)[1]
-    for runner in (
-        "ubuntu-24.04",
-        "ubuntu-24.04-arm",
-        "windows-2025",
-        "macos-15",
-    ):
-        assert runner in workflow.split("native-upgrade:", 1)[1]
+    assert "scenario: [upgrade, downgrade]" not in workflow
+    assert "python tools/adopt_toolchain_acceptance.py" not in workflow
+    assert "PDK_NATIVE_DOWNLOAD_CACHE" not in workflow
+    assert "timeout-minutes: 35" in workflow
 
 
 def test_bootstrap_release_gate_runs_real_installs_on_every_supported_runner() -> None:
@@ -487,20 +433,17 @@ def test_bootstrap_release_gate_runs_real_installs_on_every_supported_runner() -
     )
 
     assert (
-        "run-name: Bootstrap wheel installation, clean setup and real software upgrades" in workflow
+        "run-name: Bootstrap wheel installation, clean setup and real core-tool installs" in workflow
     )
     assert "native: ${{ steps.scope.outputs['bootstrap-native'] }}" in workflow
     assert "if: needs.scope.outputs.native == 'true'" in workflow
     assert "python tools/bootstrap_native_install.py" in workflow
-    assert "python tools/bootstrap_native_upgrade.py" in workflow
+    assert "python tools/bootstrap_native_upgrade.py" not in workflow
     assert "timeout-minutes: 60" in workflow
-    assert "--scenario ${{ matrix.scenario.id }}" in workflow
-    assert "Upgrade real old software through ${{ matrix.scenario.name }}" in workflow
-    assert "through the Surrey and GitHub routes" not in workflow
-    assert "id: surrey-existing-real-upgrade" in workflow
-    assert "id: github-new-real-upgrade" in workflow
-    assert "matrix.platform.runner" in workflow
-    assert "matrix.platform.architecture" in workflow
+    assert "--scenario ${{ matrix.scenario.id }}" not in workflow
+    assert "Remove runner tools, then execute Bootstrap's real install plans" in workflow
+    native = workflow.split("\n  native-install:", 1)[1].split("\n  result:", 1)[0]
+    assert "Install the test-only macOS Pango prerequisite" in native
     for runner in (
         "ubuntu-24.04",
         "ubuntu-24.04-arm",
