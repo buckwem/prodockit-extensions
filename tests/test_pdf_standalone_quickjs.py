@@ -14,14 +14,16 @@ from prodockit.pdf._standalone_quickjs import (
     StandaloneQuickJSMermaidEngine,
     StandaloneRenderError,
     StandaloneResourceLimitError,
+    StandaloneStackLimitError,
 )
 
 
 class FakeContext:
-    def __init__(self, svg: str = "<svg/>") -> None:
+    def __init__(self, svg: str = "<svg/>", error: str | None = None) -> None:
         self.calls: list[tuple[Any, ...]] = []
         self.values: dict[str, Any] = {}
         self.svg = svg
+        self.error = error
 
     def set_memory_limit(self, limit: int) -> None:
         self.calls.append(("memory", limit))
@@ -41,7 +43,7 @@ class FakeContext:
         if source == "!!globalThis.__renderResult || !!globalThis.__renderError":
             return True
         if source == "globalThis.__renderError":
-            return None
+            return self.error
         if source == "globalThis.__renderResult":
             return self.svg
         return None
@@ -126,6 +128,22 @@ def test_engine_passes_untrusted_values_with_context_set(
 def test_limits_reject_unsafe_values(field: str, value: int) -> None:
     with pytest.raises(ValueError, match=field):
         QuickJSMermaidLimits(**{field: value})
+
+
+def test_default_stack_limit_uses_the_approved_one_mebibyte_ceiling() -> None:
+    assert QuickJSMermaidLimits().maximum_stack_bytes == 1024 * 1024
+
+
+def test_mermaid_stack_exhaustion_is_a_resource_limit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    context = FakeContext(error="RangeError: Maximum call stack size exceeded")
+    monkeypatch.setattr(runtime_module, "_load_runtime", lambda: _fake_runtime(context))
+    engine = StandaloneQuickJSMermaidEngine()
+    engine.start()
+
+    with pytest.raises(StandaloneStackLimitError, match="stack limit"):
+        engine.render_svg("flowchart TD\n N0 --> N1")
 
 
 def test_source_and_output_limits_fail_closed(monkeypatch: pytest.MonkeyPatch) -> None:

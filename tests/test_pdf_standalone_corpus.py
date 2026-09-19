@@ -187,6 +187,20 @@ def test_malformed_render_does_not_poison_the_next_process(
     assert "Safe" in semantics.text
 
 
+def test_default_stack_renders_a_sixty_edge_linear_flowchart(
+    worker: StandaloneMermaidWorker,
+) -> None:
+    edges = "\n".join(
+        f" N{index}[Node {index}] --> N{index + 1}[Node {index + 1}]"
+        for index in range(60)
+    )
+
+    semantics = _semantics(worker.render_svg(f"flowchart TD\n{edges}"))
+
+    assert "Node 0" in semantics.text
+    assert "Node 60" in semantics.text
+
+
 def test_child_output_limit_fails_closed_without_poisoning_worker() -> None:
     if not _runtime_available():
         pytest.skip("requires the audited standalone Mermaid wheels")
