@@ -34,3 +34,18 @@ def test_unresolved_git_exits_with_restart_banner(monkeypatch, capsys):
     assert "=" * 60 in output
     assert "RESTART YOUR TERMINAL" in output
     assert "Template Sync cannot continue" in output
+
+
+def test_pdf_runtime_commands_are_not_template_sync_prerequisites(monkeypatch, capsys):
+    monkeypatch.setattr(terminal.sys, "platform", "win32")
+    monkeypatch.setenv("PATH", "old")
+    monkeypatch.setattr(
+        terminal.shutil,
+        "which",
+        lambda name: name if name == "git" else None,
+    )
+    monkeypatch.setattr("prodockit.bootstrap.model.refresh_windows_path", lambda: None)
+
+    terminal.prepare_template_environment(Path("project"))
+
+    assert "RESTART YOUR TERMINAL" not in capsys.readouterr().out
