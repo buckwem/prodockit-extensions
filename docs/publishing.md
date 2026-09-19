@@ -214,7 +214,7 @@ rather than Markdown syntax.
 | [`prodockit sync-repo`](devcons/repo-metadata.md) | Keeps repository metadata and README badges matching the Git remote |
 | [`prodockit pins`](devcons/pinning-drift.md) | Moves build-input version pins together |
 | [`prodockit template-sync`](devcons/template-sync.md) | Brings a project back into step with its template |
-| [`prodockit init-tools`](commands/init-tools.md) / [`init-mathjax`](commands/init-mathjax.md) | Sets up optional Mermaid and maths rendering tools |
+| [`prodockit init-tools`](commands/init-tools.md) / [`init-mathjax`](commands/init-mathjax.md) | Sets up optional maths rendering tools |
 /// table-caption | <
     attrs: {id: tab-publishing-what-is-not-an-extension}
 

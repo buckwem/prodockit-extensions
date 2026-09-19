@@ -10,9 +10,7 @@ from pathlib import Path
 
 import pytest
 
-import prodockit.renderer_health as renderer_health
 import prodockit.renderer_resilience as resilience
-from prodockit.renderer_health import RendererProbe
 
 
 @pytest.mark.parametrize(
@@ -32,81 +30,6 @@ def test_permanent_or_unverified_failure_is_never_transient(detail):
 
     assert not resilience.transient_runtime_failure(detail)
     assert not _temporary_network_failure(CommandResult(1, stderr=detail))
-
-
-def test_mermaid_probe_recovers_from_the_ubuntu_snap_content_race(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    binary = tmp_path / "mmdc"
-    outcomes = iter(
-        (
-            RendererProbe(binary, error="Content snap GPU wrapper is not mounted"),
-            RendererProbe(binary, version="11.12.0"),
-        )
-    )
-    notices = []
-    delays = []
-    monkeypatch.setattr(
-        renderer_health, "_probe_mermaid_once", lambda *_args, **_kw: next(outcomes)
-    )
-    monkeypatch.setattr(renderer_health.time, "sleep", delays.append)
-
-    result = renderer_health.probe_mermaid(binary, reporter=notices.append)
-
-    assert result.ok
-    assert result.attempts == 2
-    assert result.transient_failures == ("Content snap GPU wrapper is not mounted",)
-    assert delays == [2.0]
-    assert [(notice.attempt, notice.maximum_attempts) for notice in notices] == [(1, 3)]
-
-
-def test_mermaid_probe_does_not_retry_a_deterministic_failure(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    binary = tmp_path / "mmdc"
-    calls = []
-
-    def probe(*_args, **_kwargs):
-        calls.append(True)
-        return RendererProbe(binary, error="Mermaid syntax is invalid")
-
-    monkeypatch.setattr(renderer_health, "_probe_mermaid_once", probe)
-    monkeypatch.setattr(
-        renderer_health.time,
-        "sleep",
-        lambda _delay: pytest.fail("a deterministic failure was retried"),
-    )
-
-    result = renderer_health.probe_mermaid(binary)
-
-    assert not result.ok
-    assert result.attempts == 1
-    assert calls == [True]
-
-
-def test_mermaid_probe_exhaustion_preserves_bounded_attempt_history(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    binary = tmp_path / "mmdc"
-    outcomes = iter(
-        RendererProbe(binary, error=detail)
-        for detail in ("EAI_AGAIN first", "ECONNRESET second", "ETIMEDOUT final")
-    )
-    monkeypatch.setattr(
-        renderer_health,
-        "_probe_mermaid_once",
-        lambda *_args, **_kwargs: next(outcomes),
-    )
-    monkeypatch.setattr(renderer_health.time, "sleep", lambda _delay: None)
-
-    result = renderer_health.probe_mermaid(binary)
-
-    assert not result.ok
-    assert result.attempts == 3
-    assert result.error is not None
-    assert "ETIMEDOUT final" in result.error
-    assert "EAI_AGAIN first" in result.error
-    assert "ECONNRESET second" in result.error
 
 
 def test_npm_retry_removes_partial_modules_and_reports_the_attempt(

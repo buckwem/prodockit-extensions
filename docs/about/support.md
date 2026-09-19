@@ -92,13 +92,12 @@ however:
 Platforms and test depth
 ///
 
-The default standalone Mermaid backend is supported on Linux x64 and ARM64,
-Windows x64, and macOS ARM64. Windows ARM64 and macOS Intel x64 remain supported
-for ordinary ProDockit use and may select the legacy `mermaid-cli` renderer with
-`--swap`, because the audited `quickjs-ng` version does not publish compatible
-wheels and normal installation must not compile or download another runtime.
-Windows ARM64 is not part of the automated test matrix; the supported
-standalone platforms exercise the default backend.
+The Python Mermaid renderer is supported on Linux x64 and ARM64, Windows x64,
+and macOS ARM64. The audited `quickjs-ng` version does not publish compatible
+Windows ARM64 or macOS Intel x64 wheels, and normal installation must not
+compile or download another runtime. Those architectures can use ordinary
+ProDockit website features but are not supported for Mermaid PDF rendering.
+Windows ARM64 is not part of the automated test matrix.
 
 \ref{tab-about-support-platforms-and-test-depth} distinguishes automated
 regression coverage from manual bootstrap exercises. The installed-wheel

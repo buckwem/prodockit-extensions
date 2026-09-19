@@ -234,9 +234,6 @@ def test_project_environment_reports_dependencies_that_do_not_import(tmp_path: P
 
 def test_node_stage_warns_about_an_unreadable_version(tmp_path: Path) -> None:
     project = tmp_path / "report"
-    mermaid = project / "tools" / "mermaid" / "node_modules" / ".bin" / "mmdc"
-    mermaid.parent.mkdir(parents=True)
-    mermaid.touch()
     mathjax_bundle = (
         project / "tools" / "mathjax" / "node_modules" / "mathjax-full" / "es5" / "tex-svg-full.js"
     )
@@ -246,7 +243,6 @@ def test_node_stage_warns_about_an_unreadable_version(tmp_path: Path) -> None:
         {
             "node --version": CommandResult(0, "development"),
             "npm --version": CommandResult(0, "10.9.2"),
-            "mmdc -i": CommandResult(0),
             "mathjax-full/js/mathjax.js": CommandResult(0),
         }
     )
@@ -259,9 +255,6 @@ def test_node_stage_warns_about_an_unreadable_version(tmp_path: Path) -> None:
 
 
 def _installed_renderer_files(project: Path) -> None:
-    mermaid = project / "tools" / "mermaid" / "node_modules" / ".bin" / "mmdc"
-    mermaid.parent.mkdir(parents=True)
-    mermaid.touch()
     bundle = (
         project / "tools" / "mathjax" / "node_modules" / "mathjax-full" / "es5" / "tex-svg-full.js"
     )
@@ -276,7 +269,6 @@ def test_node_stage_rejects_incomplete_mathjax_modules(tmp_path: Path) -> None:
         {
             "node --version": CommandResult(0, "v22.14.0"),
             "npm --version": CommandResult(0, "10.9.2"),
-            "mmdc -i": CommandResult(0),
             "mathjax-full/js/mathjax.js": CommandResult(1, stderr="Cannot find module"),
         }
     )

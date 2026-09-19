@@ -95,7 +95,7 @@ and change directory; do not create a configuration merely to satisfy Adopt.
 | `-n`, `--dry-run` | Show activities, files, and changes without writing or installing. |
 | `-a`, `--apply` | Apply required activities, asking before each change. |
 | `--offline` | Use only the configured wheelhouse and validated native cache. |
-| `--mermaid`, `--no-mermaid` | Select or omit project-local Mermaid rendering. |
+| `--mermaid`, `--no-mermaid` | Select or omit Python Mermaid rendering. |
 | `--maths`, `--no-maths` | Select or omit MathJax rendering. |
 | `-v`, `--verbose` | Show the files and commands behind each activity summary. |
 | `-h`, `--help` | Show installed help and exit. |
@@ -228,7 +228,7 @@ For the selected maths component, Adopt aligns `tools/mathjax` with the
 renderer files shipped in the installed Prodockit release. It installs from
 that release's lockfile, allowing both upgrades and downgrades. Mermaid uses
 the installed Python runtime; Adopt does not create, install, align, or delete
-`tools/mermaid`.
+an author-owned Mermaid tooling directory.
 
 The activity lists the tool files it may change. Before replacing existing
 manifests, lockfiles or the MathJax conversion script, Adopt saves their original

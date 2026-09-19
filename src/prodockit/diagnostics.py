@@ -43,7 +43,7 @@ from prodockit.pins import (
 )
 from prodockit.project_config import ProjectConfig, ProjectConfigError, load_project_config
 from prodockit.project_integrity import renderer_requirements
-from prodockit.renderer_health import find_browser, probe_mathjax, probe_mermaid
+from prodockit.renderer_health import find_browser, probe_mathjax
 from prodockit.renderer_resilience import RetryReporter, run_npm_with_retries, run_with_retries
 from prodockit.shared_files import SharedFileError
 from prodockit.shared_files import apply as apply_shared_files
@@ -3229,7 +3229,7 @@ def _locked_renderer_refusal(
     """Return why a renderer cannot be rebuilt without resolving author intent."""
     if config is None:
         return "Project configuration is not readable."
-    custom_key = "pdf_mmdc_bin" if component == "mermaid" else "pdf_tex2svg_script"
+    custom_key = "pdf_tex2svg_script"
     if config.extra.get(custom_key):
         return f"project.extra.{custom_key} selects a custom executable path"
     tool_root = root / "tools" / component
@@ -3422,47 +3422,16 @@ def _renderer_checks(
     except StandaloneRuntimeUnavailableError as error:
         standalone_error = _sanitise_text(str(error), root)
     standalone_ok = standalone_error is None
-    mmdc = None
-    mermaid_probe = None
-    if not standalone_ok:
-        configured_mmdc = config.extra.get("pdf_mmdc_bin") if config else None
-        mmdc = _project_tool(
-            root,
-            configured_mmdc,
-            ("tools/mermaid/node_modules/.bin/mmdc", "node_modules/.bin/mmdc"),
-        )
-        if mmdc is None and not configured_mmdc and (found := shutil.which("mmdc")):
-            mmdc = Path(found)
-        if mmdc is not None:
-            mermaid_probe = probe_mermaid(mmdc, reporter=retry_reporter)
-    external_ok = bool(mermaid_probe and mermaid_probe.ok)
-    mermaid_ok = standalone_ok or external_ok
+    mermaid_ok = standalone_ok
     if standalone_ok:
         mermaid_summary = "Standalone Mermaid runtime is available"
         mermaid_details: tuple[str, ...] = ()
         mermaid_backend = "standalone"
-    elif mermaid_probe and mermaid_probe.ok:
-        mermaid_summary = (
-            f"External mmdc {mermaid_probe.version or 'is available'} for --swap"
-        )
-        mermaid_details = (f"path: {_display_path(mermaid_probe.path, root)}",)
-        mermaid_backend = "mmdc"
     else:
         mermaid_summary = "Standalone Mermaid runtime is unavailable" + (
             " but required by this project" if mermaid_required else " (optional)"
         )
-        mermaid_details = tuple(
-            detail
-            for detail in (
-                standalone_error,
-                (
-                    f"external mmdc health check failed: {mermaid_probe.error}"
-                    if mermaid_probe and mermaid_probe.error
-                    else None
-                ),
-            )
-            if detail
-        )
+        mermaid_details = (standalone_error,) if standalone_error else ()
         mermaid_backend = "unavailable"
     checks.append(
         DiagnosticResult(
@@ -3474,13 +3443,9 @@ def _renderer_checks(
             {
                 "required": mermaid_required,
                 "backend": mermaid_backend,
-                "path": _display_path(mmdc, root) if external_ok and mmdc else None,
-                "version": mermaid_probe.version if external_ok and mermaid_probe else None,
-                "error": (
-                    mermaid_probe.error
-                    if mermaid_probe and mermaid_probe.error
-                    else None if mermaid_ok else standalone_error
-                ),
+                "path": None,
+                "version": None,
+                "error": None if mermaid_ok else standalone_error,
                 "standalone_error": standalone_error,
             },
         )

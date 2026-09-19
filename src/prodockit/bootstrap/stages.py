@@ -3847,9 +3847,8 @@ def _plan_node(context: Context) -> Plan:
     def npm_ci(directory: str) -> list[str]:
         """Run npm from its package directory instead of using ``--prefix``.
 
-        npm 12 currently rejects Mermaid's valid optional-peer lock entry when
-        ``npm ci`` is combined with ``--prefix``. Its ordinary working-directory
-        form remains deterministic and keeps the committed lockfile authoritative.
+        Use npm's ordinary working-directory form so the committed MathJax
+        lockfile remains authoritative.
         """
         if context.platform == WINDOWS:
             literal = directory.replace("'", "''")

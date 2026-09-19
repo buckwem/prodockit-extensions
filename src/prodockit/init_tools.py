@@ -3,10 +3,8 @@
 
 """Scaffold the remaining Node tooling used for TeX maths.
 
-Mermaid PDF rendering is Python-only by default. The explicit ``--swap``
-compatibility path may use an author-supplied ``mmdc``, but ProDockit no
-longer creates or owns a Mermaid npm installation. MathJax still uses a
-project-local ``tex2svg`` script and Puppeteer Core.
+Mermaid PDF rendering is Python-only. MathJax still uses a project-local
+``tex2svg`` script and Puppeteer Core.
 
 The scaffold stops at writing files. Running `npm ci` is left to the
 caller - it is the step that needs the network, and a build tool silently

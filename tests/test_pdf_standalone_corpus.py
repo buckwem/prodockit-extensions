@@ -5,7 +5,6 @@ from __future__ import annotations
 
 import importlib.metadata
 import json
-import os
 from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
@@ -19,7 +18,7 @@ from prodockit.pdf._standalone_quickjs import (
     StandaloneResourceLimitError,
 )
 from prodockit.pdf._standalone_worker import StandaloneMermaidWorker
-from prodockit.pdf.mermaid import StandaloneMermaidRenderer, render_mermaid_diagram
+from prodockit.pdf.mermaid import StandaloneMermaidRenderer
 
 ROOT = Path(__file__).parents[1]
 CORPUS_PATH = Path(__file__).parent / "fixtures" / "mermaid_standalone_corpus.json"
@@ -127,32 +126,12 @@ def _semantics(svg: str, *, allow_foreign_object: bool = False) -> SvgSemantics:
 def test_standalone_worker_renders_representative_corpus(
     case: CorpusCase,
     worker: StandaloneMermaidWorker,
-    tmp_path: Path,
 ) -> None:
     standalone = _semantics(worker.render_svg(case.source))
     for expected in case.expected_text:
         assert expected in standalone.text
 
-    if os.environ.get("PRODOCKIT_RUN_MMDC_PARITY") != "1":
-        return
-    mmdc = Path(
-        os.environ.get(
-            "PRODOCKIT_MMDC_BIN",
-            str(ROOT / "tools" / "mermaid" / "node_modules" / ".bin" / "mmdc"),
-        )
-    )
-    if not mmdc.is_file():
-        pytest.skip("mmdc is required for the explicit parity run")
-    rendered = render_mermaid_diagram(case.source, str(mmdc), str(tmp_path), 1, timeout=30)
-    assert rendered is not None
-    baseline = _semantics(
-        Path(rendered).read_text(encoding="utf-8"),
-        allow_foreign_object=True,
-    )
-    for expected in case.expected_text:
-        assert expected in baseline.text
     assert standalone.graphic_elements > 0
-    assert baseline.graphic_elements > 0
 
 
 @pytest.mark.parametrize(

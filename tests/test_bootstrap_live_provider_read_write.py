@@ -691,18 +691,8 @@ def test_plan_allows_only_the_reviewed_node_dependency_commands(tmp_path: Path) 
     home = tmp_path / "home"
     project = home / "setup" / live.SURREY_PROJECT
     project.parent.mkdir(parents=True)
-    mermaid = project / "tools" / "mermaid"
     mathjax = project / "tools" / "mathjax"
     reviewed = [
-        [
-            "bash",
-            "-c",
-            f"cd {mermaid} && npm ci --legacy-peer-deps"
-            " && if [ ! -d node_modules/puppeteer ]; then "
-            "npm install --no-save --package-lock=false --legacy-peer-deps "
-            "puppeteer@25.9.0; fi"
-            " && npm exec -- puppeteer browsers install",
-        ],
         ["bash", "-c", f"cd {mathjax} && npm ci --legacy-peer-deps"],
     ]
 
@@ -719,28 +709,13 @@ def test_plan_allows_only_the_reviewed_node_dependency_commands(tmp_path: Path) 
 
     changed_runtime = [list(command) for command in reviewed]
     changed_runtime[0] = list(changed_runtime[0])
-    changed_runtime[0][2] = changed_runtime[0][2].replace("puppeteer@25.9.0", "puppeteer@latest")
-    with pytest.raises(live.LiveProviderError, match="unapproved non-Git"):
-        live.authorise_plan(
-            "node",
-            changed_runtime,
-            str(project),
-            fixture=fixture,
-            home=home,
-            project=project,
-            allow_push=True,
-            candidate_python=Path(sys.executable),
-        )
-
-    missing_browser_install = [list(command) for command in reviewed]
-    missing_browser_install[0] = list(missing_browser_install[0])
-    missing_browser_install[0][2] = missing_browser_install[0][2].replace(
-        " && npm exec -- puppeteer browsers install", ""
+    changed_runtime[0][2] = changed_runtime[0][2].replace(
+        "--legacy-peer-deps", "--force"
     )
     with pytest.raises(live.LiveProviderError, match="unapproved non-Git"):
         live.authorise_plan(
             "node",
-            missing_browser_install,
+            changed_runtime,
             str(project),
             fixture=fixture,
             home=home,

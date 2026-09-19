@@ -120,12 +120,11 @@ def test_hidden_legacy_command_routes_only_to_the_old_renderer(monkeypatch) -> N
 
 def test_public_pdf_command_routes_only_to_the_built_site_renderer(monkeypatch) -> None:
     import prodockit.cli as cli_module
-    from prodockit.pdf.mermaid import MermaidBackend
 
     calls = []
 
-    def built_site(config_file, *, markdown_file, on_stage, mermaid_backend):
-        calls.append((config_file, markdown_file, mermaid_backend))
+    def built_site(config_file, *, markdown_file, on_stage):
+        calls.append((config_file, markdown_file))
         return "built-site.pdf"
 
     def legacy(*args, **kwargs):
@@ -137,26 +136,22 @@ def test_public_pdf_command_routes_only_to_the_built_site_renderer(monkeypatch) 
     result = CliRunner().invoke(main, ["pdf"])
 
     assert result.exit_code == 0, result.output
-    assert calls == [("zensical.toml", None, MermaidBackend.STANDALONE)]
+    assert calls == [("zensical.toml", None)]
     assert "Wrote built-site.pdf" in result.output
 
 
-def test_pdf_swap_selects_the_legacy_mmdc_backend(monkeypatch) -> None:
+def test_pdf_rejects_the_removed_swap_option(monkeypatch) -> None:
     import prodockit.cli as cli_module
-    from prodockit.pdf.mermaid import MermaidBackend
 
-    calls = []
-
-    def built_site(config_file, *, markdown_file, on_stage, mermaid_backend):
-        calls.append((config_file, markdown_file, mermaid_backend))
-        return "built-site.pdf"
+    def built_site(*_args, **_kwargs):
+        raise AssertionError("the removed option must not invoke the builder")
 
     monkeypatch.setattr(cli_module, "build_pdf_from_built_site", built_site)
 
     result = CliRunner().invoke(main, ["pdf", "--swap"])
 
-    assert result.exit_code == 0, result.output
-    assert calls == [("zensical.toml", None, MermaidBackend.MMDC)]
+    assert result.exit_code == 2, result.output
+    assert "No such option '--swap'" in result.output
 
 
 def test_pdf_prepare_exits_before_environment_check_or_build(monkeypatch, tmp_path: Path) -> None:
@@ -214,63 +209,12 @@ def test_pdf_prepare_all_is_accepted_by_the_public_interface(monkeypatch) -> Non
     assert calls == [("zensical.toml", ("all",))]
 
 
-def test_pdf_prepare_rejects_swap_without_provisioning(monkeypatch) -> None:
-    import prodockit.cli as cli_module
-
-    monkeypatch.setattr(
-        cli_module,
-        "prepare_runtime_components",
-        lambda *_args: pytest.fail("--swap must never provision dependencies"),
-    )
-
-    result = CliRunner().invoke(main, ["pdf", "--swap", "--prepare", "mermaid"])
-
-    assert result.exit_code == 1, result.output
-    assert "cannot provision dependencies" in result.output
-
-
 def test_pdf_prepare_reports_an_unavailable_provider_without_a_traceback() -> None:
     result = CliRunner().invoke(main, ["pdf", "--prepare", "mermaid"])
 
     assert result.exit_code == 1, result.output
     assert "preparation is not available in this release" in result.output
     assert "Traceback" not in result.output
-
-
-@pytest.mark.parametrize(
-    "extra_args",
-    [["--swap=true"], ["--swap=false"], ["--swap", "value"], ["--no-swap"]],
-)
-def test_pdf_rejects_non_flag_swap_forms_before_building(
-    monkeypatch: pytest.MonkeyPatch, extra_args: list[str]
-) -> None:
-    import prodockit.cli as cli_module
-
-    def fail(*_args, **_kwargs):
-        raise AssertionError("malformed --swap must not invoke the builder")
-
-    monkeypatch.setattr(cli_module, "build_pdf_from_built_site", fail)
-
-    result = CliRunner().invoke(main, ["pdf", *extra_args])
-
-    assert result.exit_code == 2, result.output
-
-
-def test_hidden_legacy_command_does_not_advertise_or_accept_swap(monkeypatch) -> None:
-    help_result = CliRunner().invoke(main, ["pdf-legacy", "--help"])
-    assert help_result.exit_code == 0
-    assert "--swap" not in help_result.output
-
-    import prodockit.cli as cli_module
-
-    def fail(*_args, **_kwargs):
-        raise AssertionError("pdf-legacy must not run for --swap")
-
-    monkeypatch.setattr(cli_module, "build_pdf_from_zensical_config", fail)
-
-    result = CliRunner().invoke(main, ["pdf-legacy", "--swap"])
-
-    assert result.exit_code == 2, result.output
 
 
 def test_pdf_default_reports_unavailable_backend_when_mermaid_is_used(
@@ -655,7 +599,7 @@ def test_the_build_says_which_stage_it_is_on(monkeypatch, tmp_path) -> None:
     _write_project(tmp_path)
     monkeypatch.chdir(tmp_path)
 
-    def fake_build(config_path, *, markdown_file=None, on_stage=None, mermaid_backend=None):
+    def fake_build(config_path, *, markdown_file=None, on_stage=None):
         assert on_stage is not None, "the CLI has to ask for progress to get any"
         on_stage(1, 3, "Preparing pages")
         on_stage(3, 3, "Building the PDF")

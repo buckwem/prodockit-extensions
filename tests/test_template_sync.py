@@ -298,7 +298,7 @@ def test_a_file_no_rule_claims_is_an_error_not_a_default() -> None:
     manifest = load_manifest(MANIFEST)
 
     assert unclassified(manifest, ["macros.py", "docs/index.md"]) == []
-    assert unclassified(manifest, ["tools/mermaid/package.json"]) == ["tools/mermaid/package.json"]
+    assert unclassified(manifest, ["tools/custom/package.json"]) == ["tools/custom/package.json"]
 
 
 def test_the_top_level_docs_glob_catches_the_report_itself() -> None:
@@ -1401,9 +1401,9 @@ def test_an_update_replaces_the_file(tmp_path) -> None:
 def test_an_added_file_gets_its_directory_made(tmp_path) -> None:
     """The template can gain a whole directory, and a project that never
     had it has nowhere to put the file."""
-    apply_file_actions(_actions(("tools/mermaid/package.json", "add")), tmp_path, lambda p: b"{}")
+    apply_file_actions(_actions(("tools/custom/package.json", "add")), tmp_path, lambda p: b"{}")
 
-    assert (tmp_path / "tools/mermaid/package.json").read_bytes() == b"{}"
+    assert (tmp_path / "tools/custom/package.json").read_bytes() == b"{}"
 
 
 def test_an_edited_file_is_left_alone_and_the_template_s_written_beside_it(tmp_path) -> None:

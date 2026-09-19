@@ -151,10 +151,10 @@ def _warn_about_unrendered_content(
     )
     if render_mermaid is None and requirements.mermaid:
         warnings.append(
-            "⚠️  This document contains Mermaid diagrams, but no `mmdc` "
-            "(mermaid-cli) binary was found - they will appear in the PDF as "
-            "raw diagram source instead of rendered images. Install `mmdc` "
-            "outside ProDockit or set `pdf_mmdc_bin` to an existing install."
+            "⚠️  This document contains Mermaid diagrams, but no renderer callback "
+            "was supplied - they will appear in the PDF as raw diagram source "
+            "instead of rendered images. Use the high-level PDF command or supply "
+            "`render_mermaid` to `build_pdf()`."
         )
     if not mathjax_available and requirements.maths:
         warnings.append(

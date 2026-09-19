@@ -19,6 +19,10 @@ only when it adds or changes behaviour that matters to a user, or requires an
 upgrade action. Defect-by-defect history belongs in GitHub issues and pull
 requests rather than here.
 
+## Unreleased
+
+- Removed the legacy Mermaid CLI fallback, `--swap`, and `pdf_mmdc_bin`; PDF Mermaid rendering now uses only the Python runtime.
+
 ## 0.66.0 (2026-09-16)
 
 - Made the Python-only Mermaid renderer the PDF default; `--swap` now selects an externally supplied legacy `mermaid-cli` renderer.

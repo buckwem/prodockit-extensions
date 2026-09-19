@@ -9,17 +9,14 @@ from pathlib import Path
 import pytest
 from zensical.config import parse_config as parse_zensical_config
 
-import prodockit.pdf.mermaid as mermaid_module
 from prodockit.pdf import config
 from prodockit.pdf.config import (
-    _find_mmdc_bin,
     _find_tex2svg_script,
     _warn_if_release_sources_disagree,
     build_pdf_from_built_site,
     build_pdf_from_zensical_config,
     build_source_bundle_from_zensical_config,
 )
-from prodockit.pdf.mermaid import MermaidBackend
 from prodockit.pdf.web_render import WebRenderError
 from prodockit.settings import SettingError
 
@@ -67,8 +64,7 @@ def _fake_pandoc(bin_dir: Path, script: str) -> None:
 
 
 class _RecordingMermaidRenderer:
-    def __init__(self, mmdc_bin: str, output_dir: str) -> None:
-        self.mmdc_bin = mmdc_bin
+    def __init__(self, output_dir: str) -> None:
         self.output_dir = output_dir
         self.closed = False
 
@@ -97,107 +93,19 @@ def project(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     return _make
 
 
-def test_find_mmdc_bin_prefers_an_explicit_configured_path_that_exists(tmp_path: Path) -> None:
-    configured = tmp_path / "my-mmdc"
-    configured.write_text("", encoding="utf-8")
-    assert _find_mmdc_bin(str(configured)) == str(configured)
-
-
-def _npm_bin_dir_as_windows_writes_it(root: Path) -> Path:
-    """Builds a `node_modules/.bin` the way `npm` does on Windows: the
-    extensionless POSIX shell script that Windows cannot start, alongside
-    the `.cmd` and `.ps1` shims that it can (`.ps1` only via PowerShell)."""
-    bin_dir = root / "node_modules" / ".bin"
-    bin_dir.mkdir(parents=True)
-    for name in ("mmdc", "mmdc.cmd", "mmdc.ps1"):
-        (bin_dir / name).write_text("", encoding="utf-8")
-    return bin_dir
-
-
-def test_find_mmdc_bin_picks_the_runnable_shim_on_windows(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """The extensionless `mmdc` exists on Windows too, so `os.path.exists`
-    is not enough to tell whether it can be run: handing it to
-    `subprocess.run` fails with `[WinError 193] %1 is not a valid Win32
-    application`, reported per diagram rather than as a setup problem.
-    """
-    bin_dir = _npm_bin_dir_as_windows_writes_it(tmp_path)
-    monkeypatch.setenv("PATH", "")
-    monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr(config, "_WINDOWS", True)
-
-    assert _find_mmdc_bin(None) == str(bin_dir / "mmdc.cmd")
-    # And when a config names the bare script explicitly, which is the
-    # spelling the documentation for every platform uses.
-    assert _find_mmdc_bin(str(bin_dir / "mmdc")) == str(bin_dir / "mmdc.cmd")
-
-
-def test_find_mmdc_bin_keeps_the_extensionless_name_off_windows(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """The mirror of the test above: `mmdc.cmd` is inert on macOS/Linux, and
-    a `.bin` directory can contain one if the tree was installed on Windows
-    and copied across."""
-    bin_dir = _npm_bin_dir_as_windows_writes_it(tmp_path)
-    monkeypatch.setenv("PATH", "")
-    monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr(config, "_WINDOWS", False)
-
-    assert _find_mmdc_bin(None) == str(bin_dir / "mmdc")
-
-
-def test_find_mmdc_bin_returns_none_when_nothing_is_found(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    # Both an empty PATH *and* an empty working directory: the local-install
-    # fallbacks are CWD-relative, so running from a checkout that has its own
-    # node_modules install would otherwise find that and fail this test for
-    # reasons that have nothing to do with the code under test.
-    monkeypatch.setenv("PATH", "")
-    monkeypatch.chdir(tmp_path)
-    assert _find_mmdc_bin(None) is None
-    assert _find_mmdc_bin("/does/not/exist") is None
-
-
 def test_find_tex2svg_script_returns_none_when_nothing_is_found(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    # Same CWD isolation as the mmdc case above - tools/mathjax/tex2svg.js is
-    # resolved relative to the working directory.
+    # tools/mathjax/tex2svg.js is resolved relative to the working directory.
     monkeypatch.chdir(tmp_path)
     assert _find_tex2svg_script(None) is None
     assert _find_tex2svg_script("/does/not/exist") is None
 
 
-def test_find_mmdc_bin_relative_configured_path_resolves_against_cwd_not_the_config_file(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """Documents a real footgun, not fixed here (see the in-depth test
-    review this came from): a relative `pdf_mmdc_bin` is resolved
-    against the current working directory, not wherever `config_path`
-    itself lives. Running `prodockit pdf -f project/zensical.toml` from
-    one directory up silently fails to find a relative pdf_mmdc_bin that
-    would resolve fine if run from inside `project/` instead - even
-    though config_path itself still correctly points at the right
-    zensical.toml either way."""
-    project_dir = tmp_path / "project"
-    tools_dir = project_dir / "tools" / "mmdc"
-    tools_dir.mkdir(parents=True)
-    (tools_dir / "mmdc").write_text("", encoding="utf-8")
-    relative_configured = os.path.join("tools", "mmdc", "mmdc")
-
-    monkeypatch.chdir(project_dir)
-    assert _find_mmdc_bin(relative_configured) == relative_configured
-
-    monkeypatch.chdir(tmp_path)
-    assert _find_mmdc_bin(relative_configured) is None
-
-
 def test_find_tex2svg_script_relative_configured_path_resolves_against_cwd_not_the_config_file(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Same footgun as _find_mmdc_bin above, for pdf_tex2svg_script."""
+    """Relative pdf_tex2svg_script paths resolve against the current directory."""
     project_dir = tmp_path / "project"
     tools_dir = project_dir / "tools" / "mathjax"
     tools_dir.mkdir(parents=True)
@@ -1476,20 +1384,19 @@ def test_no_warning_when_neither_source_has_a_release(monkeypatch, capsys) -> No
     assert capsys.readouterr().out == ""
 
 
-def test_mermaid_renderer_created_from_mmdc_and_closed_after_build(
+def test_mermaid_renderer_is_created_and_closed_after_build(
     project, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     root = project()
     instances: list[_RecordingMermaidRenderer] = []
     captured = {}
 
-    def renderer_factory(mmdc_bin: str, output_dir: str) -> _RecordingMermaidRenderer:
-        renderer = _RecordingMermaidRenderer(mmdc_bin, output_dir)
+    def renderer_factory(*, output_dir: str) -> _RecordingMermaidRenderer:
+        renderer = _RecordingMermaidRenderer(output_dir)
         instances.append(renderer)
         return renderer
 
-    monkeypatch.setattr(config, "_find_mmdc_bin", lambda _configured: str(root / "mmdc"))
-    monkeypatch.setattr(mermaid_module, "MmdcMermaidRenderer", renderer_factory)
+    monkeypatch.setattr(config, "create_mermaid_renderer", renderer_factory)
     monkeypatch.setattr(config, "validate_built_site", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(config, "page_html", _page_with_mermaid)
     monkeypatch.setattr(config, "check_web_rendering", lambda *_args, **_kwargs: None)
@@ -1500,13 +1407,9 @@ def test_mermaid_renderer_created_from_mmdc_and_closed_after_build(
 
     monkeypatch.setattr(config, "build_pdf", _spy)
 
-    build_pdf_from_built_site(
-        str(root / "zensical.toml"),
-        mermaid_backend=MermaidBackend.MMDC,
-    )
+    build_pdf_from_built_site(str(root / "zensical.toml"))
 
     renderer = instances[0]
-    assert renderer.mmdc_bin == str(root / "mmdc")
     assert renderer.output_dir == str(root / "docs" / ".prodockit-pdf-mermaid")
     assert captured["render_mermaid"].__self__ is renderer
     assert renderer.closed is True
@@ -1518,13 +1421,12 @@ def test_mermaid_renderer_is_closed_when_build_pdf_raises(
     root = project()
     instances: list[_RecordingMermaidRenderer] = []
 
-    def renderer_factory(mmdc_bin: str, output_dir: str) -> _RecordingMermaidRenderer:
-        renderer = _RecordingMermaidRenderer(mmdc_bin, output_dir)
+    def renderer_factory(*, output_dir: str) -> _RecordingMermaidRenderer:
+        renderer = _RecordingMermaidRenderer(output_dir)
         instances.append(renderer)
         return renderer
 
-    monkeypatch.setattr(config, "_find_mmdc_bin", lambda _configured: str(root / "mmdc"))
-    monkeypatch.setattr(mermaid_module, "MmdcMermaidRenderer", renderer_factory)
+    monkeypatch.setattr(config, "create_mermaid_renderer", renderer_factory)
     monkeypatch.setattr(config, "validate_built_site", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(config, "page_html", _page_with_mermaid)
     monkeypatch.setattr(config, "check_web_rendering", lambda *_args, **_kwargs: None)
@@ -1535,70 +1437,8 @@ def test_mermaid_renderer_is_closed_when_build_pdf_raises(
     monkeypatch.setattr(config, "build_pdf", _fail)
 
     with pytest.raises(RuntimeError, match="boom"):
-        build_pdf_from_built_site(
-            str(root / "zensical.toml"),
-            mermaid_backend=MermaidBackend.MMDC,
-        )
+        build_pdf_from_built_site(str(root / "zensical.toml"))
 
-    assert instances[0].closed is True
-
-
-def test_mermaid_renderer_is_absent_when_mmdc_is_not_found(
-    project, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    root = project()
-    captured = {}
-
-    monkeypatch.setattr(config, "_find_mmdc_bin", lambda _configured: None)
-    monkeypatch.setattr(config, "validate_built_site", lambda *_args, **_kwargs: None)
-    monkeypatch.setattr(config, "page_html", _page_with_mermaid)
-    monkeypatch.setattr(config, "check_web_rendering", lambda *_args, **_kwargs: None)
-    monkeypatch.setattr(config, "publish_pdf_to_built_site", lambda *_args: None)
-
-    def _spy(_pages, _output_path, **kwargs):
-        captured["render_mermaid"] = kwargs["render_mermaid"]
-
-    monkeypatch.setattr(config, "build_pdf", _spy)
-
-    build_pdf_from_built_site(
-        str(root / "zensical.toml"),
-        mermaid_backend=MermaidBackend.MMDC,
-    )
-
-    assert captured["render_mermaid"] is None
-
-
-def test_standalone_backend_skips_mmdc_and_closes_after_pdf_build(
-    project, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    root = project()
-    instances: list[_RecordingMermaidRenderer] = []
-    captured = {}
-
-    def no_discovery(_configured):
-        raise AssertionError("standalone selection must not discover mmdc")
-
-    def renderer_factory(backend, *, mmdc_bin, output_dir):
-        assert backend is MermaidBackend.STANDALONE
-        assert mmdc_bin is None
-        renderer = _RecordingMermaidRenderer("standalone", output_dir)
-        instances.append(renderer)
-        return renderer
-
-    def build(_pages, _output_path, **kwargs):
-        captured["render_mermaid"] = kwargs["render_mermaid"]
-
-    monkeypatch.setattr(config, "_find_mmdc_bin", no_discovery)
-    monkeypatch.setattr(config, "create_mermaid_renderer", renderer_factory)
-    monkeypatch.setattr(config, "validate_built_site", lambda *_args, **_kwargs: None)
-    monkeypatch.setattr(config, "page_html", _page_with_mermaid)
-    monkeypatch.setattr(config, "check_web_rendering", lambda *_args, **_kwargs: None)
-    monkeypatch.setattr(config, "publish_pdf_to_built_site", lambda *_args: None)
-    monkeypatch.setattr(config, "build_pdf", build)
-
-    build_pdf_from_built_site(str(root / "zensical.toml"))
-
-    assert captured["render_mermaid"].__self__ is instances[0]
     assert instances[0].closed is True
 
 
@@ -1611,7 +1451,6 @@ def test_unused_renderers_do_no_discovery_construction_or_directory_work(
     def unexpected(*_args, **_kwargs):
         raise AssertionError("unused renderer work must stay behind the HTML boundary")
 
-    monkeypatch.setattr(config, "_find_mmdc_bin", unexpected)
     monkeypatch.setattr(config, "_find_tex2svg_script", unexpected)
     monkeypatch.setattr(config, "create_mermaid_renderer", unexpected)
     monkeypatch.setattr(config, "validate_built_site", lambda *_args, **_kwargs: None)
