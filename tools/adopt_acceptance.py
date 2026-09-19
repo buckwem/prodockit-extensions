@@ -39,6 +39,10 @@ ADOPTED_SITE_FILES = {
     "javascripts/pdk.js",
     "javascripts/extra.js",
     "javascripts/mathjax.js",
+    # Upgrade comparisons also normalize the stock assets written by older
+    # releases before Adopt migrates them to the documented web runtime.
+    "javascripts/vendor/mathjax/LICENSE",
+    "javascripts/vendor/mathjax/tex-svg-full.js",
 }
 SCENARIOS = (
     ("toml-default", "zensical.toml", False, False),
@@ -53,6 +57,7 @@ ASSET_TAG = re.compile(
     rb"(?:<link\b[^>]*(?:pdk|extra)\.css[^>]*>|"
     rb"<script\b[^>]*(?:javascripts/(?:pdk|extra)\.js|"
     rb"javascripts/mathjax\.js|"
+    rb"javascripts/vendor/mathjax/tex-svg-full\.js|"
     rb"https://unpkg\.com/mathjax@3/es5/tex-mml-chtml\.js)[^>]*>\s*</script>)\s*",
     re.IGNORECASE | re.DOTALL,
 )
