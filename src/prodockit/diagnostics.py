@@ -1372,14 +1372,33 @@ def _first_version(text: str) -> str | None:
     return match.group(1) if match else None
 
 
-def _command(name: str) -> CommandInfo:
+def _command(
+    name: str,
+    *,
+    timeout: float = 10.0,
+    timeout_retries: int = 0,
+) -> CommandInfo:
     path = shutil.which(name)
     if path is None:
         return CommandInfo(name, None, None, "not found on PATH")
-    try:
-        completed = _run([path, "--version"])
-    except (OSError, subprocess.SubprocessError) as error:
-        return CommandInfo(name, path, None, str(error))
+    for attempt in range(timeout_retries + 1):
+        try:
+            completed = _run([path, "--version"], timeout=timeout)
+            break
+        except subprocess.TimeoutExpired:
+            if attempt < timeout_retries:
+                continue
+            attempts = timeout_retries + 1
+            return CommandInfo(
+                name,
+                path,
+                None,
+                "version probe timed out after "
+                f"{attempts} {'attempt' if attempts == 1 else 'attempts'} "
+                f"of {timeout:g} seconds",
+            )
+        except (OSError, subprocess.SubprocessError) as error:
+            return CommandInfo(name, path, None, str(error))
     output = "\n".join(
         part.strip() for part in (completed.stdout, completed.stderr) if part.strip()
     )
@@ -2917,8 +2936,13 @@ def _tool_result(
     *,
     root: Path,
     required: bool,
+    timeout_retries: int = 0,
 ) -> DiagnosticResult:
-    info = _command(command)
+    info = (
+        _command(command, timeout_retries=timeout_retries)
+        if timeout_retries
+        else _command(command)
+    )
     if info.path and not info.error:
         return DiagnosticResult(
             check_id,
@@ -2927,6 +2951,25 @@ def _tool_result(
             f"{name} {info.version or 'is available'}",
             (f"path: {_display_path(info.path, root)}",),
             {"required": required, "path": _display_path(info.path, root), "version": info.version},
+        )
+    if info.path:
+        timed_out = bool(info.error and info.error.startswith("version probe timed out"))
+        return DiagnosticResult(
+            check_id,
+            "Rendering toolchain",
+            "fail" if required else "warn",
+            (
+                f"{name} version check timed out"
+                if timed_out
+                else f"{name} could not be used"
+            )
+            + (" but is required by this project" if required else " (optional)"),
+            ((info.error or "version check failed"),),
+            {
+                "required": required,
+                "path": _display_path(info.path, root),
+                "version": None,
+            },
         )
     return DiagnosticResult(
         check_id,
@@ -3245,7 +3288,14 @@ def _renderer_checks(
     )
 
     checks.append(
-        _tool_result("renderer.node", "Node", "node", root=root, required=node_required)
+        _tool_result(
+            "renderer.node",
+            "Node",
+            "node",
+            root=root,
+            required=node_required,
+            timeout_retries=1 if sys.platform == "win32" else 0,
+        )
     )
     checks.extend(
         (
