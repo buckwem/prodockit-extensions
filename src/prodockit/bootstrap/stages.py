@@ -54,6 +54,8 @@ from prodockit.bootstrap.model import (
     Status,
     windows_system_ssh,
 )
+from prodockit.template_prerequisites import template_prodockit_version
+from prodockit.template_sync import TemplateSyncError
 
 #: The VS Code extensions the User Guide installs. Kept here rather than
 #: in the template so bootstrap can check them without a project.
@@ -2570,7 +2572,29 @@ def _imports_from_project_venv(context: Context, module: str) -> CommandResult:
     return context.runner.run(command)
 
 
+_PRODOCKIT_VERSION_PROBE = (
+    "import importlib.metadata; print(importlib.metadata.version('prodockit'))"
+)
 _PYTHON_VERSION_PROBE = "import platform; print(platform.python_version())"
+
+
+def _paired_prodockit_requirement(project: Path) -> tuple[str, str] | None:
+    """The exact runtime paired with the template, including its extras.
+
+    Older or non-Prodockit projects may not declare the package at all.  They
+    retain Bootstrap's existing requirements-only behaviour; supported
+    templates provide a declaration which can be made exact for installation.
+    """
+    try:
+        version, extras = template_prodockit_version(project)
+    except (FileNotFoundError, TemplateSyncError):
+        return None
+    return version, f"prodockit{extras}=={version}"
+
+
+def _project_prodockit_version(context: Context) -> str | None:
+    result = context.runner.run([str(_venv_python(context)), "-c", _PRODOCKIT_VERSION_PROBE])
+    return result.stdout.strip() if result.ok and result.stdout.strip() else None
 
 
 def _project_build_python(project: Path) -> str | None:
@@ -2616,6 +2640,16 @@ def _check_project_env(context: Context) -> CheckResult:
         )
     if not _imports_from_project_venv(context, "zensical").ok:
         return _missing("the project's dependencies are not installed")
+    paired_prodockit = _paired_prodockit_requirement(project)
+    if paired_prodockit is not None:
+        target, _specifier = paired_prodockit
+        installed = _project_prodockit_version(context)
+        if installed != target:
+            actual = installed or "not installed"
+            return _wrong(
+                f"the project environment has Prodockit {actual}, but the template "
+                f"is paired with Prodockit {target}"
+            )
     pdf_note = (
         "; PDF prerequisites are deferred - run `pdk pdf` when PDF output is required"
     )
@@ -2813,7 +2847,16 @@ def _plan_project_env(context: Context) -> Plan:
         commands.append(_move_path_command(context, venv, backup))
     if not python.exists() or rebuild:
         commands.append([sys.executable, "-m", "venv", str(venv)])
-    commands.append([str(python), "-m", "pip", "install", "-r", str(project / "requirements.txt")])
+    install = [str(python), "-m", "pip", "install", "-r", str(project / "requirements.txt")]
+    paired_prodockit = _paired_prodockit_requirement(project)
+    if paired_prodockit is not None:
+        _target, specifier = paired_prodockit
+        # requirements.txt intentionally carries a compatibility floor.  Add
+        # the template's exact paired release to this one transaction so pip
+        # cannot float to a newer release which Template Sync must immediately
+        # downgrade (#867).
+        install.append(specifier)
+    commands.append(install)
     if (
         context.guided
         and not context.config.source_url.strip()

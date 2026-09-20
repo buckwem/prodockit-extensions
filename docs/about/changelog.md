@@ -22,6 +22,7 @@ requests rather than here.
 ## Unreleased
 
 - Made deferred PDF diagnostics and first-use failures detect missing Pango or Node.js and show the exact platform installation command.
+- Made Bootstrap install and verify the exact Prodockit release paired with the template instead of floating to a release Template Sync immediately reverses.
 
 ## 0.68.0 (2026-09-20)
 
