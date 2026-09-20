@@ -14,10 +14,8 @@ accent-coloured icon SVG markup instead, so a caller (see
 
 from __future__ import annotations
 
-import glob
 import os
 import re
-import site
 from pathlib import Path
 from typing import Any
 from urllib.parse import unquote, urlsplit
@@ -63,43 +61,6 @@ def discover_icon_dirs(
         if os.path.isdir(abs_d) and abs_d not in valid_dirs:
             valid_dirs.append(abs_d)
     return valid_dirs
-
-
-def discover_legacy_icon_dirs(docs_dir: str = "docs") -> list[str]:
-    """Reproduce the legacy PDF path's installed-package discovery.
-
-    This deliberately remains separate from :func:`discover_icon_dirs`: the
-    public built-site renderer must not depend on Zensical's package layout,
-    while the hidden legacy command retains its old lookup behaviour.
-    """
-    dirs = discover_icon_dirs(docs_dir)
-    site_paths: list[str] = []
-    if hasattr(site, "getsitepackages"):
-        site_paths.extend(site.getsitepackages())
-    if hasattr(site, "getusersitepackages"):
-        site_paths.append(site.getusersitepackages())
-
-    candidates: list[str] = []
-    for site_path in site_paths:
-        for package in ("material", "mkdocs_material", "zensical"):
-            candidates.append(os.path.join(site_path, package, "templates", ".icons"))
-            candidates.append(os.path.join(site_path, package, ".icons"))
-
-    for local_dir in (".venv", "venv", "env"):
-        base_venv = os.path.join(os.getcwd(), local_dir)
-        if not os.path.isdir(base_venv):
-            continue
-        for package in ("material", "mkdocs_material", "zensical"):
-            for site_packages in ("lib/python*/site-packages", "Lib/site-packages"):
-                parts = (base_venv, *site_packages.split("/"), package)
-                candidates.extend(glob.glob(os.path.join(*parts, "templates", ".icons")))
-                candidates.extend(glob.glob(os.path.join(*parts, ".icons")))
-
-    for candidate in candidates:
-        absolute = os.path.abspath(candidate)
-        if os.path.isdir(absolute) and absolute not in dirs:
-            dirs.append(absolute)
-    return dirs
 
 
 _ADMONITION_ICON_VARIABLE = re.compile(

@@ -88,49 +88,18 @@ def test_pdf_command_accepts_a_config_file_option(
     assert (tmp_path / "docs" / "site_documentation.pdf").exists()
 
 
-def test_cli_registers_only_the_public_and_hidden_legacy_pdf_commands() -> None:
+def test_cli_registers_only_the_public_pdf_command() -> None:
     result = CliRunner().invoke(main, ["--help"])
 
     assert result.exit_code == 0
     assert "pdf" in main.commands
-    assert "pdf-legacy" in main.commands
-    assert main.commands["pdf-legacy"].hidden
+    assert "pdf-legacy" not in main.commands
     assert "pdf-built-site" not in main.commands
     assert "pdf-legacy" not in result.output
     assert "pdf-built-site" not in result.output
 
 
-def test_hidden_legacy_command_routes_only_to_the_old_renderer(monkeypatch) -> None:
-    import prodockit.cli as cli_module
-
-    calls = []
-
-    def legacy(config_file, *, markdown_file, on_stage):
-        calls.append((config_file, markdown_file))
-        return "legacy.pdf"
-
-    def built_site(*args, **kwargs):
-        raise AssertionError("the hidden command must call only the legacy renderer")
-
-    def provision(*args, **kwargs):
-        raise AssertionError("the hidden legacy command must never provision a runtime")
-
-    monkeypatch.setattr(cli_module, "build_pdf_from_zensical_config", legacy)
-    monkeypatch.setattr(cli_module, "build_pdf_from_built_site", built_site)
-    monkeypatch.setattr(cli_module, "prepare_runtime_components", provision)
-    monkeypatch.setattr(cli_module, "check_pdf_environment", provision)
-
-    result = CliRunner().invoke(
-        main,
-        ["pdf-legacy", "--config-file", "project.toml", "--markdown-file", "page.md"],
-    )
-
-    assert result.exit_code == 0, result.output
-    assert calls == [("project.toml", "page.md")]
-    assert "Wrote legacy.pdf" in result.output
-
-
-def test_public_pdf_command_routes_only_to_the_built_site_renderer(monkeypatch) -> None:
+def test_public_pdf_command_routes_to_the_built_site_renderer(monkeypatch) -> None:
     import prodockit.cli as cli_module
 
     calls = []
@@ -139,10 +108,6 @@ def test_public_pdf_command_routes_only_to_the_built_site_renderer(monkeypatch) 
         calls.append((config_file, markdown_file))
         return "built-site.pdf"
 
-    def legacy(*args, **kwargs):
-        raise AssertionError("the public command must not use the legacy renderer")
-
-    monkeypatch.setattr(cli_module, "build_pdf_from_zensical_config", legacy)
     monkeypatch.setattr(cli_module, "build_pdf_from_built_site", built_site)
 
     result = CliRunner().invoke(main, ["pdf"])

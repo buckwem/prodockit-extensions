@@ -105,7 +105,6 @@ from prodockit.environment import BuildEnvironmentError, check_pdf_environment
 from prodockit.pdf.build import PdfBuildError
 from prodockit.pdf.config import (
     build_pdf_from_built_site,
-    build_pdf_from_zensical_config,
     build_source_bundle_from_zensical_config,
 )
 from prodockit.pdf.mermaid import MermaidBackendUnavailableError
@@ -2718,26 +2717,23 @@ def bootstrap(
 def _run_pdf_command(
     config_file: str,
     markdown_file: str | None,
-    *,
-    legacy: bool,
 ) -> None:
-    """Shared presentation for the public and legacy PDF renderers."""
+    """Run the supported built-site PDF renderer with CLI presentation."""
     if markdown_file:
         click.echo(f"Building PDF from {config_file} using {markdown_file}...")
     else:
         click.echo(f"Building PDF from {config_file}...")
-    if not legacy:
+    try:
+        built_site = load_project_config(config_file).site_dir
         try:
-            built_site = load_project_config(config_file).site_dir
-            try:
-                built_site_label = built_site.relative_to(Path.cwd())
-            except ValueError:
-                built_site_label = built_site
-            click.echo(f"Using the completed Zensical build in {built_site_label}")
-        except (OSError, ValueError):
-            # The renderer reports the configuration error consistently with
-            # all other public PDF failures below.
-            pass
+            built_site_label = built_site.relative_to(Path.cwd())
+        except ValueError:
+            built_site_label = built_site
+        click.echo(f"Using the completed Zensical build in {built_site_label}")
+    except (OSError, ValueError):
+        # The renderer reports the configuration error consistently with
+        # all other public PDF failures below.
+        pass
 
     def say(number: int, total: int, title: str) -> None:
         # A PDF build is minutes of silence otherwise, and a silent
@@ -2748,16 +2744,11 @@ def _run_pdf_command(
 
     started = time.monotonic()
     try:
-        if legacy:
-            output_path = build_pdf_from_zensical_config(
-                config_file, markdown_file=markdown_file, on_stage=say
-            )
-        else:
-            output_path = build_pdf_from_built_site(
-                config_file,
-                markdown_file=markdown_file,
-                on_stage=say,
-            )
+        output_path = build_pdf_from_built_site(
+            config_file,
+            markdown_file=markdown_file,
+            on_stage=say,
+        )
     except (
         BuiltSiteError,
         PdfBuildError,
@@ -2777,7 +2768,7 @@ def _run_pdf_command(
 
 
 def _pdf_options(command: Callable[_P, _R]) -> Callable[_P, _R]:
-    """Apply the identical input options to the public and legacy commands."""
+    """Apply the PDF command's shared input options."""
     command = click.option(
         "-m",
         "--markdown-file",
@@ -2851,14 +2842,7 @@ def pdf(
         check_pdf_environment(config_file)
     except BuildEnvironmentError as error:
         raise click.ClickException(str(error)) from error
-    _run_pdf_command(config_file, markdown_file, legacy=False)
-
-
-@main.command("pdf-legacy", hidden=True)
-@_pdf_options
-def pdf_legacy(config_file: str, markdown_file: str | None) -> None:
-    """Legacy PDF renderer using Zensical's undocumented Python APIs."""
-    _run_pdf_command(config_file, markdown_file, legacy=True)
+    _run_pdf_command(config_file, markdown_file)
 
 
 @main.command("update-dates")

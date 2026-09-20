@@ -124,18 +124,9 @@ Zensical APIs from the PDF pipeline. It is not a replacement for current-page
 identity inside extensions that must also work during an ordinary website
 build and live preview.
 
-A hidden rollback command, `prodockit pdf-legacy`, also retains:
-
-```text
-zensical.config.parse_config()
-zensical.markdown.render.render()
-```
-
-These calls are deliberately confined to `pdf/config.py`. They no longer run
-through the public `prodockit pdf` command and remain only so a release can be
-diagnosed or rolled back while the new renderer settles. Removing the hidden
-legacy command must remove both imports and their architecture-inventory
-entries at the same time.
+The PDF pipeline now reads the project configuration directly and consumes
+only the completed site. It no longer imports `zensical.config` or
+`zensical.markdown.render`.
 
 Prodockit also needs the active heading slugifier and separator from
 Python-Markdown's configured TOC extension. Python-Markdown documents its
@@ -171,10 +162,9 @@ Issue #561 removed these undocumented dependencies from production code:
 - private Zensical test helpers such as `ContextExtension`, `Page` and
   `MacroEnv`.
 
-The built-site renderer has replaced the legacy renderer in the public
-command after matching it on complete real documents, including Mermaid,
-maths, cover markers, index entries, assets and pagination. The old path is
-now available only through the hidden rollback command.
+The built-site renderer is the only PDF path after matching the former
+renderer on complete real documents, including Mermaid, maths, cover markers,
+index entries, assets and pagination.
 
 ## Architecture controls {: #coupling-controls }
 
@@ -182,9 +172,7 @@ The boundary is enforced in several layers:
 
 1. An AST test inventories every static or literal dynamic production import
    whose module begins with `zensical`. It permits only the page-context
-   adapter and the hidden legacy implementation in `pdf/config.py`; a new
-   import anywhere else fails CI. Removing the rollback command must remove
-   the PDF entries.
+   adapter; a new import anywhere else fails CI.
 2. Unit tests exercise genuine absence, removed symbols, changed signatures,
    missing values and internal import failures at the page-context boundary.
 3. Documentation rendering tests run the public Zensical build and inspect
