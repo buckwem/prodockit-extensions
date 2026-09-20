@@ -4953,6 +4953,15 @@ def _run_template_sync(
                 ) from error
             say("  Result:   Adopt applied and verified the supported combination")
 
+            # Adopt can rewrite zensical.toml.  The preview plan was calculated
+            # from the file as it existed before Adopt, so rebase the remaining
+            # template-owned settings onto the configuration now on disk.  A
+            # stale plan can otherwise add a setting twice, undo Adopt's work,
+            # or try to patch a table layout which no longer exists (#913).
+            if config_path.exists():
+                project_config = read_config(config_path.read_text(encoding="utf-8"))
+                added, updated = config_changes(manifest, template_config, project_config)
+
         review_work_needed = work_needed or bool(adopt_written)
         if not review_work_needed:
             # A package-only handoff can finish with no project diff. Avoid an
