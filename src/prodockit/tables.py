@@ -30,8 +30,12 @@ from decimal import Decimal, InvalidOperation
 
 from markdown import Markdown
 from markdown.extensions import Extension
+from markdown.extensions.attr_list import get_attrs_and_remainder
 from markdown.extensions.tables import TableExtension
+from markdown.preprocessors import Preprocessor
 from markdown.treeprocessors import Treeprocessor
+
+from prodockit._zensical import page_source
 
 SIZED_TABLE_CLASS = "prodockit-table-sized"
 
@@ -86,6 +90,13 @@ VALIGN_CLASSES = {
 
 DELIMITER_ROW = re.compile(r"^\|\s*:?-{3,}:?\s*(?:\|\s*:?-{3,}:?\s*)+\|$")
 
+_ATTRIBUTE_LIST = re.compile(r"(?<!\\)\{:\s*(?P<body>[^{}\n]*?)\s*\}")
+_INLINE_CODE = re.compile(r"(?<!\\)(`+).*?\1")
+_FENCE = re.compile(r"^[ ]{0,3}(?P<marker>`{3,}|~{3,})")
+_ATTRIBUTE_NAME = re.compile(r"[A-Za-z_:][A-Za-z0-9_.:-]*\Z")
+_TABLE_ATTRIBUTES = {"colspan", "rowspan", "width", "rotate", "height", "shade", "valign"}
+_TABLE_CLASSES = {HEADER_MARKER, COMPACT_MARKER}
+
 
 class TableError(ValueError):
     """A table that cannot be built as asked.
@@ -94,6 +105,99 @@ class TableError(ValueError):
     full-width column looks like the feature worked, and a silent wrong
     answer is the failure this project keeps meeting.
     """
+
+
+def _without_html_comments(line: str, in_comment: bool) -> tuple[str, bool]:
+    """Mask comments without changing the source line's character offsets."""
+    visible = list(line)
+    position = 0
+    while position < len(line):
+        if in_comment:
+            end = line.find("-->", position)
+            stop = len(line) if end < 0 else end + 3
+            visible[position:stop] = " " * (stop - position)
+            if end < 0:
+                return "".join(visible), True
+            position = stop
+            in_comment = False
+            continue
+        start = line.find("<!--", position)
+        if start < 0:
+            break
+        visible[start : start + 4] = " " * 4
+        position = start + 4
+        in_comment = True
+    return "".join(visible), in_comment
+
+
+def _uses_table_convention(attrs: list[tuple[str, str]]) -> bool:
+    return any(
+        key in _TABLE_ATTRIBUTES or (key == "." and value in _TABLE_CLASSES)
+        for key, value in attrs
+    )
+
+
+def _attribute_location(md: Markdown, line_number: int) -> str:
+    source = page_source(md)
+    return f"{source}:{line_number}" if source else f"line {line_number}"
+
+
+class MalformedTableAttributePreprocessor(Preprocessor):
+    """Reject malformed Prodockit cell attributes before ``attr_list`` hides them."""
+
+    def run(self, lines: list[str]) -> list[str]:
+        fence: tuple[str, int] | None = None
+        in_comment = False
+        for line_number, original in enumerate(lines, start=1):
+            fence_match = _FENCE.match(original)
+            if fence is not None:
+                if fence_match is not None:
+                    marker = fence_match.group("marker")
+                    if marker[0] == fence[0] and len(marker) >= fence[1]:
+                        fence = None
+                continue
+            if fence_match is not None:
+                marker = fence_match.group("marker")
+                fence = (marker[0], len(marker))
+                continue
+            if original.startswith(("    ", "\t")):
+                continue
+            line, in_comment = _without_html_comments(original, in_comment)
+            stripped = line.strip()
+            if not (stripped.startswith("|") and stripped.endswith("|")):
+                continue
+            line = _INLINE_CODE.sub(lambda match: " " * len(match.group(0)), line)
+            for match in _ATTRIBUTE_LIST.finditer(line):
+                body = match.group("body")
+                attrs, remainder = get_attrs_and_remainder(body)
+                if not _uses_table_convention(attrs):
+                    continue
+                location = _attribute_location(self.md, line_number)
+                if match.start() and not line[match.start() - 1].isspace():
+                    raise TableError(
+                        f"{location}: missing space before Prodockit table attribute list; "
+                        "insert a space before '{:'"
+                    )
+                invalid = next(
+                    (
+                        key
+                        for key, _value in attrs
+                        if key != "." and _ATTRIBUTE_NAME.fullmatch(key) is None
+                    ),
+                    None,
+                )
+                quotes_are_unbalanced = body.count('"') % 2 or body.count("'") % 2
+                if invalid is not None or remainder.strip() or quotes_are_unbalanced:
+                    detail = (
+                        f"unexpected token {invalid!r}"
+                        if invalid is not None
+                        else "unbalanced quote"
+                    )
+                    raise TableError(
+                        f"{location}: malformed Prodockit table attribute list ({detail}); "
+                        "remove the stray token or complete the quoted value"
+                    )
+        return lines
 
 
 class TableWidthTreeprocessor(Treeprocessor):
@@ -587,6 +691,11 @@ class TablesExtension(Extension):
         md.registerExtension(self)
         if "table" not in md.parser.blockprocessors:
             TableExtension().extendMarkdown(md)
+        md.preprocessors.register(
+            MalformedTableAttributePreprocessor(md),
+            "prodockit-malformed-table-attributes",
+            29,
+        )
         md.treeprocessors.register(
             TableWidthTreeprocessor(md),
             "prodockit-tables",
