@@ -156,6 +156,34 @@ def test_correction_summary_groups_commands(capsys):
     )
 
 
+def test_correction_summary_separates_first_use_pdf_preparation(capsys):
+    from prodockit.cli import _adopt_correction_summary
+
+    _adopt_correction_summary(
+        [
+            SimpleNamespace(
+                id="renderer.pandoc",
+                status="warn",
+                summary="Project-local Pandoc will be prepared on first use",
+                data={"deferred": True},
+            ),
+            SimpleNamespace(
+                id="renderer.node",
+                status="fail",
+                summary="Node is missing but required",
+                data={"deferred": False},
+            ),
+        ]
+    )
+
+    assert capsys.readouterr().out == (
+        "Deferred until first PDF use (no Adopt action needed):\n"
+        "1. Project-local Pandoc will be prepared on first use\n"
+        "Other actions needed (see details above):\n"
+        "1. Node is missing but required\n"
+    )
+
+
 def test_declining_local_git_setup_does_not_mutate(tmp_path, monkeypatch):
     path = tmp_path / "zensical.toml"
     path.write_text('[project]\nsite_name="Report"\nrepo_url="https://github.com/me/report"\n')
@@ -239,3 +267,46 @@ def test_overall_decline_does_not_enter_repository_setup(tmp_path, monkeypatch):
     )
     cli._adopt_finish_details(tmp_path, apply=True, offline=False)
     assert seen == [False]
+
+
+def test_completed_adoption_separates_deferred_cache_from_required_prerequisite(
+    tmp_path, monkeypatch, capsys
+):
+    from prodockit import cli, diagnostics
+
+    (tmp_path / "zensical.toml").write_text('[project]\nsite_name="Report"\n')
+    monkeypatch.setattr(cli.sys.stdin, "isatty", lambda: True)
+    choices = iter([False, True])
+    monkeypatch.setattr(click, "confirm", lambda *args, **kwargs: next(choices))
+    monkeypatch.setattr(adopt_identity, "configure", lambda *args, **kwargs: None)
+    monkeypatch.setattr(
+        diagnostics,
+        "inspect",
+        lambda *args, **kwargs: diagnostics.DiagnosticReport(
+            "zensical.toml",
+            str(tmp_path),
+            False,
+            (
+                diagnostics.DiagnosticResult(
+                    "renderer.pandoc",
+                    "Rendering toolchain",
+                    "warn",
+                    "Project-local Pandoc will be prepared on first use",
+                    data={"deferred": True},
+                ),
+                diagnostics.DiagnosticResult(
+                    "renderer.node",
+                    "Rendering toolchain",
+                    "fail",
+                    "Node is missing but required by this project",
+                ),
+            ),
+        ),
+    )
+
+    cli._adopt_finish_details(tmp_path, apply=True, offline=False)
+
+    output = capsys.readouterr().out
+    assert "Adoption completed, but required setup prerequisites remain." in output
+    assert "Deferred until first PDF use (no Adopt action needed):" in output
+    assert "Other actions needed (see details above):" in output

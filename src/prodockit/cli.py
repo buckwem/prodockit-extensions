@@ -3045,7 +3045,9 @@ def _adopt_correction_summary(checks: Sequence[Any]) -> None:
     for check in checks:
         if check.status == "pass":
             continue
-        if check.id in {"publishing.details", "repository.git", "maintenance.adopt-readiness"}:
+        if check.status == "warn" and getattr(check, "data", {}).get("deferred"):
+            command = "deferred"
+        elif check.id in {"publishing.details", "repository.git", "maintenance.adopt-readiness"}:
             command = "pdk adopt --apply"
         elif check.id in {"dependencies.pins", "dependencies.shared-files"}:
             command = "pdk diag --apply"
@@ -3053,11 +3055,12 @@ def _adopt_correction_summary(checks: Sequence[Any]) -> None:
             command = ""
         groups.setdefault(command, []).append(check.summary)
     for command, problems in groups.items():
-        heading = (
-            f"Run '{command}' to correct:"
-            if command
-            else "Other actions needed (see details above):"
-        )
+        if command == "deferred":
+            heading = "Deferred until first PDF use (no Adopt action needed):"
+        elif command:
+            heading = f"Run '{command}' to correct:"
+        else:
+            heading = "Other actions needed (see details above):"
         click.secho(heading, fg="yellow", bold=True)
         for number, problem in enumerate(problems, 1):
             click.echo(f"{number}. {problem}")
@@ -3145,10 +3148,17 @@ def _adopt_finish_details(root: Path, *, apply: bool, offline: bool) -> None:
                     "Diagnostics passed. The local setup is ready for build testing.", fg="green"
                 )
             else:
-                click.secho(
-                    "Setup still has items to resolve or deferred publishing details.",
-                    fg="yellow",
-                )
+                if any(check.status == "fail" for check in report.checks):
+                    click.secho(
+                        "Adoption completed, but required setup prerequisites remain.",
+                        fg="yellow",
+                    )
+                else:
+                    click.secho(
+                        "Adoption completed. Review deferred or optional items before the "
+                        "relevant build or publishing step.",
+                        fg="yellow",
+                    )
                 _adopt_correction_summary(report.checks)
 
 

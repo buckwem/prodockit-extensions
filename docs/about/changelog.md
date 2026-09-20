@@ -22,6 +22,7 @@ requests rather than here.
 ## Unreleased
 
 - Made Windows Node diagnostics retry one transient startup timeout before reporting an accurate persistent failure.
+- Made Adopt report clean PDF caches as deferred first-use preparation and removed its obsolete MathJax npm ignore check.
 
 ## 0.67.0 (2026-09-20)
 

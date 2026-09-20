@@ -387,21 +387,11 @@ Install Prodockit, choose the features you need, then check the completed setup.
 
 !!! info "Why are we not installing and configuring by hand?"
 
-    With Mermaid and mathematical notation selected, the setup involves around
-    230 individual software packages and tools: around 30 Python packages,
-    around 195 JavaScript packages, plus Python, Node.js, npm, Pandoc and a
-    browser for drawing diagrams. These figures include the supporting packages
-    installed automatically, not just the tools named in the commands. System
-    libraries and fonts are additional, and totals vary by platform and release.
-    There are also around 50 configuration entries to check or add in
-    `zensical.toml`, counting extension sections and website/PDF settings.
-    The exact work depends on your platform and what is already configured.
-
-    Installing compatible versions, connecting the tools and checking all those
-    settings by hand takes time. Missed commands, failed downloads and small
-    configuration mistakes make it easy to end up with a partly working site.
-    Adopt automates this work, checks what is already present and lets you rerun
-    it after a failure instead of starting the whole process again.
+    Adopt aligns the Python packages, managed assets and project configuration,
+    while preserving author-owned content and settings. It does not install the
+    PDF generator or its host prerequisites. The first `pdk pdf` build prepares
+    only the verified project-local runtimes the completed document actually
+    uses, so website-only adoption carries no PDF runtime burden.
 
 /// steps
 
@@ -814,7 +804,7 @@ git status --short --untracked-files=all
 ```
 
 Include source, configuration and the publishing workflow—not `.venv`,
-`node_modules`, generated website output, caches, backups or private files.
+generated website output, caches, backups or private files.
 
 ////
 
@@ -958,11 +948,9 @@ Prodockit-specific files to review after adoption
 ///
 
 Adopt can also change installed packages in the active environment (usually
-`.venv/`), renderer `node_modules/`, browser/download caches and system tooling
-or environment settings. Separately approved repository setup can initialise
+`.venv/`). Separately approved repository setup can initialise
 `.git/` and update local Git identity and remote settings. These are local
-installation changes, not source files to add to your commit. Renderer backups
-are not a general backup of every file Adopt changes.
+installation changes, not source files to add to your commit.
 
 Do not commit local environments, caches, backups or private files.
 

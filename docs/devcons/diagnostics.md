@@ -127,10 +127,11 @@ selects an online latest release.
 
 For `renderer.mermaid` and `renderer.mathjax`, diagnostics inspects the selected
 project-local cache and runs a real fresh-process render probe without
-downloading or changing it. A missing, incompatible or corrupt runtime points
-to `pdk pdf --prepare mermaid` or `pdk pdf --prepare mathjax`. Mermaid requires
-only its reviewed Python wheels; MathJax additionally requires Node.js on
-`PATH`. Neither production path uses npm, Puppeteer or a browser.
+downloading or changing it. A clean missing cache is explicitly deferred to
+the first PDF build; an incompatible or corrupt cache points to
+`pdk pdf --prepare mermaid` or `pdk pdf --prepare mathjax`. Mermaid requires
+only its reviewed Python wheels; MathJax additionally requires Node.js on `PATH`.
+Neither production path uses npm, Puppeteer or a browser.
 
 For `project.configuration`, automatic edits are restricted to
 `zensical.toml`. Each unique spelling correction, obsolete index-setting move,
@@ -236,19 +237,22 @@ Dependency and managed-file diagnostics
 
 ## Rendering toolchain
 
-A renderer is a failure only when the current configuration requires it.
-Missing unused tools are warnings, so a website-only project does not have to
-install the PDF toolchain merely to make diagnostics pass.
+A clean missing project cache is a warning because the first applicable PDF
+build prepares it transparently. An incompatible or unhealthy cache is a
+failure when the current configuration requires it. Missing host prerequisites
+such as Node or system-backed WeasyPrint are also failures only when required,
+so a website-only project does not have to install the PDF toolchain merely to
+make diagnostics pass.
 \ref{tab-diagnostics-rendering-toolchain} gives the repair for each component.
 
 | Check ID | Failure or warning means | Author remediation |
 |---|---|---|
-| `renderer.pandoc` | The selected project-local Pandoc cache is absent, incompatible, corrupt, or fails its absolute-path version/citeproc probe. | Run `pdk pdf --prepare pandoc`; diagnostics itself never downloads or changes the cache. |
-| `renderer.fonts` | The selected project-local Inter/JetBrains Mono bundle is absent, incompatible, corrupt, or incomplete. | Run `pdk pdf --prepare fonts`; diagnostics itself never downloads or changes the cache. |
-| `renderer.weasyprint` | On Windows x64, the project-local runtime is absent, incompatible, corrupt, or fails its absolute-path CLI probe. Elsewhere, a fresh Python process could not import system-backed WeasyPrint. | On Windows, run `pdk pdf --prepare weasyprint`; diagnostics itself never downloads or changes the cache. On other platforms, run `python -c "import weasyprint; print(weasyprint.__version__)"`, then install the native libraries described in the installation guide. |
+| `renderer.pandoc` | A warning says first-use preparation is pending. A failure says an existing cache is incompatible, corrupt, or failed its absolute-path version/citeproc probe. | Let the next applicable build prepare it, or run `pdk pdf --prepare pandoc`; diagnostics itself never downloads or changes the cache. |
+| `renderer.fonts` | A warning says first-use preparation is pending. A failure says an existing Inter/JetBrains Mono bundle is incompatible, corrupt, or incomplete. | Let the next PDF build prepare it, or run `pdk pdf --prepare fonts`; diagnostics itself never downloads or changes the cache. |
+| `renderer.weasyprint` | On Windows x64, a warning says first-use preparation is pending; a failure means an existing runtime is incompatible, corrupt, or fails its absolute-path CLI probe. Elsewhere, a failure means a fresh Python process could not import system-backed WeasyPrint. | On Windows, let the next PDF build prepare it or run `pdk pdf --prepare weasyprint`. On other platforms, run `python -c "import weasyprint; print(weasyprint.__version__)"`, then install the native libraries described in the installation guide. |
 | `renderer.node` | Node is missing or cannot report its version. | Install the project's supported Node version, reopen the terminal, and confirm with `node --version`. |
-| `renderer.mermaid` | The selected project-local Mermaid cache is absent, incompatible, corrupt, or fails its fresh-process SVG probe. | Run `pdk pdf --prepare mermaid`; diagnostics itself never downloads or changes the cache. |
-| `renderer.mathjax` | The selected project-local MathJax 4 cache is absent, incompatible, corrupt, Node.js is missing, or a real TeX-to-SVG probe fails. | Install Node.js if required, then run `pdk pdf --prepare mathjax`; no npm installation is used. |
+| `renderer.mermaid` | A warning says first-use preparation is pending. A failure means an existing cache is incompatible, corrupt, or fails its fresh-process SVG probe. | Let the next PDF build prepare it, or run `pdk pdf --prepare mermaid`; diagnostics itself never downloads or changes the cache. |
+| `renderer.mathjax` | A warning says first-use preparation is pending. A failure means an existing MathJax 4 cache is incompatible, corrupt, or fails a real TeX-to-SVG probe; Node has its own prerequisite check. | Install Node.js if required, then let the next PDF build prepare MathJax or run `pdk pdf --prepare mathjax`; no npm installation is used. |
 | `renderer.inspection` | An operating-system error prevented the rendering tools from being inspected. | Correct the path or permissions named in the detail. Run each shown executable with `--version`, then rerun `pdk diag --verbose`. |
 /// table-caption | <
     attrs: {id: tab-diagnostics-rendering-toolchain}

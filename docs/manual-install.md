@@ -1427,8 +1427,8 @@ what the first commit will contain:
 git status --short --untracked-files=all
 ```
 
-Generated dependencies such as `.venv`, `node_modules`, and the installed
-MathJax bundle should not appear because `.gitignore` excludes them. Stop if
+Generated dependencies such as `.venv` and `.prodockit/cache/pdf/` should not
+appear because `.gitignore` excludes them. Stop if
 generated files or private material appear, and correct the ignore rules
 before selecting files.
 

@@ -341,17 +341,16 @@ architecture boundary that stopped activation.
 
 ## Repair the Node.js installation {: #installtooling-npm-missing }
 
-Open a new terminal first, then check both commands:
+Open a new terminal first, then check Node directly:
 
 ``` bash
 node --version
-npm --version
 ```
 
-If only `npm` is missing, return to [Install
+If the command is missing, return to [Install
 Node.js](manual-install.md#install-nodejs) and use the supported installer for
-the operating system rather than combining Node.js from one source with npm
-from another.
+the operating system. The project-local MathJax adapter needs Node.js but does
+not use npm or a `node_modules` directory.
 
 ## Recover a failed or interrupted installation {: #installtooling-download-fails }
 
@@ -362,25 +361,24 @@ usually recognise components that finished successfully and continue with the
 missing work.
 
 Bootstrap hides routine installer output and shows how long the current
-command has been running. If a Homebrew, pip, npm, apt, winget, or font command
+command has been running. If a Homebrew, pip, apt, or winget command
 has made no progress for an unusually long time, interrupt it once with
 ++ctrl+c++. Do not interrupt while the package manager says it is writing,
 linking, or configuring files.
 
-Run the failed command again. This recovered the Homebrew font installation
-during testing:
+Run the failed command again. For example, rerun the native library installation
+when a macOS WeasyPrint import reports missing Pango libraries:
 
 ``` bash
-brew install --cask font-inter font-jetbrains-mono
+brew install pango
 ```
 
 Before repeating a larger stage, check what completed. Useful examples are:
 
 ``` bash
-brew list --formula pandoc pango
-brew list --cask font-inter font-jetbrains-mono
+brew list --formula pango
 python -m pip check
-npm --version
+node --version
 ```
 
 Bootstrap and Adopt are designed to resume: rerunning them rechecks completed
@@ -424,7 +422,7 @@ route shown by each check in \ref{tab-first-site-diagnostic-corrections}:
 | Diagnostic finding | Where to correct it |
 | --- | --- |
 | Starter site title, example website address, or missing repository link | Run `pdk adopt --apply` and answer the final questions. If an existing remote has changed, use `pdk sync-repo --create-readme`. |
-| Missing PDF libraries, fonts, or renderer prerequisites | Run `pdk adopt --dry-run`, review the proposed repair, then run `pdk adopt --apply`. Refresh the environment before rerunning diagnostics. |
+| Missing PDF libraries, fonts, or renderer prerequisites | Let `pdk pdf` prepare project-local runtimes on first use, or run `pdk pdf --prepare COMPONENT`. Install only a specifically reported host prerequisite such as Node or macOS/Linux Pango. |
 | Missing ignore rules for local or generated files | Run `pdk adopt --apply` for the baseline rules. Custom output paths need matching ignore rules. |
 | Generated files already tracked by Git | Review them before removing them from Git tracking, retaining local copies. Ignore rules alone do not fix this; diagnostics never deletes files. |
 | A stock workflow installs only Zensical | Run `pdk adopt --apply` to review its repair. |

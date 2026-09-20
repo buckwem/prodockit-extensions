@@ -103,8 +103,8 @@ def test_deliverables_allow_only_expected_optional_warnings(tmp_path, monkeypatc
         name = command[3]
         if name == "diag":
             output = (
-                "  WARN Project-local Mermaid is not prepared (optional)\n"
-                "  WARN Project-local MathJax is not prepared (optional)\n"
+                "  WARN Project-local Mermaid will be prepared on first use\n"
+                "  WARN Project-local MathJax will be prepared on first use\n"
                 "  WARN Project is not inside a Git repository\n"
                 "  WARN Publishing details need attention; local testing can continue\n"
                 "Result: WARN (1 passed)"
