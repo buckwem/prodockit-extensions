@@ -22,6 +22,7 @@ requests rather than here.
 ## Unreleased
 
 - Separated PDF-only Python packages into `pdf-requirements.txt`; `pdk pdf` now installs and caches them transparently on first use while Bootstrap and website-only environments remain lightweight.
+- Made PDF prerequisite errors and the template-site guide give concise platform-specific installation instructions.
 
 ## 0.67.1 (2026-09-20)
 

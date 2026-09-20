@@ -3262,7 +3262,7 @@ def _system_weasyprint_check(
             },
         )
     except Exception as error:
-        safe_error = _sanitise_text(f"{type(error).__name__}: {error}", root)
+        safe_error = _weasyprint_import_error(error, root)
         return DiagnosticResult(
             "renderer.weasyprint",
             "Rendering toolchain",
@@ -3279,6 +3279,29 @@ def _system_weasyprint_check(
                 ),
             },
         )
+
+
+def _weasyprint_import_error(
+    error: Exception, root: Path, *, platform: str | None = None
+) -> str:
+    """Replace WeasyPrint's long native-loader banner with the actual repair."""
+    safe_error = _sanitise_text(f"{type(error).__name__}: {error}", root)
+    if "libgobject-2.0-0" not in safe_error:
+        return safe_error
+    selected_platform = sys.platform if platform is None else platform
+    if selected_platform == "darwin":
+        return (
+            "WeasyPrint's macOS native libraries are missing. Run `brew install pango`, "
+            'then `export DYLD_FALLBACK_LIBRARY_PATH="$(brew --prefix)/lib"` in this '
+            "terminal and rerun `pdk diag`."
+        )
+    if selected_platform.startswith("linux"):
+        return (
+            "WeasyPrint's Linux native libraries are missing. Run `sudo apt update && "
+            "sudo apt install -y libpango-1.0-0 libpangoft2-1.0-0 "
+            "libharfbuzz-subset0`, then rerun `pdk diag`."
+        )
+    return safe_error
 
 
 def _renderer_checks(
