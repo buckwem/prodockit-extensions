@@ -372,6 +372,78 @@ repositories on every host.
 
 ////
 
+//// step | Install optional PDF software
+
+Skip this step for a website-only project. Bootstrap creates the project and
+its Python environment, but deliberately leaves optional PDF software to
+`pdk pdf`. Prodockit downloads and verifies project-local Pandoc, fonts,
+Mermaid and MathJax runtimes only when the completed document uses them.
+
+On macOS and Ubuntu, install WeasyPrint's native Pango libraries before the
+first PDF build:
+
+=== ":material-apple: macOS"
+
+    ```bash
+    brew install pango
+    export DYLD_FALLBACK_LIBRARY_PATH="$(brew --prefix)/lib"
+    ```
+
+=== ":fontawesome-brands-windows: Windows"
+
+    The supported Windows x64 path uses a verified project-local WeasyPrint
+    runtime and needs no Pango or MSYS2 installation.
+
+=== ":material-linux: Linux (Ubuntu)"
+
+    ```bash
+    sudo apt update
+    sudo apt install -y libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz-subset0
+    ```
+
+PDF mathematics currently uses Node.js to run MathJax's transitional SVG
+adapter. Bootstrap and Adopt do not install this optional host prerequisite.
+Install it only when the PDF contains maths, or when you deliberately intend
+to force every optional component with `--prepare all`:
+
+=== ":material-apple: macOS"
+
+    ```bash
+    brew install node
+    ```
+
+=== ":fontawesome-brands-windows: Windows"
+
+    ```powershell
+    winget install OpenJS.NodeJS.LTS
+    ```
+
+    Close and reopen PowerShell after installation, return to the project,
+    and reactivate its virtual environment.
+
+=== ":material-linux: Linux (Ubuntu)"
+
+    ```bash
+    sudo apt update
+    sudo apt install -y nodejs
+    ```
+
+Verify Node and force every supported PDF component when you need an
+ahead-of-time installation:
+
+```bash
+node --version
+pdk pdf --prepare all
+```
+
+Ordinary `pdk pdf` is the simpler default: it prepares only components found
+in the completed content. Mermaid is Python-only and needs no Node.js, npm,
+browser or MSYS2. MathJax needs Node.js but no npm package or `node_modules`
+directory. See [Create a PDF](../pdf.md#pdf-quick-start) for the complete
+platform prerequisites and troubleshooting guidance.
+
+////
+
 //// step | Run project diagnostics
 
 ```bash

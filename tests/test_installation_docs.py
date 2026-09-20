@@ -478,7 +478,7 @@ def test_bootstrap_continues_after_shared_preparation() -> None:
         page.index("## Install with bootstrap") : page.index("## Understand the completed project")
     ]
     assert "installation.md#installation-preparation" in installation
-    assert installation.count("//// step | ") == 14
+    assert installation.count("//// step | ") == 15
     assert "### Stage 1 — Prepare the setup environment" in installation
     assert "### Stage 2 — Assess and preview" in installation
     assert "### Stage 3 — Apply and confirm" in installation

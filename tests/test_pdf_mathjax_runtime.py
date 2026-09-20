@@ -67,8 +67,24 @@ def test_probe_explains_that_node_but_not_npm_is_required(
     (tmp_path / runtime.MATHJAX_LICENCE).write_text("Apache-2.0\n", encoding="utf-8")
     monkeypatch.setattr(runtime.shutil, "which", lambda _name: None)
 
-    with pytest.raises(RuntimeStoreError, match=r"Node\.js on PATH; no npm packages"):
+    with pytest.raises(RuntimeStoreError) as raised:
         runtime.probe_runtime(tmp_path)
+
+    message = str(raised.value)
+    for expected in (
+        "Node.js on PATH",
+        "transitional SVG adapter",
+        "pdk boot and pdk adopt do not install",
+        "brew install node",
+        "winget install OpenJS.NodeJS.LTS",
+        "sudo apt update && sudo apt install -y nodejs",
+        "node --version",
+        "pdk pdf --prepare mathjax",
+        "pdk pdf --prepare all",
+        "ordinary `pdk pdf`",
+        "No npm packages, node_modules, browser, or MSYS2",
+    ):
+        assert expected in message
 
 
 def test_provider_refuses_changed_download_metadata(tmp_path: Path) -> None:

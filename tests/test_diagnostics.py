@@ -1772,6 +1772,55 @@ def test_weasyprint_import_banner_never_corrupts_diagnostic_output(
     assert captured.err == ""
 
 
+@pytest.mark.parametrize(
+    ("platform", "repair"),
+    [
+        (
+            "darwin",
+            'brew install pango`',
+        ),
+        (
+            "linux",
+            "sudo apt install -y libpango-1.0-0 libpangoft2-1.0-0 "
+            "libharfbuzz-subset0",
+        ),
+    ],
+)
+def test_weasyprint_missing_native_library_has_a_concise_platform_repair(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    platform: str,
+    repair: str,
+) -> None:
+    banner = (
+        "WeasyPrint could not import some external libraries. Please carefully follow "
+        "the installation steps before reporting an issue:\n" + "detail\n" * 40
+    )
+    monkeypatch.setattr(diagnostics.sys, "platform", platform)
+    monkeypatch.setattr(
+        diagnostics,
+        "_probe_weasyprint_import",
+        lambda *_args: subprocess.CompletedProcess(
+            [],
+            1,
+            "",
+            banner + "OSError: cannot load library 'libgobject-2.0-0'",
+        ),
+    )
+
+    result = diagnostics._system_weasyprint_check(
+        tmp_path,
+        required=True,
+        retry_reporter=None,
+    )
+
+    assert result.status == "fail"
+    assert repair in result.details[0]
+    assert "pdk diag" in result.details[0]
+    assert "Please carefully follow" not in result.details[0]
+    assert len(result.details[0].splitlines()) == 1
+
+
 def test_weasyprint_timeout_reports_bounded_probe_evidence(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

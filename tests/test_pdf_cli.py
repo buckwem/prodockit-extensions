@@ -275,6 +275,47 @@ def test_pdf_prepare_reports_an_unavailable_provider_without_a_traceback(
     assert "Traceback" not in result.output
 
 
+@pytest.mark.parametrize("component", ["mathjax", "all"])
+def test_pdf_prepare_explains_missing_node_for_direct_and_all_requests(
+    component: str, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    import prodockit.cli as cli_module
+    from prodockit.pdf import mathjax_runtime
+    from prodockit.pdf.python_requirements import PdfPythonPreparation
+
+    runtime = tmp_path / mathjax_runtime.MATHJAX_DIRECTORY
+    runtime.mkdir(parents=True)
+    (tmp_path / mathjax_runtime.MATHJAX_COMPONENT).write_bytes(b"fixture")
+    (tmp_path / mathjax_runtime.MATHJAX_LICENCE).write_text(
+        "Apache-2.0\n", encoding="utf-8"
+    )
+    monkeypatch.setattr(mathjax_runtime.shutil, "which", lambda _name: None)
+    monkeypatch.setattr(
+        cli_module,
+        "prepare_pdf_python_requirements",
+        lambda _config: PdfPythonPreparation(
+            tmp_path, True, {"weasyprint": "69.0"}
+        ),
+    )
+    monkeypatch.setattr(
+        cli_module,
+        "prepare_runtime_components",
+        lambda *_args: mathjax_runtime.probe_runtime(tmp_path),
+    )
+
+    result = CliRunner().invoke(main, ["pdf", "--prepare", component])
+
+    assert result.exit_code == 1, result.output
+    assert "MathJax PDF rendering needs Node.js on PATH" in result.output
+    assert "brew install node" in result.output
+    assert "winget install OpenJS.NodeJS.LTS" in result.output
+    assert "sudo apt update && sudo apt install -y nodejs" in result.output
+    assert "pdk pdf --prepare mathjax" in result.output
+    assert "ordinary `pdk pdf`" in result.output
+    assert "No npm packages, node_modules, browser, or MSYS2" in result.output
+    assert "Traceback" not in result.output
+
+
 def test_pdf_default_reports_failed_mermaid_preparation_when_mermaid_is_used(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

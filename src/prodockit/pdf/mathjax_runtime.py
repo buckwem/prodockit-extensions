@@ -72,7 +72,15 @@ def probe_runtime(
     executable = node or shutil.which("node")
     if not executable:
         raise RuntimeStoreError(
-            "MathJax PDF rendering requires Node.js on PATH; no npm packages are required"
+            "MathJax PDF rendering needs Node.js on PATH to run its transitional SVG "
+            "adapter. pdk boot and pdk adopt do not install this optional host "
+            "prerequisite. Install Node.js with `brew install node` on macOS, "
+            "`winget install OpenJS.NodeJS.LTS` on Windows (then reopen the shell), "
+            "or `sudo apt update && sudo apt install -y nodejs` on Ubuntu. Verify "
+            "with `node --version`, then retry `pdk pdf --prepare mathjax` or "
+            "`pdk pdf --prepare all`. If the PDF has no maths, do not force MathJax: "
+            "use ordinary `pdk pdf` or prepare only Mermaid. No npm packages, "
+            "node_modules, browser, or MSYS2 are required."
         )
     root = component_root(runtime)
     adapter = adapter_path()
