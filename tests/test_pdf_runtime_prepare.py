@@ -109,13 +109,29 @@ def test_missing_provider_fails_before_creating_runtime_state(tmp_path: Path) ->
     assert not (project / ".prodockit").exists()
 
 
-def test_all_preflights_every_provider_before_preparing_any_component(tmp_path: Path) -> None:
+def test_all_prepares_only_components_supported_on_the_current_platform(
+    tmp_path: Path,
+) -> None:
     project, environment, provider = _fixture(tmp_path)
 
-    with pytest.raises(RuntimeProviderUnavailableError, match="mathjax, weasyprint"):
+    prepared = prepare_runtime_components(
+        project / "zensical.toml",
+        ["all"],
+        providers={"mermaid": provider},
+        environment=environment,
+    )
+
+    assert [result.component for result in prepared] == ["mermaid"]
+    assert provider.resolved == [ComponentPolicy("supported")]
+
+
+def test_all_still_rejects_an_explicit_unsupported_component(tmp_path: Path) -> None:
+    project, environment, provider = _fixture(tmp_path)
+
+    with pytest.raises(RuntimeProviderUnavailableError, match="weasyprint"):
         prepare_runtime_components(
             project / "zensical.toml",
-            ["all"],
+            ["all", "weasyprint"],
             providers={"mermaid": provider},
             environment=environment,
         )

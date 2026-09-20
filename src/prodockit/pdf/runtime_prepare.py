@@ -119,13 +119,19 @@ def prepare_runtime_components(
     selected = normalise_requested_components(requested)
     if not selected:
         return ()
-    config: PdfRuntimeConfig = load_pdf_runtime_config(config_file)
     runtime_environment = environment or current_runtime_environment()
     available = (
         default_runtime_providers(runtime_environment)
         if providers is None
         else providers
     )
+    explicit = {component.lower() for component in requested} - {"all"}
+    if any(component.lower() == "all" for component in requested):
+        selected = tuple(
+            component
+            for component in selected
+            if component in available or component in explicit
+        )
     missing = [component for component in selected if component not in available]
     if missing:
         joined = ", ".join(missing)
@@ -133,6 +139,9 @@ def prepare_runtime_components(
             f"{joined} preparation is not available in this release; "
             "the existing PDF runtime remains unchanged"
         )
+    if not selected:
+        return ()
+    config: PdfRuntimeConfig = load_pdf_runtime_config(config_file)
     store = RuntimeStore(config.project_root)
     results: list[PreparationResult] = []
     for component in selected:
