@@ -148,10 +148,17 @@ def test_documentation_diagrams_have_rendered_figure_captions(prodockit_paths):
     assert all(re.match(r"^\d+\.\s", caption) for caption in rendered.values()), rendered
 
 
-def test_the_site_publishes_mathjax_and_its_license(prodockit_paths) -> None:
-    mathjax = prodockit_paths.site_dir / "javascripts" / "vendor" / "mathjax"
-    assert (mathjax / "tex-svg-full.js").is_file()
-    assert (mathjax / "LICENSE").is_file()
+def test_the_site_uses_the_zensical_mathjax_runtime(prodockit_paths) -> None:
+    index = BeautifulSoup(
+        (prodockit_paths.site_dir / "index.html").read_text(encoding="utf-8"),
+        "html.parser",
+    )
+    scripts = {script.get("src") for script in index.find_all("script")}
+
+    assert "https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js" in scripts
+    assert not (
+        prodockit_paths.site_dir / "javascripts" / "vendor" / "mathjax"
+    ).exists()
 
 
 def test_desktop_numbers_headings_and_figures_with_the_rendered_chapter(
