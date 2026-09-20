@@ -36,6 +36,14 @@ overwrite GitLab pipelines. Both proposals are inactive until you manually
 merge the relevant instructions into your build file. They cover website
 building, not PDF generation. Missing build files are not created automatically.
 
+Projects carrying a valid `.prodockit-template` revision stamp use a different
+ownership path. Their GitHub and GitLab workflows come from the released
+Prodockit template and are maintained by `pdk template-sync`; Adopt does not
+replace them with generic Zensical proposals. If an inactive `pdk.yml` or
+`.gitlab-pdk.yml` already exists from an earlier Adopt run, Diagnostics keeps
+reporting manual review as pending until the proposal has been merged or
+removed. Merely creating a proposal is not successful workflow integration.
+
 See [Stage 7b — Review the project changes](../getting-started.md#stage-7-review-the-project-changes)
 for the manual merge and review steps.
 

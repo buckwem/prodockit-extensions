@@ -1634,6 +1634,8 @@ def assess(
     missing = _missing_core_extensions(parsed)
     style_paths = _stylesheet_paths(root, parsed)
     javascript_paths = _javascript_paths(root, parsed)
+    workflow_plan = adopt_workflow.plan(root)
+    proposal_review = adopt_workflow.pending_proposals(root)
     core_ok = (
         not config_error
         and not review_pending
@@ -1648,12 +1650,17 @@ def assess(
         )
         and _style_ok(root, parsed)
         and not _missing_local_ignores(root)
-        and adopt_workflow.plan(root) is None
+        and workflow_plan is None
     )
     core_problems: list[str] = []
     if _missing_local_ignores(root):
         core_problems.append("exclude local environments and generated output from Git")
-    if adopt_workflow.plan(root) is not None:
+    if proposal_review:
+        core_problems.append(
+            "merge or remove inactive CI proposal file(s) after manual review: "
+            + ", ".join(path.name for path in proposal_review)
+        )
+    elif workflow_plan is not None:
         core_problems.append(
             "update a verified stock workflow or prepare separate CI files for manual review"
         )

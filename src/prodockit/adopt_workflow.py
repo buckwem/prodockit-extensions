@@ -6,6 +6,8 @@
 from hashlib import sha256
 from pathlib import Path
 
+from prodockit.template_sync import read_template_stamp
+
 # Verified against zensical/zensical at be163399a59743ec76bc29d4b0c2d70fcd8d41d5:
 # python/zensical/bootstrap/.github/workflows/docs.yml
 # Unknown variants are custom, rather than guessed from one matching command.
@@ -45,6 +47,7 @@ PROPOSAL_NOTICE = (
     "# This root-level file is not activated by Adopt.\n"
     "# Preserve your existing triggers, permissions, secrets and deployment settings.\n"
 )
+PROPOSALS = ("pdk.yml", ".gitlab-pdk.yml")
 
 
 def _requirements(root: Path) -> str:
@@ -80,6 +83,12 @@ def gitlab_content(root: Path) -> str:
 
 
 def plans(root: Path) -> list[tuple[Path, str]]:
+    # A stamped project came from prodockit-template. Its active workflows are
+    # template-owned and updated by template-sync, which has exact revision and
+    # conflict handling. Adopt's generic Zensical proposal would be both older
+    # and less complete than that source of truth (prodockit-extensions#950).
+    if read_template_stamp(root) is not None:
+        return []
     changes = []
     github = root / ".github/workflows/docs.yml"
     if github.is_file():
@@ -103,5 +112,14 @@ def plans(root: Path) -> list[tuple[Path, str]]:
 
 def plan(root: Path) -> tuple[Path, str] | None:
     """Compatibility accessor for callers asking whether any work is pending."""
+    for name in PROPOSALS:
+        proposal = root / name
+        if proposal.is_file():
+            return proposal, proposal.read_text(encoding="utf-8")
     pending = plans(root)
     return pending[0] if pending else None
+
+
+def pending_proposals(root: Path) -> tuple[Path, ...]:
+    """Inactive proposals that still require a manual merge or removal."""
+    return tuple(root / name for name in PROPOSALS if (root / name).is_file())
