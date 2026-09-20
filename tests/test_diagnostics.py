@@ -1146,7 +1146,25 @@ def test_missing_downloadable_renderers_are_deferred_until_first_use(
     assert required_by_id["renderer.node"].status == "warn"
     assert required_by_id["renderer.node"].data["deferred"] is True
     assert "pdk pdf" in required_by_id["renderer.weasyprint"].details[0]
-    assert "pdk pdf" in required_by_id["renderer.node"].details[0]
+    assert any("pdk pdf" in detail for detail in required_by_id["renderer.node"].details)
+    if sys.platform != "win32":
+        pango_command = (
+            "brew install pango"
+            if sys.platform == "darwin"
+            else "sudo apt update && sudo apt install -y libpango-1.0-0"
+        )
+        assert any(
+            pango_command in detail
+            for detail in required_by_id["renderer.weasyprint"].details
+        )
+    node_command = (
+        "brew install node"
+        if sys.platform == "darwin"
+        else "winget install OpenJS.NodeJS.LTS"
+        if sys.platform == "win32"
+        else "sudo apt update && sudo apt install -y nodejs"
+    )
+    assert any(node_command in detail for detail in required_by_id["renderer.node"].details)
     for check_id in (
         "renderer.pandoc",
         "renderer.fonts",

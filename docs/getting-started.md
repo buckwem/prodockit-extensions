@@ -444,6 +444,38 @@ Adopt records the selection without installing a renderer. The first `pdk pdf`
 prepares the selected project-local cache. Mermaid needs only Python; PDF
 mathematics also needs Node.js on `PATH`, installed separately, but not npm.
 
+If this adopted site will build PDFs, install its host prerequisites before the
+first build. A site with PDF maths needs both Pango and Node.js on macOS or
+Ubuntu; the supported Windows x64 PDF runtime needs only Node.js:
+
+=== ":material-apple: macOS"
+
+    ```bash
+    brew install pango node
+    export DYLD_FALLBACK_LIBRARY_PATH="$(brew --prefix)/lib"
+    ```
+
+=== ":fontawesome-brands-windows: Windows"
+
+    ```powershell
+    winget install OpenJS.NodeJS.LTS
+    ```
+
+    Close and reopen PowerShell, return to the project, and reactivate its
+    virtual environment.
+
+=== ":material-linux: Linux (Ubuntu)"
+
+    ```bash
+    sudo apt update
+    sudo apt install -y libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz-subset0 nodejs
+    ```
+
+For a PDF without maths, omit `node` or `nodejs`. For website-only work, skip
+these commands. Verify Node with `node --version`; an ordinary `pdk pdf` then
+prepares the selected project-local runtimes. No npm packages, browser or
+MSYS2 installation is required.
+
 ////
 
 //// step | Adopt the Zensical site

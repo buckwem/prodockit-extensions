@@ -58,14 +58,26 @@ def test_probe_uses_packaged_adapter_and_cached_component(tmp_path: Path) -> Non
     assert calls[1][0][-1] == "display"
 
 
+@pytest.mark.parametrize(
+    ("selected_platform", "command"),
+    [
+        ("darwin", "brew install node"),
+        ("win32", "winget install OpenJS.NodeJS.LTS"),
+        ("linux", "sudo apt update && sudo apt install -y nodejs"),
+    ],
+)
 def test_probe_explains_that_node_but_not_npm_is_required(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    selected_platform: str,
+    command: str,
 ) -> None:
     root = tmp_path / runtime.MATHJAX_DIRECTORY
     root.mkdir(parents=True)
     (tmp_path / runtime.MATHJAX_COMPONENT).write_bytes(b"fixture")
     (tmp_path / runtime.MATHJAX_LICENCE).write_text("Apache-2.0\n", encoding="utf-8")
     monkeypatch.setattr(runtime.shutil, "which", lambda _name: None)
+    monkeypatch.setattr(runtime.sys, "platform", selected_platform)
 
     with pytest.raises(RuntimeStoreError) as raised:
         runtime.probe_runtime(tmp_path)
@@ -75,9 +87,7 @@ def test_probe_explains_that_node_but_not_npm_is_required(
         "Node.js on PATH",
         "transitional SVG adapter",
         "pdk boot and pdk adopt do not install",
-        "brew install node",
-        "winget install OpenJS.NodeJS.LTS",
-        "sudo apt update && sudo apt install -y nodejs",
+        command,
         "node --version",
         "pdk pdf --prepare mathjax",
         "pdk pdf --prepare all",

@@ -276,8 +276,20 @@ def test_pdf_prepare_reports_an_unavailable_provider_without_a_traceback(
 
 
 @pytest.mark.parametrize("component", ["mathjax", "all"])
+@pytest.mark.parametrize(
+    ("selected_platform", "command"),
+    [
+        ("darwin", "brew install node"),
+        ("win32", "winget install OpenJS.NodeJS.LTS"),
+        ("linux", "sudo apt update && sudo apt install -y nodejs"),
+    ],
+)
 def test_pdf_prepare_explains_missing_node_for_direct_and_all_requests(
-    component: str, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    component: str,
+    selected_platform: str,
+    command: str,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
 ) -> None:
     import prodockit.cli as cli_module
     from prodockit.pdf import mathjax_runtime
@@ -290,6 +302,7 @@ def test_pdf_prepare_explains_missing_node_for_direct_and_all_requests(
         "Apache-2.0\n", encoding="utf-8"
     )
     monkeypatch.setattr(mathjax_runtime.shutil, "which", lambda _name: None)
+    monkeypatch.setattr(mathjax_runtime.sys, "platform", selected_platform)
     monkeypatch.setattr(
         cli_module,
         "prepare_pdf_python_requirements",
@@ -307,9 +320,7 @@ def test_pdf_prepare_explains_missing_node_for_direct_and_all_requests(
 
     assert result.exit_code == 1, result.output
     assert "MathJax PDF rendering needs Node.js on PATH" in result.output
-    assert "brew install node" in result.output
-    assert "winget install OpenJS.NodeJS.LTS" in result.output
-    assert "sudo apt update && sudo apt install -y nodejs" in result.output
+    assert command in result.output
     assert "pdk pdf --prepare mathjax" in result.output
     assert "ordinary `pdk pdf`" in result.output
     assert "No npm packages, node_modules, browser, or MSYS2" in result.output

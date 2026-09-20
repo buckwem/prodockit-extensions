@@ -379,40 +379,21 @@ its Python environment, but deliberately leaves optional PDF software to
 `pdk pdf`. Prodockit downloads and verifies project-local Pandoc, fonts,
 Mermaid and MathJax runtimes only when the completed document uses them.
 
-On macOS and Ubuntu, install WeasyPrint's native Pango libraries before the
-first PDF build:
+The standard template includes PDF output and example mathematics. Install its
+macOS host prerequisites together before the first PDF build:
 
 === ":material-apple: macOS"
 
     ```bash
-    brew install pango
+    brew install pango node
     export DYLD_FALLBACK_LIBRARY_PATH="$(brew --prefix)/lib"
     ```
 
 === ":fontawesome-brands-windows: Windows"
 
     The supported Windows x64 path uses a verified project-local WeasyPrint
-    runtime and needs no Pango or MSYS2 installation.
-
-=== ":material-linux: Linux (Ubuntu)"
-
-    ```bash
-    sudo apt update
-    sudo apt install -y libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz-subset0
-    ```
-
-PDF mathematics currently uses Node.js to run MathJax's transitional SVG
-adapter. Bootstrap and Adopt do not install this optional host prerequisite.
-Install it only when the PDF contains maths, or when you deliberately intend
-to force every optional component with `--prepare all`:
-
-=== ":material-apple: macOS"
-
-    ```bash
-    brew install node
-    ```
-
-=== ":fontawesome-brands-windows: Windows"
+    runtime and needs no Pango or MSYS2 installation. Install Node.js for the
+    template's PDF maths:
 
     ```powershell
     winget install OpenJS.NodeJS.LTS
@@ -425,11 +406,17 @@ to force every optional component with `--prepare all`:
 
     ```bash
     sudo apt update
-    sudo apt install -y nodejs
+    sudo apt install -y libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz-subset0 nodejs
     ```
 
-Verify Node and force every supported PDF component when you need an
-ahead-of-time installation:
+PDF mathematics currently uses Node.js to run MathJax's transitional SVG
+adapter. Bootstrap and Adopt do not install this optional host prerequisite.
+The macOS and Ubuntu commands above install it alongside Pango for the standard
+template. For a PDF without maths, omit `node` or `nodejs`. A website-only
+project can skip this whole step.
+
+Verify Node and force every optional component with `--prepare all` when you
+need an ahead-of-time installation:
 
 ```bash
 node --version

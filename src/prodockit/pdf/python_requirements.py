@@ -31,7 +31,11 @@ from prodockit.toolchain import (
     pip_install_requirements_command,
     run_install_command,
 )
-from prodockit.weasyprint_probe import clear_probe_cache, run_probe
+from prodockit.weasyprint_probe import (
+    clear_probe_cache,
+    pango_install_guidance,
+    run_probe,
+)
 
 REQUIREMENTS_NAME = "pdf-requirements.txt"
 WEASYPRINT_REQUIREMENT = 'weasyprint>=69.0; sys_platform != "win32"'
@@ -257,6 +261,14 @@ def _probe(requirements: tuple[Requirement, ...]) -> None:
             detail = "\n".join(
                 part.strip() for part in (result.stdout, result.stderr) if part.strip()
             )
+            if any(
+                marker in detail.lower()
+                for marker in ("libgobject", "pango", "harfbuzz", "cannot load library")
+            ):
+                raise PdfPythonRequirementsError(
+                    "WeasyPrint is installed but cannot load its required native libraries. "
+                    f"{pango_install_guidance()} Then retry `pdk pdf`."
+                )
             raise PdfPythonRequirementsError(
                 "WeasyPrint is installed but cannot load its macOS or Linux native libraries"
                 + (f": {detail}" if detail else "")

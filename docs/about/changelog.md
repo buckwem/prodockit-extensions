@@ -19,6 +19,10 @@ only when it adds or changes behaviour that matters to a user, or requires an
 upgrade action. Defect-by-defect history belongs in GitHub issues and pull
 requests rather than here.
 
+## Unreleased
+
+- Made deferred PDF diagnostics and first-use failures detect missing Pango or Node.js and show the exact platform installation command.
+
 ## 0.68.0 (2026-09-20)
 
 - Separated PDF-only Python packages into `pdf-requirements.txt`; `pdk pdf` now installs and caches them transparently on first use while Bootstrap and website-only environments remain lightweight.

@@ -39,6 +39,23 @@ _SUCCESS_CACHE: dict[
 ] = {}
 
 
+def pango_install_guidance(*, selected_platform: str | None = None) -> str:
+    """Return the exact supported host command for WeasyPrint's native libraries."""
+
+    selected = sys.platform if selected_platform is None else selected_platform
+    if selected == "darwin":
+        return (
+            "Install Pango with `brew install pango`, then run "
+            '`export DYLD_FALLBACK_LIBRARY_PATH="$(brew --prefix)/lib"` in this terminal.'
+        )
+    if selected.startswith("linux"):
+        return (
+            "Install Pango with `sudo apt update && sudo apt install -y "
+            "libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz-subset0`."
+        )
+    return "Install WeasyPrint's native libraries for this operating system."
+
+
 @dataclass(frozen=True)
 class ProbeAttempt:
     """Non-sensitive evidence from one fresh subprocess."""

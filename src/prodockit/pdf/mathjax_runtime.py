@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -33,6 +34,22 @@ MATHJAX_COMPONENT = MATHJAX_DIRECTORY / "tex-svg.js"
 MATHJAX_LICENCE = MATHJAX_DIRECTORY / "LICENSE"
 MATHJAX_ADAPTER = Path(__file__).with_name("tex2svg.cjs")
 _PROBE_TIMEOUT = 60.0
+
+
+def node_install_guidance(*, selected_platform: str | None = None) -> str:
+    """Return the exact supported host command for the MathJax adapter."""
+
+    selected = sys.platform if selected_platform is None else selected_platform
+    if selected == "darwin":
+        return "Install Node.js with `brew install node`."
+    if selected == "win32":
+        return (
+            "Install Node.js with `winget install OpenJS.NodeJS.LTS`, then close and "
+            "reopen the shell."
+        )
+    if selected.startswith("linux"):
+        return "Install Node.js with `sudo apt update && sudo apt install -y nodejs`."
+    return "Install Node.js with the operating-system package manager."
 
 
 def component_root(runtime: Path) -> Path:
@@ -74,9 +91,7 @@ def probe_runtime(
         raise RuntimeStoreError(
             "MathJax PDF rendering needs Node.js on PATH to run its transitional SVG "
             "adapter. pdk boot and pdk adopt do not install this optional host "
-            "prerequisite. Install Node.js with `brew install node` on macOS, "
-            "`winget install OpenJS.NodeJS.LTS` on Windows (then reopen the shell), "
-            "or `sudo apt update && sudo apt install -y nodejs` on Ubuntu. Verify "
+            f"prerequisite. {node_install_guidance()} Verify "
             "with `node --version`, then retry `pdk pdf --prepare mathjax` or "
             "`pdk pdf --prepare all`. If the PDF has no maths, do not force MathJax: "
             "use ordinary `pdk pdf` or prepare only Mermaid. No npm packages, "
