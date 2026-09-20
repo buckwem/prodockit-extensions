@@ -15,6 +15,7 @@ import time
 from pathlib import Path
 
 import pymupdf
+import tomlkit
 
 from prodockit.adopt import AdoptOptions, apply_step
 from prodockit.pdf.runtime_config import PDF_SETTING_PATHS, load_pdf_runtime_config
@@ -46,6 +47,38 @@ def _copy_template(source: Path, destination: Path) -> None:
     )
 
 
+def _legacy_pdf_fixture(config_path: Path) -> list[str]:
+    """Return legacy settings, reconstructing them from a current template."""
+
+    existing = sorted(
+        set(load_project_config(config_path).extra) & set(PDF_SETTING_PATHS)
+    )
+    if existing:
+        return existing
+
+    policy_path = config_path.parent / "pdk-pdf.toml"
+    if not policy_path.is_file():
+        raise AssertionError("template fixture has neither legacy nor current PDF settings")
+    policy = load_pdf_runtime_config(config_path)
+    migrated = sorted(policy.pdf_explicit)
+    if not migrated:
+        raise AssertionError("template fixture has no explicit PDF settings to migrate")
+
+    parsed = tomlkit.parse(config_path.read_text(encoding="utf-8"))
+    project = parsed.get("project")
+    if not isinstance(project, dict):
+        raise AssertionError("template fixture has no [project] table")
+    extra = project.get("extra")
+    if not isinstance(extra, dict):
+        extra = tomlkit.table()
+        project["extra"] = extra
+    for key in migrated:
+        extra[key] = policy.pdf_values[key]
+    config_path.write_text(tomlkit.dumps(parsed), encoding="utf-8")
+    policy_path.unlink()
+    return migrated
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--template", type=Path, required=True)
@@ -56,10 +89,7 @@ def main() -> int:
     project = args.work_dir.resolve() / "template"
     _copy_template(args.template.resolve(), project)
     config_path = project / "zensical.toml"
-    before = load_project_config(config_path).extra
-    migrated = sorted(set(before) & set(PDF_SETTING_PATHS))
-    if not migrated:
-        raise AssertionError("template fixture has no legacy PDF settings to migrate")
+    migrated = _legacy_pdf_fixture(config_path)
 
     apply_step(project, AdoptOptions(), "core")
     first_config = config_path.read_bytes()
