@@ -39,7 +39,7 @@ built, expect `built site not found: ...; run zensical build first` instead.
 |---|---|
 | `-f`, `--config-file PATH` | Read another Zensical configuration; defaults to `zensical.toml`. |
 | `-m`, `--markdown-file PAGE` | Build only one Markdown page relative to `docs_dir`, ignoring `nav` for the PDF contents. |
-| `--prepare COMPONENT` | Validate and prepare one project-local PDF component without requiring a built site or producing a PDF; repeat it or use `all`. |
+| `--prepare COMPONENT` | Validate and prepare one project-local PDF component without requiring a built site or producing a PDF; repeat it or use `all` for every component supported on the current platform. |
 | `-h`, `--help` | Show installed help and exit. |
 /// table-caption | <
     attrs: {id: tab-cmd-pdf-options}

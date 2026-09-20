@@ -21,6 +21,7 @@ requests rather than here.
 
 ## Unreleased
 
+- Made `pdk pdf --prepare all` prepare every runtime supported on the current platform without requesting unavailable providers.
 - Made Windows Node diagnostics retry one transient startup timeout before reporting an accurate persistent failure.
 - Made Adopt report clean PDF caches as deferred first-use preparation and removed its obsolete MathJax npm ignore check.
 - Aligned manual installation with the Clean and Update route badges and made project virtual-environment creation explicit.
