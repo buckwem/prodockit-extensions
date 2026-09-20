@@ -644,7 +644,7 @@ def test_apply_commits_sets_upstream_and_publishes_the_review_branch(
     from click.testing import CliRunner
 
     from prodockit import cli
-    from prodockit.template_sync import branch_name, read_applied_release, read_stamp
+    from prodockit.template_sync import branch_name, read_applied_release, read_config, read_stamp
 
     template = tmp_path / "template"
     project = tmp_path / "report"
@@ -657,7 +657,9 @@ owns = ["managed.txt", ".github/workflows/**"]
 [project]
 owns = ["docs/**"]
 [shared]
-files = ["requirements.txt"]
+files = ["requirements.txt", "zensical.toml"]
+[shared.zensical_toml]
+take = ["project.extra_css", "project.extra_javascript"]
 [excluded]
 paths = []
 """
@@ -665,6 +667,11 @@ paths = []
     (template / "managed.txt").write_text("old\n", encoding="utf-8")
     (template / "requirements.txt").write_text(
         "prodockit>=0.39.0\nzensical>=0.0.53\n", encoding="utf-8"
+    )
+    (template / "zensical.toml").write_text(
+        '[project]\nextra_css = ["stylesheets/pdk.css"]\n'
+        'extra_javascript = ["javascripts/pdk.js"]\n',
+        encoding="utf-8",
     )
     (template / ".github" / "workflows").mkdir(parents=True)
     (template / ".github" / "workflows" / "docs.yml").write_text(
@@ -738,6 +745,9 @@ paths = []
     (project / "requirements.txt").write_text(
         "prodockit[index]>=0.39.0\nzensical>=0.0.53\n", encoding="utf-8"
     )
+    (project / "zensical.toml").write_text(
+        '[project]\nsite_name = "Report"\n', encoding="utf-8"
+    )
     (project / ".github" / "workflows").mkdir(parents=True)
     (project / ".github" / "workflows" / "docs.yml").write_text(
         "run: pip install prodockit==0.39.0 zensical==0.0.53\n", encoding="utf-8"
@@ -763,9 +773,19 @@ paths = []
     )
 
     monkeypatch.chdir(project)
+    from prodockit import template_sync as template_sync_module
     from prodockit.adopt import Step
     from prodockit.toolchain import ToolchainPlan
 
+    config_plans: list[tuple[list[str], list[str]]] = []
+    calculate_config_changes = template_sync_module.config_changes
+
+    def recorded_config_changes(*args, **kwargs):
+        result = calculate_config_changes(*args, **kwargs)
+        config_plans.append(result)
+        return result
+
+    monkeypatch.setattr(template_sync_module, "config_changes", recorded_config_changes)
     monkeypatch.setattr(
         cli,
         "assess_adoption",
@@ -779,10 +799,17 @@ paths = []
             )
         ],
     )
+
     def fake_adopt(root, *args, **kwargs):
         path = root / "adopted.txt"
         path.write_text("adopted\n", encoding="utf-8")
-        return [path]
+        config = root / "zensical.toml"
+        config.write_text(
+            '[project]\nsite_name = "Report"\n'
+            'extra_css = ["stylesheets/pdk.css"]\n',
+            encoding="utf-8",
+        )
+        return [path, config]
 
     monkeypatch.setattr(cli, "apply_adoption", fake_adopt)
     monkeypatch.setattr(
@@ -816,7 +843,14 @@ paths = []
     assert "Build dependencies: aligned managed pins" in result.output
     assert "Shared files: refreshed 1 managed file" in result.output
     assert "Adopt applied and verified" in result.output
+    assert config_plans == [
+        (["project.extra_css", "project.extra_javascript"], []),
+        (["project.extra_javascript"], []),
+    ]
     assert (project / "adopted.txt").read_text(encoding="utf-8") == "adopted\n"
+    config = read_config((project / "zensical.toml").read_text(encoding="utf-8"))["project"]
+    assert config["extra_css"] == ["stylesheets/pdk.css"]
+    assert config["extra_javascript"] == ["javascripts/pdk.js"]
     assert f"prodockit[index]>={cli.__version__}" in (project / "requirements.txt").read_text()
     assert "zensical>=0.0.57" in (project / "requirements.txt").read_text()
     assert "prodockit==" + cli.__version__ in (
