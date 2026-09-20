@@ -41,9 +41,9 @@ requested article must already exist in the completed site. This keeps a
 single-page PDF quick without allowing it to conceal an incomplete website
 build.
 
-The former renderer remains available only through the hidden
-`prodockit pdf-legacy` rollback command. It imports undocumented Zensical
-Python interfaces and is not an author-facing command.
+Run `zensical build --clean --strict` before `pdk pdf`. The completed site is
+the single supported input; Prodockit no longer contains a second renderer
+using undocumented Zensical Python interfaces.
 
 ## Use the public Python surface
 
@@ -67,9 +67,7 @@ Of the entry points in
 \ref{tab-devcons-pdf-internals-use-the-public-python-surface}, prefer
 `build_pdf_from_built_site()` when a caller already has a Zensical
 project. Use `build_pdf()` only when the caller owns page rendering and can
-supply complete HTML and metadata. The older
-`build_pdf_from_zensical_config()` entry point exists for the hidden legacy
-command, not for new integrations.
+supply complete HTML and metadata.
 
 ```python
 from prodockit.pdf.config import build_pdf_from_built_site

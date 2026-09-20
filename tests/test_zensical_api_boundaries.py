@@ -3,10 +3,8 @@
 
 """Architecture guard for undocumented Zensical Python dependencies.
 
-Issue #561 removes this inventory one entry at a time. Keeping the exact
-current set here prevents a new internal import arriving elsewhere while the
-migration is in progress. The PDF entries remain only for the hidden legacy
-renderer now that the public command consumes Zensical's built output.
+Issue #561 removed the PDF dependencies. Keeping the exact remaining set here
+prevents a new internal import arriving elsewhere.
 """
 
 from __future__ import annotations
@@ -28,7 +26,6 @@ PROHIBITED_ZENSICAL_MODULE_PREFIXES = ("zensical",)
 # change; every addition fails the test and requires an explicit design review.
 EXPECTED_PRODUCTION_IMPORTS = {
     "_zensical_page_context.py": {"zensical.extensions.context"},
-    "pdf/config.py": {"zensical.config", "zensical.markdown.render"},
 }
 
 

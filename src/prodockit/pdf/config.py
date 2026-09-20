@@ -1,15 +1,10 @@
 # Copyright (c) 2026 Mark Buckwell and contributors
 # SPDX-License-Identifier: MIT
 
-"""Drives a full PDF build entirely from `zensical.toml`, for a project
-that doesn't want to write any Python at all - see `prodockit.pdf.cli` for the
-command-line tool built on top of this.
+"""Build a PDF from ``zensical.toml`` and a completed Zensical site.
 
-`build_pdf_from_built_site()` powers the public command: it reads the project
-settings and assembles the PDF from a completed Zensical site.
-`build_pdf_from_zensical_config()` retains the old
-Zensical Python rendering path for the hidden legacy command. Both call
-`prodockit.pdf.build.build_pdf()` with icon, Mermaid and MathJax detection
+``build_pdf_from_built_site()`` powers the public command and calls
+``prodockit.pdf.build.build_pdf()`` with icon, Mermaid and MathJax detection
 wired up.
 """
 
@@ -21,14 +16,12 @@ import re
 from collections.abc import Callable
 from pathlib import Path
 
-from prodockit._zensical import _installed_zensical_version
 from prodockit.pdf.build import Page, StageReporter, build_pdf, detect_renderer_requirements
 from prodockit.pdf.font_runtime import font_face_css
 from prodockit.pdf.icons import (
     build_icon_registry,
     build_site_icon_registry,
     discover_icon_dirs,
-    discover_legacy_icon_dirs,
 )
 from prodockit.pdf.mathjax_runtime import adapter_path as mathjax_adapter_path
 from prodockit.pdf.mathjax_runtime import component_root as mathjax_component_root
@@ -219,54 +212,13 @@ def _warn_if_release_sources_disagree(api_release_tag: str) -> str | None:
     return message
 
 
-def build_pdf_from_zensical_config(
-    config_path: str = "zensical.toml",
-    *,
-    markdown_file: str | None = None,
-    on_stage: StageReporter | None = None,
-) -> str:
-    """Build through the legacy Zensical Python rendering path.
-
-    This remains available through the hidden ``prodockit pdf-legacy``
-    command as a rollback path.
-    """
-    return _build_pdf_from_config(
-        config_path,
-        markdown_file=markdown_file,
-        on_stage=on_stage,
-        built_site=False,
-    )
-
-
 def build_pdf_from_built_site(
     config_path: str = "zensical.toml",
     *,
     markdown_file: str | None = None,
     on_stage: StageReporter | None = None,
 ) -> str:
-    """Build from the output of Zensical's documented build command.
-
-    This is the implementation behind the public ``prodockit pdf`` command.
-    It remains separate from :func:`build_pdf_from_zensical_config` so the
-    legacy renderer can stay available as an undocumented rollback command.
-    """
-    return _build_pdf_from_config(
-        config_path,
-        markdown_file=markdown_file,
-        on_stage=on_stage,
-        built_site=True,
-    )
-
-
-def _build_pdf_from_config(
-    config_path: str = "zensical.toml",
-    *,
-    markdown_file: str | None = None,
-    on_stage: StageReporter | None = None,
-    built_site: bool,
-) -> str:
-    """Builds a PDF entirely from `config_path` (a Zensical config file)
-    and returns the path it was written to.
+    """Build a PDF from a completed Zensical site and return its output path.
 
     If `markdown_file` is given (a path relative to `project.docs_dir`),
     the PDF is built from just that one file instead of `project.nav` -
@@ -373,24 +325,13 @@ def _build_pdf_from_config(
       exact same literal text Zensical's built-in config variable uses substitutes
       directly here too.
     """
-    project_config = None
-    zensical_render = None
-    if built_site:
-        project_config = load_project_config(config_path)
-        config = project_config.as_resolved_mapping()
-        # Preserve the command's user-facing relative output paths and build
-        # arguments. The extractor itself uses ProjectConfig's resolved paths,
-        # so it does not depend on the caller's CWD.
-        config["docs_dir"] = project_config.project.get("docs_dir") or "docs"
-        config["site_dir"] = project_config.project.get("site_dir") or "site"
-    else:
-        # Deliberately retained only for the hidden legacy command. These are
-        # the undocumented APIs issue #561 is intended to remove eventually.
-        import zensical.config as zensical_config
-        from zensical.markdown.render import render as _zensical_render
-
-        config = zensical_config.parse_config(config_path)
-        zensical_render = _zensical_render
+    project_config = load_project_config(config_path)
+    config = project_config.as_resolved_mapping()
+    # Preserve the command's user-facing relative output paths and build
+    # arguments. The extractor itself uses ProjectConfig's resolved paths,
+    # so it does not depend on the caller's CWD.
+    config["docs_dir"] = project_config.project.get("docs_dir") or "docs"
+    config["site_dir"] = project_config.project.get("site_dir") or "site"
     extra = config.get("extra") or {}
     runtime_policy = load_pdf_runtime_config(config_path)
     validate_extra_settings(extra, exclude=runtime_policy.pdf_explicit)
@@ -400,28 +341,22 @@ def _build_pdf_from_config(
     admonition_icon_config = (theme.get("icon") or {}).get("admonition") or {}
 
     docs_dir = config.get("docs_dir") or "docs"
-    source_docs_dir = str(project_config.docs_dir) if project_config is not None else str(docs_dir)
+    source_docs_dir = str(project_config.docs_dir)
     if markdown_file:
         nav_pages = [{"url": markdown_file}]
     else:
         nav_pages = flatten_nav(config.get("nav") or [])
         if not nav_pages:
             raise ValueError(f"No pages found in {config_path}'s nav - nothing to build")
-    if project_config is not None:
-        validate_built_site(project_config, [str(page["url"]) for page in nav_pages])
+    validate_built_site(project_config, [str(page["url"]) for page in nav_pages])
 
-    icon_dirs = (
-        discover_icon_dirs(source_docs_dir, project_root=project_config.root)
-        if project_config is not None
-        else discover_legacy_icon_dirs(str(docs_dir))
-    )
+    icon_dirs = discover_icon_dirs(source_docs_dir, project_root=project_config.root)
     icon_registry = build_icon_registry(icon_dirs)
-    if project_config is not None:
-        # The completed website is authoritative for bundled theme icons.
-        # Project-owned icon files retain priority over the compiled CSS.
-        built_icons = build_site_icon_registry(project_config.site_dir, admonition_icon_config)
-        built_icons.update(icon_registry)
-        icon_registry = built_icons
+    # The completed website is authoritative for bundled theme icons.
+    # Project-owned icon files retain priority over the compiled CSS.
+    built_icons = build_site_icon_registry(project_config.site_dir, admonition_icon_config)
+    built_icons.update(icon_registry)
+    icon_registry = built_icons
 
     extra_css = ""
     # project.extra_css - shared website/PDF stylesheets - first, then
@@ -438,40 +373,15 @@ def _build_pdf_from_config(
 
     page_objects: list[Page] = []
     source_paths = [Path(source_docs_dir) / page["url"] for page in nav_pages]
-    revision_dates = resolve_revision_dates(
-        project_config.root if project_config is not None else Path(config_path).resolve().parent,
-        source_paths,
-    )
+    revision_dates = resolve_revision_dates(project_config.root, source_paths)
     for nav_page in nav_pages:
         docs_rel_path = nav_page["url"]
         full_path = os.path.join(source_docs_dir, docs_rel_path)
         source_meta = page_metadata(Path(full_path))
         if not markdown_file and source_meta.get(PDF_INCLUDE_FRONT_MATTER_KEY, True) is False:
             continue
-        if project_config is not None:
-            html = page_html(project_config, docs_rel_path)
-            meta = source_meta
-        else:
-            assert zensical_render is not None
-            with open(full_path, encoding="utf-8") as f:
-                raw_content = f.read()
-            result = zensical_render(raw_content, docs_rel_path, docs_rel_path)
-            try:
-                html = result["content"]
-                rendered_meta = result["meta"]
-            except (KeyError, TypeError) as error:
-                installed = _installed_zensical_version()
-                raise RuntimeError(
-                    f"prodockit expected Zensical's render() result to carry {error}, "
-                    f"rendering {docs_rel_path!r}. Zensical {installed} appears to have "
-                    "changed the result shape. prodockit cannot build the PDF without it."
-                ) from error
-            # Front matter belongs to the source file, not to the shape of
-            # Zensical's undocumented legacy render result. Zensical 0.0.58
-            # stopped returning these values unless its metadata extension is
-            # enabled, so keep any renderer-added metadata but make the direct
-            # source reading authoritative for keys the author actually wrote.
-            meta = {**rendered_meta, **source_meta}
+        html = page_html(project_config, docs_rel_path)
+        meta = source_meta
         page_objects.append(
             Page(
                 docs_rel_path=docs_rel_path,
@@ -611,7 +521,7 @@ def _build_pdf_from_config(
     )
 
     build_output_path = output_path
-    if project_config is not None and not Path(output_path).is_absolute():
+    if not Path(output_path).is_absolute():
         build_output_path = str(project_config.root / output_path)
 
     pandoc_executable, prepared_font_css = (
@@ -628,12 +538,8 @@ def _build_pdf_from_config(
         build_pdf(
             page_objects,
             build_output_path,
-            docs_dir=source_docs_dir if project_config is not None else docs_dir,
-            project_root=str(
-                project_config.root
-                if project_config is not None
-                else Path(config_path).resolve().parent
-            ),
+            docs_dir=source_docs_dir,
+            project_root=str(project_config.root),
             source_page_paths=[page["url"] for page in flatten_nav(config.get("nav") or [])],
             extra_css=extra_css,
             repo_url=config.get("repo_url") or "",
@@ -689,8 +595,7 @@ def _build_pdf_from_config(
         if mermaid_renderer is not None:
             mermaid_renderer.close()
 
-    if project_config is not None:
-        publish_pdf_to_built_site(project_config, build_output_path)
+    publish_pdf_to_built_site(project_config, build_output_path)
 
     return output_path
 
@@ -718,7 +623,7 @@ def build_source_bundle_from_zensical_config(config_path: str = "zensical.toml")
       `"<docs_dir>/source_bundle.pdf"` - inside `docs_dir`, unlike the
       pre-#212 default of the project's top-level directory, so Zensical
       serves it without a separate copy step) and `[document].page_size`
-      (default `"A4", shared with `build_pdf_from_zensical_config()`'s
+      (default `"A4", shared with `build_pdf_from_built_site()`'s
       own setting of the same name - one physical page size for both
       PDFs a project publishes).
 

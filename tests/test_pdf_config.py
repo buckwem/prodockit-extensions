@@ -15,10 +15,11 @@ from prodockit.pdf.config import (
     _find_tex2svg_script,
     _warn_if_release_sources_disagree,
     build_pdf_from_built_site,
-    build_pdf_from_zensical_config,
     build_source_bundle_from_zensical_config,
 )
 from prodockit.settings import SettingError
+
+_PUBLISH_PDF_TO_BUILT_SITE = config.publish_pdf_to_built_site
 
 _ZENSICAL_TOML = """
 [project]
@@ -81,13 +82,15 @@ def _page_with_mermaid(_project, source: str) -> str:
 
 @pytest.fixture(autouse=True)
 def _prepared_project_runtime(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Configuration tests isolate orchestration from provider downloads."""
+    """Configuration tests isolate orchestration from external boundaries."""
 
     monkeypatch.setattr(
         config,
         "_prepare_pdf_build_runtime",
         lambda _path, **_kwargs: ("pandoc", ""),
     )
+    monkeypatch.setattr(config, "validate_built_site", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(config, "publish_pdf_to_built_site", lambda *_args: None)
 
 
 @pytest.fixture()
@@ -128,62 +131,6 @@ def test_find_tex2svg_script_relative_configured_path_resolves_against_cwd_not_t
 
     monkeypatch.chdir(tmp_path)
     assert _find_tex2svg_script(relative_configured) is None
-
-
-def test_a_renamed_render_result_key_raises_a_named_error_not_a_bare_keyerror(
-    project, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    root = project()
-    import zensical.markdown.render as render_module
-
-    monkeypatch.setattr(
-        render_module,
-        "render",
-        lambda *args, **kwargs: {"html": "<p>renamed</p>", "meta": {}},
-    )
-
-    with pytest.raises(RuntimeError) as exc_info:
-        build_pdf_from_zensical_config(str(root / "zensical.toml"))
-
-    message = str(exc_info.value)
-    assert "content" in message
-    assert "Zensical" in message
-    assert "index.md" in message
-
-
-def test_a_non_dict_render_result_raises_the_same_named_error(
-    project, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    root = project()
-
-    class _RenamedResultType:
-        pass
-
-    import zensical.markdown.render as render_module
-
-    monkeypatch.setattr(render_module, "render", lambda *args, **kwargs: _RenamedResultType())
-
-    with pytest.raises(RuntimeError) as exc_info:
-        build_pdf_from_zensical_config(str(root / "zensical.toml"))
-
-    message = str(exc_info.value)
-    assert "Zensical" in message
-    assert "index.md" in message
-
-
-def test_a_renamed_render_result_key_stops_the_build_no_pdf_written(
-    project, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    root = project()
-    output_path = root / "docs" / "site_documentation.pdf"
-    import zensical.markdown.render as render_module
-
-    monkeypatch.setattr(render_module, "render", lambda *args, **kwargs: {"html": "", "meta": {}})
-
-    with pytest.raises(RuntimeError):
-        build_pdf_from_zensical_config(str(root / "zensical.toml"))
-
-    assert not output_path.exists()
 
 
 def test_built_site_candidate_uses_the_documented_build_output(
@@ -229,8 +176,11 @@ def test_built_site_candidate_uses_the_documented_build_output(
     assert captured["kwargs"]["mono_font"] == "JetBrains Mono"
 
 
-def test_built_site_pdf_is_written_to_author_and_published_paths(project) -> None:
+def test_built_site_pdf_is_written_to_author_and_published_paths(
+    project, monkeypatch: pytest.MonkeyPatch
+) -> None:
     root = project(pandoc_script='printf "%s" "%PDF-1.4 exact" > "$3"')
+    monkeypatch.setattr(config, "publish_pdf_to_built_site", _PUBLISH_PDF_TO_BUILT_SITE)
 
     output = build_pdf_from_built_site(str(root / "zensical.toml"))
 
@@ -240,12 +190,15 @@ def test_built_site_pdf_is_written_to_author_and_published_paths(project) -> Non
     assert published_pdf.read_bytes() == author_pdf.read_bytes()
 
 
-def test_built_site_pdf_outside_docs_is_not_published(project) -> None:
+def test_built_site_pdf_outside_docs_is_not_published(
+    project, monkeypatch: pytest.MonkeyPatch
+) -> None:
     root = project(
         extra='\n[project.extra]\npdf_output = "dist/out.pdf"\n',
         pandoc_script='printf "%s" "%PDF-1.4 external" > "$3"',
     )
     (root / "dist").mkdir()
+    monkeypatch.setattr(config, "publish_pdf_to_built_site", _PUBLISH_PDF_TO_BUILT_SITE)
 
     output = build_pdf_from_built_site(str(root / "zensical.toml"))
 
@@ -254,8 +207,11 @@ def test_built_site_pdf_outside_docs_is_not_published(project) -> None:
     assert list((root / "site").rglob("*.pdf")) == []
 
 
-def test_built_site_single_page_pdf_is_published(project) -> None:
+def test_built_site_single_page_pdf_is_published(
+    project, monkeypatch: pytest.MonkeyPatch
+) -> None:
     root = project(pandoc_script='printf "%s" "%PDF-1.4 single" > "$3"')
+    monkeypatch.setattr(config, "publish_pdf_to_built_site", _PUBLISH_PDF_TO_BUILT_SITE)
 
     output = build_pdf_from_built_site(
         str(root / "zensical.toml"), markdown_file="chapter1.md"
@@ -297,6 +253,7 @@ nav = [
     _fake_pandoc(bin_dir, 'printf "%s" "%PDF-1.4 custom" > "$3"')
     monkeypatch.setenv("PATH", f"{bin_dir}{os.pathsep}{os.environ['PATH']}")
     monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(config, "publish_pdf_to_built_site", _PUBLISH_PDF_TO_BUILT_SITE)
 
     output = build_pdf_from_built_site(str(config_path))
 
@@ -350,7 +307,7 @@ def test_built_site_icons_follow_compiled_css_then_project_overrides(
 
 def test_builds_a_pdf_from_a_zensical_toml_project(project) -> None:
     root = project()
-    output_path = build_pdf_from_zensical_config(str(root / "zensical.toml"))
+    output_path = build_pdf_from_built_site(str(root / "zensical.toml"))
     assert output_path == "docs/site_documentation.pdf"
     assert (root / output_path).exists()
 
@@ -376,7 +333,7 @@ def test_pdf_build_uses_the_prepared_windows_weasyprint_runtime(
         lambda _pages, _output, **kwargs: captured.update(kwargs),
     )
 
-    build_pdf_from_zensical_config(str(root / "zensical.toml"))
+    build_pdf_from_built_site(str(root / "zensical.toml"))
 
     assert captured["weasyprint_executable"] == str(executable)
 
@@ -384,7 +341,7 @@ def test_pdf_build_uses_the_prepared_windows_weasyprint_runtime(
 def test_pdf_output_path_is_configurable(project) -> None:
     root = project(extra='\n[project.extra]\npdf_output = "dist/out.pdf"\n')
     (root / "dist").mkdir()
-    output_path = build_pdf_from_zensical_config(str(root / "zensical.toml"))
+    output_path = build_pdf_from_built_site(str(root / "zensical.toml"))
     assert output_path == "dist/out.pdf"
     assert (root / output_path).exists()
 
@@ -395,7 +352,7 @@ def test_pdf_output_cannot_overwrite_an_authored_markdown_file(project) -> None:
     original = source.read_bytes()
 
     with pytest.raises(SettingError, match=r"pdf_output.*\.pdf"):
-        build_pdf_from_zensical_config(str(root / "zensical.toml"))
+        build_pdf_from_built_site(str(root / "zensical.toml"))
 
     assert source.read_bytes() == original
 
@@ -415,19 +372,15 @@ def test_appendix_front_matter_flag_is_read_from_the_page(
         captured["pages"] = pages
 
     monkeypatch.setattr(config_module, "build_pdf", _spy)
-    build_pdf_from_zensical_config(str(root / "zensical.toml"))
+    build_pdf_from_built_site(str(root / "zensical.toml"))
 
     pages_by_path = {page.docs_rel_path: page for page in captured["pages"]}
     assert pages_by_path["chapter1.md"].is_appendix is True
     assert pages_by_path["index.md"].is_appendix is False
 
 
-@pytest.mark.parametrize(
-    "renderer",
-    [build_pdf_from_built_site, build_pdf_from_zensical_config],
-)
 def test_complete_pdf_omits_a_website_only_navigation_page(
-    project, monkeypatch: pytest.MonkeyPatch, renderer
+    project, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     root = project()
     (root / "docs" / "chapter1.md").write_text(
@@ -436,16 +389,13 @@ def test_complete_pdf_omits_a_website_only_navigation_page(
 
     captured = {}
 
-    if renderer is build_pdf_from_built_site:
-        monkeypatch.setattr(config, "validate_built_site", lambda *_args, **_kwargs: None)
-        monkeypatch.setattr(config, "page_html", lambda _config, source: f"<h1>{source}</h1>")
-        monkeypatch.setattr(config, "publish_pdf_to_built_site", lambda *_args: None)
+    monkeypatch.setattr(config, "publish_pdf_to_built_site", lambda *_args: None)
 
     def _spy(pages, output_path, **kwargs):
         captured["pages"] = pages
 
     monkeypatch.setattr(config, "build_pdf", _spy)
-    renderer(str(root / "zensical.toml"))
+    build_pdf_from_built_site(str(root / "zensical.toml"))
 
     assert [page.docs_rel_path for page in captured["pages"]] == ["index.md"]
 
@@ -463,7 +413,7 @@ def test_single_page_pdf_ignores_the_website_only_flag(
         captured["pages"] = pages
 
     monkeypatch.setattr(config, "build_pdf", _spy)
-    build_pdf_from_zensical_config(str(root / "zensical.toml"), markdown_file="chapter1.md")
+    build_pdf_from_built_site(str(root / "zensical.toml"), markdown_file="chapter1.md")
 
     assert [page.docs_rel_path for page in captured["pages"]] == ["chapter1.md"]
 
@@ -475,6 +425,12 @@ def test_only_the_first_navigation_index_is_the_pdf_cover(
     about = root / "docs" / "about"
     about.mkdir()
     (about / "index.md").write_text("# About\n", encoding="utf-8")
+    built_about = root / "site" / "about"
+    built_about.mkdir()
+    (built_about / "index.html").write_text(
+        '<article class="md-content__inner md-typeset"><h1>About</h1></article>',
+        encoding="utf-8",
+    )
     (root / "zensical.toml").write_text(
         """[project]
 site_name = "Test project"
@@ -494,7 +450,7 @@ nav = [
         captured["pages"] = pages
 
     monkeypatch.setattr(config_module, "build_pdf", _spy)
-    build_pdf_from_zensical_config(str(root / "zensical.toml"))
+    build_pdf_from_built_site(str(root / "zensical.toml"))
 
     pages_by_path = {page.docs_rel_path: page for page in captured["pages"]}
     assert pages_by_path["index.md"].is_index is True
@@ -545,7 +501,7 @@ def test_recto_title_front_matter_is_read_from_the_page(
         captured["pages"] = pages
 
     monkeypatch.setattr(config_module, "build_pdf", _spy)
-    build_pdf_from_zensical_config(str(root / "zensical.toml"))
+    build_pdf_from_built_site(str(root / "zensical.toml"))
 
     pages_by_path = {page.docs_rel_path: page for page in captured["pages"]}
     assert pages_by_path["chapter1.md"].recto_title == "Short Title"
@@ -569,7 +525,7 @@ def test_double_sided_settings_are_read_from_extra_and_passed_through(
         captured.update(kwargs)
 
     monkeypatch.setattr(config_module, "build_pdf", _spy)
-    build_pdf_from_zensical_config(str(root / "zensical.toml"))
+    build_pdf_from_built_site(str(root / "zensical.toml"))
 
     assert captured["double_sided"] is True
     assert captured["margin_inner"] == "2.5cm"
@@ -586,7 +542,7 @@ def test_double_sided_settings_default_off(project, monkeypatch: pytest.MonkeyPa
         captured.update(kwargs)
 
     monkeypatch.setattr(config_module, "build_pdf", _spy)
-    build_pdf_from_zensical_config(str(root / "zensical.toml"))
+    build_pdf_from_built_site(str(root / "zensical.toml"))
 
     assert captured["double_sided"] is False
     assert captured["margin_inner"] == "2cm"
@@ -599,12 +555,12 @@ def test_raises_a_clear_error_when_nav_is_empty(project) -> None:
         '[project]\nsite_name = "Empty"\nnav = []\n', encoding="utf-8"
     )
     with pytest.raises(ValueError, match="nav"):
-        build_pdf_from_zensical_config(str(root / "zensical.toml"))
+        build_pdf_from_built_site(str(root / "zensical.toml"))
 
 
 def test_markdown_file_builds_only_that_page(project) -> None:
     root = project()
-    output_path = build_pdf_from_zensical_config(
+    output_path = build_pdf_from_built_site(
         str(root / "zensical.toml"), markdown_file="chapter1.md"
     )
     assert output_path == "docs/chapter1.pdf"
@@ -616,7 +572,7 @@ def test_markdown_file_ignores_an_empty_nav(project) -> None:
     (root / "zensical.toml").write_text(
         '[project]\nsite_name = "Empty"\nnav = []\n', encoding="utf-8"
     )
-    output_path = build_pdf_from_zensical_config(
+    output_path = build_pdf_from_built_site(
         str(root / "zensical.toml"), markdown_file="chapter1.md"
     )
     assert output_path == "docs/chapter1.pdf"
@@ -626,7 +582,7 @@ def test_markdown_file_ignores_an_empty_nav(project) -> None:
 def test_markdown_file_still_honours_an_explicit_pdf_output(project) -> None:
     root = project(extra='\n[project.extra]\npdf_output = "dist/out.pdf"\n')
     (root / "dist").mkdir()
-    output_path = build_pdf_from_zensical_config(
+    output_path = build_pdf_from_built_site(
         str(root / "zensical.toml"), markdown_file="chapter1.md"
     )
     assert output_path == "dist/out.pdf"
@@ -645,7 +601,7 @@ def test_markdown_file_passes_only_that_page_to_build_pdf(
         captured["pages"] = pages
 
     monkeypatch.setattr(config_module, "build_pdf", _spy)
-    build_pdf_from_zensical_config(str(root / "zensical.toml"), markdown_file="chapter1.md")
+    build_pdf_from_built_site(str(root / "zensical.toml"), markdown_file="chapter1.md")
 
     assert [page.docs_rel_path for page in captured["pages"]] == ["chapter1.md"]
 
@@ -666,7 +622,7 @@ def test_extra_css_is_read_from_zensical_toml_and_passed_through(
         captured["extra_css"] = kwargs["extra_css"]
 
     monkeypatch.setattr(config_module, "build_pdf", _spy)
-    build_pdf_from_zensical_config(str(root / "zensical.toml"))
+    build_pdf_from_built_site(str(root / "zensical.toml"))
 
     assert ".web-only" in captured["extra_css"]
 
@@ -681,7 +637,7 @@ def test_extra_css_defaults_to_empty_when_unset(project, monkeypatch: pytest.Mon
         captured["extra_css"] = kwargs["extra_css"]
 
     monkeypatch.setattr(config_module, "build_pdf", _spy)
-    build_pdf_from_zensical_config(str(root / "zensical.toml"))
+    build_pdf_from_built_site(str(root / "zensical.toml"))
 
     assert captured["extra_css"] == ""
 
@@ -711,7 +667,7 @@ def test_pdf_extra_css_is_concatenated_after_extra_css(
         captured["extra_css"] = kwargs["extra_css"]
 
     monkeypatch.setattr(config_module, "build_pdf", _spy)
-    build_pdf_from_zensical_config(str(root / "zensical.toml"))
+    build_pdf_from_built_site(str(root / "zensical.toml"))
 
     extra_css = captured["extra_css"]
     assert ".web-only" in extra_css
@@ -735,7 +691,7 @@ def test_pdf_extra_css_relative_url_is_also_inlined(
         captured["extra_css"] = kwargs["extra_css"]
 
     monkeypatch.setattr(config_module, "build_pdf", _spy)
-    build_pdf_from_zensical_config(str(root / "zensical.toml"))
+    build_pdf_from_built_site(str(root / "zensical.toml"))
 
     assert "data:image/png;base64," in captured["extra_css"]
 
@@ -752,12 +708,12 @@ def test_pdf_extra_css_defaults_to_empty_when_unset(
         captured["extra_css"] = kwargs["extra_css"]
 
     monkeypatch.setattr(config_module, "build_pdf", _spy)
-    build_pdf_from_zensical_config(str(root / "zensical.toml"))
+    build_pdf_from_built_site(str(root / "zensical.toml"))
 
     assert captured["extra_css"] == ""
 
 
-def test_pdk_pdf_document_policy_drives_the_build_and_wins_over_legacy(
+def test_pdk_pdf_document_policy_drives_the_build_and_wins_over_zensical_fallbacks(
     project, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     root = project(extra="\n[project.extra]\npdf_page_size = false\n")
@@ -787,10 +743,10 @@ title = "Contents"
 
     monkeypatch.setattr(config_module, "build_pdf", _spy)
 
-    result = build_pdf_from_zensical_config(str(root / "zensical.toml"))
+    result = build_pdf_from_built_site(str(root / "zensical.toml"))
 
     assert result == "docs/configured.pdf"
-    assert captured["output_path"] == "docs/configured.pdf"
+    assert captured["output_path"] == str(root / "docs" / "configured.pdf")
     assert captured["page_size"] == "A5"
     assert captured["double_sided"] is True
     assert captured["margin_inner"] == "3cm"
@@ -991,8 +947,8 @@ def test_pdf_never_builds_a_source_bundle_as_a_side_effect(
         captured["called"] = True
 
     monkeypatch.setattr(config_module, "build_source_bundle", _spy)
-    build_pdf_from_zensical_config(str(root / "zensical.toml"))
-    build_pdf_from_zensical_config(str(root / "zensical.toml"), markdown_file="chapter1.md")
+    build_pdf_from_built_site(str(root / "zensical.toml"))
+    build_pdf_from_built_site(str(root / "zensical.toml"), markdown_file="chapter1.md")
 
     assert captured["called"] is False
 
@@ -1008,7 +964,7 @@ def test_include_index_defaults_off(project, monkeypatch: pytest.MonkeyPatch) ->
         captured["index_title"] = kwargs["index_title"]
 
     monkeypatch.setattr(config_module, "build_pdf", _spy)
-    build_pdf_from_zensical_config(str(root / "zensical.toml"))
+    build_pdf_from_built_site(str(root / "zensical.toml"))
 
     assert captured["include_index"] is False
     assert captured["index_title"] == "Index"
@@ -1027,7 +983,7 @@ def test_old_extra_index_names_are_not_read(project, monkeypatch: pytest.MonkeyP
         captured["index_title"] = kwargs["index_title"]
 
     monkeypatch.setattr(config_module, "build_pdf", _spy)
-    build_pdf_from_zensical_config(str(root / "zensical.toml"))
+    build_pdf_from_built_site(str(root / "zensical.toml"))
 
     assert captured == {"include_index": False, "index_title": "Index"}
 
@@ -1056,7 +1012,7 @@ def test_include_index_reads_from_the_extension_and_a_custom_title(
         captured["index_title"] = kwargs["index_title"]
 
     monkeypatch.setattr(config_module, "build_pdf", _spy)
-    build_pdf_from_zensical_config(str(root / "zensical.toml"))
+    build_pdf_from_built_site(str(root / "zensical.toml"))
 
     assert captured["include_index"] is True
     assert captured["index_title"] == "Glossary of Terms"
@@ -1072,7 +1028,7 @@ def test_invalid_index_configuration_is_rejected_by_pdf_build(project, setting: 
     )
 
     with pytest.raises(ValueError, match=r"prodockit\.index"):
-        build_pdf_from_zensical_config(str(root / "zensical.toml"))
+        build_pdf_from_built_site(str(root / "zensical.toml"))
 
 
 # ---------------------------------------------------------------------------
@@ -1092,15 +1048,27 @@ def _capture_pages(monkeypatch: pytest.MonkeyPatch):
     return captured
 
 
+def _write_built_html(root: Path, source: str, body: str) -> None:
+    output = root / "site" / ("index.html" if source == "index.md" else source[:-3])
+    if output.suffix != ".html":
+        output /= "index.html"
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(
+        f'<article class="md-content__inner md-typeset">{body}</article>',
+        encoding="utf-8",
+    )
+
+
 def test_wordcount_marker_is_substituted_with_the_site_wide_word_count(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     root = _write_project(tmp_path)
     (root / "docs" / "index.md").write_text("Word count: {WORDCOUNT}\n", encoding="utf-8")
+    _write_built_html(root, "index.md", "Word count: {WORDCOUNT}")
     captured = _capture_pages(monkeypatch)
     monkeypatch.chdir(root)
 
-    build_pdf_from_zensical_config(str(root / "zensical.toml"))
+    build_pdf_from_built_site(str(root / "zensical.toml"))
 
     cover_html = captured["pages"][0].html
     assert "{WORDCOUNT}" not in cover_html
@@ -1112,13 +1080,14 @@ def test_repourl_marker_is_substituted_with_the_git_detected_url(
 ) -> None:
     root = _write_project(tmp_path)
     (root / "docs" / "index.md").write_text("Repo: {REPOURL}\n", encoding="utf-8")
+    _write_built_html(root, "index.md", "Repo: {REPOURL}")
     captured = _capture_pages(monkeypatch)
     monkeypatch.chdir(root)
 
     import prodockit.pdf.config as config_module
 
     monkeypatch.setattr(config_module, "_get_repo_url", lambda: "https://github.com/x/y")
-    build_pdf_from_zensical_config(str(root / "zensical.toml"))
+    build_pdf_from_built_site(str(root / "zensical.toml"))
 
     assert "Repo: https://github.com/x/y" in captured["pages"][0].html
 
@@ -1128,6 +1097,7 @@ def test_release_marker_is_substituted_when_a_release_exists(
 ) -> None:
     root = _write_project(tmp_path)
     (root / "docs" / "index.md").write_text("Release: {RELEASE}\n", encoding="utf-8")
+    _write_built_html(root, "index.md", "Release: {RELEASE}")
     captured = _capture_pages(monkeypatch)
     monkeypatch.chdir(root)
 
@@ -1135,7 +1105,7 @@ def test_release_marker_is_substituted_when_a_release_exists(
 
     monkeypatch.setattr(config_module, "_get_repo_url", lambda: "https://github.com/x/y")
     monkeypatch.setattr(config_module, "get_latest_release_tag", lambda repo_url: "v1.2.3")
-    build_pdf_from_zensical_config(str(root / "zensical.toml"))
+    build_pdf_from_built_site(str(root / "zensical.toml"))
 
     assert "Release: v1.2.3" in captured["pages"][0].html
 
@@ -1145,6 +1115,7 @@ def test_release_marker_line_is_dropped_when_no_release_exists(
 ) -> None:
     root = _write_project(tmp_path)
     (root / "docs" / "index.md").write_text("Before\nRelease: {RELEASE}\nAfter\n", encoding="utf-8")
+    _write_built_html(root, "index.md", "Before\nRelease: {RELEASE}\nAfter")
     captured = _capture_pages(monkeypatch)
     monkeypatch.chdir(root)
 
@@ -1152,7 +1123,7 @@ def test_release_marker_line_is_dropped_when_no_release_exists(
 
     monkeypatch.setattr(config_module, "_get_repo_url", lambda: "https://github.com/x/y")
     monkeypatch.setattr(config_module, "get_latest_release_tag", lambda repo_url: "")
-    build_pdf_from_zensical_config(str(root / "zensical.toml"))
+    build_pdf_from_built_site(str(root / "zensical.toml"))
 
     cover_html = captured["pages"][0].html
     assert "{RELEASE}" not in cover_html
@@ -1167,10 +1138,11 @@ def test_site_name_marker_is_substituted_literally(
 ) -> None:
     root = _write_project(tmp_path)
     (root / "docs" / "index.md").write_text(f"Project: {marker}\n", encoding="utf-8")
+    _write_built_html(root, "index.md", f"Project: {marker}")
     captured = _capture_pages(monkeypatch)
     monkeypatch.chdir(root)
 
-    build_pdf_from_zensical_config(str(root / "zensical.toml"))
+    build_pdf_from_built_site(str(root / "zensical.toml"))
 
     assert "Project: Test project" in captured["pages"][0].html
 
@@ -1185,10 +1157,11 @@ def test_markers_are_not_substituted_for_a_markdown_file_scoped_build(
     (root / "docs" / "chapter1.md").write_text(
         "# Chapter One\n\nWord count: {WORDCOUNT}\n", encoding="utf-8"
     )
+    _write_built_html(root, "chapter1.md", "<h1>Chapter One</h1>Word count: {WORDCOUNT}")
     captured = _capture_pages(monkeypatch)
     monkeypatch.chdir(root)
 
-    build_pdf_from_zensical_config(str(root / "zensical.toml"), markdown_file="chapter1.md")
+    build_pdf_from_built_site(str(root / "zensical.toml"), markdown_file="chapter1.md")
 
     assert "{WORDCOUNT}" in captured["pages"][0].html
 
@@ -1207,10 +1180,11 @@ def test_markers_are_not_substituted_when_index_is_the_only_page(
         '[project]\nsite_name = "Test project"\nnav = [{"Home" = "index.md"}]\n',
         encoding="utf-8",
     )
+    _write_built_html(tmp_path, "index.md", "Word count: {WORDCOUNT}")
     captured = _capture_pages(monkeypatch)
     monkeypatch.chdir(tmp_path)
 
-    build_pdf_from_zensical_config(str(tmp_path / "zensical.toml"))
+    build_pdf_from_built_site(str(tmp_path / "zensical.toml"))
 
     assert "{WORDCOUNT}" in captured["pages"][0].html
 
@@ -1238,7 +1212,7 @@ def test_extra_css_relative_url_is_inlined_as_base64(
         captured["extra_css"] = kwargs["extra_css"]
 
     monkeypatch.setattr(config_module, "build_pdf", _spy)
-    build_pdf_from_zensical_config(str(root / "zensical.toml"))
+    build_pdf_from_built_site(str(root / "zensical.toml"))
 
     assert "data:image/png;base64," in captured["extra_css"]
     assert "logo.png" not in captured["extra_css"]
@@ -1264,7 +1238,7 @@ def test_extra_css_absolute_and_data_and_fragment_urls_are_left_alone(
         captured["extra_css"] = kwargs["extra_css"]
 
     monkeypatch.setattr(config_module, "build_pdf", _spy)
-    build_pdf_from_zensical_config(str(root / "zensical.toml"))
+    build_pdf_from_built_site(str(root / "zensical.toml"))
 
     assert "url(https://example.com/x.png)" in captured["extra_css"]
     assert 'url("data:image/png;base64,AAAA")' in captured["extra_css"]
@@ -1288,7 +1262,7 @@ def test_extra_css_url_to_a_missing_file_is_left_unchanged(
         captured["extra_css"] = kwargs["extra_css"]
 
     monkeypatch.setattr(config_module, "build_pdf", _spy)
-    build_pdf_from_zensical_config(str(root / "zensical.toml"))
+    build_pdf_from_built_site(str(root / "zensical.toml"))
 
     assert 'url("does-not-exist.png")' in captured["extra_css"]
 
@@ -1310,6 +1284,8 @@ def _write_custom_project(tmp_path: Path, project_toml: str) -> Path:
     (docs_dir / "index.md").write_text("# Cover\n", encoding="utf-8")
     (docs_dir / "chapter1.md").write_text("# Chapter One\n\nBody text.\n", encoding="utf-8")
     (tmp_path / "zensical.toml").write_text(project_toml, encoding="utf-8")
+    _write_built_html(tmp_path, "index.md", "<h1>Cover</h1>")
+    _write_built_html(tmp_path, "chapter1.md", "<h1>Chapter One</h1><p>Body text.</p>")
     return tmp_path
 
 
@@ -1336,7 +1312,7 @@ def test_copyright_with_a_real_link_is_passed_through_unescaped(
         captured["copyright_text"] = kwargs["copyright_text"]
 
     monkeypatch.setattr(config_module, "build_pdf", _spy)
-    build_pdf_from_zensical_config(str(root / "zensical.toml"))
+    build_pdf_from_built_site(str(root / "zensical.toml"))
 
     assert captured["copyright_text"] == (
         'Copyright 2026. Made with <a href="https://zensical.org/">Zensical</a>.'
@@ -1361,7 +1337,7 @@ def test_pdf_copyright_falls_back_to_project_copyright_when_unset(
         captured["copyright_text"] = kwargs["copyright_text"]
 
     monkeypatch.setattr(config_module, "build_pdf", _spy)
-    build_pdf_from_zensical_config(str(root / "zensical.toml"))
+    build_pdf_from_built_site(str(root / "zensical.toml"))
 
     assert captured["copyright_text"] == "Copyright test"
 
@@ -1392,7 +1368,7 @@ def test_pdf_copyright_overrides_project_copyright_for_the_pdf_only(
         captured["copyright_text"] = kwargs["copyright_text"]
 
     monkeypatch.setattr(config_module, "build_pdf", _spy)
-    build_pdf_from_zensical_config(str(root / "zensical.toml"))
+    build_pdf_from_built_site(str(root / "zensical.toml"))
 
     assert captured["copyright_text"] == "Copyright test<br>Made with Zensical and prodockit."
 
@@ -1419,7 +1395,7 @@ def test_site_name_passed_to_build_pdf_is_also_css_escaped(
         captured["site_name"] = kwargs["site_name"]
 
     monkeypatch.setattr(config_module, "build_pdf", _spy)
-    build_pdf_from_zensical_config(str(root / "zensical.toml"))
+    build_pdf_from_built_site(str(root / "zensical.toml"))
 
     assert captured["site_name"] == 'Say \\"hi\\"'
 

@@ -50,10 +50,9 @@ def _installed_zensical_version(command: str = "zensical") -> str:
     version in a diagnostic message, and a failure here must never be the
     reason that message doesn't get shown.
 
-    Shared by every "an undocumented Zensical API moved" message this
-    module and `prodockit.pdf.config` produce, so they stay consistent
-    with each other rather than each carrying its own copy that can drift
-    (prodockit-extensions#171).
+    Shared by every "an undocumented Zensical API moved" message in this
+    module so they stay consistent rather than each carrying a copy that can
+    drift (prodockit-extensions#171).
     """
     try:
         result = subprocess.run(

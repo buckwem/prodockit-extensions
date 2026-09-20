@@ -7,8 +7,6 @@ This is intentionally not a replacement for Zensical's configuration engine.
 Zensical still builds the website. Prodockit's public PDF path, pre-scan and
 testing features read the source configuration files directly so they do not
 import ``zensical.config`` or depend on its normalized private data structures.
-The old renderer remains separately available through the hidden legacy
-command.
 """
 
 from __future__ import annotations
