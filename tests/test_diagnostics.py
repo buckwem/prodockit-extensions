@@ -1139,10 +1139,13 @@ def test_missing_downloadable_renderers_are_deferred_until_first_use(
         assert optional_by_id[check_id].status == "warn"
         assert optional_by_id[check_id].data["required"] is False
     required_by_id = {check.id: check for check in required}
-    assert {check.id for check in required if check.status == "fail"} >= {
-        "renderer.weasyprint",
-        "renderer.node",
-    }
+    assert not [check for check in required if check.status == "fail"]
+    assert required_by_id["renderer.weasyprint"].status == "warn"
+    assert required_by_id["renderer.weasyprint"].data["deferred"] is True
+    assert required_by_id["renderer.node"].status == "warn"
+    assert required_by_id["renderer.node"].data["deferred"] is True
+    assert "pdk pdf" in required_by_id["renderer.weasyprint"].details[0]
+    assert "pdk pdf" in required_by_id["renderer.node"].details[0]
     for check_id in (
         "renderer.pandoc",
         "renderer.fonts",
@@ -1151,6 +1154,42 @@ def test_missing_downloadable_renderers_are_deferred_until_first_use(
     ):
         assert required_by_id[check_id].status == "warn"
         assert "will be prepared on first use" in required_by_id[check_id].summary
+
+
+def test_missing_node_remains_a_failure_after_mathjax_has_been_prepared(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    original = diagnostics._project_cached_runtime_check
+
+    def cached_runtime(config, root, *, component, required):
+        if component == "mathjax":
+            return DiagnosticResult(
+                "renderer.mathjax",
+                "Rendering toolchain",
+                "pass",
+                "Project-local MathJax 4.0.0 is healthy",
+                data={"required": required, "deferred": False},
+            )
+        return original(config, root, component=component, required=required)
+
+    monkeypatch.setattr(diagnostics, "_project_cached_runtime_check", cached_runtime)
+    monkeypatch.setattr(
+        diagnostics,
+        "_command",
+        lambda name: diagnostics.CommandInfo(name, None, None, "not found"),
+    )
+    monkeypatch.setattr(
+        diagnostics,
+        "_probe_weasyprint_import",
+        lambda *_args: subprocess.CompletedProcess([], 0, "69.0\n", ""),
+    )
+
+    checks = diagnostics._renderer_checks(_project(tmp_path, required=True), tmp_path)
+    node = next(check for check in checks if check.id == "renderer.node")
+
+    assert node.status == "fail"
+    assert node.data["required"] is True
+    assert node.data.get("deferred") is not True
 
 
 def test_mermaid_diagnostic_reports_missing_project_cache(
@@ -1697,8 +1736,11 @@ def test_weasyprint_timeout_reports_bounded_probe_evidence(
     )
     monkeypatch.setattr(diagnostics.shutil, "which", lambda _name: None)
 
-    checks = diagnostics._renderer_checks(_project(tmp_path, required=True), tmp_path)
-    result = next(check for check in checks if check.id == "renderer.weasyprint")
+    result = diagnostics._system_weasyprint_check(
+        tmp_path,
+        required=True,
+        retry_reporter=None,
+    )
 
     assert result.status == "fail"
     assert "2 bounded attempts" in " ".join(result.details)

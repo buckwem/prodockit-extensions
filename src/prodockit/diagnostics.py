@@ -3192,6 +3192,7 @@ def _system_weasyprint_check(
     root: Path,
     *,
     required: bool,
+    deferred: bool = False,
     retry_reporter: RetryReporter | None,
 ) -> DiagnosticResult:
     imported: ProbeResult | subprocess.CompletedProcess[str] | None = None
@@ -3233,6 +3234,26 @@ def _system_weasyprint_check(
             },
         )
     except Exception as error:
+        if deferred:
+            return DiagnosticResult(
+                "renderer.weasyprint",
+                "Rendering toolchain",
+                "warn",
+                "WeasyPrint prerequisites will be checked on first PDF use",
+                (
+                    "Run `pdk pdf` when PDF output is required; it will report any "
+                    "missing macOS or Linux native prerequisite.",
+                ),
+                {
+                    "required": required,
+                    "deferred": True,
+                    **(
+                        {"health_probe": imported.evidence()}
+                        if isinstance(imported, ProbeResult)
+                        else {}
+                    ),
+                },
+            )
         safe_error = _sanitise_text(f"{type(error).__name__}: {error}", root)
         return DiagnosticResult(
             "renderer.weasyprint",
@@ -3270,24 +3291,38 @@ def _renderer_checks(
         )
     )
     mermaid_required, maths_required = renderer_requirements(config) if config else (False, False)
-    node_required = maths_required
     bibliography_required = bool(
         config and "prodockit.bibliography" in config.markdown_extensions
     )
-    checks = [
-        _project_cached_runtime_check(
-            config,
-            root,
-            component="pandoc",
-            required=pdf_required or bibliography_required,
-        ),
-        _project_cached_runtime_check(
-            config,
-            root,
-            component="fonts",
-            required=pdf_required,
-        ),
-    ]
+    pandoc = _project_cached_runtime_check(
+        config,
+        root,
+        component="pandoc",
+        required=pdf_required or bibliography_required,
+    )
+    fonts = _project_cached_runtime_check(
+        config,
+        root,
+        component="fonts",
+        required=pdf_required,
+    )
+    mermaid = _project_cached_runtime_check(
+        config,
+        root,
+        component="mermaid",
+        required=mermaid_required,
+    )
+    mathjax = _project_cached_runtime_check(
+        config,
+        root,
+        component="mathjax",
+        required=maths_required,
+    )
+    pdf_deferred = pdf_required and any(
+        check.data.get("deferred") is True for check in (pandoc, fonts)
+    )
+    mathjax_deferred = maths_required and mathjax.data.get("deferred") is True
+    checks = [pandoc, fonts]
 
     checks.append(
         _windows_cached_weasyprint_check(config, root, required=pdf_required)
@@ -3295,36 +3330,36 @@ def _renderer_checks(
         else _system_weasyprint_check(
             root,
             required=pdf_required,
+            deferred=pdf_deferred,
             retry_reporter=retry_reporter,
         )
     )
 
-    checks.append(
-        _tool_result(
+    node = _tool_result(
+        "renderer.node",
+        "Node",
+        "node",
+        root=root,
+        required=maths_required and not mathjax_deferred,
+        timeout_retries=1 if sys.platform == "win32" else 0,
+    )
+    if mathjax_deferred and node.status != "pass":
+        node = DiagnosticResult(
             "renderer.node",
-            "Node",
-            "node",
-            root=root,
-            required=node_required,
-            timeout_retries=1 if sys.platform == "win32" else 0,
-        )
-    )
-    checks.extend(
-        (
-            _project_cached_runtime_check(
-                config,
-                root,
-                component="mermaid",
-                required=mermaid_required,
+            "Rendering toolchain",
+            "warn",
+            "Node will be checked on first MathJax use",
+            (
+                "Run `pdk pdf` when maths PDF output is required; it will report "
+                "whether Node must be installed.",
             ),
-            _project_cached_runtime_check(
-                config,
-                root,
-                component="mathjax",
-                required=maths_required,
-            ),
+            {
+                **node.data,
+                "required": True,
+                "deferred": True,
+            },
         )
-    )
+    checks.extend((node, mermaid, mathjax))
     return checks
 
 

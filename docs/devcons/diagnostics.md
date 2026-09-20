@@ -238,19 +238,18 @@ Dependency and managed-file diagnostics
 ## Rendering toolchain
 
 A clean missing project cache is a warning because the first applicable PDF
-build prepares it transparently. An incompatible or unhealthy cache is a
-failure when the current configuration requires it. Missing host prerequisites
-such as Node or system-backed WeasyPrint are also failures only when required,
-so a website-only project does not have to install the PDF toolchain merely to
-make diagnostics pass.
+build prepares it transparently. Its Node and macOS/Linux WeasyPrint
+prerequisites are deferred at the same boundary. An incompatible or unhealthy
+established cache remains a failure when the current configuration requires it,
+so first-use convenience does not hide a broken working toolchain.
 \ref{tab-diagnostics-rendering-toolchain} gives the repair for each component.
 
 | Check ID | Failure or warning means | Author remediation |
 |---|---|---|
 | `renderer.pandoc` | A warning says first-use preparation is pending. A failure says an existing cache is incompatible, corrupt, or failed its absolute-path version/citeproc probe. | Let the next applicable build prepare it, or run `pdk pdf --prepare pandoc`; diagnostics itself never downloads or changes the cache. |
 | `renderer.fonts` | A warning says first-use preparation is pending. A failure says an existing Inter/JetBrains Mono bundle is incompatible, corrupt, or incomplete. | Let the next PDF build prepare it, or run `pdk pdf --prepare fonts`; diagnostics itself never downloads or changes the cache. |
-| `renderer.weasyprint` | On Windows x64, a warning says first-use preparation is pending; a failure means an existing runtime is incompatible, corrupt, or fails its absolute-path CLI probe. Elsewhere, a failure means a fresh Python process could not import system-backed WeasyPrint. | On Windows, let the next PDF build prepare it or run `pdk pdf --prepare weasyprint`. On other platforms, run `python -c "import weasyprint; print(weasyprint.__version__)"`, then install the native libraries described in the installation guide. |
-| `renderer.node` | Node is missing or cannot report its version. | Install the project's supported Node version, reopen the terminal, and confirm with `node --version`. |
+| `renderer.weasyprint` | On Windows x64, a warning says first-use preparation is pending; a failure means an existing runtime is incompatible, corrupt, or fails its absolute-path CLI probe. Elsewhere, an import problem is deferred while the project-local PDF caches are still clean, then becomes a failure once PDF preparation has begun. | Let the first `pdk pdf` check the complete toolchain. On Windows, use `pdk pdf --prepare weasyprint`; on other platforms, install any reported native libraries from the installation guide. |
+| `renderer.node` | A missing or unusable Node command is deferred while a clean MathJax cache awaits first use, then becomes a failure after MathJax preparation has begun. | Let the first maths PDF build check it, or install the supported Node version and confirm with `node --version`. |
 | `renderer.mermaid` | A warning says first-use preparation is pending. A failure means an existing cache is incompatible, corrupt, or fails its fresh-process SVG probe. | Let the next PDF build prepare it, or run `pdk pdf --prepare mermaid`; diagnostics itself never downloads or changes the cache. |
 | `renderer.mathjax` | A warning says first-use preparation is pending. A failure means an existing MathJax 4 cache is incompatible, corrupt, or fails a real TeX-to-SVG probe; Node has its own prerequisite check. | Install Node.js if required, then let the next PDF build prepare MathJax or run `pdk pdf --prepare mathjax`; no npm installation is used. |
 | `renderer.inspection` | An operating-system error prevented the rendering tools from being inspected. | Correct the path or permissions named in the detail. Run each shown executable with `--version`, then rerun `pdk diag --verbose`. |
