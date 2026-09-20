@@ -264,7 +264,7 @@ Start with the symptom-to-check map in
 |---|---|
 | The same command fails locally | Fix the source or local configuration before investigating CI |
 | A tool is absent only in CI | Compare the workflow with the maintained template file and its pinned requirements |
-| The PDF contains raw Mermaid or TeX | Check the Node installs, Chrome path, and built-output tests |
+| The PDF contains raw Mermaid or TeX | Run `pdk diag`, prepare the affected project-local renderer, and inspect its PDF error; Node.js applies only to MathJax |
 | The PDF uses the wrong font | Check the operating-system font packages and inspect embedded fonts |
 | The website builds but the PDF link is stale | Confirm the strict Zensical build runs before the PDF command and both use the same artifact directory |
 | GitHub deploys but the public page is old | Inspect the workflow's live-verification job and rerun the maintained workflow against the default branch |
