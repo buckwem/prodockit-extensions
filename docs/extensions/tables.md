@@ -330,6 +330,11 @@ The empty cell after `Measured` and the empty cells beneath the two
 `rowspan=2` headings are structural placeholders. The extension removes those
 placeholders after applying the spans.
 
+For PDF output, all body rows covered by a `rowspan` stay together when the
+group fits on one page. This prevents a shaded spanning cell from losing its
+background when a table continues on the next page; repeated table headers
+still appear above the moved group.
+
 ### Fix a table that renders as pipe characters {: #tables-row-width-mismatch }
 
 The header and delimiter rows must declare the same number of cells. A merged
