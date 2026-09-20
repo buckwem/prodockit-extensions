@@ -1174,6 +1174,48 @@ def test_missing_asset_lists_are_added_even_when_an_old_manifest_does_not_take_t
     assert updated == []
 
 
+def test_assets_disabled_by_project_component_choices_are_not_taken_from_template() -> None:
+    template = {
+        "project": {
+            "extra_javascript": [
+                "javascripts/mathjax.js?v=template",
+                "https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js",
+                "javascripts/vendor/mathjax/tex-svg-full.js?v=legacy",
+                "javascripts/pdk.js",
+                "javascripts/extra.js",
+            ]
+        }
+    }
+    project = {"project": {"extra_javascript": ["javascripts/course.js"]}}
+    excluded = (
+        "javascripts/mathjax.js",
+        "https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js",
+        "javascripts/vendor/mathjax/tex-svg-full.js",
+    )
+
+    added, updated = config_changes(
+        load_manifest(MANIFEST), template, project, excluded_assets=excluded
+    )
+    source = '[project]\nextra_javascript = ["javascripts/course.js"]\n'
+    parsed = read_config(
+        apply_config_changes(
+            source,
+            template,
+            added,
+            updated,
+            excluded_assets=excluded,
+        )
+    )["project"]
+
+    assert added == []
+    assert updated == ["project.extra_javascript"]
+    assert parsed["extra_javascript"] == [
+        "javascripts/pdk.js",
+        "javascripts/extra.js",
+        "javascripts/course.js",
+    ]
+
+
 def test_configured_author_assets_are_seeded_but_only_when_missing(tmp_path) -> None:
     template = {
         "project": {

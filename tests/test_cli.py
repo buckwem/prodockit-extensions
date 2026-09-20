@@ -670,7 +670,8 @@ paths = []
     )
     (template / "zensical.toml").write_text(
         '[project]\nextra_css = ["stylesheets/pdk.css"]\n'
-        'extra_javascript = ["javascripts/pdk.js"]\n',
+        'extra_javascript = ["javascripts/mathjax.js", '
+        '"https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js", "javascripts/pdk.js"]\n',
         encoding="utf-8",
     )
     (template / ".github" / "workflows").mkdir(parents=True)
@@ -747,6 +748,10 @@ paths = []
     )
     (project / "zensical.toml").write_text(
         '[project]\nsite_name = "Report"\n', encoding="utf-8"
+    )
+    (project / ".prodockit-components.toml").write_text(
+        "schema = 1\n\n[components]\nmermaid = false\nmaths = false\n",
+        encoding="utf-8",
     )
     (project / ".github" / "workflows").mkdir(parents=True)
     (project / ".github" / "workflows" / "docs.yml").write_text(
