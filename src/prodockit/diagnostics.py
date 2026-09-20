@@ -29,7 +29,7 @@ import prodockit
 from prodockit.config_diagnostics import inspect_config
 from prodockit.pdf.font_runtime import FontProvider
 from prodockit.pdf.font_runtime import probe_runtime as probe_font_runtime
-from prodockit.pdf.mathjax_runtime import MathJaxProvider
+from prodockit.pdf.mathjax_runtime import MathJaxProvider, node_install_guidance
 from prodockit.pdf.mathjax_runtime import probe_runtime as probe_mathjax_runtime
 from prodockit.pdf.mermaid_runtime import MermaidProvider
 from prodockit.pdf.mermaid_runtime import probe_runtime as probe_mermaid_runtime
@@ -59,7 +59,7 @@ from prodockit.shared_files import SharedFileError
 from prodockit.shared_files import apply as apply_shared_files
 from prodockit.shared_files import inspect as inspect_shared_files
 from prodockit.text_encoding import inspect_project_text_encoding
-from prodockit.weasyprint_probe import ProbeResult, run_probe
+from prodockit.weasyprint_probe import ProbeResult, pango_install_guidance, run_probe
 
 if sys.version_info >= (3, 11):
     import tomllib
@@ -3218,8 +3218,9 @@ def _system_weasyprint_check(
             "PDF Python requirements will be prepared on first PDF use",
             (
                 "Run `pdk pdf` when PDF output is required; it will install the "
-                "committed PDF-only packages and report any missing macOS or Linux "
-                "native prerequisite.",
+                "committed PDF-only packages. pdk boot and pdk adopt do not install "
+                "WeasyPrint's host prerequisite.",
+                f"{pango_install_guidance()} Then retry `pdk pdf`.",
             ),
             {"required": required, "deferred": True},
         )
@@ -3291,15 +3292,15 @@ def _weasyprint_import_error(
     selected_platform = sys.platform if platform is None else platform
     if selected_platform == "darwin":
         return (
-            "WeasyPrint's macOS native libraries are missing. Run `brew install pango`, "
-            'then `export DYLD_FALLBACK_LIBRARY_PATH="$(brew --prefix)/lib"` in this '
-            "terminal and rerun `pdk diag`."
+            "WeasyPrint's macOS native libraries are missing. "
+            f"{pango_install_guidance(selected_platform=selected_platform)} Then rerun "
+            "`pdk diag`."
         )
     if selected_platform.startswith("linux"):
         return (
-            "WeasyPrint's Linux native libraries are missing. Run `sudo apt update && "
-            "sudo apt install -y libpango-1.0-0 libpangoft2-1.0-0 "
-            "libharfbuzz-subset0`, then rerun `pdk diag`."
+            "WeasyPrint's Linux native libraries are missing. "
+            f"{pango_install_guidance(selected_platform=selected_platform)} Then rerun "
+            "`pdk diag`."
         )
     return safe_error
 
@@ -3404,8 +3405,11 @@ def _renderer_checks(
             "warn",
             "Node will be checked on first MathJax use",
             (
-                "Run `pdk pdf` when maths PDF output is required; it will report "
-                "whether Node must be installed.",
+                "PDF maths requires Node.js on PATH; pdk boot and pdk adopt do not "
+                "install this optional host prerequisite.",
+                f"{node_install_guidance()} Verify with `node --version`, then run "
+                "`pdk pdf` or `pdk pdf --prepare mathjax`. No npm packages, "
+                "node_modules, browser or MSYS2 are required.",
             ),
             {
                 **node.data,

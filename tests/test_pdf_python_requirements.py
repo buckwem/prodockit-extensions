@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -68,6 +69,41 @@ def test_existing_satisfactory_install_is_recorded_without_running_pip(
 
     assert result.cached is False
     assert result.versions == {"weasyprint": "70.0"}
+
+
+@pytest.mark.parametrize(
+    ("selected_platform", "command"),
+    [
+        ("darwin", "brew install pango"),
+        (
+            "linux",
+            "sudo apt update && sudo apt install -y libpango-1.0-0 "
+            "libpangoft2-1.0-0 libharfbuzz-subset0",
+        ),
+    ],
+)
+def test_missing_native_weasyprint_library_reports_exact_install_command(
+    monkeypatch: pytest.MonkeyPatch, selected_platform: str, command: str
+) -> None:
+    monkeypatch.setattr(requirements.sys, "platform", selected_platform)
+    monkeypatch.setattr(
+        requirements,
+        "run_probe",
+        lambda **_kwargs: SimpleNamespace(
+            returncode=1,
+            pending=False,
+            stdout="",
+            stderr="Traceback (most recent call last):\nOSError: cannot load library 'libgobject-2.0-0'",
+        ),
+    )
+
+    with pytest.raises(requirements.PdfPythonRequirementsError) as captured:
+        requirements._probe((requirements.Requirement("weasyprint>=69.0"),))
+
+    message = str(captured.value)
+    assert command in message
+    assert "Then retry `pdk pdf`" in message
+    assert "Traceback" not in message
 
 
 def test_failed_install_leaves_no_manifest_and_can_be_retried(

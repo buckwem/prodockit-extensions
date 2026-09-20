@@ -990,10 +990,12 @@ before continuing.
 
     === ":material-apple: macOS"
 
-        1. Install \index{Pango}, which is not a Python package, so `pip` cannot install it for you:
+        1. Install \index{Pango} and Node.js together for the standard
+           template's PDF and maths examples. They are not Python packages, so
+           `pip` cannot install them for you:
 
             ``` bash
-            brew install pango
+            brew install pango node
             ```
 
         `pdk pdf` downloads verified Pandoc and font archives into this
@@ -1113,12 +1115,11 @@ before continuing.
     === ":material-linux: Linux (Ubuntu)"
 
         1. Open a terminal and install the graphics libraries
-           \index{WeasyPrint} needs:
+           \index{WeasyPrint} needs together with Node.js for PDF maths:
 
             ``` bash
             sudo apt update
-            sudo apt install -y \
-              libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz-subset0
+            sudo apt install -y libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz-subset0 nodejs
             ```
 
             !!! info "Why the three library packages"
@@ -1338,31 +1339,18 @@ Mermaid is a Python-only runtime and needs no Node.js, npm, browser or MSYS2.
 
 MathJax 4 is also downloaded and cached automatically, but its small SVG
 adapter currently requires Node.js on `PATH`. It does not use npm or a
-`node_modules` directory. Install Node.js only when the PDF contains maths:
+`node_modules` directory. The macOS and Ubuntu project-environment steps above
+already install Node.js together with Pango for the standard template. On
+Windows, install Node.js when the PDF contains maths:
 
 <span id="install-nodejs"></span>
 
-=== ":material-apple: macOS"
+``` powershell
+winget install OpenJS.NodeJS.LTS
+```
 
-    ``` bash
-    brew install node
-    ```
-
-=== ":fontawesome-brands-windows: Windows"
-
-    ``` powershell
-    winget install OpenJS.NodeJS.LTS
-    ```
-
-    Close and reopen PowerShell, return to the project, and reactivate its
-    virtual environment.
-
-=== ":material-linux: Linux (Ubuntu)"
-
-    ``` bash
-    sudo apt update
-    sudo apt install -y nodejs
-    ```
+Close and reopen PowerShell, return to the project, and reactivate its virtual
+environment.
 
 Check Node.js when maths is used:
 
