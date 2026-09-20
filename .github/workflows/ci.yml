@@ -222,7 +222,10 @@ jobs:
         with:
           node-version: "22"
       - run: npm ci --prefix tools/browser-test
-      - run: pip install -e .
+      - run: pip install -e ".[testing]"
+      # The deployment workflow runs these checks too, but that is too late
+      # to catch a browser-fixture regression: it leaves main undeployable.
+      - run: pytest tests/test_pdf_web_render.py -k real_browser -q
       - run: zensical build --clean --strict
       - run: prodockit update-dates
       - name: Check the reusable website has no analytics controls
