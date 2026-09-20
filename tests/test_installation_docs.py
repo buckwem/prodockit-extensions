@@ -568,3 +568,35 @@ def test_install_routes_explain_ownership_and_maintenance() -> None:
     manual = MANUAL_INSTALL.read_text(encoding="utf-8")
     assert "Path 1" in manual and "Path 2" in manual
     assert "preview `pdk template-sync`" in manual
+
+
+def test_manual_install_uses_route_badges_and_creates_the_project_environment() -> None:
+    """Keep the manual route as explicit as the guided Adopt route."""
+    page = MANUAL_INSTALL.read_text(encoding="utf-8")
+
+    for badge in (
+        "**Clean**{: .install-clean}",
+        "**Update**{: .install-update}",
+        "**Optional**{: .bg-green}",
+        ".install-go",
+    ):
+        assert badge in page
+
+    assert "Start from the template **Clean**{: .install-clean}" in page
+    assert "Clone the existing repository **Update**{: .install-update}" in page
+    assert "Finish Path 1: make and push the first commit **Clean**{: .install-clean}" in page
+    assert "Finish Path 2: review and publish the changes **Update**{: .install-update}" in page
+    assert "#stage-4-create-the-project-environment" in page
+    assert "#manual-finish-path-1" in page
+    assert "#manual-finish-path-2" in page
+
+    environment = page[
+        page.index("### Stage 4 — Create the project environment") : page.index(
+            "### Stage 5 — Add editor and rendering tools"
+        )
+    ]
+    assert '"$(brew --prefix python@3.14)/bin/python3.14" -m venv .venv' in environment
+    assert "py -3.14 -m venv .venv" in environment
+    assert "python3.14 -m venv .venv" in environment
+    assert "source .venv/bin/activate" in environment
+    assert r".\.venv\Scripts\Activate.ps1" in environment

@@ -32,9 +32,19 @@ run the check shown for it before continuing.
 
 ## Manual installation stages
 
-Each stage groups a related part of the installation. Complete its numbered
-steps before moving to the next stage. Use only the instructions for your
-operating system{% if is_surrey %} and use Surrey GitLab for your coursework{% else %}
+Start with Stage 1 and Stage 2. At Stage 3, choose the one route that matches
+your repository; both routes join again at Stage 4, then separate for the
+final repository action in Stage 6.
+
+Use the badges beside stage and step titles to follow your route:
+
+- **Clean**{: .install-clean}: follow Path 1 to start from `prodockit-template` and connect it to an empty repository.
+- **Update**{: .install-update}: follow Path 2 to clone a repository that already contains commits and preserve its history.
+- **Optional**{: .bg-green}: skip when already completed or not needed.
+- [Go to](#stage-1-prepare-the-computer){ .install-go }: click to jump over the other route.
+
+Steps without a path badge apply to both routes. Use only the instructions for
+your operating system{% if is_surrey %} and use Surrey GitLab for your coursework{% else %}
 and chosen Git host; you do not need both GitHub and GitLab{% endif %}.
 Skip tools that already pass the checks, but do not skip verification.
 
@@ -632,8 +642,8 @@ which path to follow; complete only that path.
 
 | Starting point | Path to follow |
 | --- | --- |
-| Your repository does not exist yet, or exists but is completely empty | [Path 1: start from the template](#manual-install-path-1) |
-| Your repository already contains one or more commits | [Path 2: clone the existing repository](#manual-install-path-2) |
+| Your repository does not exist yet, or exists but is completely empty | **Clean**{: .install-clean} Path 1: [Go to the template route](#manual-install-path-1){ .install-go } |
+| Your repository already contains one or more commits | **Update**{: .install-update} Path 2: [Go to the existing-repository route](#manual-install-path-2){ .install-go } |
 /// table-caption | <
     attrs: {id: tab-manual-project-path}
 
@@ -684,7 +694,7 @@ created.
 
 ////
 
-//// step | Path 1: start from the template
+//// step | Start from the template **Clean**{: .install-clean}
 
 <span id="manual-install-path-1"></span>
 
@@ -824,9 +834,11 @@ or GitHub{% endif %} repository.
     `prodockit sync-repo` will replace the template's own links before your
     first commit is created.
 
+[Go to Stage 4](#stage-4-create-the-project-environment){ .install-go }
+
 ////
 
-//// step | Path 2: clone the existing repository
+//// step | Clone the existing repository **Update**{: .install-update}
 
 <span id="manual-install-path-2"></span>
 
@@ -896,6 +908,8 @@ the same place.
 
 You now have the project locally. The remaining sections are shared by both
 paths and install everything needed to edit, build, and publish it.
+
+[Go to Stage 4](#stage-4-create-the-project-environment){ .install-go }
 
 ////
 
@@ -1416,9 +1430,16 @@ pdk pdf
 See [PDF generation](pdf.md) for downloadable PDFs and source bundles. A
 successful command cannot detect every visual problem.
 
+Continue with only the final action for the route selected in Stage 3:
+
+- **Clean**{: .install-clean} Path 1: [Go to the first commit](#manual-finish-path-1){ .install-go }.
+- **Update**{: .install-update} Path 2: [Go to review and publish](#manual-finish-path-2){ .install-go }.
+
 ////
 
-//// step | Finish Path 1: make and push the first commit
+//// step | Finish Path 1: make and push the first commit **Clean**{: .install-clean}
+
+<span id="manual-finish-path-1"></span>
 
 Path 1 has a new local history and an empty online repository. Check exactly
 what the first commit will contain:
@@ -1462,7 +1483,9 @@ front page as described in the publishing instructions.
 
 ////
 
-//// step | Finish Path 2: review and publish the changes
+//// step | Finish Path 2: review and publish the changes **Update**{: .install-update}
+
+<span id="manual-finish-path-2"></span>
 
 Installing dependencies may leave source files unchanged, but configuration
 and repository-link updates can change them. Review the results on your setup
