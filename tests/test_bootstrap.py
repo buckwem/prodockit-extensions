@@ -3563,17 +3563,16 @@ def test_an_incomplete_project_environment_is_archived_and_rebuilt(tmp_path: Pat
     assert plan.commands[2][1:4] == ["-m", "pip", "install"]
 
 
-def test_weasyprint_is_verified_from_the_projects_venv(tmp_path: Path) -> None:
-    """#248 gap 1: the pandoc stage was *named* for WeasyPrint's
-    libraries and only ever checked pandoc, so it reported ok on a
-    machine whose PDF build would fail at `cannot load library`.
-
-    Importing WeasyPrint is the guide's own test, and a strict one: it
-    loads Pango through the system linker, so a successful import proves
-    both the package and the native libraries."""
+def test_bootstrap_defers_pdf_prerequisites_without_probing_weasyprint(
+    tmp_path: Path,
+) -> None:
     project = tmp_path / "GitLab" / "report-al01234"
     (project / ".git").mkdir(parents=True)
     (project / "requirements.txt").write_text("zensical\n", encoding="utf-8")
+    (project / ".prodockit-components.toml").write_text(
+        "schema = 1\n\n[components]\nmermaid = true\nmaths = true\n",
+        encoding="utf-8",
+    )
     venv_python = project / ".venv" / "bin" / "python"
     venv_python.parent.mkdir(parents=True)
     venv_python.write_text("", encoding="utf-8")
@@ -3584,16 +3583,17 @@ def test_weasyprint_is_verified_from_the_projects_venv(tmp_path: Path) -> None:
         {
             "import zensical": CommandResult(0),
             "-m pip --version": CommandResult(0, "pip 26.0.1"),
-            "import weasyprint": CommandResult(1, stderr="cannot load library 'libgobject-2.0-0'"),
         }
     )
     result = next(s for s in STAGES if s.id == "project-env").check(
         _context(tmp_path, runner=runner)
     )
 
-    assert result.status is Status.WRONG, "installed but unusable is not missing"
-    assert "graphics libraries" in result.detail
-    assert "Pango" in result.detail, "point at the manual prerequisite, not at pip"
+    assert result.status is Status.OK
+    assert "pdk pdf" in result.detail
+    assert "PDF prerequisites are deferred" in result.detail
+    assert "Pango" not in result.detail
+    assert not any("import weasyprint" in " ".join(call) for call in runner.calls)
 
 
 def test_windows_project_environment_does_not_import_python_weasyprint(

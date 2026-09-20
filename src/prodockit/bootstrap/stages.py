@@ -2599,22 +2599,10 @@ def _python_minor(version: str) -> tuple[int, int] | None:
 
 
 def _check_project_env(context: Context) -> CheckResult:
-    """Whether the project can actually build, asked of the project itself.
+    """Whether the core project environment is ready for normal site work.
 
-    Three distinct failures, and they need distinct answers - "run pip
-    again" is the right advice for one of them and useless for the other
-    two.
-
-    The WeasyPrint probe is the one the User Guide singles out:
-
-        Check that WeasyPrint can find its graphics libraries. This is
-        the one part of the setup `pip` cannot verify for you.
-
-    It is a stricter test than it looks. Importing WeasyPrint loads Pango
-    and its friends through the system's dynamic linker, so a successful
-    import proves both that the Python package is installed and that its
-    manually installed native prerequisites can be found. `pip` exiting zero
-    proves neither.
+    PDF runtimes and native prerequisites belong to ``pdk pdf``. Bootstrap
+    therefore leaves their inspection at that first-use boundary.
     """
     if (unknown := _needs_config(context, "project_name")) is not None:
         return unknown
@@ -2633,19 +2621,9 @@ def _check_project_env(context: Context) -> CheckResult:
         )
     if not _imports_from_project_venv(context, "zensical").ok:
         return _missing("the project's dependencies are not installed")
-    weasyprint = _imports_from_project_venv(context, "weasyprint")
-    if context.platform != WINDOWS and not weasyprint.ok:
-        # Installed but unusable, which is exactly what WRONG is for -
-        # and reinstalling it would not help, so the detail has to point
-        # at the libraries rather than at pip.
-        library_source = {
-            MACOS: "Homebrew's Pango libraries",
-            UBUNTU: "the system Pango libraries",
-        }[context.platform]
-        return _wrong(
-            "WeasyPrint is installed but cannot load its graphics libraries - "
-            f"install {library_source} as documented, then rerun Bootstrap"
-        )
+    pdf_note = (
+        "; PDF prerequisites are deferred - run `pdk pdf` when PDF output is required"
+    )
     if context.guided and not (project / ADOPT_MANIFEST).is_file():
         return _missing(
             f"{ADOPT_MANIFEST} does not yet record the components selected by Bootstrap"
@@ -2670,12 +2648,14 @@ def _check_project_env(context: Context) -> CheckResult:
         return _ok(
             f"the project's own environment, {_project_venv(context)}, is ready - "
             f"built with Python {environment_python}, while the project and CI build "
-            f"with Python {build_python}"
+            f"with Python {build_python}{pdf_note}"
         )
     # Says whose environment it is. There are two in a finished setup -
     # prodockit's own and this one - and a reader who has just been asked
     # about the first should not have to guess which this is (#381).
-    return _ok(f"the project's own environment, {_project_venv(context)}, is ready")
+    return _ok(
+        f"the project's own environment, {_project_venv(context)}, is ready{pdf_note}"
+    )
 
 
 #: Asked of the interpreter rather than read from this process. The two

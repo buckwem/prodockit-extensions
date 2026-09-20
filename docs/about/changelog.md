@@ -23,6 +23,7 @@ requests rather than here.
 
 - Made `pdk pdf --prepare all` prepare every runtime supported on the current platform without requesting unavailable providers.
 - Made Windows Node diagnostics retry one transient startup timeout before reporting an accurate persistent failure.
+- Made Bootstrap defer optional PDF prerequisite checks to the first `pdk pdf` instead of requiring macOS Pango during setup.
 - Made Adopt report clean PDF caches as deferred first-use preparation and removed its obsolete MathJax npm ignore check.
 - Aligned manual installation with the Clean and Update route badges and made project virtual-environment creation explicit.
 - Made diagnostics defer Node and macOS/Linux WeasyPrint prerequisites while their clean project PDF caches await first use.

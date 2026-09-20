@@ -381,7 +381,8 @@ pdk diag
 Bootstrap leaves every PDF runtime to `pdk pdf`, which prepares verified
 project-local caches on first use. It records Mermaid and maths as selected
 components in `.prodockit-components.toml`; neither Bootstrap nor a later
-Adopt run installs those runtimes.
+Adopt run installs those runtimes. Bootstrap also does not block completion on
+optional PDF system prerequisites; the first `pdk pdf` checks them when needed.
 
 The `Project` line must name the clone rather than its parent setup directory.
 Add `--verbose` for resolved evidence or `--json` when attaching the report to
