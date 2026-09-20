@@ -441,7 +441,7 @@ def test_real_browser_mathjax_survives_zensical_instant_navigation(
     ))
     bundle = Path(os.environ.get(
         "PDK_BROWSER_TEST_MATHJAX",
-        str(root / "tools/browser-test/node_modules/mathjax-full/es5/tex-svg-full.js"),
+        str(root / "tools/browser-test/node_modules/mathjax-full/es5/tex-mml-chtml.js"),
     ))
     if not node or not browser or not module.is_dir() or not bundle.is_file():
         pytest.skip("Node, Chrome, Puppeteer and the MathJax install are required")
@@ -449,11 +449,14 @@ def test_real_browser_mathjax_survives_zensical_instant_navigation(
     docs = tmp_path / "docs"
     assets = docs / "javascripts"
     assets.mkdir(parents=True)
-    config_source = CONFIG_SOURCE if subscribe else CONFIG_SOURCE.split(
-        "// Zensical replaces the article", 1
-    )[0]
+    # The production website follows Zensical's documented MathJax hook.
+    # Removing that hook provides a negative control which must fail only
+    # after instant navigation, while the direct page load still renders.
+    config_source = (
+        CONFIG_SOURCE if subscribe else CONFIG_SOURCE.split("document$.subscribe", 1)[0]
+    )
     (assets / "mathjax.js").write_text(config_source, encoding="utf-8")
-    shutil.copy2(bundle, assets / "tex-svg-full.js")
+    shutil.copy2(bundle, assets / "tex-mml-chtml.js")
     (docs / "index.md").write_text("[Equation](equation.md)\n", encoding="utf-8")
     (docs / "equation.md").write_text(
         "Inline $x^2$ and display:\n\n$$x^2 + y^2$$\n", encoding="utf-8"
@@ -461,7 +464,7 @@ def test_real_browser_mathjax_survives_zensical_instant_navigation(
     (tmp_path / "zensical.toml").write_text(
         '[project]\nsite_name = "Math navigation"\nsite_url = "https://example.test/"\n'
         'nav = [{"Home" = "index.md"}, {"Equation" = "equation.md"}]\n'
-        'extra_javascript = ["javascripts/mathjax.js", "javascripts/tex-svg-full.js"]\n'
+        'extra_javascript = ["javascripts/mathjax.js", "javascripts/tex-mml-chtml.js"]\n'
         '[project.theme]\nfeatures = ["navigation.instant"]\n'
         '[project.markdown_extensions.pymdownx.arithmatex]\ngeneric = true\n',
         encoding="utf-8",
