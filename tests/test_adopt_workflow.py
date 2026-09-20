@@ -7,6 +7,7 @@ import yaml
 from prodockit import toolchain
 from prodockit.adopt import LOCAL_IGNORE_PATTERNS, ensure_local_ignores
 from prodockit.adopt_workflow import STOCK_GITHUB, plan, plans
+from prodockit.template_sync import write_stamp
 
 
 def test_stock_workflow_repair_is_valid_and_idempotent(tmp_path):
@@ -32,7 +33,8 @@ def test_custom_workflow_untouched(tmp_path):
     assert path.read_text() == original
     assert yaml.safe_load(content)["jobs"]
     target.write_text(content + "# User review notes\n")
-    assert plan(tmp_path) is None
+    assert plans(tmp_path) == []
+    assert plan(tmp_path)[0] == target
 
 
 def test_custom_workflow_with_stock_install_line_is_not_overwritten(tmp_path):
@@ -55,9 +57,33 @@ def test_both_hosts_get_separate_inactive_proposals(tmp_path):
         assert yaml.safe_load(content)
         path.write_text(content)
     assert plans(tmp_path) == []
+    assert plan(tmp_path)[0] == tmp_path / "pdk.yml"
     assert github.read_text() == "# Custom GitHub workflow\n"
     assert gitlab.read_text() == "include: custom.yml\n"
     assert list(yaml.safe_load(pending[1][1])) == [".prodockit-pages-example"]
+
+
+def test_stamped_template_project_leaves_active_workflows_to_template_sync(tmp_path):
+    github = tmp_path / ".github/workflows/docs.yml"
+    github.parent.mkdir(parents=True)
+    github.write_text("# Rich Prodockit template workflow\n")
+    gitlab = tmp_path / ".gitlab-ci.yml"
+    gitlab.write_text("# Rich Prodockit template pipeline\n")
+    write_stamp(tmp_path, "abc123", "v1.2.3")
+
+    assert plans(tmp_path) == []
+    assert plan(tmp_path) is None
+    assert github.read_text() == "# Rich Prodockit template workflow\n"
+    assert gitlab.read_text() == "# Rich Prodockit template pipeline\n"
+
+
+def test_existing_inactive_proposal_remains_pending_even_for_stamped_project(tmp_path):
+    write_stamp(tmp_path, "abc123", "v1.2.3")
+    proposal = tmp_path / "pdk.yml"
+    proposal.write_text("# Inactive proposal\n")
+
+    assert plans(tmp_path) == []
+    assert plan(tmp_path) == (proposal, "# Inactive proposal\n")
 
 
 def test_no_workflow_does_not_create_one(tmp_path):
@@ -113,6 +139,47 @@ def test_adopt_core_writes_both_proposals_and_preserves_review_edits(tmp_path):
     assert gitlab.read_text() == "# Keep this pipeline\n"
     assert (tmp_path / "pdk.yml").read_text() == "# My manual review\n"
     assert (tmp_path / ".gitlab-pdk.yml").read_text() == "# My manual review\n"
+
+
+def test_inactive_proposals_remain_an_explicit_adopt_activity(tmp_path, monkeypatch):
+    from prodockit.adopt import AdoptOptions, apply_step, assess
+
+    monkeypatch.setattr("prodockit.adopt._interpreter_problem", lambda _root: None)
+    (tmp_path / "zensical.toml").write_text('[project]\nsite_name = "Report"\n')
+    github = tmp_path / ".github/workflows/docs.yml"
+    github.parent.mkdir(parents=True)
+    github.write_text("# Keep this custom workflow\n")
+    (tmp_path / ".gitlab-ci.yml").write_text("# Keep this custom pipeline\n")
+    apply_step(tmp_path, AdoptOptions(), "core", offline=True)
+
+    core = next(
+        step
+        for step in assess(tmp_path, AdoptOptions(), offline=True)
+        if step.id == "core"
+    )
+
+    assert core.status == "missing"
+    assert "merge or remove inactive CI proposal file(s)" in core.detail
+    assert "pdk.yml" in core.detail
+    assert ".gitlab-pdk.yml" in core.detail
+
+
+def test_adopt_does_not_create_proposals_for_a_stamped_template_project(tmp_path):
+    from prodockit.adopt import AdoptOptions, apply_step
+
+    (tmp_path / "zensical.toml").write_text('[project]\nsite_name = "Report"\n')
+    github = tmp_path / ".github/workflows/docs.yml"
+    github.parent.mkdir(parents=True)
+    github.write_text("# Template-owned GitHub workflow\n")
+    (tmp_path / ".gitlab-ci.yml").write_text("# Template-owned GitLab pipeline\n")
+    write_stamp(tmp_path, "abc123", "v1.2.3")
+
+    written = apply_step(tmp_path, AdoptOptions(), "core", offline=True)
+
+    assert tmp_path / "pdk.yml" not in written
+    assert tmp_path / ".gitlab-pdk.yml" not in written
+    assert not (tmp_path / "pdk.yml").exists()
+    assert not (tmp_path / ".gitlab-pdk.yml").exists()
 
 
 def test_proposal_notice_does_not_claim_automatic_publishing(tmp_path, monkeypatch, capsys):

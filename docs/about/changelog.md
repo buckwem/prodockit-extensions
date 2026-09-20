@@ -23,6 +23,7 @@ requests rather than here.
 
 - Separated PDF-only Python packages into `pdf-requirements.txt`; `pdk pdf` now installs and caches them transparently on first use while Bootstrap and website-only environments remain lightweight.
 - Made PDF prerequisite errors and the template-site guide give concise platform-specific installation instructions.
+- Kept stamped template workflows under Template Sync ownership and stopped inactive Adopt proposals from falsely satisfying Diagnostics.
 
 ## 0.67.1 (2026-09-20)
 
