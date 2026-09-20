@@ -17,6 +17,7 @@ toolchain is written into a project which did not ask for it.
 
 from __future__ import annotations
 
+import difflib
 import json
 import os
 import re
@@ -48,6 +49,15 @@ from prodockit.csl import (
     install as install_csl,
 )
 from prodockit.csl import validate as validate_csl
+from prodockit.pdf.python_requirements import (
+    REQUIREMENTS_NAME as PDF_REQUIREMENTS_NAME,
+)
+from prodockit.pdf.python_requirements import (
+    STANDARD_REQUIREMENTS as STANDARD_PDF_REQUIREMENTS,
+)
+from prodockit.pdf.python_requirements import (
+    WEASYPRINT_REQUIREMENT,
+)
 from prodockit.pins import TESTED_VERSIONS
 from prodockit.renderer_resilience import RetryReporter
 from prodockit.settings import EXTRA_SETTINGS
@@ -408,6 +418,65 @@ def ensure_requirement(root: Path) -> Path:
         updated = f"{current}{lead}prodockit>={__version__}\n"
     path.write_text(updated, encoding="utf-8")
     return path
+
+
+_WEASYPRINT_REQUIREMENT_LINE = re.compile(
+    r"(?im)^[ \t]*weasyprint(?:\[[^]]+\])?[ \t]*"
+    r"(?:(?:==|>=|~=|<=|!=|>|<)[ \t]*[^\s;#]+)?"
+    r"(?P<marker>[ \t]*;[^#\n]*)?(?P<comment>[ \t]*(?:#.*)?)?(?:\n|$)"
+)
+_LEGACY_PANDOC_REQUIREMENT_LINE = re.compile(
+    r"(?im)^[ \t]*pandoc[ \t]*(?:#.*)?(?:\n|$)"
+)
+
+
+def _planned_pdf_dependency_files(root: Path) -> tuple[Path, str, Path, str]:
+    """Plan the reviewable base-to-PDF dependency migration."""
+
+    base_path = _requirements_path(root)
+    base_source = base_path.read_text(encoding="utf-8") if base_path.is_file() else ""
+    pdf_path = root / PDF_REQUIREMENTS_NAME
+    pdf_exists = pdf_path.is_file()
+    pdf_source = (
+        pdf_path.read_text(encoding="utf-8")
+        if pdf_exists
+        else STANDARD_PDF_REQUIREMENTS
+    )
+
+    base_weasyprint = _WEASYPRINT_REQUIREMENT_LINE.search(base_source)
+    pdf_has_weasyprint = _WEASYPRINT_REQUIREMENT_LINE.search(pdf_source) is not None
+    if base_weasyprint is not None and (not pdf_exists or not pdf_has_weasyprint):
+        declaration = base_weasyprint.group(0).strip()
+        code, separator, comment = declaration.partition("#")
+        if ";" not in code:
+            code = code.rstrip() + '; sys_platform != "win32"'
+        migrated = code.rstrip() + (f"  # {comment.strip()}" if separator else "")
+        if pdf_exists:
+            pdf_source = pdf_source.rstrip() + "\n" + migrated + "\n"
+        else:
+            pdf_source = STANDARD_PDF_REQUIREMENTS.replace(
+                WEASYPRINT_REQUIREMENT + "\n", migrated + "\n"
+            )
+
+    updated_base = _WEASYPRINT_REQUIREMENT_LINE.sub("", base_source)
+    updated_base = _LEGACY_PANDOC_REQUIREMENT_LINE.sub("", updated_base)
+    return base_path, updated_base, pdf_path, pdf_source
+
+
+def ensure_pdf_requirements(root: Path) -> list[Path]:
+    """Move known PDF-only packages out of the base project requirements."""
+
+    base_path, base_source, pdf_path, pdf_source = _planned_pdf_dependency_files(root)
+    written: list[Path] = []
+    current_base = base_path.read_text(encoding="utf-8") if base_path.is_file() else ""
+    if base_source != current_base:
+        _atomic_write(base_path, base_source.encode("utf-8"))
+        written.append(base_path)
+    current_pdf = pdf_path.read_text(encoding="utf-8") if pdf_path.is_file() else ""
+    if pdf_source != current_pdf:
+        _atomic_write(pdf_path, pdf_source.encode("utf-8"))
+        written.append(pdf_path)
+    return written
 
 
 def _extensions(parsed: dict[str, Any]) -> dict[str, Any]:
@@ -1501,6 +1570,9 @@ def assess(
     config_error = ""
     review_pending = False
     pdf_config_pending = False
+    pdf_dependencies_pending = False
+    pdf_dependency_files: tuple[Path, ...] = ()
+    pdf_dependency_plan: tuple[str, ...] = ()
     try:
         _planned_zensical_config(root, options)
         planned_pdf = _planned_pdf_config(root, parsed)
@@ -1510,6 +1582,40 @@ def assess(
             else ""
         )
         pdf_config_pending = planned_pdf != current_pdf
+        base_path, planned_base, pdf_requirements_path, planned_pdf_requirements = (
+            _planned_pdf_dependency_files(root)
+        )
+        current_base = base_path.read_text(encoding="utf-8") if base_path.is_file() else ""
+        current_pdf_requirements = (
+            pdf_requirements_path.read_text(encoding="utf-8")
+            if pdf_requirements_path.is_file()
+            else ""
+        )
+        base_changed = planned_base != current_base
+        pdf_requirements_changed = planned_pdf_requirements != current_pdf_requirements
+        pdf_dependencies_pending = base_changed or pdf_requirements_changed
+        pdf_dependency_files = tuple(
+            path
+            for path, changed in (
+                (base_path, base_changed),
+                (pdf_requirements_path, pdf_requirements_changed),
+            )
+            if changed
+        )
+        pdf_dependency_plan = tuple(
+            f"{('REMOVE' if line.startswith('- ') else 'ADD')}: "
+            f"{path.relative_to(root)}: {line[2:]}"
+            for path, before, after in (
+                (base_path, current_base, planned_base),
+                (
+                    pdf_requirements_path,
+                    current_pdf_requirements,
+                    planned_pdf_requirements,
+                ),
+            )
+            for line in difflib.ndiff(before.splitlines(), after.splitlines())
+            if line.startswith(("- ", "+ "))
+        )
         if config_path.suffix == ".toml" and options.template_snapshot is not None:
             review_pending = bool(
                 adopt_settings.review(
@@ -1521,6 +1627,7 @@ def assess(
     except AdoptError as error:
         config_error = str(error)
         pdf_config_pending = False
+        pdf_dependencies_pending = False
 
     toolchain = supported_toolchain.plan(root, offline=offline)
     configured = _extensions(parsed)
@@ -1534,6 +1641,7 @@ def assess(
         and not _missing_caption_types(parsed)
         and not _extra_defaults_missing(parsed)
         and not pdf_config_pending
+        and not pdf_dependencies_pending
         and _tree_icons_ok(
             parsed,
             require_python_names=config_path.suffix != ".toml",
@@ -1559,6 +1667,10 @@ def assess(
         core_problems.append("add missing Prodockit website defaults")
     if pdf_config_pending:
         core_problems.append("migrate PDF-only settings into pdk-pdf.toml")
+    if pdf_dependencies_pending:
+        core_problems.append(
+            f"move PDF-only Python packages into {PDF_REQUIREMENTS_NAME}"
+        )
     if not _tree_icons_ok(
         parsed,
         require_python_names=config_path.suffix != ".toml",
@@ -1704,6 +1816,8 @@ def assess(
             "Standard authoring components",
             "wrong" if config_error else ("ok" if core_ok else "missing"),
             core_detail,
+            files=pdf_dependency_files,
+            plan_lines=pdf_dependency_plan,
         ),
         csl,
         Step(
@@ -1792,6 +1906,7 @@ def apply_step(
         return [
             ensure_zensical_config(root, options),
             root / "pdk-pdf.toml",
+            *ensure_pdf_requirements(root),
             *ensure_stylesheets(root),
             *ensure_javascripts(root),
             *ensure_local_ignores(root),
@@ -1892,6 +2007,7 @@ __all__ = [
     "apply",
     "apply_step",
     "assess",
+    "ensure_pdf_requirements",
     "ensure_requirement",
     "ensure_stylesheet",
     "ensure_zensical_config",

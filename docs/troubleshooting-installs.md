@@ -313,18 +313,19 @@ backup first.
 
 ## Repair WeasyPrint and its graphics libraries {: #installtooling-weasyprint-libraries }
 
-On macOS and Ubuntu, activate the project environment and repeat the direct
-import check:
+On macOS and Ubuntu, activate the project environment and let Prodockit prepare
+and check the project's PDF-only Python packages:
 
 ``` bash
-python -c "import weasyprint; print(weasyprint.__version__)"
+pdk pdf --prepare weasyprint
 ```
 
 There, an error ending in `cannot load library` means the platform-specific Pango
 libraries are missing or cannot be found. Return to [Stage 4 — Create the
 project environment](manual-install.md#stage-4-create-the-project-environment)
 and repeat the graphics-library instructions for the operating system.
-Installing the Python package again does not install those external libraries.
+Repeating the Python-package installation does not install those external
+libraries.
 
 On Windows x64, do not install or repair MSYS2/Pango for ProDockit. The PDF
 command uses the official standalone WeasyPrint 70 runtime in the project's

@@ -277,11 +277,11 @@ def test_index_status_reports_missing_optional_support(tmp_path: Path, monkeypat
 
     result = _run(path, check=True)
 
-    assert result.exit_code == 1
+    assert result.exit_code == 0
     assert "Index generation" in result.output
     assert "enabled" in result.output
-    assert "not installed" in result.output
-    assert "prodockit[index]" in result.output
+    assert "prepared automatically on first PDF use" in result.output
+    assert "Configuration check passed" in result.output
 
 
 def test_index_support_rejects_an_installed_module_that_cannot_load(monkeypatch) -> None:

@@ -37,7 +37,6 @@ with Prodockit and explains why each one is needed.
 | \index{dependencies!`tomli`} (>= 2.0) | reading a template manifest on Python 3.10, where `tomllib` does not exist yet |
 | [`tomlkit`](https://tomlkit.readthedocs.io/) (>= 0.13.2) | editing Adopt's TOML configuration and review ledger while preserving existing comments and formatting |
 | `pathspec` (>= 0.12) | respecting `.gitignore` when collecting documentation sources outside a Git repository |
-| \index{dependencies!`pymupdf`} (>= 1.24) | only the back-of-book index - `pip install prodockit[index]` |
 /// table-caption | <
     attrs: {id: tab-installation-requirements}
 
@@ -49,6 +48,17 @@ The floors in \ref{tab-installation-requirements} are declared in
 compatibility floors, not a recommendation to assemble a toolchain from each
 minimum independently. Run `prodockit pins` to select the supported set.
 
+## Installed on first PDF use {: #requirements-pdf-python }
+
+The project commits `pdf-requirements.txt` separately from its website
+requirements. On macOS and Linux, `pdk pdf` installs its WeasyPrint declaration
+into the active project environment on first use, validates the native loader,
+and records the requirements and environment fingerprint beneath
+`.prodockit/cache/pdf/python/`. An unchanged warm build does not invoke pip.
+When the document enables a back-of-book index, the same preparation adds
+PyMuPDF (>= 1.24); otherwise it is not installed. Windows x64 uses the verified
+standalone WeasyPrint runtime and ignores the Python WeasyPrint declaration.
+
 ## Not installed by pip {: #requirements-external }
 
 The requirements in this section are not supplied by
@@ -59,7 +69,6 @@ pip cannot install and the features that use them.
 
 | Requirement {: width="36%" } | Needed for |
 | --- | --- |
-| \index{dependencies!`weasyprint`} | `prodockit.pdf`. Windows x64 uses the official digest-pinned WeasyPrint 70 standalone artifact cached by `pdk pdf`; macOS and Linux currently use a separately installed Python command and native libraries. |
 | \index{dependencies!`pandoc`} (3.10.1) | `prodockit.pdf`, and `prodockit.bibliography` even without a PDF build. `pdk pdf` downloads the verified official archive into the project cache on first use. |
 | Inter 4.1 and JetBrains Mono 2.304 | `prodockit.pdf`. `pdk pdf` assembles and verifies a minimal project-local OFL font bundle; host font installation is not used. |
 | `mathjax-full` (Node >= 22) | TeX maths in the PDF and website verification |

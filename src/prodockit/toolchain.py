@@ -48,7 +48,6 @@ DOWNLOAD_CACHE_ENV = "PDK_NATIVE_DOWNLOAD_CACHE"
 
 PYTHON_PACKAGES = (
     "zensical",
-    "weasyprint",
     "prodockit",
     "markdown",
     "pymdown-extensions",
@@ -291,6 +290,21 @@ def pip_install_specifier_command(
     return tuple(command)
 
 
+def pip_install_requirements_command(
+    requirements: Path | None,
+    specifiers: Sequence[str] = (),
+    *,
+    offline: bool = False,
+) -> tuple[str, ...]:
+    """Build the shared resilient command for a requirements file plus extras."""
+
+    command = list(pip_install_specifier_command((), offline=offline))
+    if requirements is not None:
+        command.extend(("-r", str(requirements)))
+    command.extend(specifiers)
+    return tuple(command)
+
+
 def dependency_repairs(packages: Sequence[str]) -> tuple[str, ...]:
     """Check each installed runtime's dependency graph, excluding unused extras."""
 
@@ -358,6 +372,7 @@ def plan(root: Path, *, offline: bool = False, fresh: bool = False) -> Toolchain
     actions += tuple(
         ToolAction(p, installed[p], TESTED_VERSIONS[p], "repair")
         for p in repairs
+        if p in PYTHON_PACKAGES
         if not any(action.package == p for action in actions)
     )
     missing_packages = tuple(

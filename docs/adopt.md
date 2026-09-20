@@ -31,11 +31,11 @@ Adopting Prodockit into an existing document
 
 The standard installation adds:
 
-- Exact declarations for Zensical, WeasyPrint, Prodockit, Markdown and PyMdown
-    Extensions to the site's existing requirements file. It uses
+- Exact declarations for Zensical, Prodockit, Markdown and PyMdown Extensions
+    in the site's existing requirements file. It uses
     `requirements.txt`, `requirements/docs.txt` or `docs/requirements.txt`, in
     that order, and creates `requirements.txt` when none exists. An existing
-    operator and extras, such as `prodockit[index]>=...`, are preserved while
+    operator and any legacy extras are preserved while
     its version is aligned; a missing declaration is added with `==`.
 - `.python-version` and `.prodockit-toolchain.toml`. The latter records every
     managed version, including Python and Pandoc, from the same tested-version
@@ -313,9 +313,12 @@ copy is available.
 Adoption records selected PDF components without installing them. Its final
 diagnostics report a clean missing project cache as deferred until first use.
 `pdk pdf` then downloads, verifies and activates only the runtimes the document
-needs; `pdk pdf --prepare COMPONENT` remains available when preparation must be
-forced before a build. A clean project defers Node and macOS/Linux WeasyPrint
-checks to first PDF use; established renderer failures remain actionable.
+needs and installs the committed `pdf-requirements.txt` in the active project
+environment; `pdk pdf --prepare COMPONENT` remains available when preparation
+must be forced before a build. Adopt previews and moves legacy WeasyPrint out
+of base `requirements.txt`, removes the obsolete Python `pandoc` declaration,
+and creates the dedicated PDF file. Established renderer failures remain
+actionable.
 
 ////
 

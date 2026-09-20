@@ -21,8 +21,9 @@ Each activity has two independent parts:
    desired state.
 
 `--apply` executes the approved plan and then runs the check again. A command
-returning zero is not proof that Python imports WeasyPrint, SSH authenticates,
-the correct remote exists, or a public site answers.
+returning zero is not proof that SSH authenticates, the correct remote exists,
+or a public site answers. WeasyPrint belongs to the later `pdk pdf` first-use
+boundary rather than Bootstrap's website environment.
 
 A check must be able to observe what its plan changes. Otherwise a successful
 application is followed by the same failing result and bootstrap cannot be

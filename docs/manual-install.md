@@ -1201,15 +1201,13 @@ before continuing.
     === ":material-apple: macOS"
 
         ``` bash
-        pdk pdf --prepare pandoc --prepare fonts
-        python -c "import weasyprint; print(weasyprint.__version__)"
+        pdk pdf --prepare pandoc --prepare fonts --prepare weasyprint
         ```
 
     === ":material-linux: Linux (Ubuntu)"
 
         ``` bash
-        pdk pdf --prepare pandoc --prepare fonts
-        python -c "import weasyprint; print(weasyprint.__version__)"
+        pdk pdf --prepare pandoc --prepare fonts --prepare weasyprint
         ```
 
     On macOS or Ubuntu, a `cannot load library` error means the native

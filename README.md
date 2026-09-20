@@ -80,11 +80,10 @@ python -m pip install prodockit
 ```
 
 The base installation includes Zensical, Python-Markdown, PyMdown Extensions,
-and the other Python libraries used by the Markdown extensions. Optional
-extras add features with larger testing or indexing dependencies:
+and the other Python libraries used by the Markdown extensions. The testing
+extra adds the larger dependencies used to inspect generated artifacts:
 
 ```bash
-python -m pip install "prodockit[index]"    # PDF back-of-book index
 python -m pip install "prodockit[testing]"  # checks for a built site and PDF
 ```
 
@@ -92,7 +91,9 @@ PDF and bibliography features need tools that the base installation does not
 supply:
 
 - on Windows x64, let `pdk pdf` acquire its verified project-local WeasyPrint
-  runtime; macOS and Linux currently use the Python package and native Pango;
+  runtime; on macOS and Linux it installs the committed `pdf-requirements.txt`
+  on first use, while native Pango remains an operating-system prerequisite;
+- let `pdk pdf` add PyMuPDF only when a back-of-book index is enabled;
 - let `pdk pdf` acquire verified project-local Pandoc and PDF fonts on first use; and
 - install Node.js only when a PDF contains TeX maths; ProDockit transparently
   caches MathJax 4 without npm, while Mermaid remains Python-only.

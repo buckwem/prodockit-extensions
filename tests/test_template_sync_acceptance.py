@@ -117,7 +117,7 @@ def test_prepare_pdf_runtime_includes_windows_weasyprint(
     ]
 
 
-def test_prepare_pdf_runtime_uses_portable_components_elsewhere(
+def test_prepare_pdf_runtime_includes_python_weasyprint_elsewhere(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     calls: list[tuple[list[str], Path]] = []
@@ -143,6 +143,8 @@ def test_prepare_pdf_runtime_uses_portable_components_elsewhere(
                 "pandoc",
                 "--prepare",
                 "fonts",
+                "--prepare",
+                "weasyprint",
             ],
             project,
         )

@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 import subprocess
+import sys
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -1154,6 +1155,66 @@ def test_missing_downloadable_renderers_are_deferred_until_first_use(
     ):
         assert required_by_id[check_id].status == "warn"
         assert "will be prepared on first use" in required_by_id[check_id].summary
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="Windows uses the standalone runtime")
+def test_invalid_pdf_requirements_fail_diagnostics_for_a_pdf_project(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    (tmp_path / "pdf-requirements.txt").write_text("requests>=2\n", encoding="utf-8")
+    monkeypatch.setattr(
+        diagnostics,
+        "_command",
+        lambda name: diagnostics.CommandInfo(name, None, None, "not found"),
+    )
+
+    checks = diagnostics._renderer_checks(_project(tmp_path, required=True), tmp_path)
+    weasyprint = next(check for check in checks if check.id == "renderer.weasyprint")
+
+    assert weasyprint.status == "fail"
+    assert weasyprint.summary == "PDF Python requirements are invalid"
+    assert "only PDF runtime packages" in weasyprint.details[0]
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="Windows uses the standalone runtime")
+def test_established_pdf_requirements_turn_a_broken_import_into_a_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        diagnostics, "pdf_python_requirements_prepared", lambda _path, **_kwargs: True
+    )
+    monkeypatch.setattr(
+        diagnostics, "pdf_python_requirements_established", lambda _path, **_kwargs: True
+    )
+    monkeypatch.setattr(
+        diagnostics,
+        "_probe_weasyprint_import",
+        lambda *_args: subprocess.CompletedProcess([], 1, "", "native loader failed"),
+    )
+
+    checks = diagnostics._renderer_checks(_project(tmp_path, required=True), tmp_path)
+    weasyprint = next(check for check in checks if check.id == "renderer.weasyprint")
+
+    assert weasyprint.status == "fail"
+    assert "cannot import" in weasyprint.summary
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="Windows uses the standalone runtime")
+def test_established_pdf_requirements_with_a_removed_package_fail_diagnostics(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        diagnostics, "pdf_python_requirements_prepared", lambda _path, **_kwargs: False
+    )
+    monkeypatch.setattr(
+        diagnostics, "pdf_python_requirements_established", lambda _path, **_kwargs: True
+    )
+
+    checks = diagnostics._renderer_checks(_project(tmp_path, required=True), tmp_path)
+    weasyprint = next(check for check in checks if check.id == "renderer.weasyprint")
+
+    assert weasyprint.status == "fail"
+    assert "no longer satisfied" in weasyprint.details[0]
 
 
 def test_missing_node_remains_a_failure_after_mathjax_has_been_prepared(

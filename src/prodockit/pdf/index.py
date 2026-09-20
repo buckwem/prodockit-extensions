@@ -168,9 +168,8 @@ def extract_term_pages(pdf_path: str, occurrence_count: int) -> dict[int, int | 
         import pymupdf
     except ModuleNotFoundError as exc:
         raise ModuleNotFoundError(
-            "prodockit.pdf.index requires pymupdf - install it with "
-            "'pip install prodockit[index]' (or plain 'pip install pymupdf') "
-            "to generate a back-of-book index."
+            "prodockit.pdf.index requires pymupdf; rerun `pdk pdf` so the "
+            "project's PDF requirements can be prepared"
         ) from exc
 
     # pymupdf ships a `py.typed` marker but its own members are still

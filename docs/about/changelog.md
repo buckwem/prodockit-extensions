@@ -19,6 +19,10 @@ only when it adds or changes behaviour that matters to a user, or requires an
 upgrade action. Defect-by-defect history belongs in GitHub issues and pull
 requests rather than here.
 
+## Unreleased
+
+- Separated PDF-only Python packages into `pdf-requirements.txt`; `pdk pdf` now installs and caches them transparently on first use while Bootstrap and website-only environments remain lightweight.
+
 ## 0.67.1 (2026-09-20)
 
 - Made `pdk pdf --prepare all` prepare every runtime supported on the current platform without requesting unavailable providers.

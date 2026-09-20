@@ -65,36 +65,11 @@ some details are still being established:
 
 ## Before you start {: #index-terms-requirements }
 
-Install the optional index support before generating a PDF index:
-
-=== ":material-apple: macOS"
-
-    ```bash
-    pip3 install "prodockit[index]"
-    ```
-
-=== ":fontawesome-brands-windows: Windows"
-
-    ```powershell
-    pip install "prodockit[index]"
-    ```
-
-=== ":material-linux: Linux (Ubuntu)"
-
-    ```bash
-    pip install "prodockit[index]"
-    ```
-
-!!! note "If pip or pip3 does not work"
-
-    If `pip` does not work, try `pip3`; if `pip3` does not work, try `pip`.
-    Keep the intended virtual environment active and check that the alternative
-    command belongs to it before installing packages.
-
-Run `prodockit config` afterwards to confirm whether index generation is
-enabled and the optional support is available. Its strict
-`prodockit config --check` form fails when `include = true` but that package is
-missing.
+No separate installation command is needed. When an enabled back-of-book index
+is first used, `pdk pdf` adds PyMuPDF to the project's PDF preparation and
+records it in the project-local cache. Run `prodockit config` to confirm that
+index generation is enabled; missing first-use PDF packages are deferred rather
+than reported as configuration errors.
 
 ## Enable the extension {: #index-terms-enable }
 

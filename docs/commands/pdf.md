@@ -74,6 +74,13 @@ only `location = "cache"`: it means the derived project-local store at
 Resolved versions, hashes, platform identity and last-known-good state are
 recorded inside that store rather than in `pdk-pdf.toml`.
 
+PDF-only Python packages have a separate committed policy file,
+`pdf-requirements.txt`. On macOS and Linux its standard WeasyPrint requirement
+is installed into the active project environment on first use. If the index is
+enabled, PyMuPDF is added for that build. The preparation fingerprint includes
+the file, interpreter and environment, so another virtual environment prepares
+its own packages while an unchanged warm build performs no installation.
+
 The preparation interface is intentionally provider-gated. Pandoc 3.10.1 and
 the Inter 4.1/JetBrains Mono 2.304 font bundle are available on supported
 macOS, Linux, and Windows x64 targets; Windows x64 also provides WeasyPrint 70.

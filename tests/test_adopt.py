@@ -25,6 +25,7 @@ from prodockit.adopt import (
     apply_step,
     assess,
     ensure_javascripts,
+    ensure_pdf_requirements,
     ensure_requirement,
     ensure_stylesheet,
     ensure_stylesheets,
@@ -37,6 +38,7 @@ from prodockit.adopt import (
     apply as apply_adoption,
 )
 from prodockit.cli import main
+from prodockit.pdf.python_requirements import STANDARD_REQUIREMENTS
 from prodockit.pdf.runtime_config import load_pdf_runtime_config
 from prodockit.pins import TESTED_VERSIONS
 from prodockit.project_config import load_project_config
@@ -91,6 +93,9 @@ nav = [{ Home = "index.md" }]
 """,
         encoding="utf-8",
     )
+    (tmp_path / "pdf-requirements.txt").write_text(
+        STANDARD_REQUIREMENTS, encoding="utf-8"
+    )
     return tmp_path
 
 
@@ -104,6 +109,55 @@ def test_help_sets_the_existing_project_boundary() -> None:
     assert "virtual environment active" in output
     assert "separately confirmed Git and repository setup" in output
     assert "--mermaid" in result.output and "--maths" in result.output
+
+
+def test_pdf_requirements_migration_is_reviewable_and_preserves_unrelated_packages(
+    tmp_path: Path,
+) -> None:
+    project = _project(tmp_path)
+    (project / "pdf-requirements.txt").unlink()
+    requirements = project / "requirements.txt"
+    requirements.write_text(
+        "zensical>=0.0.61\nweasyprint==70.0  # project PDF pin\npandoc\ntoml\n",
+        encoding="utf-8",
+    )
+
+    core = next(
+        step for step in assess(project, AdoptOptions(), offline=True) if step.id == "core"
+    )
+
+    assert core.status == "missing"
+    assert core.files == (requirements, project / "pdf-requirements.txt")
+    assert "REMOVE: requirements.txt: weasyprint==70.0" in core.plan_lines[0]
+    assert "REMOVE: requirements.txt: pandoc" in core.plan_lines[1]
+    assert any(
+        line == 'ADD: pdf-requirements.txt: weasyprint==70.0; sys_platform != "win32"  # project PDF pin'
+        for line in core.plan_lines
+    )
+
+    written = ensure_pdf_requirements(project)
+
+    assert written == [requirements, project / "pdf-requirements.txt"]
+    assert requirements.read_text(encoding="utf-8") == "zensical>=0.0.61\ntoml\n"
+    pdf_source = (project / "pdf-requirements.txt").read_text(encoding="utf-8")
+    assert 'weasyprint==70.0; sys_platform != "win32"  # project PDF pin' in pdf_source
+
+
+def test_pdf_requirements_migration_preserves_an_existing_pdf_policy(tmp_path: Path) -> None:
+    project = _project(tmp_path)
+    pdf_requirements = project / "pdf-requirements.txt"
+    pdf_requirements.write_text(
+        'weasyprint==70.0; sys_platform != "win32"\n', encoding="utf-8"
+    )
+    requirements = project / "requirements.txt"
+    requirements.write_text("zensical\nweasyprint>=69.0\n", encoding="utf-8")
+
+    ensure_pdf_requirements(project)
+
+    assert requirements.read_text(encoding="utf-8") == "zensical\n"
+    assert pdf_requirements.read_text(encoding="utf-8") == (
+        'weasyprint==70.0; sys_platform != "win32"\n'
+    )
 
 
 def test_report_uses_prominent_phases_and_stages(tmp_path: Path, monkeypatch) -> None:

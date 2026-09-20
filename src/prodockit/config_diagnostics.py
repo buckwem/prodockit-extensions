@@ -285,14 +285,8 @@ def inspect_config(
     index_enabled = index_settings.include
     index_title = index_settings.title
     available = index_support_available()
-    if index_enabled and not available:
-        diagnostics.append(
-            Diagnostic(
-                'project.markdown_extensions."prodockit.index".include',
-                "index generation is enabled but optional support is missing; "
-                "install `prodockit[index]`",
-            )
-        )
+    # Missing PyMuPDF is deliberately not a configuration error. ``pdk pdf``
+    # owns this PDF-only dependency and prepares it on first indexed build.
 
     # Integrity consumers may expect typed paths/lists. Report type errors
     # first rather than letting a malformed setting trigger an exception.
