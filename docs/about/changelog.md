@@ -19,7 +19,7 @@ only when it adds or changes behaviour that matters to a user, or requires an
 upgrade action. Defect-by-defect history belongs in GitHub issues and pull
 requests rather than here.
 
-## Unreleased
+## 0.67.1 (2026-09-20)
 
 - Made `pdk pdf --prepare all` prepare every runtime supported on the current platform without requesting unavailable providers.
 - Made Windows Node diagnostics retry one transient startup timeout before reporting an accurate persistent failure.
