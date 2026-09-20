@@ -1112,7 +1112,7 @@ def test_pdf_configuration_check_warns_about_legacy_fallback(tmp_path: Path) -> 
     assert "project.extra.pdf_page_size -> pdk-pdf.toml [document].page_size" in check.details
 
 
-def test_missing_renderers_warn_when_unused_and_fail_when_content_uses_them(
+def test_missing_downloadable_renderers_are_deferred_until_first_use(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(
@@ -1138,13 +1138,19 @@ def test_missing_renderers_warn_when_unused_and_fail_when_content_uses_them(
     ):
         assert optional_by_id[check_id].status == "warn"
         assert optional_by_id[check_id].data["required"] is False
+    required_by_id = {check.id: check for check in required}
     assert {check.id for check in required if check.status == "fail"} >= {
-        "renderer.pandoc",
         "renderer.weasyprint",
         "renderer.node",
+    }
+    for check_id in (
+        "renderer.pandoc",
+        "renderer.fonts",
         "renderer.mermaid",
         "renderer.mathjax",
-    }
+    ):
+        assert required_by_id[check_id].status == "warn"
+        assert "will be prepared on first use" in required_by_id[check_id].summary
 
 
 def test_mermaid_diagnostic_reports_missing_project_cache(
@@ -1157,10 +1163,11 @@ def test_mermaid_diagnostic_reports_missing_project_cache(
         required=True,
     )
 
-    assert check.status == "fail"
-    assert check.summary == "Project-local Mermaid is not prepared but is required by this project"
+    assert check.status == "warn"
+    assert check.summary == "Project-local Mermaid will be prepared on first use"
     assert any("pdk pdf --prepare mermaid" in detail for detail in check.details)
     assert check.data["backend"] == "project-cache"
+    assert check.data["deferred"] is True
 
 
 def test_windows_weasyprint_diagnostic_reports_a_healthy_project_cache(
@@ -1244,8 +1251,10 @@ def test_windows_weasyprint_diagnostic_does_not_prepare_a_missing_cache(
 
     check = diagnostics._windows_cached_weasyprint_check(None, tmp_path, required=True)
 
-    assert check.status == "fail"
+    assert check.status == "warn"
+    assert check.summary == "Project-local WeasyPrint will be prepared on first use"
     assert check.data["path"] is None
+    assert check.data["deferred"] is True
     assert "pdk pdf --prepare weasyprint" in check.details[0]
 
     dry_run = diagnostics.build_repair_dry_run(
@@ -1280,7 +1289,14 @@ def test_project_runtime_diagnostic_is_read_only_when_cache_is_missing(
         None, tmp_path, component=component, required=True
     )
 
-    assert check.status == "fail"
+    labels = {
+        "pandoc": "Pandoc",
+        "fonts": "PDF fonts",
+        "mathjax": "MathJax",
+        "mermaid": "Mermaid",
+    }
+    assert check.status == "warn"
+    assert check.summary == f"Project-local {labels[component]} will be prepared on first use"
     assert check.data["backend"] == "project-cache"
     assert any(f"pdk pdf --prepare {component}" in detail for detail in check.details)
     candidate = diagnostics.build_repair_dry_run(
@@ -1289,6 +1305,39 @@ def test_project_runtime_diagnostic_is_read_only_when_cache_is_missing(
     assert candidate.status == "manual"
     assert not candidate.choices
     assert f"pdk pdf --prepare {component}" in candidate.remediation
+
+
+def test_required_incompatible_project_runtime_remains_a_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from prodockit.pdf.runtime_store import PreparationResult
+
+    incompatible = PreparationResult(
+        "mermaid", tmp_path / ".prodockit/cache/pdf/mermaid/old/runtime", "old", "a" * 64, True
+    )
+
+    class Store:
+        def __init__(self, root: Path) -> None:
+            assert root == tmp_path
+
+        def active_for(self, descriptor):
+            assert descriptor.component == "mermaid"
+            return None
+
+        def active(self, component: str):
+            assert component == "mermaid"
+            return incompatible
+
+    monkeypatch.setattr(diagnostics, "RuntimeStore", Store)
+
+    check = diagnostics._project_cached_runtime_check(
+        None, tmp_path, component="mermaid", required=True
+    )
+
+    assert check.status == "fail"
+    assert check.summary == "Project-local Mermaid is not prepared but is required by this project"
+    assert "different version or environment" in check.details[0]
+    assert check.data["deferred"] is False
 
 
 def test_bibliography_configuration_requires_project_pandoc(

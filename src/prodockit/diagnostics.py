@@ -3018,6 +3018,7 @@ def _project_cached_runtime_check(
     else:
         cache_error = ""
     if active is None:
+        deferred = not cache_error and incompatible is None
         details = tuple(
             item
             for item in (
@@ -3034,9 +3035,13 @@ def _project_cached_runtime_check(
         return DiagnosticResult(
             f"renderer.{component}",
             "Rendering toolchain",
-            "fail" if required else "warn",
-            f"Project-local {label} is not prepared"
-            + (" but is required by this project" if required else " (optional)"),
+            "warn" if deferred else ("fail" if required else "warn"),
+            (
+                f"Project-local {label} will be prepared on first use"
+                if deferred
+                else f"Project-local {label} is not prepared"
+                + (" but is required by this project" if required else " (optional)")
+            ),
             details,
             {
                 "required": required,
@@ -3044,6 +3049,7 @@ def _project_cached_runtime_check(
                 "path": None,
                 "version": None,
                 "sha256": None,
+                "deferred": deferred,
             },
         )
     try:
@@ -3111,6 +3117,7 @@ def _windows_cached_weasyprint_check(
     else:
         cache_error = ""
     if active is None:
+        deferred = not cache_error and incompatible is None
         details = tuple(
             item
             for item in (
@@ -3127,9 +3134,13 @@ def _windows_cached_weasyprint_check(
         return DiagnosticResult(
             "renderer.weasyprint",
             "Rendering toolchain",
-            "fail" if required else "warn",
-            "Project-local WeasyPrint is not prepared"
-            + (" but is required by this project" if required else " (optional)"),
+            "warn" if deferred else ("fail" if required else "warn"),
+            (
+                "Project-local WeasyPrint will be prepared on first use"
+                if deferred
+                else "Project-local WeasyPrint is not prepared"
+                + (" but is required by this project" if required else " (optional)")
+            ),
             details,
             {
                 "required": required,
@@ -3137,6 +3148,7 @@ def _windows_cached_weasyprint_check(
                 "path": None,
                 "version": None,
                 "sha256": None,
+                "deferred": deferred,
             },
         )
     try:

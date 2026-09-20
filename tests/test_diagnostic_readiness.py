@@ -52,7 +52,7 @@ def test_git_ignore_and_already_tracked_files_are_distinct(tmp_path):
     (tmp_path / ".venv/pyvenv.cfg").write_text("test")
     git(tmp_path, "add", ".venv")
     (tmp_path / ".gitignore").write_text(
-        ".venv/\n__pycache__/\ntools/*/node_modules/\nsite/\ndocs/.prodockit-pdf-mermaid/\ndocs/*.pdf\n"
+        ".venv/\n__pycache__/\nsite/\ndocs/.prodockit-pdf-mermaid/\ndocs/*.pdf\n"
     )
     check = next(
         item for item in checks(config(tmp_path)) if item.id == "repository.generated-files"
@@ -107,7 +107,7 @@ def test_configured_site_and_ignored_outputs_pass(tmp_path):
     git(tmp_path, "init")
     git(tmp_path, "remote", "add", "origin", "git@gitlab.surrey.ac.uk:author/report.git")
     (tmp_path / ".gitignore").write_text(
-        ".venv/\n__pycache__/\ntools/*/node_modules/\nsite/\n"
+        ".venv/\n__pycache__/\nsite/\n"
         "docs/.prodockit-pdf-mermaid/\ndocs/*.pdf\n"
     )
     result = checks(
@@ -120,6 +120,24 @@ def test_configured_site_and_ignored_outputs_pass(tmp_path):
         )
     )
     assert all(item.status == "pass" for item in result)
+
+
+def test_generated_file_check_has_no_legacy_mathjax_npm_expectation(tmp_path):
+    git(tmp_path, "init")
+    (tmp_path / ".gitignore").write_text(
+        ".venv/\n__pycache__/\nsite/\ndocs/.prodockit-pdf-mermaid/\ndocs/*.pdf\n"
+    )
+    legacy = tmp_path / "tools/mathjax/node_modules"
+    legacy.mkdir(parents=True)
+    (legacy / "legacy.js").write_text("legacy")
+    git(tmp_path, "add", "tools/mathjax/node_modules/legacy.js")
+
+    check = next(
+        item for item in checks(config(tmp_path)) if item.id == "repository.generated-files"
+    )
+
+    assert check.status == "pass"
+    assert "mathjax" not in " ".join(check.details).lower()
 
 
 def test_unparseable_remote_warns_without_exposing_it(tmp_path):

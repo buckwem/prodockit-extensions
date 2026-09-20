@@ -163,7 +163,7 @@ both enabled.
 Adopt records its template-setting review separately from the checks that verify
 the project's current configuration and installed software.
 
-### Selected renderer versions and backups
+### Selected renderers and deferred preparation {: #selected-renderer-versions-and-backups }
 
 Normal output explains why a change is needed and what Adopt will change.
 Healthy checks are kept short. Run `pdk adopt --dry-run --verbose` to include
@@ -181,48 +181,18 @@ This prevents an older Adopt from replacing files supplied by a newer template
 sync. Once Prodockit is compatible, Adopt can still upgrade or downgrade its
 dependencies to the supported combination.
 
-Mermaid needs a browser; MathJax does not. On Ubuntu, Adopt reuses a detected
-browser or installs the system Chromium package, which selects the machine's
-architecture. It disables npm's automatic Puppeteer browser download so ARM64
-hosts do not receive an incompatible Chrome build. On macOS and Windows it
-reuses an available browser or invokes the already installed, locked Puppeteer
-CLI to download its matching browser. The browser download has bounded retries;
-timeouts stop with recovery guidance rather than starting another installer.
+Adopt records selected PDF components but does not install or align their
+runtimes. Its final diagnostics label a clean missing project cache as deferred
+first-use preparation, not as a failed adoption. Run `pdk pdf` to prepare only
+the components the completed document uses, or `pdk pdf --prepare COMPONENT`
+to force preparation before a build.
 
-During installation, Adopt reports elapsed progress. After a completed failed
-renderer installation it removes the incomplete `node_modules` directory before
-retrying, or before returning the final error. Your configuration, lockfiles and
-source files are retained. Partial Pandoc downloads are also discarded rather
-than reused. System packages are recovered through their package manager, not
-by deleting system directories.
-
-If an installer times out or you interrupt it, Adopt attempts to stop its process
-tree. It does not automatically retry or delete files that a detached installer
-could still be using; check the recovery message before running Adopt again.
-
-Offline MathJax website verification requires an existing system browser or a
-usable Puppeteer cache. A missing explicitly configured
-`PUPPETEER_EXECUTABLE_PATH` is reported rather than silently replaced.
-
-For the selected maths component, Adopt aligns `tools/mathjax` with the
-renderer files shipped in the installed Prodockit release. It installs from
-that release's lockfile, allowing both upgrades and downgrades. Mermaid uses
-the installed Python runtime; Adopt does not create, install, align, or delete
-an author-owned Mermaid tooling directory.
-
-The activity lists the tool files it may change. Before replacing existing
-manifests, lockfiles or the MathJax conversion script, Adopt saves their original
-contents under `.prodockit-adopt-backups/renderers`. This includes customised
-copies: selecting Adopt's supported renderer replaces those tool files, not
-just their version numbers. Your documentation and user-managed website assets
-are not replaced by this operation. Backups are excluded from Git; retain them
-until you have checked the result. Restoring a custom tool file will make the
-next assessment request alignment again.
-
-If writing a backup fails, no renderer files in that component are replaced.
-If a later file write or npm install fails, rerun Adopt: the backups remain and
-it will check the actual files and renderer health again. Existing Windows line
-endings alone do not cause a replacement.
+The first PDF build downloads and verifies project-local Pandoc, fonts,
+Mermaid and MathJax as needed. Windows x64 also uses a project-local
+WeasyPrint runtime. Mermaid needs no Node.js, npm or browser; MathJax currently
+requires Node.js on `PATH`, but does not use npm or `node_modules`. On macOS
+and Linux, system-backed WeasyPrint still needs the documented native
+libraries. Adopt reports those genuine prerequisites without installing them.
 
 ### Template settings and the review ledger
 

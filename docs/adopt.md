@@ -298,30 +298,24 @@ prodockit adopt --apply
 ```
 
 The command asks before each stage that writes files or installs software. The
-toolchain stage says which tools will be installed, upgraded or downgraded,
-then verifies their versions before writing the matching declarations. A
-failed installation therefore cannot leave the project claiming a combination
-that was not reached.
+toolchain stage says which Python packages will be installed, upgraded or
+downgraded, then verifies their versions before writing matching declarations.
+A failed installation therefore cannot leave the project claiming a
+combination that was not reached.
 
 Pip uses its normal wheel cache, five request retries and bounded request
 timeouts. Set `PDK_PYPI_MIRROR` to add an institutional Python package mirror.
-Pandoc downloads are validated as archives, retained in Prodockit's native
-download cache and retried before moving from a configured
-`PDK_PANDOC_MIRROR` to the official release source. A rerun reuses any valid
-cached download rather than fetching it again. The supported Cite Them Right
-Harvard style follows the same cache-first rule and is written only after its
-XML and CSL structure have been validated. In offline mode, the report names
-the exact cache path and canonical URL when no validated copy is available.
+The supported Cite Them Right Harvard style follows a cache-first rule and is
+written only after its XML and CSL structure have been validated. In offline
+mode, the report names the exact cache path and canonical URL when no validated
+copy is available.
 
-Routine npm output is captured; a failure is reported with its own error rather
-than leaving an apparently successful stage. After npm completes, Adoption
-renders a minimal Mermaid diagram through its browser and converts a minimal
-expression through MathJax. An incomplete npm extraction or unusable browser
-therefore keeps both the renderer stage and Ready stage incomplete.
-
-If Mermaid or mathematics is selected, its Node packages are installed below
-`tools/`. These are project-local dependencies, not global software shared
-with unrelated documents.
+Adoption records selected PDF components without installing them. Its final
+diagnostics report a clean missing project cache as deferred until first use.
+`pdk pdf` then downloads, verifies and activates only the runtimes the document
+needs; `pdk pdf --prepare COMPONENT` remains available when preparation must be
+forced before a build. Missing Node or macOS/Linux WeasyPrint libraries remain
+separate, actionable host prerequisites.
 
 ////
 
@@ -418,16 +412,16 @@ requirements or existing Zensical configuration.
 //// step | Work from prepared caches when offline
 
 Use offline mode only after putting the exact Python wheels in a directory and
-retaining a validated Pandoc archive in Prodockit's native download cache. Run
-the command from the active project environment:
+retaining any validated template snapshot or citation style the project needs.
+Run the command from the active project environment:
 
 ```bash
 PDK_WHEELHOUSE=/path/to/wheels prodockit adopt --apply --offline
 ```
 
-Offline mode passes `--no-index` to pip and does not silently contact PyPI or a
-Pandoc source. If either cache is incomplete, the stage fails clearly and does
-not update the declarations.
+Offline mode passes `--no-index` to pip and does not silently contact PyPI.
+PDF runtime acquisition belongs to `pdk pdf`, not Adopt; a later PDF build
+reports its own acquisition failure without changing the completed adoption.
 
 ////
 
