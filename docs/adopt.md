@@ -314,8 +314,8 @@ Adoption records selected PDF components without installing them. Its final
 diagnostics report a clean missing project cache as deferred until first use.
 `pdk pdf` then downloads, verifies and activates only the runtimes the document
 needs; `pdk pdf --prepare COMPONENT` remains available when preparation must be
-forced before a build. Missing Node or macOS/Linux WeasyPrint libraries remain
-separate, actionable host prerequisites.
+forced before a build. A clean project defers Node and macOS/Linux WeasyPrint
+checks to first PDF use; established renderer failures remain actionable.
 
 ////
 
