@@ -325,6 +325,25 @@ def test_pdf_default_reports_failed_mermaid_preparation_when_mermaid_is_used(
     assert not (tmp_path / "docs" / "site_documentation.pdf").exists()
 
 
+def test_pdf_command_reports_a_required_mermaid_diagram_failure(monkeypatch) -> None:
+    import prodockit.cli as cli_module
+    from prodockit.pdf.mermaid import MermaidRenderError
+
+    def fail(*_args, **_kwargs):
+        raise MermaidRenderError(
+            "Mermaid diagram 2 could not be rendered: the isolated worker exceeded its time limit"
+        )
+
+    monkeypatch.setattr(cli_module, "build_pdf_from_built_site", fail)
+
+    result = CliRunner().invoke(main, ["pdf"])
+
+    assert result.exit_code == 1, result.output
+    assert "Mermaid diagram 2 could not be rendered" in result.output
+    assert "time limit" in result.output
+    assert "Traceback" not in result.output
+
+
 def test_pdf_default_does_not_load_an_unavailable_mermaid_backend_when_unused(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

@@ -9,10 +9,18 @@ import prodockit.pdf.mermaid as mermaid_module
 from prodockit.pdf._standalone_quickjs import (
     StandaloneBackendUnavailableError as StandaloneRuntimeUnavailableError,
 )
-from prodockit.pdf._standalone_quickjs import StandaloneRenderError
-from prodockit.pdf._standalone_worker import StandaloneWorkerTimeoutError
+from prodockit.pdf._standalone_quickjs import (
+    StandaloneRenderError,
+    StandaloneResourceLimitError,
+)
+from prodockit.pdf._standalone_worker import (
+    StandaloneWorkerCrashError,
+    StandaloneWorkerProtocolError,
+    StandaloneWorkerTimeoutError,
+)
 from prodockit.pdf.mermaid import (
     MermaidBackendUnavailableError,
+    MermaidRenderError,
     StandaloneMermaidRenderer,
     create_mermaid_renderer,
 )
@@ -63,20 +71,32 @@ def test_standalone_renderer_writes_monotonic_svg_files(tmp_path: Path) -> None:
 
 
 @pytest.mark.parametrize(
-    "error",
-    [StandaloneRenderError("invalid"), StandaloneWorkerTimeoutError("timed out")],
+    ("error", "diagnostic"),
+    [
+        (StandaloneRenderError("untrusted diagram source"), "rejected the diagram"),
+        (StandaloneResourceLimitError("untrusted diagram source"), "resource limit"),
+        (StandaloneWorkerTimeoutError("untrusted diagram source"), "time limit"),
+        (StandaloneWorkerCrashError("untrusted diagram source"), "exited unexpectedly"),
+        (StandaloneWorkerProtocolError("untrusted diagram source"), "invalid data"),
+        (OSError("untrusted diagram source"), "could not be written"),
+    ],
 )
-def test_standalone_renderer_warns_and_preserves_fallback_on_diagram_failure(
+def test_standalone_renderer_raises_safe_typed_diagram_failure(
     tmp_path: Path,
-    capsys: pytest.CaptureFixture[str],
     error: Exception,
+    diagnostic: str,
 ) -> None:
     renderer = StandaloneMermaidRenderer(
         str(tmp_path / "diagrams"), worker=_FakeStandaloneWorker(error)
     )
 
-    assert renderer.render_source("broken") is None
-    assert "Mermaid render failed for diagram 1" in capsys.readouterr().out
+    with pytest.raises(MermaidRenderError) as caught:
+        renderer.render_source("untrusted diagram source")
+
+    message = str(caught.value)
+    assert "Mermaid diagram 1 could not be rendered" in message
+    assert diagnostic in message
+    assert "untrusted diagram source" not in message
     assert not (tmp_path / "diagrams").exists()
 
 
@@ -101,7 +121,7 @@ def test_factory_constructs_standalone_only_after_full_runtime_preflight(
         def __init__(self, output_dir: str) -> None:
             events.append(("renderer", output_dir))
 
-        def render_source(self, source: str) -> str | None:
+        def render_source(self, source: str) -> str:
             return source
 
         def close(self) -> None:

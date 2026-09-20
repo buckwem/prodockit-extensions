@@ -174,7 +174,7 @@ connects each runner requirement to the build feature that needs it.
 | Pandoc | PDF conversion and `prodockit.bibliography` | The build fails |
 | WeasyPrint native libraries | PDF layout | Import or PDF build fails |
 | Document fonts | Correct PDF typography and pagination | A fallback font may be substituted silently |
-| Python Mermaid runtime | Mermaid diagrams in the PDF | The PDF can contain raw diagram source |
+| Python Mermaid runtime | Mermaid diagrams in the PDF | Preparation or rendering fails with an actionable error |
 | Node and MathJax | TeX maths in the PDF and website bundle | The output can contain raw TeX |
 | Citation style files | Bibliography formatting | A configured missing style stops rendering |
 | Suitable Git history or release metadata | Version text used by a cover or macro | The field can be empty or one release behind |
@@ -199,10 +199,12 @@ publishing them.
 ### Render diagrams and maths {: #ci-puppeteer-variable }
 
 WeasyPrint has no JavaScript engine. The PDF build therefore turns Mermaid and
-TeX maths into static images before Pandoc sees the pages. If either renderer
-is missing, the command warns but can still create a PDF.
+TeX maths into static images before Pandoc sees the pages. A Mermaid diagram is
+required output: a syntax error, timeout, resource limit, or worker failure
+stops the build before the requested PDF is replaced or published. The error
+identifies the diagram number without repeating its source.
 
-Build-output tests make that warning enforceable:
+Build-output tests make renderer failures enforceable:
 
 ```python
 from prodockit.testing import assert_no_unrendered_mermaid, assert_no_unrendered_tex
@@ -213,10 +215,8 @@ def test_diagrams_and_maths_rendered(prodockit_pdf_page_texts):
     assert_no_unrendered_tex(prodockit_pdf_page_texts)
 ```
 
-The template workflow uses `PUPPETEER_SKIP_DOWNLOAD`, not the obsolete
-`PUPPETEER_SKIP_CHROMIUM_DOWNLOAD`, and points Mermaid at the Chrome installed
-by the job. Keep those details in the workflow where future package updates
-can change them.
+The template workflow prepares the project-local Python Mermaid runtime before
+building. It does not install a browser, Puppeteer, npm package, or MSYS2.
 
 ### Check embedded fonts {: #ci-fonts }
 

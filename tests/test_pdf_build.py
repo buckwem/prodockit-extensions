@@ -1030,6 +1030,23 @@ def test_does_not_warn_when_the_renderers_are_available(
     assert "⚠️" not in out
 
 
+def test_failed_mermaid_render_does_not_replace_the_requested_pdf(tmp_path: Path) -> None:
+    from prodockit.pdf.mermaid import MermaidRenderError
+
+    output_path = tmp_path / "out.pdf"
+    output_path.write_bytes(b"existing-pdf")
+
+    def fail(_source: str) -> str:
+        raise MermaidRenderError(
+            "Mermaid diagram 1 could not be rendered: Mermaid rejected the diagram"
+        )
+
+    with pytest.raises(MermaidRenderError, match="diagram 1"):
+        build_pdf([_MERMAID_PAGE], str(output_path), render_mermaid=fail)
+
+    assert output_path.read_bytes() == b"existing-pdf"
+
+
 def test_does_not_warn_when_the_document_uses_neither(
     tmp_path: Path, fake_pandoc_on_path, capsys: pytest.CaptureFixture[str]
 ) -> None:

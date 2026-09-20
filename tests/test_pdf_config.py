@@ -69,7 +69,7 @@ class _RecordingMermaidRenderer:
         self.output_dir = output_dir
         self.closed = False
 
-    def render_source(self, source: str) -> str | None:
+    def render_source(self, source: str) -> str:
         return source
 
     def close(self) -> None:
@@ -1527,6 +1527,51 @@ def test_mermaid_renderer_is_closed_when_build_pdf_raises(
         build_pdf_from_built_site(str(root / "zensical.toml"))
 
     assert instances[0].closed is True
+
+
+def test_mermaid_failure_does_not_publish_or_replace_the_requested_pdf(
+    project, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from prodockit.pdf.mermaid import MermaidRenderError
+
+    root = project()
+    runtime = root / "cached-mermaid"
+    output_path = root / "docs" / "site_documentation.pdf"
+    output_path.write_bytes(b"existing-pdf")
+    published = False
+
+    class FailingRenderer(_RecordingMermaidRenderer):
+        def render_source(self, _source: str) -> str:
+            raise MermaidRenderError(
+                "Mermaid diagram 1 could not be rendered: Mermaid rejected the diagram"
+            )
+
+    monkeypatch.setattr(
+        config,
+        "prepare_runtime_components",
+        lambda *_args, **_kwargs: (
+            SimpleNamespace(component="mermaid", path=runtime),
+        ),
+    )
+
+    def renderer_factory(*, output_dir: str, runtime_path: Path) -> FailingRenderer:
+        assert runtime_path == runtime
+        return FailingRenderer(output_dir)
+
+    monkeypatch.setattr(config, "create_mermaid_renderer", renderer_factory)
+    monkeypatch.setattr(config, "page_html", _page_with_mermaid)
+
+    def publish(*_args) -> None:
+        nonlocal published
+        published = True
+
+    monkeypatch.setattr(config, "publish_pdf_to_built_site", publish)
+
+    with pytest.raises(MermaidRenderError, match="diagram 1"):
+        build_pdf_from_built_site(str(root / "zensical.toml"))
+
+    assert output_path.read_bytes() == b"existing-pdf"
+    assert published is False
 
 
 def test_unused_renderers_do_no_discovery_construction_or_directory_work(
