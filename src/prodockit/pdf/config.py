@@ -437,7 +437,7 @@ def build_pdf_from_built_site(
     prepared_mathjax = prepared.get("mathjax")
 
     mermaid_renderer: MermaidRenderer | None = None
-    render_mermaid: Callable[[str], str | None] | None = None
+    render_mermaid: Callable[[str], str] | None = None
     if renderer_requirements.mermaid:
         mermaid_renderer = create_mermaid_renderer(
             output_dir=os.path.join(source_docs_dir, ".prodockit-pdf-mermaid"),

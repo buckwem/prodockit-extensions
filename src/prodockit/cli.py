@@ -107,7 +107,7 @@ from prodockit.pdf.config import (
     build_pdf_from_built_site,
     build_source_bundle_from_zensical_config,
 )
-from prodockit.pdf.mermaid import MermaidBackendUnavailableError
+from prodockit.pdf.mermaid import MermaidBackendUnavailableError, MermaidRenderError
 from prodockit.pdf.python_requirements import (
     PdfPythonRequirementsError,
     prepare_pdf_python_requirements,
@@ -2755,6 +2755,7 @@ def _run_pdf_command(
         RevisionDateError,
         SourceBundleError,
         MermaidBackendUnavailableError,
+        MermaidRenderError,
         PdfPythonRequirementsError,
         RuntimeProviderUnavailableError,
         RuntimeStoreError,

@@ -263,10 +263,9 @@ def fix_up_page_html(
 
     `render_mermaid`, if given, is called with each ``<pre class="mermaid">``
     diagram's own source text and should return an image src (a file path
-    or ``data:`` URI) or None if rendering failed (in which case the
-    diagram is left as an unrendered ``<pre>``, rather than raising) - see
-    :class:`prodockit.pdf.mermaid.StandaloneMermaidRenderer` for the
-    high-level command's implementation.
+    or ``data:`` URI). The high-level renderer raises when a required
+    diagram fails, so the PDF command cannot publish raw Mermaid source -
+    see :class:`prodockit.pdf.mermaid.StandaloneMermaidRenderer`.
     """
     soup = BeautifulSoup(html, "html.parser")
 

@@ -49,8 +49,8 @@ _MERMAID_CONFIG: dict[str, Any] = {
 class MermaidRenderer(Protocol):
     """Backend boundary used by the PDF configuration layer."""
 
-    def render_source(self, source: str) -> str | None:
-        """Renders one diagram and returns its image path, or None."""
+    def render_source(self, source: str) -> str:
+        """Render one required diagram and return its image path."""
         ...
 
     def close(self) -> None:
@@ -60,6 +60,10 @@ class MermaidRenderer(Protocol):
 
 class MermaidBackendUnavailableError(RuntimeError):
     """The Mermaid renderer is unavailable in this release."""
+
+
+class MermaidRenderError(RuntimeError):
+    """One required Mermaid diagram could not be converted to SVG."""
 
 
 class _StandaloneWorker(Protocol):
@@ -103,7 +107,7 @@ class StandaloneMermaidRenderer:
         )
         self._next_index = 0
 
-    def render_source(self, source: str) -> str | None:
+    def render_source(self, source: str) -> str:
         self._next_index += 1
         index = self._next_index
         temporary_path: Path | None = None
@@ -121,8 +125,21 @@ class StandaloneMermaidRenderer:
             if temporary_path is not None:
                 with contextlib.suppress(OSError):
                     temporary_path.unlink(missing_ok=True)
-            print(f"⚠️  Mermaid render failed for diagram {index}: {error}")
-            return None
+            if isinstance(error, StandaloneWorkerTimeoutError):
+                detail = "the isolated worker exceeded its time limit"
+            elif isinstance(error, StandaloneWorkerCrashError):
+                detail = "the isolated worker exited unexpectedly"
+            elif isinstance(error, StandaloneWorkerProtocolError):
+                detail = "the isolated worker returned invalid data"
+            elif isinstance(error, StandaloneResourceLimitError):
+                detail = "the renderer reached a resource limit; simplify or split the diagram"
+            elif isinstance(error, StandaloneRenderError):
+                detail = "Mermaid rejected the diagram or produced invalid SVG"
+            else:
+                detail = "the rendered SVG could not be written"
+            raise MermaidRenderError(
+                f"Mermaid diagram {index} could not be rendered: {detail}"
+            ) from error
 
     def close(self) -> None:
         self._worker.close()

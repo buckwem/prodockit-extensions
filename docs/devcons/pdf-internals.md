@@ -193,3 +193,9 @@ expected article. The legacy wrapper separately names a changed private
 Zensical render-result shape. Do not replace these with an unlabelled
 subprocess status or raw selector failure; callers need to know which boundary
 changed.
+
+`MermaidRenderError` identifies the failed diagram number and a bounded failure
+category without echoing diagram source. It stops the supported PDF pipeline
+before Pandoc can replace the requested PDF or the result can be copied into
+the built site. `MermaidBackendUnavailableError` remains separate because a
+missing or corrupt prepared runtime needs different corrective action.

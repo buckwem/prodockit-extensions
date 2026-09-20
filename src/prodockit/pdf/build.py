@@ -136,12 +136,11 @@ def _warn_about_unrendered_content(
     returns the warnings printed (for tests, and for a caller that wants to
     log them itself).
 
-    Both renderers are optional and both deliberately fall back to leaving
-    the content untouched rather than failing the build - the right default
-    for a project using neither, but silent for one that *is* using them,
-    which is how raw ``flowchart LR ...`` source and literal LaTeX reached
-    published PDFs in three separate projects before this existed. The
-    build still succeeds; this only makes the degradation visible.
+    The lower-level API permits callers to omit either renderer, which leaves
+    the matching content untouched. The supported high-level PDF command
+    supplies a Mermaid renderer whenever active Mermaid markup is present,
+    and that renderer raises if any required diagram fails. Maths retains the
+    warning fallback. This helper makes either omitted dependency visible.
     """
     warnings = []
     requirements = (

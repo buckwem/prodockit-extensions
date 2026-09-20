@@ -21,6 +21,7 @@ requests rather than here.
 
 ## Unreleased
 
+- Made `pdk pdf` fail safely when any required Mermaid diagram cannot render instead of publishing raw diagram source.
 - Made deferred PDF diagnostics and first-use failures detect missing Pango or Node.js and show the exact platform installation command.
 - Made Bootstrap install and verify the exact Prodockit release paired with the template instead of floating to a release Template Sync immediately reverses.
 - Removed the hidden `pdf-legacy` command and its undocumented Zensical Python rendering path; run a strict Zensical build before `pdk pdf`.
