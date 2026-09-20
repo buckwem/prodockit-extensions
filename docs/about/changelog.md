@@ -19,7 +19,7 @@ only when it adds or changes behaviour that matters to a user, or requires an
 upgrade action. Defect-by-defect history belongs in GitHub issues and pull
 requests rather than here.
 
-## Unreleased
+## 0.69.0 (2026-09-20)
 
 - Made `pdk pdf` fail safely when any required Mermaid diagram cannot render instead of publishing raw diagram source.
 - Kept PDF table rowspan groups intact across page boundaries so shaded spanning cells retain their full background.
