@@ -3354,6 +3354,59 @@ def test_requirements_are_installed_by_the_projects_own_interpreter(tmp_path: Pa
     assert install[-1] == str(project / "requirements.txt")
 
 
+def test_bootstrap_installs_the_template_paired_prodockit_release(tmp_path: Path) -> None:
+    """#867: a compatibility floor must not float past the exact release
+    which Template Sync will require immediately after Bootstrap."""
+    project = tmp_path / "GitLab" / "report-al01234"
+    (project / ".git").mkdir(parents=True)
+    (project / "requirements.txt").write_text(
+        "zensical>=0.0.61\nprodockit[index]>=0.65.3\n", encoding="utf-8"
+    )
+    (project / ".prodockit-toolchain.toml").write_text(
+        'schema = 1\n\n[versions]\nprodockit = "0.65.3"\n', encoding="utf-8"
+    )
+
+    plan = next(s for s in STAGES if s.id == "project-env").plan(_context(tmp_path))
+    install = next(c for c in plan.commands if "install" in c)
+
+    assert install[-1] == "prodockit[index]==0.65.3"
+
+
+def test_bootstrap_rejects_a_project_environment_newer_than_its_template(
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "GitLab" / "report-al01234"
+    (project / ".git").mkdir(parents=True)
+    (project / "requirements.txt").write_text(
+        "zensical>=0.0.61\nprodockit>=0.65.3\n", encoding="utf-8"
+    )
+    (project / ".prodockit-toolchain.toml").write_text(
+        'schema = 1\n\n[versions]\nprodockit = "0.65.3"\n', encoding="utf-8"
+    )
+    (project / ".prodockit-components.toml").write_text(
+        "schema = 1\n\n[components]\nmermaid = true\nmaths = true\n", encoding="utf-8"
+    )
+    python = project / ".venv" / "bin" / "python"
+    python.parent.mkdir(parents=True)
+    python.touch()
+    (python.parent / "activate").touch()
+    runner = FakeRunner(
+        {
+            "-m pip --version": CommandResult(0, "pip 26.0.1"),
+            "import zensical": CommandResult(0),
+            "importlib.metadata.version('prodockit')": CommandResult(0, "0.65.6\n"),
+        }
+    )
+
+    result = next(s for s in STAGES if s.id == "project-env").check(
+        _context(tmp_path, platform=UBUNTU, runner=runner)
+    )
+
+    assert result.status is Status.WRONG
+    assert "has Prodockit 0.65.6" in result.detail
+    assert "paired with Prodockit 0.65.3" in result.detail
+
+
 def test_first_path_project_environment_is_independent_of_template_dependencies(
     tmp_path: Path,
 ) -> None:
