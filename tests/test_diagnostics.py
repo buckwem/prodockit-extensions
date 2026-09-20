@@ -50,6 +50,73 @@ def test_public_github_template_check_uses_https() -> None:
     )
 
 
+def test_command_retries_only_a_timed_out_version_probe(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    attempts = 0
+
+    def run(command, **kwargs):
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            raise subprocess.TimeoutExpired(command, kwargs["timeout"])
+        return subprocess.CompletedProcess(command, 0, "v26.7.0\n", "")
+
+    monkeypatch.setattr(diagnostics.shutil, "which", lambda _name: "node")
+    monkeypatch.setattr(diagnostics, "_run", run)
+
+    info = diagnostics._command("node", timeout_retries=1)
+
+    assert attempts == 2
+    assert info == diagnostics.CommandInfo("node", "node", "26.7.0")
+
+
+def test_command_does_not_retry_an_ordinary_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    attempts = 0
+
+    def run(command, **_kwargs):
+        nonlocal attempts
+        attempts += 1
+        return subprocess.CompletedProcess(command, 1, "", "broken")
+
+    monkeypatch.setattr(diagnostics.shutil, "which", lambda _name: "node")
+    monkeypatch.setattr(diagnostics, "_run", run)
+
+    info = diagnostics._command("node", timeout_retries=1)
+
+    assert attempts == 1
+    assert info.error == "broken"
+
+
+def test_persistent_command_timeout_reports_the_present_executable(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    node = tmp_path / "node.exe"
+    node.touch()
+
+    def timeout(command, **kwargs):
+        raise subprocess.TimeoutExpired(command, kwargs["timeout"])
+
+    monkeypatch.setattr(diagnostics.shutil, "which", lambda _name: str(node))
+    monkeypatch.setattr(diagnostics, "_run", timeout)
+
+    result = diagnostics._tool_result(
+        "renderer.node",
+        "Node",
+        "node",
+        root=tmp_path,
+        required=False,
+        timeout_retries=1,
+    )
+
+    assert result.status == "warn"
+    assert result.summary == "Node version check timed out (optional)"
+    assert result.details == ("version probe timed out after 2 attempts of 10 seconds",)
+    assert result.data["path"] == "node.exe"
+
+
 def test_repository_check_distinguishes_complete_and_shallow_history(tmp_path: Path) -> None:
     git = diagnostics.shutil.which("git")
     if git is None:

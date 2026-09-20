@@ -19,6 +19,10 @@ only when it adds or changes behaviour that matters to a user, or requires an
 upgrade action. Defect-by-defect history belongs in GitHub issues and pull
 requests rather than here.
 
+## Unreleased
+
+- Made Windows Node diagnostics retry one transient startup timeout before reporting an accurate persistent failure.
+
 ## 0.67.0 (2026-09-20)
 
 - PDF-only settings now live in `pdk-pdf.toml`; `pdk adopt` migrates legacy Zensical values while runtime fallback and diagnostics keep upgrades compatible.
