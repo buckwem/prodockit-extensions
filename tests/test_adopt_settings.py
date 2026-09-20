@@ -41,7 +41,7 @@ def test_outcomes_and_inactive_unknowns(tmp_path):
     ensure_zensical_config(tmp_path, options())
     ledger = settings.load_ledger(tmp_path)
     assert ledger[("project", "site_name")] == "excluded"
-    assert ledger[("project", "extra", "pdf_page_size")] == "added"
+    assert ledger[("project", "extra", "pdf_page_size")] == "excluded"
     assert ledger[("project", "extra", "future_setting")] == "commented"
     source = path.read_text()
     assert '"future_setting" = 42' in source

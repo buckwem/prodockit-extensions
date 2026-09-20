@@ -15,22 +15,10 @@ edit_uri = "edit/main/docs/"
 # character or the "&copy;" HTML entity both work equally well here.
 copyright = "Copyright © 2026 Mark Buckwell and contributors"
 
-# Overrides `copyright` for the PDF's own footer only (the live website's
-# footer instead gets its own "Made with Zensical and prodockit" credit
-# from overrides/partials/copyright.html) - matching the same credit line,
-# with real links, on this one, separate, PDF-only footer. Removing just
-# this one line falls back to a plain `copyright`-only footer without
-# touching the copyright text itself.
-extra.pdf_copyright = 'Copyright © 2026 Mark Buckwell and contributors.<br>Made with <a href="https://zensical.org/">Zensical</a> and <a href="https://prodockit.org/">prodockit</a>.'
-
 extra_css = [
   "stylesheets/pdk.css",
   "stylesheets/branding.css",
   "stylesheets/extra.css",
-]
-extra.pdf_extra_css = [
-  "stylesheets/pdk-pdf.css",
-  "stylesheets/print.css",
 ]
 # Keep chapter numbering on both the reference website and the downloadable
 # PDF, including the PDF's numbered bookmark outline.

@@ -42,14 +42,16 @@ The standard installation adds:
     manifest used by `prodockit pins` and `pdk diag`.
 - The standard prodockit Markdown extensions to the existing
     `zensical.toml`, `zensical.yml` or `zensical.yaml`.
-- Four standard stylesheets and their cascade in `zensical.toml`:
-    managed `pdk.css` followed by user-managed `extra.css` for the website,
-    then managed `pdk-pdf.css` followed by user-managed `print.css` for the
-    PDF.
-- Managed `pdk.js` followed by user-managed `extra.js`. When mathematics
-    is selected, the generated MathJax configuration and installed vendor
-    bundle sit between those two files. Missing user-managed files are created,
-    but their existing contents are never replaced.
+- Four standard stylesheets: `zensical.toml` records managed `pdk.css`
+    followed by user-managed `extra.css` for the website; `pdk-pdf.toml`
+    records managed `pdk-pdf.css` followed by user-managed `print.css` for
+    the PDF. Existing `project.extra.pdf_*` settings are migrated into that
+    PDF policy file.
+- Managed `pdk.js` followed by user-managed `extra.js`. When website
+    mathematics is selected, the generated MathJax configuration and the
+    Zensical-documented browser runtime sit between those two files. Missing
+    user-managed files are created, but their existing contents are never
+    replaced.
 - `.prodockit-components.toml`, recording whether this project selected
     Mermaid diagrams or mathematical notation.
 - The configured `harvard-cite-them-right.csl` citation style when it is

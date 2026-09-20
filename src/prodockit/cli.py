@@ -1737,10 +1737,11 @@ def config_command(config_file: str, check: bool) -> None:
     Unrelated Zensical ``project.extra`` values are left alone.
     """
     from prodockit.config_diagnostics import inspect_config
+    from prodockit.pdf.runtime_config import PdfRuntimeConfigError
 
     try:
         report = inspect_config(load_project_config(config_file))
-    except ProjectConfigError as error:
+    except (ProjectConfigError, PdfRuntimeConfigError) as error:
         raise click.ClickException(str(error)) from error
 
     click.echo("Prodockit configuration")

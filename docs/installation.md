@@ -284,6 +284,7 @@ docs/ - original Markdown source pages and Prodockit assets
 .prodockit-components.toml - optional component choices added by Adopt
 .prodockit-toolchain.toml - supported tool versions added by Adopt
 .python-version - supported Python release added by Adopt
+pdk-pdf.toml - PDF-only policy created or migrated by Adopt
 requirements.txt - supported Python packages added by Adopt
 zensical.toml - original configuration updated by Adopt
 ///
@@ -350,10 +351,11 @@ tools/ - pinned Mermaid and MathJax Node tooling
 .python-version - supported project Python
 bibliography.bib - example bibliography source
 macros.py - shared template macros
+pdk-pdf.toml - PDF-only settings and runtime policy
 README.md - project summary and publishing badges
 references.bib - example hand-written reference source
 requirements.txt - Python build dependencies
-zensical.toml - site, navigation, extensions, and PDF settings
+zensical.toml - site, navigation, and shared authoring settings
 ///
 
 This is the useful project-facing structure rather than every file in the

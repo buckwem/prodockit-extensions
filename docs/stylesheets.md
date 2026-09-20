@@ -86,7 +86,7 @@ print-only layers.
 PDF stylesheet cascade
 ///
 
-Implement the cascade by listing the files in this order in `zensical.toml`:
+Implement the website cascade in `zensical.toml`:
 
 ```toml
 [project]
@@ -95,8 +95,13 @@ extra_css = [
   "stylesheets/extra.css",
 ]
 
-[project.extra]
-pdf_extra_css = [
+```
+
+Then put the PDF-only cascade in `pdk-pdf.toml`:
+
+```toml
+[document]
+extra_css = [
   "stylesheets/pdk-pdf.css",
   "stylesheets/print.css",
 ]

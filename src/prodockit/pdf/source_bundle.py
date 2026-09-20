@@ -198,7 +198,8 @@ def discover_markdown_and_config_files(
 ) -> list[str]:
     """The narrower file list `prodockit source-bundle` bundles by
     default: the root ``README.md``, every Markdown file below the configured
-    ``docs_dir``, and the actual Zensical ``config_file`` used for the build.
+    ``docs_dir``, the actual Zensical ``config_file`` used for the build, and
+    the project-root ``pdk-pdf.toml`` policy when present.
     These are the editable documentation sources, rather than every Markdown
     or config-looking file tracked elsewhere in the repository.
 
@@ -216,13 +217,15 @@ def discover_markdown_and_config_files(
     docs_path = _git_relative_path(root, docs_dir).rstrip("/")
     docs_prefix = f"{docs_path}/" if docs_path not in {"", "."} else ""
     config_path = _git_relative_path(root, config_file)
+    pdf_config_path = "pdk-pdf.toml"
     base = Path(root).resolve()
     in_repository = any((parent / ".git").exists() for parent in (base, *base.parents))
     candidates = discover_source_files(root) if in_repository else _local_document_files(base)
     return [
         f
         for f in candidates
-        if f == "README.md" or f == config_path or (f.startswith(docs_prefix) and f.endswith(".md"))
+        if f in {"README.md", config_path, pdf_config_path}
+        or (f.startswith(docs_prefix) and f.endswith(".md"))
     ]
 
 

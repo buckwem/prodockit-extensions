@@ -223,8 +223,9 @@ appears instead of rendered output, see
 
 ## Configure the PDF {: #pdf-quick-start }
 
-Everything is read from your project's own `zensical.toml` - nothing is
-passed on the command line beyond, optionally, which config file to use:
+Website and shared authoring settings are read from `zensical.toml`; PDF-only
+policy is read from the adjacent `pdk-pdf.toml`. Nothing is passed on the
+command line beyond, optionally, which Zensical config file to use:
 
 ```bash
 prodockit pdf --config-file zensical.toml   # -f for short; this is the default
@@ -247,8 +248,8 @@ selecting the PDF pages, while fonts, page size, margins,
 `heading_numbering`, and the rest still come from
 `zensical.toml` exactly as they do for a full PDF. The output defaults to that
 file's own name with a `.pdf` extension inside `docs_dir` (for example,
-`docs/chapter1.pdf`) instead of `site_documentation.pdf`, unless `pdf_output`
-is set, in which case that always wins.
+`docs/chapter1.pdf`) instead of `site_documentation.pdf`, unless
+`[document].output` is set, in which case that always wins.
 
 Most of what the PDF needs, it already gets from settings your site likely
 has for other reasons: `site_name`, `copyright`, `repo_url`, `docs_dir`,
@@ -256,32 +257,39 @@ has for other reasons: `site_name`, `copyright`, `repo_url`, `docs_dir`,
 site's own stylesheet(s) are passed straight through, so a `@media print`
 rule (e.g. hiding a website-only "Download PDF" link/button, since
 WeasyPrint always renders in print mode) applies in the PDF too. The rest
-lives under `[project.extra]`, all optional:
+lives in `pdk-pdf.toml`, all optional:
 
 Run `prodockit config` to see these values resolved for the current project,
-including which came from `zensical.toml` and which use a default. Use
+including which came from `pdk-pdf.toml`, a deprecated Zensical fallback, or
+a default. Use
 `prodockit config --check` to reject obsolete, misspelled or invalid Prodockit
 settings and missing local project inputs instead of letting a successful
 build conceal a fallback or incomplete document. The complete project checks
 are described under [Test the built output](devcons/testing.md#testing-quick-start).
 
+Projects created before this boundary can continue reading
+`project.extra.pdf_*` values. Run `pdk adopt` to copy those values into the
+matching `pdk-pdf.toml` tables and remove the old keys. An explicit value
+already present in `pdk-pdf.toml` wins, so adoption preserves the newer policy;
+running the migration again makes no further change. The legacy reader is a
+deprecated upgrade bridge, not a second writer.
+
 \ref{tab-pdf-building-a-single-file} compares a single-page diagnostic build with the checks performed for a complete document.
 
 | Setting {: width="35%" } | Default | What it does |
 |---|---|---|
-| \index{PDF settings!`pdf_output`} | `"<docs_dir>/site_documentation.pdf"` | Where the PDF is written. |
-| \index{PDF settings!`pdf_copyright`} | falls back to `copyright` | Overrides `copyright` for the PDF's own footer only - see [Copyright text](#copyright-text). |
-| \index{PDF settings!`pdf_page_size`} | `"A4"` | Any WeasyPrint-supported CSS page size (`"Letter"`, ...). |
-| \index{PDF settings!`pdf_margin_top`} / `_right` / `_bottom` / `_left` | `"2cm"`, except `_bottom` at `"2.5cm"` | Page margins, as CSS lengths. The bottom is deeper because the running footer sits in it - see [Copyright text](#copyright-text). |
-| \index{PDF settings!`pdf_double_sided`} | `false` | Duplex-printing layout - see [Double-sided (duplex) printing](#double-sided-duplex-printing). |
-| \index{PDF settings!`pdf_margin_inner`} / `_outer` | `"2cm"` each | Spine-side/fore-edge margins, used instead of `pdf_margin_left`/`_right` when `pdf_double_sided` is on. |
-| \index{PDF settings!`pdf_header_footer_font_size`} / `_color` / `_divider_color` | `"10pt"` / `"#555555"` / `"#e2e8f0"` | Running header/footer styling. |
+| `[document].output` | `"<docs_dir>/site_documentation.pdf"` | Where the PDF is written. |
+| `[document].copyright` | falls back to `project.copyright` | Overrides `copyright` for the PDF's own footer only - see [Copyright text](#copyright-text). |
+| `[document].page_size` | `"A4"` | Any WeasyPrint-supported CSS page size (`"Letter"`, ...). |
+| `[margins].top` / `.right` / `.bottom` / `.left` | `"2cm"`, except `.bottom` at `"2.5cm"` | Page margins, as CSS lengths. The bottom is deeper because the running footer sits in it - see [Copyright text](#copyright-text). |
+| `[document].double_sided` | `false` | Duplex-printing layout - see [Double-sided (duplex) printing](#double-sided-duplex-printing). |
+| `[margins].inner` / `.outer` | `"2cm"` each | Spine-side/fore-edge margins, used instead of `.left`/`.right` when double-sided layout is on. |
+| `[header_footer].font_size` / `.color` / `.divider_color` | `"10pt"` / `"#555555"` / `"#e2e8f0"` | Running header/footer styling. |
 | \index{PDF settings!`heading_numbering`} | `true` | Chapter/appendix numbering on headings and captions. |
 | \index{PDF settings!`reference_style`} | `"european"` | `"european"` (tight, single-line citation entries) or `"global"` (double-spaced, hanging indent - the common APA/MLA/Chicago style). |
-| \index{PDF settings!`pdf_include_table_of_contents`} | `true` | Whether to generate and insert a table of contents. |
-| \index{PDF settings!`pdf_table_of_contents_title`} | `"Table of Contents"` | That page's own heading text. |
-| \index{PDF settings!`pdf_tex2svg_script`} / `pdf_math_dir` | auto-detected | A local MathJax `tex2svg`-style Node script, for pre-rendering TeX math (WeasyPrint has no JS engine to run MathJax client-side). Formulas are left as literal text if none is found - see [Mermaid diagrams and TeX maths](#mermaid-diagrams-and-tex-maths). |
-| \index{PDF settings!`pdf_extra_css`} | none | A list of `docs_dir`-relative stylesheet paths, same shape as `extra_css` above but meant *only* for the PDF. The standard order is managed `pdk-pdf.css` followed by author-owned `print.css`; both are loaded after the renderer foundations and the website styles, so `print.css` has the final say at equal specificity. |
+| `[table_of_contents].include` | `true` | Whether to generate and insert a table of contents. |
+| `[table_of_contents].title` | `"Table of Contents"` | That page's own heading text. |
+| `[document].extra_css` | none | A list of `docs_dir`-relative stylesheet paths, same shape as `extra_css` above but meant *only* for the PDF. The standard order is managed `pdk-pdf.css` followed by author-owned `print.css`; both are loaded after the renderer foundations and the website styles, so `print.css` has the final say at equal specificity. |
 /// table-caption | <
     attrs: {id: tab-pdf-building-a-single-file}
 
@@ -350,7 +358,7 @@ see [Building a single file](#building-a-single-file) above) feeds both
 the live website's own footer *and* the PDF's \index{running footer}, by
 default - whatever you set once shows, unchanged, in both places.
 
-`pdf_copyright` (under `[project.extra]`) overrides it for the PDF's own
+`copyright` under `pdk-pdf.toml`'s `[document]` table overrides it for the PDF's own
 footer only, leaving the website's copyright text completely untouched
 either way. Unset by default, so an existing project's PDF and website
 keep matching unless you deliberately add it - useful when you want the
@@ -358,7 +366,7 @@ PDF to show something the website version wouldn't make sense showing
 (or vice versa), without having to keep two near-identical strings in
 sync by hand.
 
-Both `copyright` and `pdf_copyright` accept a real HTML fragment, the
+Both values accept a real HTML fragment, the
 same as Zensical's own website-side `copyright` setting already does -
 a real `<a href="...">` link renders as a real, clickable link in the
 PDF too, not flattened to plain text. Use a real `<br>` for a forced
@@ -367,8 +375,8 @@ with, on their own second line, without touching the copyright/licence
 text itself:
 
 ```toml
-[project.extra]
-pdf_copyright = 'Author: Jane Doe. Licensed under the MIT License.<br>Made with <a href="https://zensical.org/">Zensical</a> and <a href="https://prodockit.org/">prodockit</a>.'
+[document]
+copyright = 'Author: Jane Doe. Licensed under the MIT License.<br>Made with <a href="https://zensical.org/">Zensical</a> and <a href="https://prodockit.org/">prodockit</a>.'
 ```
 
 Links and line breaks remain real PDF content rather than being flattened to
@@ -399,9 +407,9 @@ existing "Made with Zensical" one.
     printers cannot print at all, so the second line risks being cropped
     even though the PDF itself is correct.
 
-    `pdf_margin_bottom` therefore defaults to `2.5cm`, which leaves about
+    `[margins].bottom` therefore defaults to `2.5cm`, which leaves about
     11.1mm. A footer of three or more lines needs more again: set
-    `pdf_margin_bottom` explicitly and check the result on paper, not just
+    `[margins].bottom` explicitly and check the result on paper, not just
     on screen.
 
 ### Cover page markers
@@ -497,25 +505,27 @@ highlighting that is absent from the generated website.
 
 ### Double-sided (duplex) printing
 
-Set `pdf_double_sided = true` under `[project.extra]` for a document meant
+Set `double_sided = true` under `[document]` for a document meant
 to be printed and bound on both sides - a book or handbook, rather than a
 web-printed report. Left-hand (verso) and right-hand (recto) pages mirror
 their header/footer content and page margins, and every numbered heading
 starts its own recto page:
 
 ```toml
-[project.extra]
-pdf_double_sided = true
-pdf_margin_inner = "3cm"   # spine side - wider, to leave room for binding
-pdf_margin_outer = "1.5cm" # fore-edge (outer) side
+[document]
+double_sided = true
+
+[margins]
+inner = "3cm"   # spine side - wider, to leave room for binding
+outer = "1.5cm" # fore-edge (outer) side
 ```
 
-`pdf_margin_inner`/`pdf_margin_outer` replace `pdf_margin_left`/`_right`
-once `pdf_double_sided` is on - the "inner" (spine) side is the left
+`[margins].inner`/`.outer` replace `.left`/`.right` once
+`[document].double_sided` is on - the "inner" (spine) side is the left
 margin on a recto page but the right margin on a verso page, and vice
 versa for "outer" (fore-edge), so a single pair of settings covers both
 without you having to think about which physical side is which for any
-given page. `pdf_margin_top`/`_bottom` are unaffected either way.
+given page. `[margins].top`/`.bottom` are unaffected either way.
 
 Every corner of the running header/footer mirrors between recto and
 verso, keeping the chapter title and page number on the outer, fore-edge
@@ -528,7 +538,7 @@ Every numbered heading (chapter start) also always starts on its own
 recto page - a blank page is inserted automatically if the previous
 chapter ended on an odd page, exactly like the blank pages you'd expect at
 the start of each chapter in a real printed book. This needs no
-configuration; it's part of what `pdf_double_sided` turns on.
+configuration; it's part of what `[document].double_sided` turns on.
 
 
 A page's own front matter `recto_title: "Short Title"` overrides that
@@ -544,7 +554,7 @@ recto_title: "Ch. 1"
 # Chapter One: A Rather Long Title That Wouldn't Fit In A Running Header
 ```
 
-This setting is meaningful whether or not `pdf_double_sided` is on - the
+This setting is meaningful whether or not `[document].double_sided` is on - the
 running chapter title appears in the header either way, just in a
 different corner.
 
@@ -563,16 +573,16 @@ purposes: one is the rendered document and the other is a record of its
 source. Run each command only when you need that output.
 
 Writes `docs_dir/source_bundle.pdf` by default, so Zensical serves it
-with no separate copy step. Override with `pdf_source_bundle_output`
-under `[project.extra]`:
+with no separate copy step. Override with `[source_bundle].output` in
+`pdk-pdf.toml`:
 
 ```toml
-[project.extra]
-pdf_source_bundle_output = "dist/source.pdf"
+[source_bundle]
+output = "dist/source.pdf"
 ```
 
 The running header's report name is your `site_name`; the page size is
-`pdf_page_size` - the same setting `prodockit pdf` reads, so both PDFs a
+`[document].page_size` - the same setting `prodockit pdf` reads, so both PDFs a
 project publishes share one physical page size rather than needing it
 set twice.
 
@@ -582,7 +592,8 @@ starting on its own page, with a running header (that page's own file
 path on the right) and a "Page N of M" footer.
 
 Which files are included: `README.md` at the project root, every `.md` file
-under `docs_dir` recursively, and the Zensical config used for the build -
+under `docs_dir` recursively, the Zensical config used for the build, and
+`pdk-pdf.toml` when present -
 your editable documentation source, not generated root Markdown such as
 `CHANGELOG.md`, `CONTRIBUTING.md`, or `LICENSE.md`, and not the project's
 tooling around it. A file that isn't valid UTF-8 text is
@@ -591,7 +602,7 @@ never applies here (Markdown and TOML are always text).
 
 !!! info "Need to bundle more than the document source?"
     The command deliberately includes only the root README, documentation
-    pages, and Zensical config. Contributors building a custom bundle can use the
+    pages, Zensical config, and PDF policy. Contributors building a custom bundle can use the
     Python API described in [PDF pipeline and API](devcons/pdf-internals.md).
 
 ### Table of contents and bookmark outline
@@ -599,8 +610,8 @@ never applies here (Markdown and TOML are always text).
 A PDF built by `prodockit pdf` has two separate tables of contents, built by
 two different tools:
 
-- The **Table of Contents page** itself (`pdf_include_table_of_contents`/
-  `pdf_table_of_contents_title` above) - generated by Pandoc from every
+- The **Table of Contents page** itself (`[table_of_contents].include`/
+  `.title` above) - generated by Pandoc from every
   heading it sees, via `pandoc.structure.table_of_contents()`.
 - The **bookmark outline** - the navigation pane a PDF reader shows down
   the side, e.g. Adobe Reader's or a browser's own PDF viewer's sidebar.

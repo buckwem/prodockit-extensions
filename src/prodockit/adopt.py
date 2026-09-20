@@ -544,7 +544,11 @@ def _style_ok(root: Path, parsed: dict[str, Any]) -> bool:
     extra_css = project.get("extra_css", []) if isinstance(project, dict) else []
     extra_javascript = project.get("extra_javascript", []) if isinstance(project, dict) else []
     extra = project.get("extra", {}) if isinstance(project, dict) else {}
-    pdf_extra_css = extra.get("pdf_extra_css", []) if isinstance(extra, dict) else []
+    from prodockit.pdf.runtime_config import load_pdf_runtime_config
+
+    pdf_extra_css = load_pdf_runtime_config(root / "zensical.toml").resolve_pdf_settings(
+        extra if isinstance(extra, Mapping) else {}
+    ).value("pdf_extra_css")
     styles = _stylesheet_paths(root, parsed)
     scripts = _javascript_paths(root, parsed)
     return (
@@ -679,6 +683,9 @@ def _planned_zensical_config(root: Path, options: AdoptOptions) -> tuple[Path, s
             planned = adopt_settings.review(
                 root, planned, options.template_snapshot, original=source
             ).source
+        # A pre-G7 template snapshot can still propose project.extra.pdf_*
+        # values. Keep the one-writer boundary even during that upgrade.
+        planned = update(planned, options)
         tomllib.loads(planned)
     except (ValueError, TypeError) as error:
         raise AdoptError(f"could not safely update {path.name}: {error}") from error
@@ -686,7 +693,7 @@ def _planned_zensical_config(root: Path, options: AdoptOptions) -> tuple[Path, s
 
 
 def ensure_zensical_config(root: Path, options: AdoptOptions) -> Path:
-    _, original, _ = _config(root)
+    _, original, parsed = _config(root)
     path, source = _planned_zensical_config(root, options)
     reviewed = None
     if path.suffix == ".toml" and options.template_snapshot is not None:
@@ -700,12 +707,52 @@ def ensure_zensical_config(root: Path, options: AdoptOptions) -> Path:
             _atomic_write(
                 adopt_settings.cache_path(), adopt_settings.cache_content(options.template_snapshot)
             )
+    ensure_pdf_config(root, parsed)
     _atomic_write(path, source.encode("utf-8"))
     if reviewed is not None and (reviewed.count or not (root / adopt_settings.LEDGER).exists()):
         # Only mark work processed after the valid configuration is in place.
         # If this write fails, generated comment markers make a retry safe.
         _atomic_write(root / adopt_settings.LEDGER, reviewed.ledger.encode("utf-8"))
     return path
+
+
+def ensure_pdf_config(root: Path, parsed: dict[str, Any] | None = None) -> Path:
+    """Write the single PDF-only policy file, preserving author choices."""
+    from prodockit.adopt_toml import update_pdf
+
+    if parsed is None:
+        _, _, parsed = _config(root)
+    project = parsed.get("project", parsed)
+    extra = project.get("extra", {}) if isinstance(project, Mapping) else {}
+    path = root / "pdk-pdf.toml"
+    try:
+        if path.exists():
+            from prodockit.pdf.runtime_config import load_pdf_runtime_config
+
+            load_pdf_runtime_config(root / "zensical.toml")
+        source = path.read_text(encoding="utf-8") if path.exists() else ""
+        planned = update_pdf(source, extra if isinstance(extra, Mapping) else {})
+    except (OSError, UnicodeError, ValueError, TypeError) as error:
+        raise AdoptError(f"could not safely update {path.name}: {error}") from error
+    _atomic_write(path, planned.encode("utf-8"))
+    return path
+
+
+def _planned_pdf_config(root: Path, parsed: dict[str, Any]) -> str:
+    from prodockit.adopt_toml import update_pdf
+
+    project = parsed.get("project", parsed)
+    extra = project.get("extra", {}) if isinstance(project, Mapping) else {}
+    path = root / "pdk-pdf.toml"
+    try:
+        if path.exists():
+            from prodockit.pdf.runtime_config import load_pdf_runtime_config
+
+            load_pdf_runtime_config(root / "zensical.toml")
+        source = path.read_text(encoding="utf-8") if path.exists() else ""
+        return update_pdf(source, extra if isinstance(extra, Mapping) else {})
+    except (OSError, UnicodeError, ValueError, TypeError) as error:
+        raise AdoptError(f"could not safely update {path.name}: {error}") from error
 
 
 def _missing_caption_types(parsed: dict[str, Any]) -> list[dict[str, str]]:
@@ -735,7 +782,9 @@ def _extra_defaults_missing(parsed: dict[str, Any]) -> dict[str, Any]:
     return {
         setting.key: setting.default
         for setting in EXTRA_SETTINGS
-        if isinstance(setting.default, (str, bool)) and setting.key not in extra
+        if setting.group != "PDF"
+        and isinstance(setting.default, (str, bool))
+        and setting.key not in extra
     }
 
 
@@ -946,6 +995,38 @@ def _yaml_add_nested_list_value(
     if prepend:
         return source[:header_end] + f"{item_indent}- {rendered}\n" + source[header_end:]
     return source[:child_end] + f"{item_indent}- {rendered}\n" + source[child_end:]
+
+
+def _yaml_remove_nested_keys(source: str, parent: str, keys: set[str]) -> str:
+    """Remove parsed legacy keys from one ordinary indented YAML mapping."""
+    parent_block = _yaml_block(source, parent)
+    if parent_block is None:
+        return source
+    parent_start, parent_end = parent_block
+    header_end = source.find("\n", parent_start, parent_end)
+    if header_end < 0:
+        return source
+    region = source[header_end + 1 : parent_end]
+    entries = list(
+        re.finditer(
+            r"(?m)^(?P<indent>[ \t]+)(?P<key>[A-Za-z_][\w.-]*):[^\n]*(?:\n|$)",
+            region,
+        )
+    )
+    removals: list[tuple[int, int]] = []
+    for index, entry in enumerate(entries):
+        if entry.group("key") not in keys:
+            continue
+        indent = len(entry.group("indent"))
+        stop = len(region)
+        for following in entries[index + 1 :]:
+            if len(following.group("indent")) <= indent:
+                stop = following.start()
+                break
+        removals.append((header_end + 1 + entry.start(), header_end + 1 + stop))
+    for start, end in reversed(removals):
+        source = source[:start] + source[end:]
+    return source
 
 
 def _yaml_extension_name_pattern(name: str) -> str:
@@ -1219,21 +1300,6 @@ def _planned_yaml_config(
         "stylesheets/extra.css",
         asset=True,
     )
-    source = _yaml_add_nested_list_value(
-        source,
-        "extra",
-        "pdf_extra_css",
-        "stylesheets/pdk-pdf.css",
-        prepend=True,
-        asset=True,
-    )
-    source = _yaml_add_nested_list_value(
-        source,
-        "extra",
-        "pdf_extra_css",
-        "stylesheets/print.css",
-        asset=True,
-    )
     if options.mermaid:
         source = _yaml_ensure_mermaid(source)
     if options.maths:
@@ -1270,6 +1336,9 @@ def _planned_yaml_config(
         "javascripts/extra.js",
         asset=True,
     )
+    from prodockit.pdf.runtime_config import PDF_SETTING_PATHS
+
+    source = _yaml_remove_nested_keys(source, "extra", set(PDF_SETTING_PATHS))
     try:
         yaml.load(source, Loader=_MarkdownConfigLoader)
     except yaml.YAMLError as error:  # pragma: no cover - defensive transaction guard
@@ -1431,8 +1500,16 @@ def assess(
 
     config_error = ""
     review_pending = False
+    pdf_config_pending = False
     try:
         _planned_zensical_config(root, options)
+        planned_pdf = _planned_pdf_config(root, parsed)
+        current_pdf = (
+            (root / "pdk-pdf.toml").read_text(encoding="utf-8")
+            if (root / "pdk-pdf.toml").is_file()
+            else ""
+        )
+        pdf_config_pending = planned_pdf != current_pdf
         if config_path.suffix == ".toml" and options.template_snapshot is not None:
             review_pending = bool(
                 adopt_settings.review(
@@ -1443,6 +1520,7 @@ def assess(
         config_error = str(error)
     except AdoptError as error:
         config_error = str(error)
+        pdf_config_pending = False
 
     toolchain = supported_toolchain.plan(root, offline=offline)
     configured = _extensions(parsed)
@@ -1455,6 +1533,7 @@ def assess(
         and not missing
         and not _missing_caption_types(parsed)
         and not _extra_defaults_missing(parsed)
+        and not pdf_config_pending
         and _tree_icons_ok(
             parsed,
             require_python_names=config_path.suffix != ".toml",
@@ -1477,7 +1556,9 @@ def assess(
     if not config_error and _missing_caption_types(parsed):
         core_problems.append("configure figure and table caption types")
     if _extra_defaults_missing(parsed):
-        core_problems.append("add missing Prodockit website and PDF defaults")
+        core_problems.append("add missing Prodockit website defaults")
+    if pdf_config_pending:
+        core_problems.append("migrate PDF-only settings into pdk-pdf.toml")
     if not _tree_icons_ok(
         parsed,
         require_python_names=config_path.suffix != ".toml",
@@ -1486,7 +1567,11 @@ def assess(
     project = parsed.get("project", parsed)
     extra_css = project.get("extra_css", []) if isinstance(project, dict) else []
     extra = project.get("extra", {}) if isinstance(project, dict) else {}
-    pdf_extra_css = extra.get("pdf_extra_css", []) if isinstance(extra, dict) else []
+    from prodockit.pdf.runtime_config import load_pdf_runtime_config
+
+    pdf_extra_css = load_pdf_runtime_config(root / "zensical.toml").resolve_pdf_settings(
+        extra if isinstance(extra, Mapping) else {}
+    ).value("pdf_extra_css")
     extra_javascript = project.get("extra_javascript", []) if isinstance(project, dict) else []
     for name in MANAGED_STYLESHEETS:
         style_path = style_paths[name]
@@ -1511,8 +1596,12 @@ def assess(
     registrations = (
         ("stylesheets/pdk.css", extra_css, "project.extra_css"),
         ("stylesheets/extra.css", extra_css, "project.extra_css"),
-        ("stylesheets/pdk-pdf.css", pdf_extra_css, "project.extra.pdf_extra_css"),
-        ("stylesheets/print.css", pdf_extra_css, "project.extra.pdf_extra_css"),
+        (
+            "stylesheets/pdk-pdf.css",
+            pdf_extra_css,
+            "pdk-pdf.toml [document].extra_css",
+        ),
+        ("stylesheets/print.css", pdf_extra_css, "pdk-pdf.toml [document].extra_css"),
         ("javascripts/pdk.js", extra_javascript, "project.extra_javascript"),
         ("javascripts/extra.js", extra_javascript, "project.extra_javascript"),
     )
@@ -1702,6 +1791,7 @@ def apply_step(
             workflow_files.append(path)
         return [
             ensure_zensical_config(root, options),
+            root / "pdk-pdf.toml",
             *ensure_stylesheets(root),
             *ensure_javascripts(root),
             *ensure_local_ignores(root),

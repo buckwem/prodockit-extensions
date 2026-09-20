@@ -155,7 +155,7 @@ Fixtures
 The fixtures in \ref{tab-devcons-testing-fixtures} take paths from your config
 rather than an assumed layout: `site_dir`
 defaults to `site` but is commonly set to `public`, and the PDF follows
-`pdf_output` when you set it.
+`pdk-pdf.toml`'s `[document].output` when you set it.
 
 ## Configuration {: #testing-configuration }
 

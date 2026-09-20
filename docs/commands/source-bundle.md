@@ -50,7 +50,8 @@ project can build either or both artifacts.
 
 For a Git repository, Git selects tracked and untracked files using its normal
 ignore rules. Without a repository, the command selects the root `README.md`,
-Markdown under the configured documentation directory, and the site configuration.
+Markdown under the configured documentation directory, the site configuration,
+and `pdk-pdf.toml` when present.
 It honours local and nested `.gitignore` files, skips hidden directories,
 virtual environments and generated tooling, and never follows symbolic links.
 

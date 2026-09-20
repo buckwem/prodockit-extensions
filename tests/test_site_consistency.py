@@ -13,6 +13,7 @@ import yaml  # type: ignore[import-untyped, unused-ignore]
 from click.testing import CliRunner
 
 from prodockit.cli import main
+from prodockit.pdf.runtime_config import load_pdf_runtime_config
 from prodockit.template_sync import read_config
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -131,7 +132,9 @@ def test_reference_site_enables_website_heading_numbering() -> None:
         "stylesheets/branding.css",
         "stylesheets/extra.css",
     ]
-    assert config["extra"]["pdf_extra_css"] == [
+    assert load_pdf_runtime_config(ROOT / "zensical.toml").pdf_values[
+        "pdf_extra_css"
+    ] == [
         "stylesheets/pdk-pdf.css",
         "stylesheets/print.css",
     ]

@@ -21,6 +21,7 @@ requests rather than here.
 
 ## Unreleased
 
+- PDF-only settings now live in `pdk-pdf.toml`; `pdk adopt` migrates legacy Zensical values while runtime fallback and diagnostics keep upgrades compatible.
 - Bootstrap and Adopt no longer install PDF runtimes, Node, npm, browsers, host fonts, Pango or MSYS2; `pdk pdf` owns project-local runtime preparation.
 - PDF and bibliography builds now acquire one verified project-local Pandoc runtime; PDF builds also embed verified project-local Inter and JetBrains Mono without host font installation.
 - Removed the legacy Mermaid CLI fallback, `--swap`, and `pdf_mmdc_bin`; PDF Mermaid rendering now uses only the Python runtime.

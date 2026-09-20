@@ -81,3 +81,93 @@ def test_repository_sample_policy_is_valid() -> None:
     assert policy.exists is True
     assert policy.path == ROOT / "pdk-pdf.toml"
     assert policy.schema_version == 1
+
+
+def test_pdf_document_policy_is_strict_and_resolved_by_bounded_group(tmp_path: Path) -> None:
+    (tmp_path / "pdk-pdf.toml").write_text(
+        """schema_version = 1
+
+[document]
+output = "dist/report.pdf"
+copyright = "Project PDF"
+extra_css = ["stylesheets/print.css"]
+page_size = "Letter"
+double_sided = true
+
+[margins]
+top = "1in"
+right = "0.75in"
+bottom = "1in"
+left = "0.75in"
+inner = "1.25in"
+outer = "0.5in"
+
+[header_footer]
+font_size = "9pt"
+color = "#111111"
+divider_color = "#cccccc"
+
+[table_of_contents]
+include = false
+title = "Contents"
+
+[source_bundle]
+output = "dist/source.pdf"
+""",
+        encoding="utf-8",
+    )
+
+    settings = load_pdf_runtime_config(
+        tmp_path / "zensical.toml"
+    ).resolve_pdf_settings()
+
+    assert settings.value("pdf_output") == "dist/report.pdf"
+    assert settings.value("pdf_extra_css") == ["stylesheets/print.css"]
+    assert settings.value("pdf_page_size") == "Letter"
+    assert settings.value("pdf_double_sided") is True
+    assert settings.value("pdf_margin_inner") == "1.25in"
+    assert settings.value("pdf_header_footer_font_size") == "9pt"
+    assert settings.value("pdf_include_table_of_contents") is False
+    assert settings.value("pdf_source_bundle_output") == "dist/source.pdf"
+    assert settings.source_for("pdf_output") == "pdk-pdf.toml [document].output"
+
+
+def test_pdk_pdf_setting_wins_over_legacy_fallback_per_setting(tmp_path: Path) -> None:
+    (tmp_path / "pdk-pdf.toml").write_text(
+        """schema_version = 1
+[document]
+page_size = "Letter"
+""",
+        encoding="utf-8",
+    )
+
+    settings = load_pdf_runtime_config(tmp_path / "zensical.toml").resolve_pdf_settings(
+        {"pdf_page_size": 42, "pdf_margin_top": "3cm"}
+    )
+
+    assert settings.value("pdf_page_size") == "Letter"
+    assert settings.source_for("pdf_page_size") == "pdk-pdf.toml [document].page_size"
+    assert settings.value("pdf_margin_top") == "3cm"
+    assert settings.source_for("pdf_margin_top").endswith("(deprecated fallback)")
+    assert settings.legacy == ("pdf_margin_top",)
+    assert settings.shadowed_legacy == ("pdf_page_size",)
+
+
+@pytest.mark.parametrize(
+    ("source", "message"),
+    [
+        ("schema_version = 1\n[document]\noutpt = 'x.pdf'\n", "unknown setting"),
+        ("schema_version = 1\n[document]\noutput = 'report.txt'\n", "name a .pdf"),
+        ("schema_version = 1\n[document]\ndouble_sided = 'yes'\n", "true or false"),
+        ("schema_version = 1\n[margins]\ntop = 1\n", "must be a string"),
+        ("schema_version = 1\n[table_of_contents]\ninclude = 1\n", "true or false"),
+        ("schema_version = 1\n[source_bundle]\noutput = []\n", "must be a string"),
+    ],
+)
+def test_invalid_pdf_document_policy_fails_closed(
+    tmp_path: Path, source: str, message: str
+) -> None:
+    (tmp_path / "pdk-pdf.toml").write_text(source, encoding="utf-8")
+
+    with pytest.raises(PdfRuntimeConfigError, match=message):
+        load_pdf_runtime_config(tmp_path / "zensical.toml")

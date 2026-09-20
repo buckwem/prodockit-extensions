@@ -15,6 +15,7 @@ from prodockit.adopt import (
     resolve_options,
     write_manifest,
 )
+from prodockit.pdf.runtime_config import load_pdf_runtime_config
 from prodockit.project_config import load_project_config
 
 
@@ -32,8 +33,9 @@ def test_adopted_caption_configuration_renders_and_preserves_values(tmp_path, fi
     first = path.read_text()
     config = load_project_config(path)
     assert config.site_name == "My site"
-    assert config.extra["pdf_page_size"] == "A4"
-    assert config.extra["pdf_margin_bottom"] == "2.5cm"
+    pdf = load_pdf_runtime_config(path)
+    assert pdf.pdf_values["pdf_page_size"] == "A4"
+    assert pdf.pdf_values["pdf_margin_bottom"] == "2.5cm"
     caption = config.markdown_extensions["pymdownx.blocks.caption"]
     html = markdown.markdown(
         "![Example](example.png)\n\n/// figure-caption\nAn example figure\n///",
@@ -61,8 +63,8 @@ def test_author_pdf_defaults_are_preserved(tmp_path: Path):
     path = tmp_path / "zensical.toml"
     path.write_text('[project]\nsite_name = "Mine"\nextra.pdf_page_size = "letter" # keep\n')
     ensure_zensical_config(tmp_path, AdoptOptions())
-    assert 'extra.pdf_page_size = "letter" # keep' in path.read_text()
-    assert load_project_config(path).extra["pdf_page_size"] == "letter"
+    assert "extra.pdf_page_size" not in path.read_text()
+    assert load_pdf_runtime_config(path).pdf_values["pdf_page_size"] == "letter"
 
 
 def test_failed_config_replacement_keeps_original(tmp_path: Path, monkeypatch):
@@ -139,7 +141,7 @@ def test_template_examples_are_commented_without_branding(tmp_path: Path):
     assert "Template footer" not in source
     assert "numbering" not in config.markdown_extensions["prodockit.headings"]
     assert "csl_style" not in config.markdown_extensions["prodockit.bibliography"]
-    assert config.extra["pdf_margin_bottom"] == "2.5cm"
+    assert load_pdf_runtime_config(path).pdf_values["pdf_margin_bottom"] == "2.5cm"
     assert "pdf_copyright" not in config.extra
     assert config.site_name == "Mine"
     ensure_zensical_config(tmp_path, options)

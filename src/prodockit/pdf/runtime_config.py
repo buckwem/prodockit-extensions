@@ -17,6 +17,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from prodockit.settings import PDF_EXTRA_SETTINGS, SettingError
+
 if sys.version_info >= (3, 11):
     import tomllib
 else:  # pragma: no cover - Python 3.10 only
@@ -43,6 +45,28 @@ class ComponentPolicy:
 
 
 @dataclass(frozen=True)
+class ResolvedPdfSettings:
+    """Effective PDF-only settings and the source selected for each one."""
+
+    values: Mapping[str, object]
+    sources: Mapping[str, str]
+    legacy: tuple[str, ...]
+    shadowed_legacy: tuple[str, ...]
+
+    def value(self, key: str) -> Any:
+        try:
+            return self.values[key]
+        except KeyError as error:
+            raise PdfRuntimeConfigError(f"unknown PDF document setting {key!r}") from error
+
+    def source_for(self, key: str) -> str:
+        try:
+            return self.sources[key]
+        except KeyError as error:
+            raise PdfRuntimeConfigError(f"unknown PDF document setting {key!r}") from error
+
+
+@dataclass(frozen=True)
 class PdfRuntimeConfig:
     """Validated policy together with the project boundary that owns it."""
 
@@ -50,6 +74,9 @@ class PdfRuntimeConfig:
     path: Path
     schema_version: int
     components: Mapping[str, ComponentPolicy]
+    pdf_values: Mapping[str, object]
+    pdf_sources: Mapping[str, str]
+    pdf_explicit: frozenset[str]
     exists: bool
 
     def policy_for(self, component: str) -> ComponentPolicy:
@@ -57,6 +84,43 @@ class PdfRuntimeConfig:
             return self.components[component]
         except KeyError as error:
             raise PdfRuntimeConfigError(f"unknown PDF runtime component {component!r}") from error
+
+    def resolve_pdf_settings(
+        self, legacy_extra: Mapping[str, object] | None = None
+    ) -> ResolvedPdfSettings:
+        """Resolve PDF-only policy with per-setting legacy compatibility.
+
+        An explicit value in ``pdk-pdf.toml`` wins.  A corresponding
+        ``project.extra.pdf_*`` value is otherwise read as a deprecated
+        fallback.  Missing values use the supported defaults without writing
+        either configuration file.
+        """
+
+        legacy_extra = legacy_extra or {}
+        values = dict(self.pdf_values)
+        sources = dict(self.pdf_sources)
+        legacy: list[str] = []
+        shadowed: list[str] = []
+        for setting in PDF_EXTRA_SETTINGS:
+            key = setting.key
+            if key not in legacy_extra:
+                continue
+            if key in self.pdf_explicit:
+                shadowed.append(key)
+                continue
+            try:
+                setting.validate(legacy_extra[key])
+            except SettingError as error:
+                raise PdfRuntimeConfigError(str(error)) from error
+            values[key] = legacy_extra[key]
+            sources[key] = f"project.extra.{key} (deprecated fallback)"
+            legacy.append(key)
+        return ResolvedPdfSettings(
+            values,
+            sources,
+            tuple(sorted(legacy)),
+            tuple(sorted(shadowed)),
+        )
 
 
 _DEFAULTS: Mapping[str, ComponentPolicy] = {
@@ -66,6 +130,79 @@ _DEFAULTS: Mapping[str, ComponentPolicy] = {
     "pandoc": ComponentPolicy("supported"),
     "fonts": ComponentPolicy("supported"),
 }
+
+_PDF_DEFAULTS: Mapping[str, object] = {
+    setting.key: ([] if setting.default == () else setting.default)
+    for setting in PDF_EXTRA_SETTINGS
+    if setting.key not in {"pdf_tex2svg_script", "pdf_math_dir"}
+}
+
+_PDF_TABLES: Mapping[str, Mapping[str, str]] = {
+    "document": {
+        "output": "pdf_output",
+        "copyright": "pdf_copyright",
+        "extra_css": "pdf_extra_css",
+        "page_size": "pdf_page_size",
+        "double_sided": "pdf_double_sided",
+    },
+    "margins": {
+        "top": "pdf_margin_top",
+        "right": "pdf_margin_right",
+        "bottom": "pdf_margin_bottom",
+        "left": "pdf_margin_left",
+        "inner": "pdf_margin_inner",
+        "outer": "pdf_margin_outer",
+    },
+    "header_footer": {
+        "font_size": "pdf_header_footer_font_size",
+        "color": "pdf_header_footer_color",
+        "divider_color": "pdf_header_footer_divider_color",
+    },
+    "table_of_contents": {
+        "include": "pdf_include_table_of_contents",
+        "title": "pdf_table_of_contents_title",
+    },
+    "source_bundle": {"output": "pdf_source_bundle_output"},
+}
+
+PDF_SETTING_PATHS: Mapping[str, str] = {
+    legacy_key: f"[{table_name}].{field}"
+    for table_name, fields in _PDF_TABLES.items()
+    for field, legacy_key in fields.items()
+}
+
+_PDF_SETTING_BY_KEY = {setting.key: setting for setting in PDF_EXTRA_SETTINGS}
+
+
+def _pdf_settings(
+    raw: Mapping[str, Any],
+) -> tuple[dict[str, object], dict[str, str], frozenset[str]]:
+    values = dict(_PDF_DEFAULTS)
+    sources = dict.fromkeys(values, "default")
+    explicit: set[str] = set()
+    for table_name, fields in _PDF_TABLES.items():
+        table = _table(raw.get(table_name, {}), field=f"[{table_name}]")
+        unknown = sorted(set(table) - set(fields))
+        if unknown:
+            joined = ", ".join(unknown)
+            raise PdfRuntimeConfigError(
+                f"[{table_name}] has unknown setting(s): {joined}"
+            )
+        for field, legacy_key in fields.items():
+            if field not in table:
+                continue
+            value = table[field]
+            try:
+                _PDF_SETTING_BY_KEY[legacy_key].validate(value)
+            except SettingError as error:
+                expected = str(error).split(" must be ", 1)[-1]
+                raise PdfRuntimeConfigError(
+                    f"[{table_name}].{field} must be {expected}"
+                ) from error
+            values[legacy_key] = value
+            sources[legacy_key] = f"pdk-pdf.toml [{table_name}].{field}"
+            explicit.add(legacy_key)
+    return values, sources, frozenset(explicit)
 
 
 def project_root_for(config_file: str | Path = "zensical.toml") -> Path:
@@ -126,7 +263,17 @@ def load_pdf_runtime_config(config_file: str | Path = "zensical.toml") -> PdfRun
     root = project_root_for(config_file)
     path = root / CONFIG_NAME
     if not path.exists():
-        return PdfRuntimeConfig(root, path, SCHEMA_VERSION, dict(_DEFAULTS), False)
+        values, sources, explicit = _pdf_settings({})
+        return PdfRuntimeConfig(
+            root,
+            path,
+            SCHEMA_VERSION,
+            dict(_DEFAULTS),
+            values,
+            sources,
+            explicit,
+            False,
+        )
     try:
         source = path.read_text(encoding="utf-8")
         raw = tomllib.loads(source)
@@ -135,7 +282,7 @@ def load_pdf_runtime_config(config_file: str | Path = "zensical.toml") -> PdfRun
     except (UnicodeDecodeError, tomllib.TOMLDecodeError) as error:
         raise PdfRuntimeConfigError(f"cannot parse {path}: {error}") from error
 
-    allowed = {"schema_version", *COMPONENTS}
+    allowed = {"schema_version", *COMPONENTS, *_PDF_TABLES}
     unknown = sorted(set(raw) - allowed)
     if unknown:
         joined = ", ".join(unknown)
@@ -150,16 +297,28 @@ def load_pdf_runtime_config(config_file: str | Path = "zensical.toml") -> PdfRun
         component: _component_policy(component, raw.get(component, {}))
         for component in COMPONENTS
     }
-    return PdfRuntimeConfig(root, path, schema, components, True)
+    values, sources, explicit = _pdf_settings(raw)
+    return PdfRuntimeConfig(
+        root,
+        path,
+        schema,
+        components,
+        values,
+        sources,
+        explicit,
+        True,
+    )
 
 
 __all__ = [
     "COMPONENTS",
     "CONFIG_NAME",
+    "PDF_SETTING_PATHS",
     "SCHEMA_VERSION",
     "ComponentPolicy",
     "PdfRuntimeConfig",
     "PdfRuntimeConfigError",
+    "ResolvedPdfSettings",
     "load_pdf_runtime_config",
     "project_root_for",
 ]

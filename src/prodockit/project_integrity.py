@@ -16,6 +16,7 @@ from markdown import markdown as render_markdown
 
 from prodockit.csl import CslError
 from prodockit.csl import validate as validate_csl
+from prodockit.pdf.runtime_config import load_pdf_runtime_config
 from prodockit.project_config import ProjectConfig, load_project_config
 from prodockit.renderer_health import probe_mathjax
 from prodockit.text_encoding import inspect_project_text_encoding
@@ -257,12 +258,13 @@ def _configured_local_files(config: ProjectConfig) -> list[tuple[str, str]]:
             values = [values]
         if isinstance(values, list):
             found.extend((f"project.{key}", value) for value in values if isinstance(value, str))
-    values = config.extra.get("pdf_extra_css") or []
+    pdf_settings = load_pdf_runtime_config(config.path).resolve_pdf_settings(config.extra)
+    values = pdf_settings.value("pdf_extra_css") or []
     if isinstance(values, str):
         values = [values]
     if isinstance(values, list):
         found.extend(
-            ("project.extra.pdf_extra_css", value)
+            (pdf_settings.source_for("pdf_extra_css"), value)
             for value in values
             if isinstance(value, str)
         )
@@ -297,7 +299,7 @@ def _unconfigured_assets(config: ProjectConfig) -> list[ProjectProblem]:
             ".css",
             configured_css,
             "stylesheet",
-            "project.extra_css or project.extra.pdf_extra_css",
+            "project.extra_css or pdk-pdf.toml [document].extra_css",
         ),
         (
             config.docs_dir / "javascripts",
