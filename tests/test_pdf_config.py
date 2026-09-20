@@ -83,7 +83,11 @@ def _page_with_mermaid(_project, source: str) -> str:
 def _prepared_project_runtime(monkeypatch: pytest.MonkeyPatch) -> None:
     """Configuration tests isolate orchestration from provider downloads."""
 
-    monkeypatch.setattr(config, "_prepare_pdf_build_runtime", lambda _path: ("pandoc", ""))
+    monkeypatch.setattr(
+        config,
+        "_prepare_pdf_build_runtime",
+        lambda _path, **_kwargs: ("pandoc", ""),
+    )
 
 
 @pytest.fixture()

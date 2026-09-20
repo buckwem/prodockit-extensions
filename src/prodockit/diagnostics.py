@@ -35,6 +35,11 @@ from prodockit.pdf.mermaid_runtime import MermaidProvider
 from prodockit.pdf.mermaid_runtime import probe_runtime as probe_mermaid_runtime
 from prodockit.pdf.pandoc_runtime import PandocProvider
 from prodockit.pdf.pandoc_runtime import probe_runtime as probe_pandoc_runtime
+from prodockit.pdf.python_requirements import (
+    PdfPythonRequirementsError,
+    pdf_python_requirements_established,
+    pdf_python_requirements_prepared,
+)
 from prodockit.pdf.runtime_config import PDF_SETTING_PATHS, load_pdf_runtime_config
 from prodockit.pdf.runtime_prepare import RuntimeProvider, current_runtime_environment
 from prodockit.pdf.runtime_store import RuntimeStore
@@ -3193,8 +3198,31 @@ def _system_weasyprint_check(
     *,
     required: bool,
     deferred: bool = False,
+    preparation_error: str = "",
     retry_reporter: RetryReporter | None,
 ) -> DiagnosticResult:
+    if preparation_error:
+        return DiagnosticResult(
+            "renderer.weasyprint",
+            "Rendering toolchain",
+            "fail" if required else "warn",
+            "PDF Python requirements are invalid",
+            (preparation_error,),
+            {"required": required, "deferred": False},
+        )
+    if deferred:
+        return DiagnosticResult(
+            "renderer.weasyprint",
+            "Rendering toolchain",
+            "warn",
+            "PDF Python requirements will be prepared on first PDF use",
+            (
+                "Run `pdk pdf` when PDF output is required; it will install the "
+                "committed PDF-only packages and report any missing macOS or Linux "
+                "native prerequisite.",
+            ),
+            {"required": required, "deferred": True},
+        )
     imported: ProbeResult | subprocess.CompletedProcess[str] | None = None
     try:
         imported = _probe_weasyprint_import(retry_reporter)
@@ -3234,26 +3262,6 @@ def _system_weasyprint_check(
             },
         )
     except Exception as error:
-        if deferred:
-            return DiagnosticResult(
-                "renderer.weasyprint",
-                "Rendering toolchain",
-                "warn",
-                "WeasyPrint prerequisites will be checked on first PDF use",
-                (
-                    "Run `pdk pdf` when PDF output is required; it will report any "
-                    "missing macOS or Linux native prerequisite.",
-                ),
-                {
-                    "required": required,
-                    "deferred": True,
-                    **(
-                        {"health_probe": imported.evidence()}
-                        if isinstance(imported, ProbeResult)
-                        else {}
-                    ),
-                },
-            )
         safe_error = _sanitise_text(f"{type(error).__name__}: {error}", root)
         return DiagnosticResult(
             "renderer.weasyprint",
@@ -3318,9 +3326,31 @@ def _renderer_checks(
         component="mathjax",
         required=maths_required,
     )
-    pdf_deferred = pdf_required and any(
-        check.data.get("deferred") is True for check in (pandoc, fonts)
-    )
+    index_options = config.markdown_extensions.get("prodockit.index", {}) if config else {}
+    include_index = index_options.get("include") is True
+    try:
+        pdf_python_prepared = bool(
+            config
+            and pdf_python_requirements_prepared(
+                config.path, include_index=include_index
+            )
+        )
+        pdf_python_established = bool(
+            config
+            and pdf_python_requirements_established(
+                config.path, include_index=include_index
+            )
+        )
+        pdf_python_error = ""
+        if pdf_python_established and not pdf_python_prepared:
+            pdf_python_error = (
+                "the established PDF Python requirements are no longer satisfied "
+                "in the active project environment; rerun `pdk pdf` to repair them"
+            )
+    except PdfPythonRequirementsError as error:
+        pdf_python_prepared = False
+        pdf_python_established = False
+        pdf_python_error = _sanitise_text(str(error), root)
     mathjax_deferred = maths_required and mathjax.data.get("deferred") is True
     checks = [pandoc, fonts]
 
@@ -3330,7 +3360,8 @@ def _renderer_checks(
         else _system_weasyprint_check(
             root,
             required=pdf_required,
-            deferred=pdf_deferred,
+            deferred=not pdf_python_prepared,
+            preparation_error=pdf_python_error,
             retry_reporter=retry_reporter,
         )
     )

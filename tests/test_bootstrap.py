@@ -52,7 +52,6 @@ from prodockit.bootstrap.stages import (
     VSCODE_EXTENSION_MIN_VERSIONS,
     VSCODE_EXTENSIONS,
     VSCODE_MIN_VERSION,
-    WEASYPRINT_MIN_VERSION,
 )
 
 
@@ -3364,13 +3363,10 @@ def test_first_path_project_environment_is_independent_of_template_dependencies(
 
     plan = next(s for s in STAGES if s.id == "project-env").plan(_context(tmp_path))
 
-    assert [
-        str(project / ".venv" / "bin" / "python"),
-        "-m",
-        "pip",
-        "install",
-        f"weasyprint>={WEASYPRINT_MIN_VERSION}",
-    ] in plan.commands
+    assert not any(
+        any("weasyprint" in argument.lower() for argument in command)
+        for command in plan.commands
+    )
 
 
 def test_bootstrap_records_both_components_for_later_adoption(tmp_path: Path) -> None:

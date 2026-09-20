@@ -127,8 +127,10 @@ def test_pandoc_and_weasyprint_have_distinct_project_runtime_boundaries() -> Non
     """Document project-local Pandoc and platform-specific WeasyPrint."""
     page = REQUIREMENTS.read_text(encoding="utf-8")
 
-    assert "Windows x64 uses the official digest-pinned WeasyPrint 70" in page
-    assert "macOS and Linux currently use a separately installed Python command" in page
+    assert "Windows x64 uses the verified" in page
+    assert "macOS and Linux" in page
+    assert "pdf-requirements.txt" in page
+    assert "first use" in page
     assert "downloads the verified official archive into the project cache" in page
 
 

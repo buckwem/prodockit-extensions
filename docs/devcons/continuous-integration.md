@@ -169,7 +169,8 @@ connects each runner requirement to the build feature that needs it.
 
 | Requirement {: width="32%" } | Used for | Failure when absent |
 |---|---|---|
-| Python requirements | Zensical, prodockit, WeasyPrint, and tests | The command normally fails |
+| Base Python requirements | Zensical, prodockit, and website tests | The command normally fails |
+| `pdf-requirements.txt` | WeasyPrint on macOS/Linux; PyMuPDF only for an enabled index | The PDF command prepares these on first use and fails clearly if installation or validation fails |
 | Pandoc | PDF conversion and `prodockit.bibliography` | The build fails |
 | WeasyPrint native libraries | PDF layout | Import or PDF build fails |
 | Document fonts | Correct PDF typography and pagination | A fallback font may be substituted silently |

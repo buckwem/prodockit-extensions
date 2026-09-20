@@ -38,6 +38,7 @@ _ROOT_FILES = (
 )
 _REQUIREMENT_FILES = (
     "requirements.txt",
+    "pdf-requirements.txt",
     "requirements/docs.txt",
     "docs/requirements.txt",
 )

@@ -108,6 +108,10 @@ from prodockit.pdf.config import (
     build_source_bundle_from_zensical_config,
 )
 from prodockit.pdf.mermaid import MermaidBackendUnavailableError
+from prodockit.pdf.python_requirements import (
+    PdfPythonRequirementsError,
+    prepare_pdf_python_requirements,
+)
 from prodockit.pdf.runtime_config import COMPONENTS, PdfRuntimeConfigError
 from prodockit.pdf.runtime_prepare import (
     RuntimeProviderUnavailableError,
@@ -1755,7 +1759,11 @@ def config_command(config_file: str, check: bool) -> None:
         _echo_config_setting(setting.key, setting.value, setting.source)
 
     index_state = "enabled" if report.index_enabled else "disabled"
-    dependency = "installed" if report.index_dependency_available else "not installed"
+    dependency = (
+        "installed"
+        if report.index_dependency_available
+        else "prepared automatically on first PDF use"
+    )
     click.echo("\nIndex generation")
     click.echo(f"  State: {index_state}")
     click.echo(f"  Title: {report.index_title}")
@@ -2755,6 +2763,7 @@ def _run_pdf_command(
         RevisionDateError,
         SourceBundleError,
         MermaidBackendUnavailableError,
+        PdfPythonRequirementsError,
         RuntimeProviderUnavailableError,
         RuntimeStoreError,
         ValueError,
@@ -2809,14 +2818,30 @@ def pdf(
     page size, and other PDF settings."""
     if prepare_components:
         try:
-            prepared = prepare_runtime_components(config_file, prepare_components)
+            requested = {component.lower() for component in prepare_components}
+            python_prepared = None
+            if sys.platform != "win32" and requested.intersection({"weasyprint", "all"}):
+                python_prepared = prepare_pdf_python_requirements(config_file)
+            runtime_request = tuple(
+                component
+                for component in prepare_components
+                if not (sys.platform != "win32" and component.lower() == "weasyprint")
+            )
+            prepared = prepare_runtime_components(config_file, runtime_request)
         except (
             PdfRuntimeConfigError,
+            PdfPythonRequirementsError,
             RuntimeProviderUnavailableError,
             RuntimeStoreError,
             OSError,
         ) as error:
             raise click.ClickException(str(error)) from error
+        if python_prepared is not None:
+            state = "Already prepared" if python_prepared.cached else "Prepared"
+            click.echo(
+                f"{state} PDF Python requirements ({python_prepared.version}) "
+                f"in {python_prepared.path}"
+            )
         for result in prepared:
             state = "Already prepared" if result.cached else "Prepared"
             click.echo(f"{state} {result.component} {result.version} in {result.path}")
@@ -2909,6 +2934,7 @@ def source_bundle(config_file: str) -> None:
     except (
         RuntimeProviderUnavailableError,
         RuntimeStoreError,
+        PdfPythonRequirementsError,
         SourceBundleError,
         ValueError,
         OSError,

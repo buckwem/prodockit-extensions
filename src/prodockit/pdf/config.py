@@ -34,6 +34,10 @@ from prodockit.pdf.mathjax_runtime import adapter_path as mathjax_adapter_path
 from prodockit.pdf.mathjax_runtime import component_root as mathjax_component_root
 from prodockit.pdf.mermaid import MermaidRenderer, create_mermaid_renderer
 from prodockit.pdf.pandoc_runtime import executable_in_runtime as pandoc_executable_in_runtime
+from prodockit.pdf.python_requirements import (
+    prepare_pdf_python_requirements,
+    weasyprint_executable,
+)
 from prodockit.pdf.release import get_latest_release_tag
 from prodockit.pdf.runtime_config import load_pdf_runtime_config
 from prodockit.pdf.runtime_prepare import (
@@ -81,9 +85,13 @@ RECTO_TITLE_FRONT_MATTER_KEY = "recto_title"
 PDF_INCLUDE_FRONT_MATTER_KEY = "pdf_include"
 
 
-def _prepare_pdf_build_runtime(config_path: str) -> tuple[str, str]:
-    """Return the cached Pandoc CLI and explicit project-font CSS."""
+def _prepare_pdf_build_runtime(
+    config_path: str, *, include_index: bool = False
+) -> tuple[str, str]:
+    """Return the prepared Pandoc CLI and explicit project-font CSS."""
 
+    # Check the project interpreter before any native runtime download starts.
+    prepare_pdf_python_requirements(config_path, include_index=include_index)
     environment = current_runtime_environment()
     prepared = {
         result.component: result
@@ -606,12 +614,14 @@ def _build_pdf_from_config(
     if project_config is not None and not Path(output_path).is_absolute():
         build_output_path = str(project_config.root / output_path)
 
-    pandoc_executable, prepared_font_css = _prepare_pdf_build_runtime(config_path)
+    pandoc_executable, prepared_font_css = (
+        _prepare_pdf_build_runtime(config_path, include_index=index_settings.include)
+    )
     prepared_weasyprint = prepare_windows_weasyprint_runtime(config_path)
-    weasyprint_executable = (
+    prepared_weasyprint_executable = (
         str(executable_in_runtime(prepared_weasyprint.path))
         if prepared_weasyprint is not None
-        else "weasyprint"
+        else weasyprint_executable()
     )
 
     try:
@@ -671,7 +681,7 @@ def _build_pdf_from_config(
             include_index=index_settings.include,
             index_title=index_settings.title,
             pandoc_executable=pandoc_executable,
-            weasyprint_executable=weasyprint_executable,
+            weasyprint_executable=prepared_weasyprint_executable,
             font_face_css=prepared_font_css,
             on_stage=on_stage,
         )
@@ -730,11 +740,12 @@ def build_source_bundle_from_zensical_config(config_path: str = "zensical.toml")
     pdf_settings = runtime_policy.resolve_pdf_settings(extra)
     docs_dir = str(config.get("docs_dir") or "docs")
     root = str(project_config.root)
+    prepare_pdf_python_requirements(config_path)
     prepared_weasyprint = prepare_windows_weasyprint_runtime(config_path)
-    weasyprint_executable = (
+    prepared_weasyprint_executable = (
         str(executable_in_runtime(prepared_weasyprint.path))
         if prepared_weasyprint is not None
-        else "weasyprint"
+        else weasyprint_executable()
     )
 
     configured_output = pdf_settings.value("pdf_source_bundle_output")
@@ -748,7 +759,7 @@ def build_source_bundle_from_zensical_config(config_path: str = "zensical.toml")
         root=root,
         report_name=config.get("site_name") or "",
         page_size=pdf_settings.value("pdf_page_size"),
-        weasyprint_executable=weasyprint_executable,
+        weasyprint_executable=prepared_weasyprint_executable,
         files=discover_markdown_and_config_files(
             root,
             docs_dir=docs_dir,

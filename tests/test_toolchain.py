@@ -51,14 +51,14 @@ def test_dependency_graph_detects_missing_nested_package_and_ignores_unused_extr
 
 def test_matching_version_with_broken_dependencies_gets_resolving_repair(tmp_path, monkeypatch):
     _supported(monkeypatch)
-    monkeypatch.setattr(toolchain, "dependency_repairs", lambda packages: ("weasyprint",))
+    monkeypatch.setattr(toolchain, "dependency_repairs", lambda packages: ("zensical",))
     planned = toolchain.plan(tmp_path)
     assert any(
-        action.package == "weasyprint" and action.action == "repair" for action in planned.actions
+        action.package == "zensical" and action.action == "repair" for action in planned.actions
     )
     command = next(command for command in planned.commands if "pip" in command)
     assert "--no-deps" not in command
-    assert f"weasyprint=={TESTED_VERSIONS['weasyprint']}" in command
+    assert f"zensical=={TESTED_VERSIONS['zensical']}" in command
 
 
 def _supported(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -141,36 +141,36 @@ def test_offline_pip_plan_requires_only_the_configured_wheelhouse(
     assert "--extra-index-url" not in command
 
 
-def test_plan_does_not_resolve_dependencies_again_for_installed_packages(
+def test_plan_does_not_manage_installed_pdf_only_packages(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     _supported(monkeypatch)
     monkeypatch.setattr(
         toolchain,
         "installed_distribution_version",
-        lambda package: "0.0.1" if package == "weasyprint" else TESTED_VERSIONS[package],
+        lambda package: TESTED_VERSIONS[package],
     )
 
     planned = toolchain.plan(tmp_path)
 
-    command = next(command for command in planned.commands if "weasyprint==69.0" in command)
-    assert "--no-deps" in command
+    assert all("weasyprint" not in argument for command in planned.commands for argument in command)
+    assert all(action.package != "weasyprint" for action in planned.actions)
 
 
-def test_plan_resolves_dependencies_for_missing_packages(
+def test_plan_does_not_install_missing_pdf_only_packages(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     _supported(monkeypatch)
     monkeypatch.setattr(
         toolchain,
         "installed_distribution_version",
-        lambda package: None if package == "weasyprint" else TESTED_VERSIONS[package],
+        lambda package: TESTED_VERSIONS[package],
     )
 
     planned = toolchain.plan(tmp_path)
 
-    command = next(command for command in planned.commands if "weasyprint==69.0" in command)
-    assert "--no-deps" not in command
+    assert all("weasyprint" not in argument for command in planned.commands for argument in command)
+    assert all(action.package != "weasyprint" for action in planned.actions)
 
 
 def test_declarations_are_complete_and_preserve_operators_extras_and_unrelated_lines(
@@ -182,6 +182,8 @@ def test_declarations_are_complete_and_preserve_operators_extras_and_unrelated_l
         "sphinx==8.0\nprodockit[index]>=0.1  # keep extras\nzensical~=0.0.1\n",
         encoding="utf-8",
     )
+    pdf_requirements = tmp_path / "pdf-requirements.txt"
+    pdf_requirements.write_text("weasyprint>=68.0\n", encoding="utf-8")
 
     written = toolchain.write_declarations(tmp_path)
 
@@ -189,7 +191,10 @@ def test_declarations_are_complete_and_preserve_operators_extras_and_unrelated_l
     assert "sphinx==8.0" in source
     assert f"prodockit[index]>={TESTED_VERSIONS['prodockit']}  # keep extras" in source
     assert f"zensical~={TESTED_VERSIONS['zensical']}" in source
-    assert f"weasyprint=={TESTED_VERSIONS['weasyprint']}" in source
+    assert "weasyprint" not in source
+    assert pdf_requirements.read_text(encoding="utf-8") == (
+        f"weasyprint>={TESTED_VERSIONS['weasyprint']}\n"
+    )
     assert f"markdown=={TESTED_VERSIONS['markdown']}" in source
     assert f"pymdown-extensions=={TESTED_VERSIONS['pymdown-extensions']}" in source
     assert (tmp_path / ".python-version").read_text(encoding="utf-8") == "3.14\n"

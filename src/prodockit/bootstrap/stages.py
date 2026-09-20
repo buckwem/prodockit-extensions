@@ -91,15 +91,10 @@ VSCODE_EXTENSION_MIN_VERSIONS = {
 #: and runnable while being unable to install the editor this setup promises.
 VSCODE_MIN_VERSION = "1.100.0"
 
-#: The PDF renderer is a project dependency rather than a dependency of the
-#: Prodockit library. First-path bootstrap installs this floor explicitly so
-#: a lagging template mirror cannot leave a newly created project unable to
-#: build its PDF (prodockit-extensions#712).
-WEASYPRINT_MIN_VERSION = "69.0"
-
 # Runtime versions remain public compatibility metadata for documentation and
 # acceptance fixtures. Bootstrap does not install or inspect these PDF
 # components; pdk pdf and diagnostics own that boundary.
+WEASYPRINT_MIN_VERSION = "69.0"
 PANDOC_VERSION = "3.10.1"
 PANDOC_MIN_MAJOR = 3
 NODE_MIN_VERSION = "22.12.0"
@@ -2819,20 +2814,20 @@ def _plan_project_env(context: Context) -> Plan:
     if not python.exists() or rebuild:
         commands.append([sys.executable, "-m", "venv", str(venv)])
     commands.append([str(python), "-m", "pip", "install", "-r", str(project / "requirements.txt")])
-    if context.guided and not context.config.source_url.strip():
-        # The first path starts from a replaceable template checkout. Install
-        # the renderer and shared assets from Prodockit itself so correctness
-        # does not depend on every host's template mirror being up to date.
-        if context.platform != WINDOWS:
-            commands.append(
-                [str(python), "-m", "pip", "install", f"weasyprint>={WEASYPRINT_MIN_VERSION}"]
-            )
-        if shared_files.manifest_path(project).is_file():
-            # Use the Prodockit release running Bootstrap, not the release from
-            # the template's requirements.  A deliberately old template is a
-            # supported first-path input; its project environment must not be
-            # allowed to restore old managed files over the candidate release.
-            commands.append([sys.executable, "-m", "prodockit", "shared-files", "--apply"])
+    if (
+        context.guided
+        and not context.config.source_url.strip()
+        and shared_files.manifest_path(project).is_file()
+    ):
+        # The first path starts from a replaceable template checkout. Apply
+        # shared assets from Prodockit itself so correctness does not depend on
+        # every host's template mirror being up to date. PDF-only packages are
+        # prepared later by ``pdk pdf`` from the committed PDF requirements.
+        # Use the Prodockit release running Bootstrap, not the release from
+        # the template's requirements.  A deliberately old template is a
+        # supported first-path input; its project environment must not be
+        # allowed to restore old managed files over the candidate release.
+        commands.append([sys.executable, "-m", "prodockit", "shared-files", "--apply"])
     components = project / ADOPT_MANIFEST
     if context.guided and not components.exists():
         commands.append(

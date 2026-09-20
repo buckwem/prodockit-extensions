@@ -105,10 +105,15 @@ operating system when the route above requires them:
 Pandoc and the Inter/JetBrains Mono PDF fonts require no host installation.
 The first applicable build downloads verified archives into
 `.prodockit/cache/pdf/`; bibliography-only use prepares Pandoc without fonts.
+On macOS and Linux, the first PDF build also installs the packages declared in
+the committed `pdf-requirements.txt` into the active project environment. The
+standard file contains only WeasyPrint. When the back-of-book index is enabled,
+Prodockit adds PyMuPDF to that first-use preparation. A matching warm build
+does not invoke pip or contact a package index.
 To force preparation before a build, run:
 
 ```bash
-pdk pdf --prepare pandoc --prepare fonts
+pdk pdf --prepare pandoc --prepare fonts --prepare weasyprint
 ```
 
 === ":material-apple: macOS"
@@ -119,7 +124,6 @@ pdk pdf --prepare pandoc --prepare fonts
 
     ```bash
     brew install pango
-    pip3 install weasyprint
     ```
 
 === ":fontawesome-brands-windows: Windows"
@@ -138,14 +142,7 @@ pdk pdf --prepare pandoc --prepare fonts
 
     ```bash
     sudo apt install libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz-subset0
-    pip install weasyprint
     ```
-
-!!! note "If pip or pip3 does not work"
-
-    If `pip` does not work, try `pip3`; if `pip3` does not work, try `pip`.
-    Keep the intended virtual environment active and check that the alternative
-    command belongs to it before installing packages.
 
 Prepare and verify the exact supported Pandoc in the project-local PDF cache:
 
@@ -154,7 +151,7 @@ pdk pdf --prepare pandoc
 ```
 
 `pdk pdf` performs the same preparation transparently before a build. On macOS
-and Ubuntu, also verify the system-backed Python renderer with
+and Ubuntu, it also verifies the system-backed Python renderer with
 `python -c "import weasyprint; print(weasyprint.__version__)"`. On Windows
 x64, use `pdk pdf --prepare weasyprint`; it validates the cached standalone
 CLI by rendering a smoke-test PDF.
@@ -163,32 +160,8 @@ If either command fails, use [Fix common PDF build problems](#pdf-common-problem
 rather than changing PDF layout settings.
 
 A [back-of-book index](extensions/index-terms.md#index-terms-requirements)
-also needs `pymupdf`. Install `prodockit[index]` only when the document enables
-the PDF index:
-
-=== ":material-apple: macOS"
-
-    ```bash
-    pip3 install "prodockit[index]"
-    ```
-
-=== ":fontawesome-brands-windows: Windows"
-
-    ```powershell
-    pip install "prodockit[index]"
-    ```
-
-=== ":material-linux: Linux (Ubuntu)"
-
-    ```bash
-    pip install "prodockit[index]"
-    ```
-
-!!! note "If pip or pip3 does not work"
-
-    If `pip` does not work, try `pip3`; if `pip3` does not work, try `pip`.
-    Keep the intended virtual environment active and check that the alternative
-    command belongs to it before installing packages.
+also needs `pymupdf`. Do not install an extra manually: `pdk pdf` detects the
+enabled index and adds PyMuPDF to that project's prepared PDF environment.
 
 ### Add Mermaid diagrams or TeX maths only when used {: #mermaid-diagrams-and-tex-maths }
 

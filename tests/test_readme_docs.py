@@ -54,7 +54,7 @@ def test_readme_distinguishes_python_and_external_pdf_requirements() -> None:
         "project-local WeasyPrint",
         "Pandoc",
         "Pango",
-        "prodockit[index]",
+        "back-of-book index",
         "prodockit[testing]",
     ):
         assert phrase in README

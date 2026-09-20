@@ -329,9 +329,8 @@ def build_pdf(
     docstring for why this needs (and is the only feature in this package
     that needs) a genuine two-pass build: an index term's own page number
     can only be known after WeasyPrint has already laid the PDF out once.
-    Requires the optional `pymupdf` dependency (`pip install
-    prodockit[index]`) - only imported (and so only required) if
-    `include_index` is actually on. A no-op, single-pass build as before
+    Requires the PDF-prepared `pymupdf` dependency - only imported (and so
+    only required) if `include_index` is actually on. A no-op, single-pass build as before
     if no page anywhere uses the `.index` marker at all, even with
     `include_index` on.
 

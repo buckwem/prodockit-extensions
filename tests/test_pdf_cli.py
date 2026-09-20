@@ -50,7 +50,7 @@ def _install_fake_pandoc(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, script
     monkeypatch.setattr(
         pdf_config,
         "_prepare_pdf_build_runtime",
-        lambda _config_path: (str(pandoc_path), ""),
+        lambda _config_path, **_kwargs: (str(pandoc_path), ""),
     )
 
 
@@ -205,10 +205,18 @@ def test_pdf_prepare_exits_before_environment_check_or_build(monkeypatch, tmp_pa
     assert "Prepared mermaid 11.12.2" in result.output
 
 
-def test_pdf_prepare_all_is_accepted_by_the_public_interface(monkeypatch) -> None:
+def test_pdf_prepare_all_is_accepted_by_the_public_interface(monkeypatch, tmp_path: Path) -> None:
     import prodockit.cli as cli_module
+    from prodockit.pdf.python_requirements import PdfPythonPreparation
 
     calls = []
+    python_calls = []
+    monkeypatch.setattr(
+        cli_module,
+        "prepare_pdf_python_requirements",
+        lambda config: python_calls.append(config)
+        or PdfPythonPreparation(tmp_path, False, {"weasyprint": "69.0"}),
+    )
     monkeypatch.setattr(
         cli_module,
         "prepare_runtime_components",
@@ -219,6 +227,35 @@ def test_pdf_prepare_all_is_accepted_by_the_public_interface(monkeypatch) -> Non
 
     assert result.exit_code == 0, result.output
     assert calls == [("zensical.toml", ("all",))]
+    assert python_calls == ["zensical.toml"]
+    assert "Prepared PDF Python requirements (weasyprint 69.0)" in result.output
+
+
+def test_pdf_prepare_weasyprint_uses_python_requirements_outside_windows(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    import prodockit.cli as cli_module
+    from prodockit.pdf.python_requirements import PdfPythonPreparation
+
+    calls = []
+    monkeypatch.setattr(cli_module.sys, "platform", "darwin")
+    monkeypatch.setattr(
+        cli_module,
+        "prepare_pdf_python_requirements",
+        lambda config: calls.append(config)
+        or PdfPythonPreparation(tmp_path, True, {"weasyprint": "70.0"}),
+    )
+    monkeypatch.setattr(
+        cli_module,
+        "prepare_runtime_components",
+        lambda config, components: calls.append((config, components)) or (),
+    )
+
+    result = CliRunner().invoke(main, ["pdf", "--prepare", "weasyprint"])
+
+    assert result.exit_code == 0, result.output
+    assert calls == ["zensical.toml", ("zensical.toml", ())]
+    assert "Already prepared PDF Python requirements (weasyprint 70.0)" in result.output
 
 
 def test_pdf_prepare_reports_an_unavailable_provider_without_a_traceback(

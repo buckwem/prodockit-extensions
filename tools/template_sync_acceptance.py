@@ -252,9 +252,9 @@ def prepare_pdf_runtime(python: Path, project: Path) -> None:
         "pandoc",
         "--prepare",
         "fonts",
+        "--prepare",
+        "weasyprint",
     ]
-    if platform.system() == "Windows":
-        command.extend(("--prepare", "weasyprint"))
     acceptance.run(
         command,
         cwd=project,
