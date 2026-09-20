@@ -463,6 +463,11 @@ Builds on Python-Markdown's own `tables` extension (auto-enabled if not
 already present, the same way [prodockit.refs](refs.md) auto-enables
 [prodockit.headings](headings.md)).
 
+Separate a cell attribute list from the cell text with at least one space.
+The extension rejects missing separators, stray tokens and unbalanced quotes
+in supported table attributes, reporting the source page and line. Fenced and
+inline code examples, HTML comments and escaped attribute syntax are ignored.
+
 Attach table attributes to header cells. A column's width is a property of the
 whole column, so declare it once on the heading rather than on a body cell.
 

@@ -409,6 +409,63 @@ def test_a_malformed_table_inside_an_indented_example_is_left_alone() -> None:
 
 
 # ---------------------------------------------------------------------------
+# Malformed Prodockit table-cell attributes (#826)
+# ---------------------------------------------------------------------------
+
+
+def test_missing_space_before_a_supported_cell_attribute_is_refused() -> None:
+    text = (
+        "| Option | Description |\n"
+        "|---|---|\n"
+        "| 2 | Lorem ipsum.{: colspan=2 } |\n"
+    )
+
+    with pytest.raises(
+        TableError,
+        match=r"line 3: missing space before Prodockit table attribute list.*insert a space",
+    ):
+        _convert(text)
+
+
+def test_stray_quote_in_a_supported_cell_attribute_is_refused() -> None:
+    text = (
+        '| Likelihood {: .header shade="2%" " } | Impact |\n'
+        "|---|---|\n"
+        "| Low | High |\n"
+    )
+
+    with pytest.raises(
+        TableError,
+        match=r"line 1: malformed Prodockit table attribute list .*unexpected token",
+    ):
+        _convert(text)
+
+
+@pytest.mark.parametrize(
+    "text",
+    (
+        '| Group {: colspan=2 } | |\n|---|---|\n| A | B |\n',
+        '| Cell {: data-owner="team" } | Other |\n|---|---|\n| A | B |\n',
+        '| `literal{: colspan=2 }` | Other |\n|---|---|\n| A | B |\n',
+        '| literal \\{: colspan=2 } | Other |\n|---|---|\n| A | B |\n',
+        '<!-- | literal{: colspan=2 } | Other | -->\n\n| A | B |\n|---|---|\n',
+    ),
+    ids=("valid", "unrelated", "inline-code", "escaped", "comment"),
+)
+def test_attribute_diagnostic_preserves_valid_and_literal_controls(text: str) -> None:
+    _convert(text)
+
+
+def test_attribute_diagnostic_names_the_current_zensical_page(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("prodockit.tables.page_source", lambda _md: "docs/risks.md")
+
+    with pytest.raises(TableError, match=r"docs/risks\.md:1: missing space"):
+        _convert("| Risk{: shade=\"5%\" } | Note |\n|---|---|\n")
+
+
+# ---------------------------------------------------------------------------
 # Dense tables: `{: .compact }`
 # ---------------------------------------------------------------------------
 
