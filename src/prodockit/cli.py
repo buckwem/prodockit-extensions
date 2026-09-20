@@ -45,6 +45,7 @@ from prodockit.adopt import (
     AdoptError,
     AdoptOptions,
     Step,
+    component_asset_exclusions,
 )
 from prodockit.adopt import apply as apply_adoption
 from prodockit.adopt import (
@@ -4523,9 +4524,19 @@ def _run_template_sync(
         config_path = project / "zensical.toml"
         added: list[str] = []
         updated: list[str] = []
+        try:
+            adopt_options = resolve_adopt_options(project).options
+        except AdoptError as error:
+            raise TemplateSyncError(f"Adopt choices could not be read: {error}") from error
+        excluded_assets = component_asset_exclusions(adopt_options)
         if config_path.exists():
             project_config = read_config(config_path.read_text(encoding="utf-8"))
-            added, updated = config_changes(manifest, template_config, project_config)
+            added, updated = config_changes(
+                manifest,
+                template_config,
+                project_config,
+                excluded_assets=excluded_assets,
+            )
 
         # Treat the incoming template as the reviewed source for every build
         # input managed by `pdk pins`, not only Prodockit and Zensical. The
@@ -4534,10 +4545,6 @@ def _run_template_sync(
         dependency_plan = dependency_updates(template, project)
         shared_drift = shared_file_drift(incoming_shared)
 
-        try:
-            adopt_options = resolve_adopt_options(project).options
-        except AdoptError as error:
-            raise TemplateSyncError(f"Adopt choices could not be read: {error}") from error
         adopt_steps = (
             []
             if package_plan.needs_work
@@ -4960,7 +4967,12 @@ def _run_template_sync(
             # or try to patch a table layout which no longer exists (#913).
             if config_path.exists():
                 project_config = read_config(config_path.read_text(encoding="utf-8"))
-                added, updated = config_changes(manifest, template_config, project_config)
+                added, updated = config_changes(
+                    manifest,
+                    template_config,
+                    project_config,
+                    excluded_assets=excluded_assets,
+                )
 
         review_work_needed = work_needed or bool(adopt_written)
         if not review_work_needed:
@@ -5003,7 +5015,11 @@ def _run_template_sync(
             from prodockit.config_integrity import before_write
 
             proposed_config = apply_config_changes(
-                config_path.read_text(encoding="utf-8"), template_config, added, updated
+                config_path.read_text(encoding="utf-8"),
+                template_config,
+                added,
+                updated,
+                excluded_assets=excluded_assets,
             )
             before_write(config_path, proposed_config, TemplateSyncError)
             config_path.write_text(proposed_config, encoding="utf-8")

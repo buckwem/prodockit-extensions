@@ -1006,7 +1006,11 @@ def read_config(text: str) -> dict[str, Any]:
 
 
 def config_changes(
-    manifest: Manifest, template_config: dict[str, Any], project_config: dict[str, Any]
+    manifest: Manifest,
+    template_config: dict[str, Any],
+    project_config: dict[str, Any],
+    *,
+    excluded_assets: Iterable[str] = (),
 ) -> tuple[list[str], list[str]]:
     """Which of the template's own config keys a project is missing or
     has differently: `(added, updated)`.
@@ -1028,8 +1032,10 @@ def config_changes(
         if _taken(k, take) and not _matches(k, never)
     }
     mine = _dotted(project_config)
+    excluded_identities = {_asset_identity(value) for value in excluded_assets}
     for key in ASSET_CONFIG_KEYS:
         if key in theirs:
+            theirs[key] = _without_assets(theirs[key], excluded_identities)
             theirs[key] = _merged_asset_list(theirs[key], mine.get(key))
     added = sorted(k for k in theirs if k not in mine)
     updated = sorted(
@@ -1051,6 +1057,14 @@ def config_changes(
 def _asset_identity(value: str) -> str:
     """The local file named by an asset reference, without its cache key."""
     return value.split("#", 1)[0].split("?", 1)[0]
+
+
+def _without_assets(value: object, excluded_identities: set[str]) -> object:
+    """Remove template assets disabled by project component choices."""
+
+    if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
+        return value
+    return [item for item in value if _asset_identity(item) not in excluded_identities]
 
 
 def _merged_asset_list(template: object, project: object) -> object:
@@ -1354,6 +1368,8 @@ def apply_config_changes(
     template_config: dict[str, Any],
     added: Sequence[str],
     updated: Sequence[str],
+    *,
+    excluded_assets: Iterable[str] = (),
 ) -> str:
     """Puts the template's own settings into a project's config.
 
@@ -1363,8 +1379,10 @@ def apply_config_changes(
     """
     values = _dotted(template_config)
     current = _dotted(read_config(text))
+    excluded_identities = {_asset_identity(value) for value in excluded_assets}
     for key in ASSET_CONFIG_KEYS:
         if key in values:
+            values[key] = _without_assets(values[key], excluded_identities)
             values[key] = _merged_asset_list(values[key], current.get(key))
     for key in added:
         if _table_header(key) is None:

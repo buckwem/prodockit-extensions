@@ -24,6 +24,7 @@ from prodockit.adopt import (
     Step,
     apply_step,
     assess,
+    component_asset_exclusions,
     ensure_javascripts,
     ensure_pdf_requirements,
     ensure_requirement,
@@ -97,6 +98,15 @@ nav = [{ Home = "index.md" }]
         STANDARD_REQUIREMENTS, encoding="utf-8"
     )
     return tmp_path
+
+
+def test_component_asset_exclusions_follow_the_saved_maths_choice() -> None:
+    disabled = component_asset_exclusions(AdoptOptions(maths=False))
+
+    assert "javascripts/mathjax.js" in disabled
+    assert "https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js" in disabled
+    assert "javascripts/vendor/mathjax/tex-svg-full.js" in disabled
+    assert component_asset_exclusions(AdoptOptions(maths=True)) == ()
 
 
 def test_help_sets_the_existing_project_boundary() -> None:

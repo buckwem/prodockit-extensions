@@ -150,6 +150,18 @@ class AdoptOptions:
     )
 
 
+def component_asset_exclusions(options: AdoptOptions) -> tuple[str, ...]:
+    """Template website assets disabled by a project's saved choices."""
+
+    if options.maths:
+        return ()
+    return (
+        WEBSITE_MATHJAX_CONFIG,
+        WEBSITE_MATHJAX_RUNTIME,
+        LEGACY_WEBSITE_MATHJAX_RUNTIME,
+    )
+
+
 @dataclass(frozen=True)
 class AdoptChoiceResolution:
     """Component choices and the project-local evidence they came from."""
@@ -2014,6 +2026,7 @@ __all__ = [
     "apply",
     "apply_step",
     "assess",
+    "component_asset_exclusions",
     "ensure_pdf_requirements",
     "ensure_requirement",
     "ensure_stylesheet",
