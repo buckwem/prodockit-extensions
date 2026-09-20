@@ -19,13 +19,16 @@ only when it adds or changes behaviour that matters to a user, or requires an
 upgrade action. Defect-by-defect history belongs in GitHub issues and pull
 requests rather than here.
 
-## Unreleased
+## 0.67.0 (2026-09-20)
 
 - PDF-only settings now live in `pdk-pdf.toml`; `pdk adopt` migrates legacy Zensical values while runtime fallback and diagnostics keep upgrades compatible.
 - Bootstrap and Adopt no longer install PDF runtimes, Node, npm, browsers, host fonts, Pango or MSYS2; `pdk pdf` owns project-local runtime preparation.
 - PDF and bibliography builds now acquire one verified project-local Pandoc runtime; PDF builds also embed verified project-local Inter and JetBrains Mono without host font installation.
+- Mermaid and MathJax renderers are downloaded, verified and cached per project only when used; `--prepare` can provision them ahead of time.
 - Removed the legacy Mermaid CLI fallback, `--swap`, and `pdf_mmdc_bin`; PDF Mermaid rendering now uses only the Python runtime.
 - Windows x64 PDF and source-bundle builds now acquire and reuse the official verified WeasyPrint 70 project runtime without end-user MSYS2/Pango setup.
+- Corrected Mermaid C4 icons, moderate flowcharts and safe click links, and preserved the last healthy renderer cache after a failed update.
+- Corrected cross-page heading links containing inline HTML, nested-container captions and active-content scans around Markdown fences.
 
 ## 0.66.0 (2026-09-16)
 
