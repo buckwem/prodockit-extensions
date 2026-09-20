@@ -468,6 +468,13 @@ table tr {
     page-break-inside: avoid !important;
     break-inside: avoid !important;
 }
+/* WeasyPrint does not repaint a rowspan cell's background on every page
+   fragment. The PDF HTML pass places each rowspan interval in its own tbody,
+   which can move intact to the next page while the table header still repeats. */
+table tbody.prodockit-table-rowspan-group {
+    page-break-inside: avoid !important;
+    break-inside: avoid-page !important;
+}
 /* Repeats the header row on every page the table spans across */
 thead {
     display: table-header-group;

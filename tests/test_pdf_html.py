@@ -24,6 +24,41 @@ def _fix(html: str, **kwargs) -> str:
     return fix_up_page_html(html, **defaults)
 
 
+def test_pdf_groups_the_complete_body_interval_covered_by_a_rowspan() -> None:
+    html = _fix(
+        "<table><thead><tr><th>Subject Area</th><th>Detail</th></tr></thead>"
+        "<tbody><tr><td>Before</td><td>x</td></tr>"
+        '<tr><td rowspan="3" class="prodockit-table-cell-shaded">Option 1</td>'
+        "<td>Description</td></tr><tr><td>Advantages</td></tr>"
+        "<tr><td>Disadvantages</td></tr><tr><td>After</td><td>y</td></tr>"
+        "</tbody></table>"
+    )
+    soup = BeautifulSoup(html, "html.parser")
+    bodies = soup.select("table > tbody")
+
+    assert [len(body.find_all("tr", recursive=False)) for body in bodies] == [1, 3, 1]
+    group = bodies[1]
+    assert "prodockit-table-rowspan-group" in group.get("class", [])
+    assert group.find("td", rowspan="3").get_text(strip=True) == "Option 1"
+    assert [cell.get_text(strip=True) for cell in group.select("tr > td:last-child")] == [
+        "Description",
+        "Advantages",
+        "Disadvantages",
+    ]
+    assert soup.select_one("thead th").get_text(strip=True) == "Subject Area"
+
+
+def test_pdf_leaves_a_table_without_rowspans_in_one_unmarked_body() -> None:
+    html = _fix(
+        "<table><thead><tr><th>A</th></tr></thead>"
+        "<tbody><tr><td>one</td></tr><tr><td>two</td></tr></tbody></table>"
+    )
+    soup = BeautifulSoup(html, "html.parser")
+
+    assert len(soup.select("table > tbody")) == 1
+    assert not soup.select("tbody.prodockit-table-rowspan-group")
+
+
 # ---------------------------------------------------------------------------
 # virtual_page_path / anchor maps
 # ---------------------------------------------------------------------------

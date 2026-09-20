@@ -910,3 +910,112 @@ def test_both_header_rows_repeat_when_the_table_breaks() -> None:
     missing_second = [i for i in body if "Before" not in pages[i]]
     assert not missing_first, f"first header row missing from {missing_first}"
     assert not missing_second, f"second header row missing from {missing_second}"
+
+
+@pytest.mark.skipif(shutil.which("pandoc") is None, reason="PDF integration requires Pandoc")
+def test_shaded_rowspan_group_stays_intact_across_a_pdf_page_boundary(
+    tmp_path: Path,
+) -> None:
+    """Regression for #948, measured from a real paginated PDF."""
+    fitz = pytest.importorskip("pymupdf")
+    pytest.importorskip("weasyprint")
+
+    from prodockit.pdf.build import Page, build_pdf
+
+    def tall(label: str) -> str:
+        return "<br>".join([label, "detail line two", "detail line three"])
+
+    before = "".join(
+        f"<tr><td>Before{i}</td><td>{tall(f'BeforeDetail{i}')}</td></tr>"
+        for i in range(1, 5)
+    )
+    option_one = (
+        '<tr><td class="prodockit-table-cell-shaded" '
+        'style="--prodockit-table-cell-shade: 5%;" rowspan="4">OptionOne</td>'
+        f"<td>{tall('DescriptionOne')}</td></tr>"
+        f"<tr><td>{tall('AdvantagesOne')}</td></tr>"
+        f"<tr><td>{tall('DisadvantagesOne')}</td></tr>"
+        f"<tr><td>{tall('EffortOne')}</td></tr>"
+    )
+    option_two = (
+        '<tr><td class="prodockit-table-cell-shaded" '
+        'style="--prodockit-table-cell-shade: 5%;" rowspan="4">OptionTwo</td>'
+        "<td>DescriptionTwo</td></tr><tr><td>AdvantagesTwo</td></tr>"
+        "<tr><td>DisadvantagesTwo</td></tr><tr><td>EffortTwo</td></tr>"
+    )
+    html = (
+        "<h1>Decision</h1><table><thead><tr><th>SubjectArea</th>"
+        "<th>Detail</th></tr></thead><tbody>"
+        f"{before}{option_one}{option_two}</tbody></table>"
+    )
+    output = tmp_path / "shaded-rowspan.pdf"
+    build_pdf(
+        [Page(docs_rel_path="decision.md", html=html)],
+        str(output),
+        page_size="A5",
+    )
+
+    with fitz.open(output) as pdf:
+        words_by_page = [page.get_text("words") for page in pdf]
+        page_for = {
+            word[4]: page_number
+            for page_number, words in enumerate(words_by_page)
+            for word in words
+        }
+        option_one_page = page_for["OptionOne"]
+        one_labels = ["DescriptionOne", "AdvantagesOne", "DisadvantagesOne", "EffortOne"]
+        assert {page_for[label] for label in one_labels} == {option_one_page}
+        assert "SubjectArea" in {word[4] for word in words_by_page[option_one_page]}
+        assert page_for["OptionTwo"] == page_for["EffortTwo"]
+
+        option_words = {
+            word[4]: word
+            for word in words_by_page[option_one_page]
+            if word[4] in {"OptionOne", *one_labels}
+        }
+        shade_x = option_words["OptionOne"][0] - 3
+        pixmap = pdf[option_one_page].get_pixmap(matrix=fitz.Matrix(2, 2), alpha=False)
+
+        def pixel(x: float, y: float) -> tuple[int, int, int]:
+            px = min(max(round(x * 2), 0), pixmap.width - 1)
+            py = min(max(round(y * 2), 0), pixmap.height - 1)
+            offset = (py * pixmap.width + px) * pixmap.n
+            return tuple(pixmap.samples[offset : offset + 3])
+
+        samples = [
+            pixel(shade_x, (option_words[label][1] + option_words[label][3]) / 2)
+            for label in one_labels
+        ]
+        assert all(all(240 <= channel <= 246 for channel in sample) for sample in samples), samples
+
+        option_two_page = page_for["OptionTwo"]
+        option_two_word = next(
+            word
+            for word in words_by_page[option_two_page]
+            if word[4] == "OptionTwo"
+        )
+        assert option_two_word[0] == pytest.approx(option_words["OptionOne"][0], abs=1)
+        two_labels = ["DescriptionTwo", "AdvantagesTwo", "DisadvantagesTwo", "EffortTwo"]
+        two_words = {
+            word[4]: word
+            for word in words_by_page[option_two_page]
+            if word[4] in set(two_labels)
+        }
+        option_two_pixmap = pdf[option_two_page].get_pixmap(
+            matrix=fitz.Matrix(2, 2), alpha=False
+        )
+
+        def option_two_pixel(y: float) -> tuple[int, int, int]:
+            px = round((option_two_word[0] - 3) * 2)
+            py = round(y * 2)
+            offset = (py * option_two_pixmap.width + px) * option_two_pixmap.n
+            return tuple(option_two_pixmap.samples[offset : offset + 3])
+
+        option_two_samples = [
+            option_two_pixel((two_words[label][1] + two_words[label][3]) / 2)
+            for label in two_labels
+        ]
+        assert all(
+            all(240 <= channel <= 246 for channel in sample)
+            for sample in option_two_samples
+        ), option_two_samples

@@ -32,6 +32,60 @@ from urllib.parse import quote, unquote, urlsplit, urlunsplit
 from bs4 import BeautifulSoup, Tag
 
 HEADING_TAGS = ["h1", "h2", "h3", "h4", "h5", "h6"]
+ROWSPAN_GROUP_CLASS = "prodockit-table-rowspan-group"
+
+
+def _group_table_rowspans(soup: BeautifulSoup) -> None:
+    """Keep each body-row interval covered by a rowspan in one PDF group.
+
+    WeasyPrint does not repaint a rowspan cell's background reliably after a
+    page break. Pandoc preserves multiple ``tbody`` elements, so splitting a
+    table body around merged rowspan intervals gives CSS a real box whose
+    page break can be avoided without changing the website's table markup.
+    """
+    for body in list(soup.select("table > tbody")):
+        rows = body.find_all("tr", recursive=False)
+        intervals: list[tuple[int, int]] = []
+        for row_index, row in enumerate(rows):
+            end = row_index + 1
+            for cell in row.find_all(["th", "td"], recursive=False):
+                raw = cell.get("rowspan")
+                try:
+                    span = int(raw) if raw is not None else 1
+                except ValueError:
+                    continue
+                end = max(end, min(len(rows), row_index + max(1, span)))
+            if end == row_index + 1:
+                continue
+            if intervals and row_index < intervals[-1][1]:
+                intervals[-1] = (intervals[-1][0], max(intervals[-1][1], end))
+            else:
+                intervals.append((row_index, end))
+
+        if not intervals:
+            continue
+        segments: list[tuple[int, int, bool]] = []
+        cursor = 0
+        for start, end in intervals:
+            if cursor < start:
+                segments.append((cursor, start, False))
+            segments.append((start, end, True))
+            cursor = end
+        if cursor < len(rows):
+            segments.append((cursor, len(rows), False))
+
+        for start, end, is_rowspan_group in segments:
+            section = soup.new_tag("tbody")
+            section.attrs = dict(body.attrs)
+            if is_rowspan_group:
+                classes = list(section.get("class", []))
+                if ROWSPAN_GROUP_CLASS not in classes:
+                    classes.append(ROWSPAN_GROUP_CLASS)
+                section["class"] = classes
+            for row in rows[start:end]:
+                section.append(row.extract())
+            body.insert_before(section)
+        body.decompose()
 
 
 def virtual_page_path(docs_rel_path: str) -> str:
@@ -268,6 +322,7 @@ def fix_up_page_html(
     see :class:`prodockit.pdf.mermaid.StandaloneMermaidRenderer`.
     """
     soup = BeautifulSoup(html, "html.parser")
+    _group_table_rowspans(soup)
 
     # Website-only presentational output with no PDF equivalent - a caller's
     # own heading-numbering/reference-style <style> injection (if any), and

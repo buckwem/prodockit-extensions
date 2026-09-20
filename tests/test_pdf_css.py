@@ -64,6 +64,16 @@ def test_short_content_tabs_can_be_kept_together_in_the_pdf() -> None:
     assert "break-inside: avoid-page !important;" in rule
 
 
+def test_rowspan_groups_are_kept_together_in_the_pdf() -> None:
+    css = build_css("Inter", "Fira Code", "My Site")
+
+    selector = "table tbody.prodockit-table-rowspan-group {"
+    assert selector in css
+    rule = css.split(selector)[1].split("}")[0]
+    assert "page-break-inside: avoid !important;" in rule
+    assert "break-inside: avoid-page !important;" in rule
+
+
 def test_content_tabs_use_subtle_shading_and_rounded_outside_corners() -> None:
     css = build_css("Inter", "Fira Code", "My Site")
 
