@@ -566,7 +566,12 @@ any paths Adopt added. Use the activation path it prints if yours has another na
 
 ////
 
-//// step | Prepare project-local Pandoc
+//// step | Prepare project-local Pandoc **Optional**{: .bg-green}
+
+Complete this step when the adopted document uses Prodockit citations or a
+bibliography, or when you intend to generate PDFs locally. Otherwise skip it;
+the starter adopted site has no citation file and its website does not need
+Pandoc.
 
 Install the verified Pandoc release in this project's ignored cache:
 
@@ -574,10 +579,9 @@ Install the verified Pandoc release in this project's ignored cache:
 pdk pdf --prepare pandoc
 ```
 
-Use this command even for website-only work when the document uses Prodockit
-citations or a bibliography. Prodockit downloads, verifies and selects Pandoc;
-do not install it with Homebrew, Winget or apt, and do not rely on a system
-`pandoc` command from `PATH`.
+Prodockit downloads, verifies and selects Pandoc; do not install it with
+Homebrew, Winget or apt, and do not rely on a system `pandoc` command from
+`PATH`.
 
 This preparation is supported on Windows ARM64 even though local PDF generation
 is not. On that platform, use Pandoc for the website build and let the GitLab

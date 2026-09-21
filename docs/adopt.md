@@ -360,10 +360,13 @@ environment. Then continue with the preparation and diagnostic steps below.
 
 ////
 
-//// step | Prepare project-local Pandoc
+//// step | Prepare project-local Pandoc **Optional**{: .bg-green}
 
-Install the verified Pandoc release in this project's ignored cache before
-running diagnostics or building:
+Complete this step when the existing document uses Prodockit citations or a
+bibliography, or when you intend to generate PDFs locally. Otherwise skip it;
+a website without citations does not need Pandoc.
+
+Install the verified Pandoc release in this project's ignored cache:
 
 ```bash
 pdk pdf --prepare pandoc

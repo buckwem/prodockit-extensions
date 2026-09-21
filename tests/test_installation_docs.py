@@ -78,6 +78,7 @@ def test_adoption_routes_prepare_project_local_pandoc_before_diagnostics():
         diagnose = text.index("pdk diag", prepare)
 
         assert "pdk pdf --prepare pandoc" in text[prepare:diagnose]
+        assert "Otherwise skip it" in text[prepare:diagnose]
         assert "Homebrew" in text[prepare:diagnose]
         assert "Winget" in text[prepare:diagnose]
         assert "apt" in text[prepare:diagnose]
