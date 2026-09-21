@@ -37,6 +37,15 @@ class PandocAsset:
         return f"https://github.com/jgm/pandoc/releases/download/{PANDOC_VERSION}/{self.filename}"
 
 
+_WINDOWS_X64_ASSET = PandocAsset(
+    "pandoc-3.10.1-windows-x86_64.zip",
+    "4725a1883e2171c2e181e6fd45003acb59ca4e9cbe031fdd3b79ef0d697d36aa",
+    41_675_076,
+    "zip",
+    Path("pandoc-3.10.1/pandoc.exe"),
+)
+
+
 _ASSETS = {
     ("darwin", "arm64"): PandocAsset(
         "pandoc-3.10.1-arm64-macOS.zip",
@@ -92,20 +101,13 @@ _ASSETS = {
         Path("pandoc-3.10.1/bin/pandoc"),
         (Path("pandoc-3.10.1/bin/pandoc-lua"), Path("pandoc-3.10.1/bin/pandoc-server")),
     ),
-    ("windows", "amd64"): PandocAsset(
-        "pandoc-3.10.1-windows-x86_64.zip",
-        "4725a1883e2171c2e181e6fd45003acb59ca4e9cbe031fdd3b79ef0d697d36aa",
-        41_675_076,
-        "zip",
-        Path("pandoc-3.10.1/pandoc.exe"),
-    ),
-    ("windows", "x86_64"): PandocAsset(
-        "pandoc-3.10.1-windows-x86_64.zip",
-        "4725a1883e2171c2e181e6fd45003acb59ca4e9cbe031fdd3b79ef0d697d36aa",
-        41_675_076,
-        "zip",
-        Path("pandoc-3.10.1/pandoc.exe"),
-    ),
+    ("windows", "amd64"): _WINDOWS_X64_ASSET,
+    ("windows", "x86_64"): _WINDOWS_X64_ASSET,
+    # Windows 11 on ARM runs standalone x64 applications through its built-in
+    # emulation layer. Keep the runtime/cache identity ARM64 while reusing the
+    # same reviewed, digest-pinned official archive as native Windows x64.
+    ("windows", "arm64"): _WINDOWS_X64_ASSET,
+    ("windows", "aarch64"): _WINDOWS_X64_ASSET,
 }
 
 
@@ -152,7 +154,16 @@ def probe_runtime(
             check=False,
         )
     except (OSError, subprocess.SubprocessError) as error:
-        raise RuntimeStoreError(f"could not start prepared Pandoc: {error}") from error
+        detail = f"could not start prepared Pandoc: {error}"
+        if environment.system == "windows" and environment.architecture in {
+            "arm64",
+            "aarch64",
+        }:
+            detail += (
+                "; Windows ARM64 requires the Windows 11 x64 app emulation "
+                "component to run the qualified Pandoc executable"
+            )
+        raise RuntimeStoreError(detail) from error
     output = "\n".join(part.strip() for part in (version.stdout, version.stderr) if part.strip())
     if version.returncode or f"pandoc {PANDOC_VERSION}" not in output.lower():
         raise RuntimeStoreError(

@@ -81,10 +81,14 @@ enabled, PyMuPDF is added for that build. The preparation fingerprint includes
 the file, interpreter and environment, so another virtual environment prepares
 its own packages while an unchanged warm build performs no installation.
 
-The preparation interface is intentionally provider-gated. Pandoc 3.10.1 and
-the Inter 4.1/JetBrains Mono 2.304 font bundle are available on supported
-macOS, Linux, and Windows x64 targets; Windows x64 also provides WeasyPrint 70.
-A healthy cache is a fast local validation with no provider or network call.
+The preparation interface is intentionally provider-gated. Pandoc 3.10.1 is
+available on supported macOS, Linux, Windows x64 and Windows ARM64 targets;
+Windows ARM64 runs the reviewed Windows x64 executable through Windows 11 app
+emulation for citation-enabled website builds. The Inter 4.1/JetBrains Mono
+2.304 font bundle is available on supported macOS, Linux and Windows x64
+targets; Windows x64 also provides WeasyPrint 70. Local PDF generation remains
+unsupported on Windows ARM64. A healthy cache is a fast local validation with
+no provider or network call.
 
 ## Exit status {: #cmd-pdf-exit-status }
 

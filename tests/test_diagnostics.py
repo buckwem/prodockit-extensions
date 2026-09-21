@@ -17,6 +17,7 @@ from prodockit import diagnostics
 from prodockit import shared_files as shared_file_module
 from prodockit.cli import main
 from prodockit.diagnostics import DiagnosticReport, DiagnosticResult
+from prodockit.pdf.runtime_prepare import RuntimeEnvironment
 from prodockit.project_config import ProjectConfig
 
 
@@ -1486,6 +1487,55 @@ def test_bibliography_configuration_requires_project_pandoc(
 
     assert pandoc.data["required"] is True
     assert fonts.data["required"] is False
+
+
+def test_windows_arm64_diagnostics_require_pandoc_but_warn_for_local_pdf(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    docs = tmp_path / "docs"
+    docs.mkdir()
+    (docs / "index.md").write_text(
+        "A citation [@example].\n\n```mermaid\ngraph LR\n  A --> B\n```\n\n$a^2$\n",
+        encoding="utf-8",
+    )
+    config = ProjectConfig(
+        tmp_path / "zensical.toml",
+        {"extra": {"pdf_output": "site/document.pdf"}},
+        (),
+        {
+            "prodockit.bibliography": {"bib_file": "refs.bib"},
+            "pymdownx.superfences": {"custom_fences": [{"name": "mermaid"}]},
+            "pymdownx.arithmatex": {},
+        },
+    )
+    monkeypatch.setattr(
+        diagnostics,
+        "current_runtime_environment",
+        lambda: RuntimeEnvironment("windows", "arm64", "cpython", "3.14"),
+    )
+    monkeypatch.setattr(diagnostics.sys, "platform", "win32")
+    monkeypatch.setattr(
+        diagnostics,
+        "_command",
+        lambda name, **_kwargs: diagnostics.CommandInfo(name, None, None, "not found"),
+    )
+
+    checks = diagnostics._renderer_checks(config, tmp_path)
+    by_id = {check.id: check for check in checks}
+
+    assert not [check for check in checks if check.status == "fail"]
+    assert by_id["renderer.pandoc"].data["required"] is True
+    for check_id in (
+        "renderer.fonts",
+        "renderer.mermaid",
+        "renderer.mathjax",
+        "renderer.weasyprint",
+    ):
+        assert by_id[check_id].status == "warn"
+        assert by_id[check_id].data["required"] is False
+        assert by_id[check_id].data["unsupported_local_pdf"] is True
+        assert "GitLab pipeline" in by_id[check_id].details[0]
+    assert by_id["renderer.node"].data["required"] is False
 
 
 def test_mermaid_diagnostic_accepts_a_healthy_project_cache(

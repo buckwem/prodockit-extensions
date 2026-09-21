@@ -115,6 +115,7 @@ from prodockit.pdf.python_requirements import (
 from prodockit.pdf.runtime_config import COMPONENTS, PdfRuntimeConfigError
 from prodockit.pdf.runtime_prepare import (
     RuntimeProviderUnavailableError,
+    current_runtime_environment,
     prepare_runtime_components,
 )
 from prodockit.pdf.runtime_store import RuntimeStoreError
@@ -2789,6 +2790,20 @@ def _pdf_options(command: Callable[_P, _R]) -> Callable[_P, _R]:
     )(command)
 
 
+def _windows_arm64_local_pdf_error() -> str | None:
+    environment = current_runtime_environment()
+    if environment.system != "windows" or environment.architecture not in {
+        "arm64",
+        "aarch64",
+    }:
+        return None
+    return (
+        "Local PDF generation is not supported on Windows ARM64. Build and serve "
+        "the website locally, then use the GitLab pipeline on a supported runner "
+        "to generate the rendered document and source-bundle PDFs."
+    )
+
+
 @main.command()
 @click.option(
     "--prepare",
@@ -2812,6 +2827,9 @@ def pdf(
     if prepare_components:
         try:
             requested = {component.lower() for component in prepare_components}
+            unsupported = _windows_arm64_local_pdf_error()
+            if unsupported and not requested.issubset({"pandoc"}):
+                raise click.ClickException(unsupported)
             python_prepared = None
             if sys.platform != "win32" and requested.intersection({"weasyprint", "all"}):
                 python_prepared = prepare_pdf_python_requirements(config_file)
@@ -2839,6 +2857,8 @@ def pdf(
             state = "Already prepared" if result.cached else "Prepared"
             click.echo(f"{state} {result.component} {result.version} in {result.path}")
         return
+    if unsupported := _windows_arm64_local_pdf_error():
+        raise click.ClickException(unsupported)
     try:
         check_pdf_environment(config_file)
     except BuildEnvironmentError as error:
@@ -2914,6 +2934,8 @@ def source_bundle(config_file: str) -> None:
     one of the two PDFs doesn't pay for the other. See the PDF generation
     docs for what gets included and how to change it.
     """
+    if unsupported := _windows_arm64_local_pdf_error():
+        raise click.ClickException(unsupported)
     click.echo(f"Building source bundle from {config_file}...")
     try:
         output_path = build_source_bundle_from_zensical_config(config_file)

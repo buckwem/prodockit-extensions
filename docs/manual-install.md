@@ -1038,6 +1038,12 @@ before continuing.
 
     === ":fontawesome-brands-windows: Windows"
 
+        Native Windows ARM64 supports the complete website workflow, including
+        citations: Prodockit prepares the verified Windows x64 Pandoc executable
+        and runs it through Windows 11 app emulation. Local PDF generation is
+        not supported on Windows ARM64; use the GitLab build for both PDF
+        downloads and skip the preparation command below.
+
         1. Prepare the project-local PDF runtimes. Windows x64 uses verified,
            digest-pinned Pandoc, font, and WeasyPrint release archives, so
            do not install MSYS2/Pango or change PATH, the registry, or
@@ -1051,7 +1057,7 @@ before continuing.
             `.prodockit/cache/pdf/`, renders a smoke-test PDF, and atomically
             activates it. The first ordinary `pdk pdf` prepares all three
             automatically; bibliography-only use prepares Pandoc alone.
-            Windows ARM64 is not a supported PDF target.
+            Windows ARM64 is not a supported local PDF target.
 
         2. The PowerShell execution policy was set when the setup environment
            was created. If you chose not to change it, use **classic CMD** and

@@ -49,6 +49,16 @@ def test_support_page_centralises_public_compatibility_information() -> None:
     assert "## Platforms" not in _text("docs/devcons/limitations.md")
 
 
+def test_windows_arm64_support_boundary_is_explicit() -> None:
+    support = " ".join(_text("docs/about/support.md").split())
+
+    assert "Windows ARM64 supports the non-PDF Prodockit workflow" in support
+    assert "citation-enabled website builds" in support
+    assert "Windows 11's app emulation" in support
+    assert "Local PDF generation remains unsupported" in support
+    assert "supported GitLab runner" in support
+
+
 def test_public_limitations_focus_on_symptoms_and_workarounds() -> None:
     limitations = _text("docs/about/limitations.md")
 
