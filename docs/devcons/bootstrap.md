@@ -56,7 +56,7 @@ content.
 
 ## Install with bootstrap {: #bootstrap-quick-start }
 
-The four stages below prepare the setup environment, assess the proposed work,
+The five stages below prepare the setup environment, assess the proposed work,
 apply it, and verify the completed project. If you open a new terminal,
 reactivate and verify the appropriate environment as described in section 3.1.
 Each command is safe to repeat: Bootstrap checks before it changes anything,
@@ -151,7 +151,7 @@ The command path must be inside the setup `.venv`. An older Prodockit command
 from another Python can otherwise shadow the package just installed while
 `pip` still reports success. Do not run the complete `pdk diag` here: it is a
 project-scoped command, so a setup directory which holds project repositories
-is refused before diagnostics start. Stage 4 runs it from the completed project
+is refused before diagnostics start. Stage 5 runs it from the completed project
 and its separate environment.
 
 ////
@@ -285,10 +285,12 @@ what and why; running `--apply` again works only on outstanding activities.
 
 ///
 
-### Stage 4 — Enter and verify the project
+### Stage 4 — Install for PDF
 
 Move from the shared setup environment into the project environment, account
-for a required Windows restart, and run the project-level checks.
+for a required Windows restart, and install the optional host software needed
+for PDF output. Website-only projects still enter and activate the project here,
+but skip the PDF software step.
 
 /// steps
 
@@ -431,6 +433,38 @@ platform prerequisites and troubleshooting guidance.
 
 ////
 
+//// step | Build the downloadable PDFs
+
+Build a clean website and treat every warning as an error:
+
+```bash
+zensical build --clean --strict
+```
+
+Stop and correct any failure before continuing. `pdk pdf` consumes this
+completed Zensical build; it does not replace the website build.
+
+Generate the rendered document and the separate source bundle:
+
+```bash
+pdk pdf
+pdk source-bundle
+```
+
+The standard template adds both outputs to the website as downloads. Skip this
+step for a website-only project.
+
+////
+
+///
+
+### Stage 5 — Verifying the project
+
+Check the active project environment and its configuration, build the website,
+and generate a PDF only when the project needs one.
+
+/// steps
+
 //// step | Run project diagnostics
 
 ```bash
@@ -450,6 +484,24 @@ continuing; do not apply an update from the wrong environment.
 
 ////
 
+//// step | Serve and verify the project
+
+Start the local website:
+
+```bash
+zensical serve
+```
+
+Open the address printed by Zensical in a browser and check the website. For
+the standard template, also select both download buttons and confirm that the
+rendered document PDF and source-bundle PDF open successfully. Inspect the
+rendered PDF's layout, diagrams, mathematics and references. A website-only
+project has no PDF downloads to check.
+
+Press `Ctrl+C` in the terminal when the browser checks are complete.
+
+////
+
 //// step | Preview template updates
 
 ```bash
@@ -464,7 +516,7 @@ report and leave any available update for the maintenance workflow.
 
 ## Understand the completed project {: #bootstrap-completed-project }
 
-The four documentation stages above describe what you do. Bootstrap groups its
+The five documentation stages above describe what you do. Bootstrap groups its
 20 activities into seven phases covering preflight, core tools, Git and the
 host, the project, the build toolchain, the editor, and publication. Use the
 [phase and activity inventory](../commands/bootstrap.md#cmd-bootstrap-phases)

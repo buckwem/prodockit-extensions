@@ -479,11 +479,12 @@ def test_bootstrap_continues_after_shared_preparation() -> None:
         page.index("## Install with bootstrap") : page.index("## Understand the completed project")
     ]
     assert "installation.md#installation-preparation" in installation
-    assert installation.count("//// step | ") == 15
+    assert installation.count("//// step | ") == 17
     assert "### Stage 1 — Prepare the setup environment" in installation
     assert "### Stage 2 — Assess and preview" in installation
     assert "### Stage 3 — Apply and confirm" in installation
-    assert "### Stage 4 — Enter and verify the project" in installation
+    assert "### Stage 4 — Install for PDF" in installation
+    assert "### Stage 5 — Verifying the project" in installation
     assert "//// step | Prepare Python and the setup environment" in installation
     assert "//// step | Restart the terminal on Windows if instructed" in installation
     assert "//// step | Install Prodockit into the active environment" in installation
@@ -503,14 +504,25 @@ def test_bootstrap_continues_after_shared_preparation() -> None:
     assert '!!! warning "Complete the manual step before confirming"' in manual
     assert "Type `yes` only after checking that the action succeeded" in " ".join(manual.split())
     assert "Do not run the complete `pdk diag` here" in installation
-    verification = installation[installation.index("### Stage 4 — Enter and verify") :]
-    assert "Changing directory" in verification
-    assert verification.count("pdk diag") == 2
+    post_installation = installation[installation.index("### Stage 4 — Install for PDF") :]
+    verification = installation[installation.index("### Stage 5 — Verifying the project") :]
+    assert "Changing directory" in post_installation
+    assert post_installation.count("pdk diag") == 2
+    assert verification.count("pdk diag") == 1
     assert verification.count("pdk template-sync") == 1
-    assert verification.count('python -c "import sys; print(sys.prefix)"') == 1
-    assert "//// step | Enter and activate the project" in verification
-    assert "Fully close Windows Terminal or VS Code" in verification
-    assert "new and pre-existing" in verification
+    assert post_installation.count("zensical build --clean --strict") == 1
+    assert post_installation.count("\npdk pdf\n") == 1
+    assert post_installation.count("pdk source-bundle") == 1
+    assert post_installation.index("zensical build --clean --strict") < post_installation.index(
+        "\npdk pdf\n"
+    ) < post_installation.index("pdk source-bundle")
+    assert verification.count("zensical serve") == 1
+    assert "Open the address printed by Zensical in a browser" in verification
+    assert "rendered document PDF and source-bundle PDF" in verification
+    assert post_installation.count('python -c "import sys; print(sys.prefix)"') == 1
+    assert "//// step | Enter and activate the project" in post_installation
+    assert "Fully close Windows Terminal or VS Code" in post_installation
+    assert "new and pre-existing" in post_installation
     assert "The `Project` line must name the clone" in verification
     assert "python3.14 -m venv" not in installation
     assert "py -3.14 -m venv" not in installation
