@@ -246,6 +246,20 @@ def test_get_started_routes_authors_to_authoring_and_publishing() -> None:
     assert "[command-line reference](command-line.md)" in publishing
 
 
+def test_install_choice_starts_with_an_expert_quick_install() -> None:
+    choices = _text("docs/choosing-installation.md")
+    quick = choices[
+        choices.index("## Install Prodockit") : choices.index("## Choose an installation path")
+    ]
+
+    assert "python -m pip install --upgrade prodockit" in quick
+    assert "zensical new ." in quick
+    assert "pdk adopt --apply" in quick
+    assert "zensical build --clean --strict" in quick
+    assert "zensical serve" in quick
+    assert "detailed installation paths below" in quick
+
+
 def test_introduction_offers_an_optional_tracking_free_support_link() -> None:
     introduction = _text("docs/gettingstarted.md")
 

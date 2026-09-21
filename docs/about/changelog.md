@@ -21,6 +21,7 @@ requests rather than here.
 
 ## Unreleased
 
+- Added a concise pip-based installation path for experienced developers before the guided installation choices.
 - Separated template-site PDF installation and generation into optional stages with project-local Pandoc preparation and explicit Windows ARM64 guidance.
 - Added conditional Pandoc and optional full PDF installation steps to the Adopt guidance.
 

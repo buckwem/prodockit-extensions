@@ -10,6 +10,56 @@ Prodockit supports three installation paths. Choose the one that matches the
 document and level of automation you have; the paths are alternatives rather
 than stages to complete in sequence.
 
+## Install Prodockit
+
+Experienced developers can install the basics directly in a project-local
+Python 3.14 environment:
+
+=== ":material-apple: macOS"
+
+    ```bash
+    python3.14 -m venv .venv
+    source .venv/bin/activate
+    python -m pip install --upgrade prodockit
+    ```
+
+=== ":fontawesome-brands-windows: Windows"
+
+    ```powershell
+    py -3.14 -m venv .venv
+    .\.venv\Scripts\Activate.ps1
+    python -m pip install --upgrade prodockit
+    ```
+
+=== ":material-linux: Linux"
+
+    ```bash
+    python3.14 -m venv .venv
+    source .venv/bin/activate
+    python -m pip install --upgrade prodockit
+    ```
+
+In an empty directory, create the Zensical site first; skip this command for
+an existing site:
+
+```bash
+zensical new .
+```
+
+Then add Prodockit, build and preview the website:
+
+```bash
+pdk adopt --apply
+zensical build --clean --strict
+zensical serve
+```
+
+This is the shortest path to a non-template website. It deliberately leaves
+out machine preparation, repository and publishing setup, PDF prerequisites,
+recovery guidance, and maintained-template integration. Choose one of the
+detailed installation paths below when you need those steps or want the setup
+checked as you proceed.
+
 ## Choose an installation path
 
 {% if is_surrey %}
