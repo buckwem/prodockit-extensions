@@ -56,7 +56,7 @@ content.
 
 ## Install with bootstrap {: #bootstrap-quick-start }
 
-The five stages below prepare the setup environment, assess the proposed work,
+The seven stages below prepare the setup environment, assess the proposed work,
 apply it, and verify the completed project. If you open a new terminal,
 reactivate and verify the appropriate environment as described in section 3.1.
 Each command is safe to repeat: Bootstrap checks before it changes anything,
@@ -151,7 +151,7 @@ The command path must be inside the setup `.venv`. An older Prodockit command
 from another Python can otherwise shadow the package just installed while
 `pip` still reports success. Do not run the complete `pdk diag` here: it is a
 project-scoped command, so a setup directory which holds project repositories
-is refused before diagnostics start. Stage 5 runs it from the completed project
+is refused before diagnostics start. Stage 7 runs it from the completed project
 and its separate environment.
 
 ////
@@ -285,12 +285,11 @@ what and why; running `--apply` again works only on outstanding activities.
 
 ///
 
-### Stage 4 — Install for PDF
+### Stage 4 — Enter the project
 
-Move from the shared setup environment into the project environment, account
-for a required Windows restart, and install the optional host software needed
-for PDF output. Website-only projects still enter and activate the project here,
-but skip the PDF software step.
+Move from the shared setup environment into the project environment and account
+for a required Windows restart. These steps apply to every project, including a
+website-only project that does not use PDF output.
 
 /// steps
 
@@ -374,12 +373,39 @@ repositories on every host.
 
 ////
 
+///
+
+### Stage 5 — Install PDF support (optional)
+
+Complete Stages 5 and 6 only when you need to generate PDFs locally. Skip both
+for website-only work and on Windows ARM64. Windows ARM64 supports the website
+workflow but not local PDF generation; use the GitLab build for both PDF
+downloads.
+
+/// steps
+
 //// step | Install optional PDF software
 
-Skip this step for a website-only project. Bootstrap creates the project and
-its Python environment, but deliberately leaves optional PDF software to
-`pdk pdf`. Prodockit downloads and verifies project-local Pandoc, fonts,
-Mermaid and MathJax runtimes only when the completed document uses them.
+Bootstrap creates the project and its Python environment, but deliberately
+leaves optional PDF software to `pdk pdf`. Prodockit downloads and verifies
+project-local Pandoc, fonts, Mermaid and MathJax runtimes only when the
+completed document uses them.
+
+!!! important "Install Pandoc through Prodockit"
+
+    Do not install Pandoc with Homebrew, Winget or apt, and do not rely on a
+    system `pandoc` command from `PATH`. Prepare the reviewed project-local
+    version with:
+
+    ```bash
+    pdk pdf --prepare pandoc
+    ```
+
+    An ordinary `pdk pdf` prepares Pandoc automatically when it is needed, and
+    `pdk pdf --prepare all` includes it when populating every PDF cache in
+    advance. Windows ARM64 must still skip local PDF generation; a website
+    build that uses citations prepares its compatible Pandoc runtime
+    transparently.
 
 The standard template includes PDF output and example mathematics. Install its
 macOS host prerequisites together before the first PDF build:
@@ -393,9 +419,10 @@ macOS host prerequisites together before the first PDF build:
 
 === ":fontawesome-brands-windows: Windows"
 
-    The supported Windows x64 path uses a verified project-local WeasyPrint
-    runtime and needs no Pango or MSYS2 installation. Install Node.js for the
-    template's PDF maths:
+    This step is for Windows x64 only. Do not run it on Windows ARM64; use the
+    GitLab build for PDF generation instead. The supported Windows x64 path
+    uses a verified project-local WeasyPrint runtime and needs no Pango or
+    MSYS2 installation. Install Node.js for the template's PDF maths:
 
     ```powershell
     winget install OpenJS.NodeJS.LTS
@@ -433,7 +460,32 @@ platform prerequisites and troubleshooting guidance.
 
 ////
 
-//// step | Build the downloadable PDFs
+///
+
+### Stage 6 — Build the PDF downloads (optional)
+
+Complete this stage only when you need local PDF output and have completed
+Stage 5. Skip it for website-only work and on Windows ARM64, where the GitLab
+build generates both downloads. Build the source bundle before the website so
+Zensical includes it in the served output, then add the rendered document PDF
+to that completed website.
+
+/// steps
+
+//// step | Build the source bundle
+
+Generate the separate PDF containing the project's source files:
+
+```bash
+pdk source-bundle
+```
+
+Building this first places `docs/source_bundle.pdf` where the clean website
+build can copy it into the published output.
+
+////
+
+//// step | Build the website for PDF rendering
 
 Build a clean website and treat every warning as an error:
 
@@ -444,24 +496,26 @@ zensical build --clean --strict
 Stop and correct any failure before continuing. `pdk pdf` consumes this
 completed Zensical build; it does not replace the website build.
 
-Generate the rendered document and the separate source bundle:
+////
+
+//// step | Build the rendered document PDF
+
+Generate the rendered document from the completed website:
 
 ```bash
 pdk pdf
-pdk source-bundle
 ```
 
-The standard template adds both outputs to the website as downloads. Skip this
-step for a website-only project.
+The standard template now has both outputs in the website as downloads.
 
 ////
 
 ///
 
-### Stage 5 — Verifying the project
+### Stage 7 — Verify the project
 
-Check the active project environment and its configuration, build the website,
-and generate a PDF only when the project needs one.
+Check the active project environment and its configuration, then inspect the
+website and any optional PDF downloads that were built.
 
 /// steps
 
@@ -496,7 +550,8 @@ Open the address printed by Zensical in a browser and check the website. For
 the standard template, also select both download buttons and confirm that the
 rendered document PDF and source-bundle PDF open successfully. Inspect the
 rendered PDF's layout, diagrams, mathematics and references. A website-only
-project has no PDF downloads to check.
+project has no PDF downloads to check. On Windows ARM64, verify the website
+locally and check both PDFs from the successful GitLab build instead.
 
 Press `Ctrl+C` in the terminal when the browser checks are complete.
 
@@ -516,7 +571,7 @@ report and leave any available update for the maintenance workflow.
 
 ## Understand the completed project {: #bootstrap-completed-project }
 
-The five documentation stages above describe what you do. Bootstrap groups its
+The seven documentation stages above describe what you do. Bootstrap groups its
 20 activities into seven phases covering preflight, core tools, Git and the
 host, the project, the build toolchain, the editor, and publication. Use the
 [phase and activity inventory](../commands/bootstrap.md#cmd-bootstrap-phases)

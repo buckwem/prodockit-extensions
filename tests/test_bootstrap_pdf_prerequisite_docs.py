@@ -9,33 +9,45 @@ ADOPT_GUIDE = (ROOT / "docs/getting-started.md").read_text(encoding="utf-8")
 MANUAL_GUIDE = (ROOT / "docs/manual-install.md").read_text(encoding="utf-8")
 
 
-def test_template_site_installation_has_a_pdf_software_step() -> None:
-    assert "### Stage 4 — Install for PDF" in GUIDE
-    assert "### Stage 5 — Verifying the project" in GUIDE
+def test_template_site_installation_has_an_optional_pdf_software_stage() -> None:
+    assert "### Stage 4 — Enter the project" in GUIDE
+    assert "### Stage 5 — Install PDF support (optional)" in GUIDE
+    assert "### Stage 6 — Build the PDF downloads (optional)" in GUIDE
+    assert "### Stage 7 — Verify the project" in GUIDE
     heading = "//// step | Install optional PDF software"
     assert heading in GUIDE
     assert GUIDE.index(heading) < GUIDE.index("//// step | Run project diagnostics")
-    assert "Skip this step for a website-only project" in GUIDE
+    assert "Complete Stages 5 and 6 only when you need to generate PDFs locally" in GUIDE
+    assert "Skip both\nfor website-only work and on Windows ARM64" in GUIDE
+    assert "use the GitLab build for both PDF\ndownloads" in GUIDE
+    assert '!!! important "Install Pandoc through Prodockit"' in GUIDE
+    assert "pdk pdf --prepare pandoc" in GUIDE
+    assert "Do not install Pandoc with Homebrew, Winget or apt" in GUIDE
+    assert "do not rely on a\n    system `pandoc` command from `PATH`" in GUIDE
 
 
 def test_template_site_pdf_install_builds_both_downloads() -> None:
     installation = GUIDE[
-        GUIDE.index("### Stage 4 — Install for PDF") : GUIDE.index(
-            "### Stage 5 — Verifying the project"
+        GUIDE.index("### Stage 6 — Build the PDF downloads (optional)") : GUIDE.index(
+            "### Stage 7 — Verify the project"
         )
     ]
     website = installation.index("zensical build --clean --strict")
     pdf = installation.index("\npdk pdf\n")
     source_bundle = installation.index("pdk source-bundle")
 
-    assert website < pdf < source_bundle
+    assert source_bundle < website < pdf
+    assert "//// step | Build the source bundle" in installation
+    assert "//// step | Build the website for PDF rendering" in installation
+    assert "//// step | Build the rendered document PDF" in installation
     assert "Stop and correct any failure before continuing" in installation
     assert "consumes this\ncompleted Zensical build" in installation
-    assert "Skip this\nstep for a website-only project" in installation
+    assert "Skip it for website-only work and on Windows ARM64" in installation
+    assert "GitLab\nbuild generates both downloads" in installation
 
 
 def test_template_site_verification_serves_and_checks_both_downloads() -> None:
-    verification = GUIDE[GUIDE.index("### Stage 5 — Verifying the project") :]
+    verification = GUIDE[GUIDE.index("### Stage 7 — Verify the project") :]
     diagnostics = verification.index("//// step | Run project diagnostics")
     serve = verification.index("zensical serve")
 
@@ -43,6 +55,8 @@ def test_template_site_verification_serves_and_checks_both_downloads() -> None:
     assert "Open the address printed by Zensical in a browser" in verification
     assert "both download buttons" in verification
     assert "rendered document PDF and source-bundle PDF" in verification
+    assert "On Windows ARM64" in verification
+    assert "check both PDFs from the successful GitLab build" in verification
     assert "Press `Ctrl+C`" in verification
 
 

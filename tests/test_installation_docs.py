@@ -479,12 +479,14 @@ def test_bootstrap_continues_after_shared_preparation() -> None:
         page.index("## Install with bootstrap") : page.index("## Understand the completed project")
     ]
     assert "installation.md#installation-preparation" in installation
-    assert installation.count("//// step | ") == 17
+    assert installation.count("//// step | ") == 19
     assert "### Stage 1 — Prepare the setup environment" in installation
     assert "### Stage 2 — Assess and preview" in installation
     assert "### Stage 3 — Apply and confirm" in installation
-    assert "### Stage 4 — Install for PDF" in installation
-    assert "### Stage 5 — Verifying the project" in installation
+    assert "### Stage 4 — Enter the project" in installation
+    assert "### Stage 5 — Install PDF support (optional)" in installation
+    assert "### Stage 6 — Build the PDF downloads (optional)" in installation
+    assert "### Stage 7 — Verify the project" in installation
     assert "//// step | Prepare Python and the setup environment" in installation
     assert "//// step | Restart the terminal on Windows if instructed" in installation
     assert "//// step | Install Prodockit into the active environment" in installation
@@ -504,18 +506,32 @@ def test_bootstrap_continues_after_shared_preparation() -> None:
     assert '!!! warning "Complete the manual step before confirming"' in manual
     assert "Type `yes` only after checking that the action succeeded" in " ".join(manual.split())
     assert "Do not run the complete `pdk diag` here" in installation
-    post_installation = installation[installation.index("### Stage 4 — Install for PDF") :]
-    verification = installation[installation.index("### Stage 5 — Verifying the project") :]
+    post_installation = installation[installation.index("### Stage 4 — Enter the project") :]
+    pdf_installation = installation[
+        installation.index("### Stage 5 — Install PDF support (optional)") : installation.index(
+            "### Stage 6 — Build the PDF downloads (optional)"
+        )
+    ]
+    pdf_build = installation[
+        installation.index("### Stage 6 — Build the PDF downloads (optional)") : installation.index(
+            "### Stage 7 — Verify the project"
+        )
+    ]
+    verification = installation[installation.index("### Stage 7 — Verify the project") :]
     assert "Changing directory" in post_installation
     assert post_installation.count("pdk diag") == 2
     assert verification.count("pdk diag") == 1
     assert verification.count("pdk template-sync") == 1
-    assert post_installation.count("zensical build --clean --strict") == 1
-    assert post_installation.count("\npdk pdf\n") == 1
-    assert post_installation.count("pdk source-bundle") == 1
-    assert post_installation.index("zensical build --clean --strict") < post_installation.index(
-        "\npdk pdf\n"
-    ) < post_installation.index("pdk source-bundle")
+    assert "pdk pdf --prepare all" in pdf_installation
+    assert pdf_build.count("zensical build --clean --strict") == 1
+    assert pdf_build.count("\npdk pdf\n") == 1
+    assert pdf_build.count("pdk source-bundle") == 1
+    assert "//// step | Build the source bundle" in pdf_build
+    assert "//// step | Build the website for PDF rendering" in pdf_build
+    assert "//// step | Build the rendered document PDF" in pdf_build
+    assert pdf_build.index("pdk source-bundle") < pdf_build.index(
+        "zensical build --clean --strict"
+    ) < pdf_build.index("\npdk pdf\n")
     assert verification.count("zensical serve") == 1
     assert "Open the address printed by Zensical in a browser" in verification
     assert "rendered document PDF and source-bundle PDF" in verification

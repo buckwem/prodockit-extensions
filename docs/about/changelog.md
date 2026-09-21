@@ -19,6 +19,10 @@ only when it adds or changes behaviour that matters to a user, or requires an
 upgrade action. Defect-by-defect history belongs in GitHub issues and pull
 requests rather than here.
 
+## Unreleased
+
+- Separated template-site PDF installation and generation into optional stages with project-local Pandoc preparation and explicit Windows ARM64 guidance.
+
 ## 0.70.0 (2026-09-21)
 
 - Allowed native Windows ARM64 website builds to reuse the verified Windows x64 Pandoc runtime through Windows 11 app emulation.
