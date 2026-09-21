@@ -258,6 +258,8 @@ def test_install_choice_starts_with_an_expert_quick_install() -> None:
     assert "python -m pip install --upgrade prodockit" in quick
     assert "zensical new ." not in quick
     assert "pdk adopt --apply" in quick
+    assert "Run Adopt once" in quick
+    assert "already been adopted" in quick
     assert "zensical build --clean --strict" in quick
     assert "zensical serve" in quick
     assert "detailed installation paths" in quick

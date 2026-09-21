@@ -26,10 +26,17 @@ With the initialized Zensical project's environment active, install Prodockit:
 python -m pip install --upgrade prodockit
 ```
 
-Then add Prodockit to the site, build and preview it:
+Run Adopt once to add Prodockit's project configuration and managed assets.
+Skip this command when the site has already been adopted or you have manually
+configured the equivalent integration:
 
 ```bash
 pdk adopt --apply
+```
+
+Build and preview the site whenever its content changes:
+
+```bash
 zensical build --clean --strict
 zensical serve
 ```
