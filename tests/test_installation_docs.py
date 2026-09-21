@@ -132,6 +132,7 @@ def test_pandoc_and_weasyprint_have_distinct_project_runtime_boundaries() -> Non
     assert "pdf-requirements.txt" in page
     assert "first use" in page
     assert "downloads the verified official archive into the project cache" in page
+    assert "Windows ARM64 runs the reviewed Windows x64 executable" in page
 
 
 def test_the_versions_bootstrap_enforces_are_the_ones_documented() -> None:

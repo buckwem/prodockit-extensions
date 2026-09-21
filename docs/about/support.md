@@ -92,11 +92,17 @@ however:
 Platforms and test depth
 ///
 
+Windows ARM64 supports the non-PDF Prodockit workflow, including
+citation-enabled website builds. Its project-local Pandoc uses the reviewed
+official Windows x64 executable through Windows 11's app emulation while the
+cache retains its ARM64 identity. Local PDF generation remains unsupported;
+generate the downloadable PDFs on a supported GitLab runner.
+
 The Python Mermaid renderer is supported on Linux x64 and ARM64, Windows x64,
 and macOS ARM64. The audited `quickjs-ng` version does not publish compatible
 Windows ARM64 or macOS Intel x64 wheels, and normal installation must not
 compile or download another runtime. Those architectures can use ordinary
-ProDockit website features but are not supported for Mermaid PDF rendering.
+Prodockit website features but are not supported for Mermaid PDF rendering.
 Windows ARM64 is not part of the automated test matrix.
 
 \ref{tab-about-support-platforms-and-test-depth} distinguishes automated

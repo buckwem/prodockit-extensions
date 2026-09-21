@@ -69,7 +69,7 @@ pip cannot install and the features that use them.
 
 | Requirement {: width="36%" } | Needed for |
 | --- | --- |
-| \index{dependencies!`pandoc`} (3.10.1) | `prodockit.pdf`, and `prodockit.bibliography` even without a PDF build. `pdk pdf` downloads the verified official archive into the project cache on first use. |
+| \index{dependencies!`pandoc`} (3.10.1) | `prodockit.pdf`, and `prodockit.bibliography` even without a PDF build. Prodockit downloads the verified official archive into the project cache on first use; Windows ARM64 runs the reviewed Windows x64 executable through Windows 11 app emulation for website citations. |
 | Inter 4.1 and JetBrains Mono 2.304 | `prodockit.pdf`. `pdk pdf` assembles and verifies a minimal project-local OFL font bundle; host font installation is not used. |
 | `mathjax-full` (Node >= 22) | TeX maths in the PDF and website verification |
 | Chrome or Chromium | website verification for MathJax; default Mermaid PDF rendering does not use it |

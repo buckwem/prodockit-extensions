@@ -3008,6 +3008,29 @@ def _project_cached_runtime_check(
     label = labels[component]
     provider: RuntimeProvider = providers[component]
     environment = current_runtime_environment()
+    if (
+        environment.system == "windows"
+        and environment.architecture in {"arm64", "aarch64"}
+        and component in {"fonts", "mathjax", "mermaid"}
+    ):
+        return DiagnosticResult(
+            f"renderer.{component}",
+            "Rendering toolchain",
+            "warn",
+            f"Project-local {label} is unavailable for local Windows ARM64 PDF builds",
+            (
+                "Use the GitLab pipeline on a supported runner to generate the "
+                "rendered document and source-bundle PDFs.",
+            ),
+            {
+                "required": False,
+                "backend": "project-cache",
+                "path": None,
+                "version": None,
+                "sha256": None,
+                "unsupported_local_pdf": True,
+            },
+        )
     try:
         policy = load_pdf_runtime_config(
             config.path if config is not None else root / "zensical.toml"
@@ -3105,12 +3128,32 @@ def _windows_cached_weasyprint_check(
     *,
     required: bool,
 ) -> DiagnosticResult:
+    environment = current_runtime_environment()
+    if environment.architecture in {"arm64", "aarch64"}:
+        return DiagnosticResult(
+            "renderer.weasyprint",
+            "Rendering toolchain",
+            "warn",
+            "Project-local WeasyPrint is unavailable for local Windows ARM64 PDF builds",
+            (
+                "Use the GitLab pipeline on a supported runner to generate the "
+                "rendered document and source-bundle PDFs.",
+            ),
+            {
+                "required": False,
+                "backend": "project-cache",
+                "path": None,
+                "version": None,
+                "sha256": None,
+                "unsupported_local_pdf": True,
+            },
+        )
     try:
         policy = load_pdf_runtime_config(
             config.path if config is not None else root / "zensical.toml"
         ).policy_for("weasyprint")
         descriptor = WindowsWeasyPrintProvider().resolve(
-            policy, current_runtime_environment()
+            policy, environment
         )
         store = RuntimeStore(root)
         active = store.active_for(descriptor)
@@ -3312,7 +3355,12 @@ def _renderer_checks(
     retry_reporter: RetryReporter | None = None,
 ) -> list[DiagnosticResult]:
     policy = load_pdf_runtime_config(config.path if config else root / "zensical.toml")
-    pdf_required = bool(
+    environment = current_runtime_environment()
+    windows_arm64 = environment.system == "windows" and environment.architecture in {
+        "arm64",
+        "aarch64",
+    }
+    pdf_configured = bool(
         config
         and (
             policy.pdf_explicit
@@ -3322,6 +3370,7 @@ def _renderer_checks(
             )
         )
     )
+    pdf_required = pdf_configured and not windows_arm64
     mermaid_required, maths_required = renderer_requirements(config) if config else (False, False)
     bibliography_required = bool(
         config and "prodockit.bibliography" in config.markdown_extensions
@@ -3342,13 +3391,13 @@ def _renderer_checks(
         config,
         root,
         component="mermaid",
-        required=mermaid_required,
+        required=mermaid_required and not windows_arm64,
     )
     mathjax = _project_cached_runtime_check(
         config,
         root,
         component="mathjax",
-        required=maths_required,
+        required=maths_required and not windows_arm64,
     )
     index_options = config.markdown_extensions.get("prodockit.index", {}) if config else {}
     include_index = index_options.get("include") is True
@@ -3375,7 +3424,8 @@ def _renderer_checks(
         pdf_python_prepared = False
         pdf_python_established = False
         pdf_python_error = _sanitise_text(str(error), root)
-    mathjax_deferred = maths_required and mathjax.data.get("deferred") is True
+    local_maths_required = maths_required and not windows_arm64
+    mathjax_deferred = local_maths_required and mathjax.data.get("deferred") is True
     checks = [pandoc, fonts]
 
     checks.append(
@@ -3395,7 +3445,7 @@ def _renderer_checks(
         "Node",
         "node",
         root=root,
-        required=maths_required and not mathjax_deferred,
+        required=local_maths_required and not mathjax_deferred,
         timeout_retries=1 if sys.platform == "win32" else 0,
     )
     if mathjax_deferred and node.status != "pass":

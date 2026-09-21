@@ -14,6 +14,7 @@ from click.testing import CliRunner
 from prodockit import __version__
 from prodockit.environment import BuildEnvironmentError
 from prodockit.pdf.cli import main
+from prodockit.pdf.runtime_prepare import RuntimeEnvironment
 
 _ZENSICAL_TOML = """
 [project]
@@ -577,6 +578,41 @@ def test_source_bundle_command_builds_into_docs_dir(
     assert "Wrote docs/source_bundle.pdf" in result.output
     assert (tmp_path / "docs" / "source_bundle.pdf").exists()
     assert not (tmp_path / "source_bundle.pdf").exists()
+
+
+@pytest.mark.parametrize("command", [["pdf"], ["source-bundle"], ["pdf", "--prepare", "all"]])
+def test_windows_arm64_pdf_commands_direct_users_to_the_gitlab_pipeline(
+    command: list[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        "prodockit.cli.current_runtime_environment",
+        lambda: RuntimeEnvironment("windows", "arm64", "cpython", "3.14"),
+    )
+
+    result = CliRunner().invoke(main, command)
+
+    assert result.exit_code == 1
+    assert "Local PDF generation is not supported on Windows ARM64" in result.output
+    assert "use the GitLab pipeline on a supported runner" in result.output
+
+
+def test_windows_arm64_can_prepare_pandoc_for_website_citations(
+    monkeypatch: pytest.MonkeyPatch
+) -> None:
+    observed: list[tuple[str, ...]] = []
+    monkeypatch.setattr(
+        "prodockit.cli.current_runtime_environment",
+        lambda: RuntimeEnvironment("windows", "arm64", "cpython", "3.14"),
+    )
+    monkeypatch.setattr(
+        "prodockit.cli.prepare_runtime_components",
+        lambda _config, requested: observed.append(tuple(requested)) or (),
+    )
+
+    result = CliRunner().invoke(main, ["pdf", "--prepare", "pandoc"])
+
+    assert result.exit_code == 0, result.output
+    assert observed == [("pandoc",)]
 
 
 def test_source_bundle_command_rejects_a_non_pdf_output_without_overwriting_config(

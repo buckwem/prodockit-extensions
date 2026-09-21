@@ -19,6 +19,10 @@ only when it adds or changes behaviour that matters to a user, or requires an
 upgrade action. Defect-by-defect history belongs in GitHub issues and pull
 requests rather than here.
 
+## Unreleased
+
+- Allowed native Windows ARM64 website builds to reuse the verified Windows x64 Pandoc runtime through Windows 11 app emulation.
+
 ## 0.69.0 (2026-09-20)
 
 - Made `pdk pdf` fail safely when any required Mermaid diagram cannot render instead of publishing raw diagram source.
