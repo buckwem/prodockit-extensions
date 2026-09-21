@@ -444,38 +444,8 @@ may already enable them; check before accepting.
 Adopt records the selection without installing a renderer. The first `pdk pdf`
 prepares the selected project-local cache. Mermaid needs only Python; PDF
 mathematics also needs Node.js on `PATH`, installed separately, but not npm.
-
-If this adopted site will build PDFs, install its host prerequisites before the
-first build. A site with PDF maths needs both Pango and Node.js on macOS or
-Ubuntu; the supported Windows x64 PDF runtime needs only Node.js:
-
-=== ":material-apple: macOS"
-
-    ```bash
-    brew install pango node
-    export DYLD_FALLBACK_LIBRARY_PATH="$(brew --prefix)/lib"
-    ```
-
-=== ":fontawesome-brands-windows: Windows"
-
-    ```powershell
-    winget install OpenJS.NodeJS.LTS
-    ```
-
-    Close and reopen PowerShell, return to the project, and reactivate its
-    virtual environment.
-
-=== ":material-linux: Linux (Ubuntu)"
-
-    ```bash
-    sudo apt update
-    sudo apt install -y libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz-subset0 nodejs
-    ```
-
-For a PDF without maths, omit `node` or `nodejs`. For website-only work, skip
-these commands. Verify Node with `node --version`; an ordinary `pdk pdf` then
-prepares the selected project-local runtimes. No npm packages, browser or
-MSYS2 installation is required.
+The optional installation steps later in this stage prepare those requirements
+when this machine will generate PDFs locally.
 
 ////
 
@@ -586,6 +556,64 @@ Homebrew, Winget or apt, and do not rely on a system `pandoc` command from
 This preparation is supported on Windows ARM64 even though local PDF generation
 is not. On that platform, use Pandoc for the website build and let the GitLab
 pipeline generate the PDFs.
+
+////
+
+//// step | Install optional PDF host software **Optional**{: .bg-green}
+
+Complete this step only when this machine will generate PDFs locally. Skip it
+for website-only work and on Windows ARM64, where the GitLab pipeline generates
+the PDFs.
+
+A PDF containing mathematics needs both Pango and Node.js on macOS or Ubuntu;
+the supported Windows x64 PDF runtime needs only Node.js:
+
+=== ":material-apple: macOS"
+
+    ```bash
+    brew install pango node
+    export DYLD_FALLBACK_LIBRARY_PATH="$(brew --prefix)/lib"
+    ```
+
+=== ":fontawesome-brands-windows: Windows x64"
+
+    ```powershell
+    winget install OpenJS.NodeJS.LTS
+    ```
+
+    Close and reopen PowerShell, return to the project, and reactivate its
+    virtual environment.
+
+=== ":material-linux: Linux (Ubuntu)"
+
+    ```bash
+    sudo apt update
+    sudo apt install -y libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz-subset0 nodejs
+    ```
+
+For a PDF without mathematics, omit `node` or `nodejs`. Verify Node when it is
+needed:
+
+```bash
+node --version
+```
+
+No npm packages, browser or MSYS2 installation is required.
+
+////
+
+//// step | Prepare optional PDF components **Optional**{: .bg-green}
+
+With the host software installed, download, verify and cache every configured
+PDF component:
+
+```bash
+pdk pdf --prepare all
+```
+
+Skip this step for website-only work and on Windows ARM64. If you prefer lazy
+preparation, an ordinary `pdk pdf` prepares only the components used by the
+document on its first local PDF build.
 
 ////
 

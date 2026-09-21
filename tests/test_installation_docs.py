@@ -332,7 +332,7 @@ def test_first_site_proves_zensical_before_adopting_prodockit() -> None:
 
     assert "installation.md#installation-preparation" in page
     assert "Unlike the template-site route" in page
-    assert page.count("//// step | ") == 28
+    assert page.count("//// step | ") == 30
     stages = re.split(r"(?m)^### Stage \d+[ab]? —", page)[1:]
     assert stages[0].count("//// step | ") == 0
     assert stages[1].count("//// step | ") == 3
@@ -405,6 +405,8 @@ def test_first_site_proves_zensical_before_adopting_prodockit() -> None:
     choose_renderers = page.index("//// step | Choose optional renderers")
     adopt = page.index("//// step | Adopt the Zensical site")
     prepare_pandoc = page.index("//// step | Prepare project-local Pandoc")
+    install_pdf = page.index("//// step | Install optional PDF host software")
+    prepare_pdf = page.index("//// step | Prepare optional PDF components")
     diagnose = page.index("//// step | Diagnose the adopted site")
     add_content = page.index("//// step | Add and verify Prodockit content")
     build_adopted = page.index("//// step | Build and preview the adopted website")
@@ -422,6 +424,8 @@ def test_first_site_proves_zensical_before_adopting_prodockit() -> None:
         < choose_renderers
         < adopt
         < prepare_pandoc
+        < install_pdf
+        < prepare_pdf
         < diagnose
         < add_content
         < build_adopted

@@ -78,6 +78,20 @@ def test_template_site_pdf_step_distinguishes_forced_and_lazy_preparation() -> N
     assert "no Node.js, npm,\nbrowser or MSYS2" in GUIDE
 
 
+def test_adopt_has_distinct_optional_pdf_install_and_prepare_steps() -> None:
+    host = "//// step | Install optional PDF host software **Optional**"
+    prepare = "//// step | Prepare optional PDF components **Optional**"
+
+    assert host in ADOPT_GUIDE
+    assert prepare in ADOPT_GUIDE
+    assert ADOPT_GUIDE.index(host) < ADOPT_GUIDE.index(prepare)
+    section = ADOPT_GUIDE[ADOPT_GUIDE.index(host) : ADOPT_GUIDE.index("//// step | Diagnose")]
+    assert "Skip it\nfor website-only work and on Windows ARM64" in section
+    assert "pdk pdf --prepare all" in section
+    assert "ordinary `pdk pdf` prepares only the components used" in section
+    assert "No npm packages, browser or MSYS2 installation is required" in section
+
+
 def test_installation_sections_four_five_and_six_show_exact_pdf_commands() -> None:
     for guide in (ADOPT_GUIDE, GUIDE, MANUAL_GUIDE):
         assert "brew install pango node" in guide

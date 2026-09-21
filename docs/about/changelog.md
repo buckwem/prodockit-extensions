@@ -22,7 +22,7 @@ requests rather than here.
 ## Unreleased
 
 - Separated template-site PDF installation and generation into optional stages with project-local Pandoc preparation and explicit Windows ARM64 guidance.
-- Added conditional project-local Pandoc preparation to both Adopt installation routes.
+- Added conditional Pandoc and optional full PDF installation steps to the Adopt guidance.
 
 ## 0.70.0 (2026-09-21)
 
