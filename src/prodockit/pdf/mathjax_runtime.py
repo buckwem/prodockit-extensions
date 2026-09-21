@@ -52,6 +52,45 @@ def node_install_guidance(*, selected_platform: str | None = None) -> str:
     return "Install Node.js with the operating-system package manager."
 
 
+def node_install_command(*, selected_platform: str | None = None) -> str:
+    """Return the supported Node.js installation command without prose."""
+
+    selected = sys.platform if selected_platform is None else selected_platform
+    if selected == "darwin":
+        return "brew install node"
+    if selected == "win32":
+        return "winget install OpenJS.NodeJS.LTS"
+    if selected.startswith("linux"):
+        return "sudo apt update && sudo apt install -y nodejs"
+    return "Install Node.js with the operating-system package manager."
+
+
+def node_prerequisite_error(*, selected_platform: str | None = None) -> str:
+    """Return readable recovery steps for a missing MathJax host runtime."""
+
+    selected = sys.platform if selected_platform is None else selected_platform
+    restart = (
+        "\n\nAfter installation:\n  Close and reopen the shell."
+        if selected == "win32"
+        else ""
+    )
+    return (
+        "MathJax PDF rendering requires Node.js on PATH to run its transitional "
+        "SVG adapter.\n\n"
+        "Install Node.js:\n"
+        f"  {node_install_command(selected_platform=selected)}"
+        f"{restart}\n\n"
+        "Verify:\n"
+        "  node --version\n\n"
+        "Then retry:\n"
+        "  pdk pdf\n\n"
+        "Optional ahead-of-time preparation:\n"
+        "  pdk pdf --prepare mathjax\n\n"
+        "pdk boot and pdk adopt do not install this optional host prerequisite. "
+        "No npm packages, node_modules, browser, or MSYS2 are required."
+    )
+
+
 def component_root(runtime: Path) -> Path:
     """Return the verified MathJax component directory in ``runtime``."""
 
@@ -88,15 +127,7 @@ def probe_runtime(
 
     executable = node or shutil.which("node")
     if not executable:
-        raise RuntimeStoreError(
-            "MathJax PDF rendering needs Node.js on PATH to run its transitional SVG "
-            "adapter. pdk boot and pdk adopt do not install this optional host "
-            f"prerequisite. {node_install_guidance()} Verify "
-            "with `node --version`, then retry `pdk pdf --prepare mathjax` or "
-            "`pdk pdf --prepare all`. If the PDF has no maths, do not force MathJax: "
-            "use ordinary `pdk pdf` or prepare only Mermaid. No npm packages, "
-            "node_modules, browser, or MSYS2 are required."
-        )
+        raise RuntimeStoreError(node_prerequisite_error())
     root = component_root(runtime)
     adapter = adapter_path()
     for mode, source in (

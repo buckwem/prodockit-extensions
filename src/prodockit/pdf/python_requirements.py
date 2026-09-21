@@ -33,7 +33,7 @@ from prodockit.toolchain import (
 )
 from prodockit.weasyprint_probe import (
     clear_probe_cache,
-    pango_install_guidance,
+    pango_install_commands,
     run_probe,
 )
 
@@ -265,9 +265,16 @@ def _probe(requirements: tuple[Requirement, ...]) -> None:
                 marker in detail.lower()
                 for marker in ("libgobject", "pango", "harfbuzz", "cannot load library")
             ):
+                commands = "\n".join(
+                    f"  {command}" for command in pango_install_commands()
+                )
                 raise PdfPythonRequirementsError(
-                    "WeasyPrint is installed but cannot load its required native libraries. "
-                    f"{pango_install_guidance()} Then retry `pdk pdf`."
+                    "WeasyPrint is installed but cannot load its required native "
+                    "libraries.\n\n"
+                    "Install Pango and configure the current shell:\n"
+                    f"{commands}\n\n"
+                    "Then retry:\n"
+                    "  pdk pdf"
                 )
             raise PdfPythonRequirementsError(
                 "WeasyPrint is installed but cannot load its macOS or Linux native libraries"
