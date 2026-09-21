@@ -34,6 +34,33 @@ configured the equivalent integration:
 pdk adopt --apply
 ```
 
+For optional local PDF generation, run the block for the current platform.
+Skip this on Windows ARM64 and let the GitLab pipeline generate PDFs instead.
+
+=== ":material-apple: macOS"
+
+    ```bash
+    brew install pango node
+    export DYLD_FALLBACK_LIBRARY_PATH="$(brew --prefix)/lib"
+    pdk pdf --prepare all
+    ```
+
+=== ":fontawesome-brands-windows: Windows x64"
+
+    ```powershell
+    winget install OpenJS.NodeJS.LTS
+    # Close and reopen PowerShell, then reactivate the project environment.
+    pdk pdf --prepare all
+    ```
+
+=== ":material-linux: Linux (Ubuntu)"
+
+    ```bash
+    sudo apt update
+    sudo apt install -y libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz-subset0 nodejs
+    pdk pdf --prepare all
+    ```
+
 Build and preview the site whenever its content changes:
 
 ```bash

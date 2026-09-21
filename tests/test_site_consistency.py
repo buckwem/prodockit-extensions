@@ -260,6 +260,12 @@ def test_install_choice_starts_with_an_expert_quick_install() -> None:
     assert "pdk adopt --apply" in quick
     assert "Run Adopt once" in quick
     assert "already been adopted" in quick
+    assert "For optional local PDF generation" in quick
+    assert "brew install pango node" in quick
+    assert "winget install OpenJS.NodeJS.LTS" in quick
+    assert "libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz-subset0 nodejs" in quick
+    assert "pdk pdf --prepare all" in quick
+    assert "Skip this on Windows ARM64" in quick
     assert "zensical build --clean --strict" in quick
     assert "zensical serve" in quick
     assert "detailed installation paths" in quick
