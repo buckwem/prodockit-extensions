@@ -252,12 +252,16 @@ def test_install_choice_starts_with_an_expert_quick_install() -> None:
         choices.index("## Install Prodockit") : choices.index("## Choose an installation path")
     ]
 
+    assert "Python 3.14 is installed" in quick
+    assert "https://zensical.org/docs/get-started/" in quick
+    assert "activated project virtual environment" in quick
     assert "python -m pip install --upgrade prodockit" in quick
-    assert "zensical new ." in quick
+    assert "zensical new ." not in quick
     assert "pdk adopt --apply" in quick
     assert "zensical build --clean --strict" in quick
     assert "zensical serve" in quick
-    assert "detailed installation paths below" in quick
+    assert "detailed installation paths" in quick
+    assert "below when you need those steps" in quick
 
 
 def test_introduction_offers_an_optional_tracking_free_support_link() -> None:

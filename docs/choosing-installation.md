@@ -12,41 +12,21 @@ than stages to complete in sequence.
 
 ## Install Prodockit
 
-Experienced developers can install the basics directly in a project-local
-Python 3.14 environment:
+This concise path assumes that:
 
-=== ":material-apple: macOS"
+1. Python 3.14 is installed.
+2. Zensical is installed in an activated project virtual environment and the
+   site has been initialized. Complete Zensical's
+   [Get started](https://zensical.org/docs/get-started/){target="_blank" rel="noopener"}
+   instructions first if that environment and site do not already exist.
 
-    ```bash
-    python3.14 -m venv .venv
-    source .venv/bin/activate
-    python -m pip install --upgrade prodockit
-    ```
-
-=== ":fontawesome-brands-windows: Windows"
-
-    ```powershell
-    py -3.14 -m venv .venv
-    .\.venv\Scripts\Activate.ps1
-    python -m pip install --upgrade prodockit
-    ```
-
-=== ":material-linux: Linux"
-
-    ```bash
-    python3.14 -m venv .venv
-    source .venv/bin/activate
-    python -m pip install --upgrade prodockit
-    ```
-
-In an empty directory, create the Zensical site first; skip this command for
-an existing site:
+With the initialized Zensical project's environment active, install Prodockit:
 
 ```bash
-zensical new .
+python -m pip install --upgrade prodockit
 ```
 
-Then add Prodockit, build and preview the website:
+Then add Prodockit to the site, build and preview it:
 
 ```bash
 pdk adopt --apply
@@ -54,11 +34,11 @@ zensical build --clean --strict
 zensical serve
 ```
 
-This is the shortest path to a non-template website. It deliberately leaves
-out machine preparation, repository and publishing setup, PDF prerequisites,
-recovery guidance, and maintained-template integration. Choose one of the
-detailed installation paths below when you need those steps or want the setup
-checked as you proceed.
+This is the shortest path from a working Zensical site to a non-template
+Prodockit website. It deliberately leaves out machine preparation, repository
+and publishing setup, PDF prerequisites, recovery guidance, and
+maintained-template integration. Choose one of the detailed installation paths
+below when you need those steps or want the setup checked as you proceed.
 
 ## Choose an installation path
 
