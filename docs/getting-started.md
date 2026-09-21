@@ -444,8 +444,8 @@ may already enable them; check before accepting.
 Adopt records the selection without installing a renderer. The first `pdk pdf`
 prepares the selected project-local cache. Mermaid needs only Python; PDF
 mathematics also needs Node.js on `PATH`, installed separately, but not npm.
-The optional installation steps later in this stage prepare those requirements
-when this machine will generate PDFs locally.
+The optional installation steps in Stage 6 prepare those requirements when
+this machine will generate PDFs locally.
 
 ////
 
