@@ -391,7 +391,8 @@ Install Prodockit, choose the features you need, then check the completed setup.
     while preserving author-owned content and settings. It does not install the
     PDF generator or its host prerequisites. The first `pdk pdf` build prepares
     only the verified project-local runtimes the completed document actually
-    uses, so website-only adoption carries no PDF runtime burden.
+    uses. Pandoc is shared by citations and PDF processing, so the instructions
+    below prepare it separately without installing the rest of the PDF toolchain.
 
 /// steps
 
@@ -562,6 +563,25 @@ any paths Adopt added. Use the activation path it prints if yours has another na
     ```bash
     source .venv/bin/activate
     ```
+
+////
+
+//// step | Prepare project-local Pandoc
+
+Install the verified Pandoc release in this project's ignored cache:
+
+```bash
+pdk pdf --prepare pandoc
+```
+
+Use this command even for website-only work when the document uses Prodockit
+citations or a bibliography. Prodockit downloads, verifies and selects Pandoc;
+do not install it with Homebrew, Winget or apt, and do not rely on a system
+`pandoc` command from `PATH`.
+
+This preparation is supported on Windows ARM64 even though local PDF generation
+is not. On that platform, use Pandoc for the website build and let the GitLab
+pipeline generate the PDFs.
 
 ////
 

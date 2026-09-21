@@ -71,6 +71,19 @@ def test_adoption_routes_refresh_environment_between_apply_and_build():
         assert "zensical build" in text[refresh:]
 
 
+def test_adoption_routes_prepare_project_local_pandoc_before_diagnostics():
+    for page in (FIRST_SITE, ADOPTION):
+        text = page.read_text(encoding="utf-8")
+        prepare = text.index("//// step | Prepare project-local Pandoc")
+        diagnose = text.index("pdk diag", prepare)
+
+        assert "pdk pdf --prepare pandoc" in text[prepare:diagnose]
+        assert "Homebrew" in text[prepare:diagnose]
+        assert "Winget" in text[prepare:diagnose]
+        assert "apt" in text[prepare:diagnose]
+        assert "Windows ARM64" in text[prepare:diagnose]
+
+
 if sys.version_info >= (3, 11):  # pragma: no cover - version-gated import
     import tomllib
 else:  # pragma: no cover
@@ -318,7 +331,7 @@ def test_first_site_proves_zensical_before_adopting_prodockit() -> None:
 
     assert "installation.md#installation-preparation" in page
     assert "Unlike the template-site route" in page
-    assert page.count("//// step | ") == 27
+    assert page.count("//// step | ") == 28
     stages = re.split(r"(?m)^### Stage \d+[ab]? —", page)[1:]
     assert stages[0].count("//// step | ") == 0
     assert stages[1].count("//// step | ") == 3
@@ -390,6 +403,7 @@ def test_first_site_proves_zensical_before_adopting_prodockit() -> None:
     install_prodockit = page.index("//// step | Install Prodockit")
     choose_renderers = page.index("//// step | Choose optional renderers")
     adopt = page.index("//// step | Adopt the Zensical site")
+    prepare_pandoc = page.index("//// step | Prepare project-local Pandoc")
     diagnose = page.index("//// step | Diagnose the adopted site")
     add_content = page.index("//// step | Add and verify Prodockit content")
     build_adopted = page.index("//// step | Build and preview the adopted website")
@@ -406,6 +420,7 @@ def test_first_site_proves_zensical_before_adopting_prodockit() -> None:
         < install_prodockit
         < choose_renderers
         < adopt
+        < prepare_pandoc
         < diagnose
         < add_content
         < build_adopted

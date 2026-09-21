@@ -356,7 +356,29 @@ library paths; it does not recreate the environment.
     ```
 
 Use the activation path printed by Adopt if you use a differently named
-environment. Then verify the project:
+environment. Then continue with the preparation and diagnostic steps below.
+
+////
+
+//// step | Prepare project-local Pandoc
+
+Install the verified Pandoc release in this project's ignored cache before
+running diagnostics or building:
+
+```bash
+pdk pdf --prepare pandoc
+```
+
+Pandoc is shared by citations, bibliographies and PDF processing. Prodockit
+downloads, verifies and selects it; do not install Pandoc with Homebrew,
+Winget or apt, and do not rely on a system `pandoc` command from `PATH`.
+
+This command is also supported for website builds on Windows ARM64, where the
+GitLab pipeline remains responsible for generating PDFs.
+
+////
+
+//// step | Diagnose the adopted project
 
 ```bash
 pdk diag

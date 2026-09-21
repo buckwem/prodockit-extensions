@@ -22,6 +22,7 @@ requests rather than here.
 ## Unreleased
 
 - Separated template-site PDF installation and generation into optional stages with project-local Pandoc preparation and explicit Windows ARM64 guidance.
+- Added explicit project-local Pandoc preparation to both Adopt installation routes.
 
 ## 0.70.0 (2026-09-21)
 
