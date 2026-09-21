@@ -267,7 +267,11 @@ def test_install_choice_starts_with_an_expert_quick_install() -> None:
     assert "pdk pdf --prepare all" in quick
     assert "Skip this on Windows ARM64" in quick
     assert "zensical build --clean --strict" in quick
+    assert "pdk pdf       # optional if PDF generation is used" in quick
     assert "zensical serve" in quick
+    assert quick.index("zensical build --clean --strict") < quick.index(
+        "pdk pdf       # optional if PDF generation is used"
+    ) < quick.index("zensical serve")
     assert "detailed installation paths" in quick
     assert "below when you need those steps" in quick
 

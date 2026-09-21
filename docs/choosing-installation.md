@@ -65,6 +65,7 @@ Build and preview the site whenever its content changes:
 
 ```bash
 zensical build --clean --strict
+pdk pdf       # optional if PDF generation is used
 zensical serve
 ```
 
