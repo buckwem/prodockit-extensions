@@ -10,10 +10,24 @@ MANUAL_GUIDE = (ROOT / "docs/manual-install.md").read_text(encoding="utf-8")
 
 
 def test_template_site_installation_has_a_pdf_software_step() -> None:
+    assert "### Stage 4 — Install for PDF" in GUIDE
+    assert "### Stage 5 — Verifying the project" in GUIDE
     heading = "//// step | Install optional PDF software"
     assert heading in GUIDE
     assert GUIDE.index(heading) < GUIDE.index("//// step | Run project diagnostics")
     assert "Skip this step for a website-only project" in GUIDE
+
+
+def test_template_site_verification_builds_website_before_optional_pdf() -> None:
+    verification = GUIDE[GUIDE.index("### Stage 5 — Verifying the project") :]
+    diagnostics = verification.index("//// step | Run project diagnostics")
+    website = verification.index("zensical build --clean --strict")
+    pdf = verification.index("\npdk pdf\n")
+
+    assert diagnostics < website < pdf
+    assert "Stop and correct any failure before continuing" in verification
+    assert "For a website-only project" in verification
+    assert "consumes this\ncompleted Zensical build" in verification
 
 
 def test_template_site_pdf_step_covers_supported_host_prerequisites() -> None:

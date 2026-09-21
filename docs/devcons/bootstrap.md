@@ -151,7 +151,7 @@ The command path must be inside the setup `.venv`. An older Prodockit command
 from another Python can otherwise shadow the package just installed while
 `pip` still reports success. Do not run the complete `pdk diag` here: it is a
 project-scoped command, so a setup directory which holds project repositories
-is refused before diagnostics start. Stage 4 runs it from the completed project
+is refused before diagnostics start. Stage 5 runs it from the completed project
 and its separate environment.
 
 ////
@@ -285,10 +285,12 @@ what and why; running `--apply` again works only on outstanding activities.
 
 ///
 
-### Stage 4 — Enter and verify the project
+### Stage 4 — Install for PDF
 
 Move from the shared setup environment into the project environment, account
-for a required Windows restart, and run the project-level checks.
+for a required Windows restart, and install the optional host software needed
+for PDF output. Website-only projects still enter and activate the project here,
+but skip the PDF software step.
 
 /// steps
 
@@ -431,6 +433,15 @@ platform prerequisites and troubleshooting guidance.
 
 ////
 
+///
+
+### Stage 5 — Verifying the project
+
+Check the active project environment and its configuration, build the website,
+and generate a PDF only when the project needs one.
+
+/// steps
+
 //// step | Run project diagnostics
 
 ```bash
@@ -450,6 +461,29 @@ continuing; do not apply an update from the wrong environment.
 
 ////
 
+//// step | Build and verify the project
+
+Build a clean website and treat every warning as an error:
+
+```bash
+zensical build --clean --strict
+```
+
+Stop and correct any failure before continuing. `pdk pdf` consumes this
+completed Zensical build; it does not replace the website build.
+
+For a website-only project, inspect the generated site and skip the remaining
+command. When the project requires a PDF, build it only after the strict
+Zensical build succeeds:
+
+```bash
+pdk pdf
+```
+
+Open the result and inspect its layout, diagrams, mathematics and references.
+
+////
+
 //// step | Preview template updates
 
 ```bash
@@ -464,7 +498,7 @@ report and leave any available update for the maintenance workflow.
 
 ## Understand the completed project {: #bootstrap-completed-project }
 
-The four documentation stages above describe what you do. Bootstrap groups its
+The five documentation stages above describe what you do. Bootstrap groups its
 20 activities into seven phases covering preflight, core tools, Git and the
 host, the project, the build toolchain, the editor, and publication. Use the
 [phase and activity inventory](../commands/bootstrap.md#cmd-bootstrap-phases)
