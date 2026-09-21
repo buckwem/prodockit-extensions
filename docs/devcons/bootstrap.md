@@ -56,7 +56,7 @@ content.
 
 ## Install with bootstrap {: #bootstrap-quick-start }
 
-The four stages below prepare the setup environment, assess the proposed work,
+The five stages below prepare the setup environment, assess the proposed work,
 apply it, and verify the completed project. If you open a new terminal,
 reactivate and verify the appropriate environment as described in section 3.1.
 Each command is safe to repeat: Bootstrap checks before it changes anything,
