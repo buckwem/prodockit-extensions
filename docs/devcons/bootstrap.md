@@ -433,6 +433,29 @@ platform prerequisites and troubleshooting guidance.
 
 ////
 
+//// step | Build the downloadable PDFs
+
+Build a clean website and treat every warning as an error:
+
+```bash
+zensical build --clean --strict
+```
+
+Stop and correct any failure before continuing. `pdk pdf` consumes this
+completed Zensical build; it does not replace the website build.
+
+Generate the rendered document and the separate source bundle:
+
+```bash
+pdk pdf
+pdk source-bundle
+```
+
+The standard template adds both outputs to the website as downloads. Skip this
+step for a website-only project.
+
+////
+
 ///
 
 ### Stage 5 — Verifying the project
@@ -461,26 +484,21 @@ continuing; do not apply an update from the wrong environment.
 
 ////
 
-//// step | Build and verify the project
+//// step | Serve and verify the project
 
-Build a clean website and treat every warning as an error:
-
-```bash
-zensical build --clean --strict
-```
-
-Stop and correct any failure before continuing. `pdk pdf` consumes this
-completed Zensical build; it does not replace the website build.
-
-For a website-only project, inspect the generated site and skip the remaining
-command. When the project requires a PDF, build it only after the strict
-Zensical build succeeds:
+Start the local website:
 
 ```bash
-pdk pdf
+zensical serve
 ```
 
-Open the result and inspect its layout, diagrams, mathematics and references.
+Open the address printed by Zensical in a browser and check the website. For
+the standard template, also select both download buttons and confirm that the
+rendered document PDF and source-bundle PDF open successfully. Inspect the
+rendered PDF's layout, diagrams, mathematics and references. A website-only
+project has no PDF downloads to check.
+
+Press `Ctrl+C` in the terminal when the browser checks are complete.
 
 ////
 

@@ -18,16 +18,32 @@ def test_template_site_installation_has_a_pdf_software_step() -> None:
     assert "Skip this step for a website-only project" in GUIDE
 
 
-def test_template_site_verification_builds_website_before_optional_pdf() -> None:
+def test_template_site_pdf_install_builds_both_downloads() -> None:
+    installation = GUIDE[
+        GUIDE.index("### Stage 4 — Install for PDF") : GUIDE.index(
+            "### Stage 5 — Verifying the project"
+        )
+    ]
+    website = installation.index("zensical build --clean --strict")
+    pdf = installation.index("\npdk pdf\n")
+    source_bundle = installation.index("pdk source-bundle")
+
+    assert website < pdf < source_bundle
+    assert "Stop and correct any failure before continuing" in installation
+    assert "consumes this\ncompleted Zensical build" in installation
+    assert "Skip this\nstep for a website-only project" in installation
+
+
+def test_template_site_verification_serves_and_checks_both_downloads() -> None:
     verification = GUIDE[GUIDE.index("### Stage 5 — Verifying the project") :]
     diagnostics = verification.index("//// step | Run project diagnostics")
-    website = verification.index("zensical build --clean --strict")
-    pdf = verification.index("\npdk pdf\n")
+    serve = verification.index("zensical serve")
 
-    assert diagnostics < website < pdf
-    assert "Stop and correct any failure before continuing" in verification
-    assert "For a website-only project" in verification
-    assert "consumes this\ncompleted Zensical build" in verification
+    assert diagnostics < serve
+    assert "Open the address printed by Zensical in a browser" in verification
+    assert "both download buttons" in verification
+    assert "rendered document PDF and source-bundle PDF" in verification
+    assert "Press `Ctrl+C`" in verification
 
 
 def test_template_site_pdf_step_covers_supported_host_prerequisites() -> None:

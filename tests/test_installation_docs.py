@@ -478,7 +478,7 @@ def test_bootstrap_continues_after_shared_preparation() -> None:
         page.index("## Install with bootstrap") : page.index("## Understand the completed project")
     ]
     assert "installation.md#installation-preparation" in installation
-    assert installation.count("//// step | ") == 16
+    assert installation.count("//// step | ") == 17
     assert "### Stage 1 — Prepare the setup environment" in installation
     assert "### Stage 2 — Assess and preview" in installation
     assert "### Stage 3 — Apply and confirm" in installation
@@ -509,9 +509,15 @@ def test_bootstrap_continues_after_shared_preparation() -> None:
     assert post_installation.count("pdk diag") == 2
     assert verification.count("pdk diag") == 1
     assert verification.count("pdk template-sync") == 1
-    assert verification.count("zensical build --clean --strict") == 1
-    assert verification.count("pdk pdf") >= 1
-    assert verification.index("zensical build --clean --strict") < verification.index("\npdk pdf\n")
+    assert post_installation.count("zensical build --clean --strict") == 1
+    assert post_installation.count("\npdk pdf\n") == 1
+    assert post_installation.count("pdk source-bundle") == 1
+    assert post_installation.index("zensical build --clean --strict") < post_installation.index(
+        "\npdk pdf\n"
+    ) < post_installation.index("pdk source-bundle")
+    assert verification.count("zensical serve") == 1
+    assert "Open the address printed by Zensical in a browser" in verification
+    assert "rendered document PDF and source-bundle PDF" in verification
     assert post_installation.count('python -c "import sys; print(sys.prefix)"') == 1
     assert "//// step | Enter and activate the project" in post_installation
     assert "Fully close Windows Terminal or VS Code" in post_installation
