@@ -19,9 +19,10 @@ only when it adds or changes behaviour that matters to a user, or requires an
 upgrade action. Defect-by-defect history belongs in GitHub issues and pull
 requests rather than here.
 
-## Unreleased
+## 0.70.0 (2026-09-21)
 
 - Allowed native Windows ARM64 website builds to reuse the verified Windows x64 Pandoc runtime through Windows 11 app emulation.
+- Made PDF prerequisite failures present installation and retry commands as readable steps, and expanded Bootstrap verification to build and check the website and both downloadable PDFs.
 
 ## 0.69.0 (2026-09-20)
 
