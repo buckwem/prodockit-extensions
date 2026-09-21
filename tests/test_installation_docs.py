@@ -71,6 +71,20 @@ def test_adoption_routes_refresh_environment_between_apply_and_build():
         assert "zensical build" in text[refresh:]
 
 
+def test_adoption_routes_prepare_project_local_pandoc_before_diagnostics():
+    for page in (FIRST_SITE, ADOPTION):
+        text = page.read_text(encoding="utf-8")
+        prepare = text.index("//// step | Prepare project-local Pandoc")
+        diagnose = text.index("pdk diag", prepare)
+
+        assert "pdk pdf --prepare pandoc" in text[prepare:diagnose]
+        assert "Otherwise skip it" in text[prepare:diagnose]
+        assert "Homebrew" in text[prepare:diagnose]
+        assert "Winget" in text[prepare:diagnose]
+        assert "apt" in text[prepare:diagnose]
+        assert "Windows ARM64" in text[prepare:diagnose]
+
+
 if sys.version_info >= (3, 11):  # pragma: no cover - version-gated import
     import tomllib
 else:  # pragma: no cover
@@ -318,7 +332,7 @@ def test_first_site_proves_zensical_before_adopting_prodockit() -> None:
 
     assert "installation.md#installation-preparation" in page
     assert "Unlike the template-site route" in page
-    assert page.count("//// step | ") == 27
+    assert page.count("//// step | ") == 30
     stages = re.split(r"(?m)^### Stage \d+[ab]? —", page)[1:]
     assert stages[0].count("//// step | ") == 0
     assert stages[1].count("//// step | ") == 3
@@ -390,6 +404,9 @@ def test_first_site_proves_zensical_before_adopting_prodockit() -> None:
     install_prodockit = page.index("//// step | Install Prodockit")
     choose_renderers = page.index("//// step | Choose optional renderers")
     adopt = page.index("//// step | Adopt the Zensical site")
+    prepare_pandoc = page.index("//// step | Prepare project-local Pandoc")
+    install_pdf = page.index("//// step | Install PDF host software")
+    prepare_pdf = page.index("//// step | Prepare PDF components")
     diagnose = page.index("//// step | Diagnose the adopted site")
     add_content = page.index("//// step | Add and verify Prodockit content")
     build_adopted = page.index("//// step | Build and preview the adopted website")
@@ -406,9 +423,12 @@ def test_first_site_proves_zensical_before_adopting_prodockit() -> None:
         < install_prodockit
         < choose_renderers
         < adopt
+        < prepare_pandoc
         < diagnose
         < add_content
         < build_adopted
+        < install_pdf
+        < prepare_pdf
         < pdf
         < source
         < downloads
@@ -479,12 +499,14 @@ def test_bootstrap_continues_after_shared_preparation() -> None:
         page.index("## Install with bootstrap") : page.index("## Understand the completed project")
     ]
     assert "installation.md#installation-preparation" in installation
-    assert installation.count("//// step | ") == 17
+    assert installation.count("//// step | ") == 19
     assert "### Stage 1 — Prepare the setup environment" in installation
     assert "### Stage 2 — Assess and preview" in installation
     assert "### Stage 3 — Apply and confirm" in installation
-    assert "### Stage 4 — Install for PDF" in installation
-    assert "### Stage 5 — Verifying the project" in installation
+    assert "### Stage 4 — Enter the project" in installation
+    assert "### Stage 5 — Install PDF support (optional)" in installation
+    assert "### Stage 6 — Build the PDF downloads (optional)" in installation
+    assert "### Stage 7 — Verify the project" in installation
     assert "//// step | Prepare Python and the setup environment" in installation
     assert "//// step | Restart the terminal on Windows if instructed" in installation
     assert "//// step | Install Prodockit into the active environment" in installation
@@ -504,18 +526,32 @@ def test_bootstrap_continues_after_shared_preparation() -> None:
     assert '!!! warning "Complete the manual step before confirming"' in manual
     assert "Type `yes` only after checking that the action succeeded" in " ".join(manual.split())
     assert "Do not run the complete `pdk diag` here" in installation
-    post_installation = installation[installation.index("### Stage 4 — Install for PDF") :]
-    verification = installation[installation.index("### Stage 5 — Verifying the project") :]
+    post_installation = installation[installation.index("### Stage 4 — Enter the project") :]
+    pdf_installation = installation[
+        installation.index("### Stage 5 — Install PDF support (optional)") : installation.index(
+            "### Stage 6 — Build the PDF downloads (optional)"
+        )
+    ]
+    pdf_build = installation[
+        installation.index("### Stage 6 — Build the PDF downloads (optional)") : installation.index(
+            "### Stage 7 — Verify the project"
+        )
+    ]
+    verification = installation[installation.index("### Stage 7 — Verify the project") :]
     assert "Changing directory" in post_installation
     assert post_installation.count("pdk diag") == 2
     assert verification.count("pdk diag") == 1
     assert verification.count("pdk template-sync") == 1
-    assert post_installation.count("zensical build --clean --strict") == 1
-    assert post_installation.count("\npdk pdf\n") == 1
-    assert post_installation.count("pdk source-bundle") == 1
-    assert post_installation.index("zensical build --clean --strict") < post_installation.index(
-        "\npdk pdf\n"
-    ) < post_installation.index("pdk source-bundle")
+    assert "pdk pdf --prepare all" in pdf_installation
+    assert pdf_build.count("zensical build --clean --strict") == 1
+    assert pdf_build.count("\npdk pdf\n") == 1
+    assert pdf_build.count("pdk source-bundle") == 1
+    assert "//// step | Build the source bundle" in pdf_build
+    assert "//// step | Build the website for PDF rendering" in pdf_build
+    assert "//// step | Build the rendered document PDF" in pdf_build
+    assert pdf_build.index("pdk source-bundle") < pdf_build.index(
+        "zensical build --clean --strict"
+    ) < pdf_build.index("\npdk pdf\n")
     assert verification.count("zensical serve") == 1
     assert "Open the address printed by Zensical in a browser" in verification
     assert "rendered document PDF and source-bundle PDF" in verification

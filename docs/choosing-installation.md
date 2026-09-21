@@ -10,6 +10,71 @@ Prodockit supports three installation paths. Choose the one that matches the
 document and level of automation you have; the paths are alternatives rather
 than stages to complete in sequence.
 
+## Install Prodockit
+
+This concise path assumes that:
+
+1. Python 3.14 is installed.
+2. Zensical is installed in an activated project virtual environment and the
+   site has been initialized. Complete Zensical's
+   [Get started](https://zensical.org/docs/get-started/){target="_blank" rel="noopener"}
+   instructions first if that environment and site do not already exist.
+
+With the initialized Zensical project's environment active, install Prodockit:
+
+```bash
+python -m pip install --upgrade prodockit
+```
+
+Run Adopt once to add Prodockit's project configuration and managed assets.
+Skip this command when the site has already been adopted or you have manually
+configured the equivalent integration:
+
+```bash
+pdk adopt --apply
+```
+
+For optional local PDF generation, run the block for the current platform.
+Skip this on Windows ARM64 and let the GitLab pipeline generate PDFs instead.
+
+=== ":material-apple: macOS"
+
+    ```bash
+    brew install pango node
+    export DYLD_FALLBACK_LIBRARY_PATH="$(brew --prefix)/lib"
+    pdk pdf --prepare all
+    ```
+
+=== ":fontawesome-brands-windows: Windows x64"
+
+    ```powershell
+    winget install OpenJS.NodeJS.LTS
+    # Close and reopen PowerShell, then reactivate the project environment.
+    pdk pdf --prepare all
+    ```
+
+=== ":material-linux: Linux (Ubuntu)"
+
+    ```bash
+    sudo apt update
+    sudo apt install -y libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz-subset0 nodejs
+    pdk pdf --prepare all
+    ```
+
+Build and preview the site whenever its content changes:
+
+```bash
+zensical build --clean --strict
+pdk pdf       # optional if PDF generation is used
+zensical serve
+```
+
+This is the shortest path from a working Zensical site to a non-template
+Prodockit website. It deliberately leaves out machine preparation, repository
+and publishing setup, PDF prerequisites, recovery guidance, and
+maintained-template integration. Choose one of the detailed installation paths
+below when you need those steps or want the setup checked as you proceed.
+
 ## Choose an installation path
 
 {% if is_surrey %}

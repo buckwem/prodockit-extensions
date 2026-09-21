@@ -391,7 +391,8 @@ Install Prodockit, choose the features you need, then check the completed setup.
     while preserving author-owned content and settings. It does not install the
     PDF generator or its host prerequisites. The first `pdk pdf` build prepares
     only the verified project-local runtimes the completed document actually
-    uses, so website-only adoption carries no PDF runtime burden.
+    uses. Pandoc is shared by citations and PDF processing, so the instructions
+    below prepare it separately without installing the rest of the PDF toolchain.
 
 /// steps
 
@@ -443,38 +444,8 @@ may already enable them; check before accepting.
 Adopt records the selection without installing a renderer. The first `pdk pdf`
 prepares the selected project-local cache. Mermaid needs only Python; PDF
 mathematics also needs Node.js on `PATH`, installed separately, but not npm.
-
-If this adopted site will build PDFs, install its host prerequisites before the
-first build. A site with PDF maths needs both Pango and Node.js on macOS or
-Ubuntu; the supported Windows x64 PDF runtime needs only Node.js:
-
-=== ":material-apple: macOS"
-
-    ```bash
-    brew install pango node
-    export DYLD_FALLBACK_LIBRARY_PATH="$(brew --prefix)/lib"
-    ```
-
-=== ":fontawesome-brands-windows: Windows"
-
-    ```powershell
-    winget install OpenJS.NodeJS.LTS
-    ```
-
-    Close and reopen PowerShell, return to the project, and reactivate its
-    virtual environment.
-
-=== ":material-linux: Linux (Ubuntu)"
-
-    ```bash
-    sudo apt update
-    sudo apt install -y libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz-subset0 nodejs
-    ```
-
-For a PDF without maths, omit `node` or `nodejs`. For website-only work, skip
-these commands. Verify Node with `node --version`; an ordinary `pdk pdf` then
-prepares the selected project-local runtimes. No npm packages, browser or
-MSYS2 installation is required.
+The optional installation steps in Stage 6 prepare those requirements when
+this machine will generate PDFs locally.
 
 ////
 
@@ -565,6 +536,29 @@ any paths Adopt added. Use the activation path it prints if yours has another na
 
 ////
 
+//// step | Prepare project-local Pandoc **Optional**{: .bg-green}
+
+Complete this step when the adopted document uses Prodockit citations or a
+bibliography, or when you intend to generate PDFs locally. Otherwise skip it;
+the starter adopted site has no citation file and its website does not need
+Pandoc.
+
+Install the verified Pandoc release in this project's ignored cache:
+
+```bash
+pdk pdf --prepare pandoc
+```
+
+Prodockit downloads, verifies and selects Pandoc; do not install it with
+Homebrew, Winget or apt, and do not rely on a system `pandoc` command from
+`PATH`.
+
+This preparation is supported on Windows ARM64 even though local PDF generation
+is not. On that platform, use Pandoc for the website build and let the GitLab
+pipeline generate the PDFs.
+
+////
+
 //// step | Diagnose the adopted site
 
 Check the environment, installed tools and project setup without changing files.
@@ -640,11 +634,12 @@ For an existing site, also check its pages, styling and navigation. Press
 
 ///
 
-### Stage 6 — Add downloadable outputs
+### Stage 6 — Add downloadable outputs **Optional**{: .bg-green}
 
 Create downloadable PDFs of your document and its source. For an existing
 site, keep working download links and use the output filenames printed by the commands.
-If you do not need downloads, skip to the route choices at the end of this stage.
+The whole stage is optional. If you do not need downloads, skip to the route
+choices at the end of this stage.
 
 !!! note "Local downloads and published downloads are different"
 
@@ -652,6 +647,64 @@ If you do not need downloads, skip to the route choices at the end of this stage
     regenerate PDFs; configure publishing to keep online downloads up to date.
 
 /// steps
+
+//// step | Install PDF host software
+
+Complete this step only when this machine will generate PDFs locally. Skip it
+for website-only work and on Windows ARM64, where the GitLab pipeline generates
+the PDFs.
+
+A PDF containing mathematics needs both Pango and Node.js on macOS or Ubuntu;
+the supported Windows x64 PDF runtime needs only Node.js:
+
+=== ":material-apple: macOS"
+
+    ```bash
+    brew install pango node
+    export DYLD_FALLBACK_LIBRARY_PATH="$(brew --prefix)/lib"
+    ```
+
+=== ":fontawesome-brands-windows: Windows x64"
+
+    ```powershell
+    winget install OpenJS.NodeJS.LTS
+    ```
+
+    Close and reopen PowerShell, return to the project, and reactivate its
+    virtual environment.
+
+=== ":material-linux: Linux (Ubuntu)"
+
+    ```bash
+    sudo apt update
+    sudo apt install -y libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz-subset0 nodejs
+    ```
+
+For a PDF without mathematics, omit `node` or `nodejs`. Verify Node when it is
+needed:
+
+```bash
+node --version
+```
+
+No npm packages, browser or MSYS2 installation is required.
+
+////
+
+//// step | Prepare PDF components
+
+With the host software installed, download, verify and cache every configured
+PDF component:
+
+```bash
+pdk pdf --prepare all
+```
+
+Skip this step on Windows ARM64. If you prefer lazy preparation, an ordinary
+`pdk pdf` prepares only the components used by the document on its first local
+PDF build.
+
+////
 
 //// step | Generate the rendered PDF
 
