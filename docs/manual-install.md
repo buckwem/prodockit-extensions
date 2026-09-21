@@ -25,7 +25,7 @@ Zensical site, use [Adopt prodockit](getting-started.md) instead.
     install everything yourself, and this section documents that route. It
     also demonstrates why producing a PDF containing Mermaid diagrams and
     MathJax notation is not simple: the process depends on several Python,
-    system, browser, font, and Node.js components working together.
+    system, font, and Node.js components working together.
 
 Work through the steps in order. Where a tool is already installed, still
 run the check shown for it before continuing.
@@ -34,7 +34,7 @@ run the check shown for it before continuing.
 
 Start with Stage 1 and Stage 2. At Stage 3, choose the one route that matches
 your repository; both routes join again at Stage 4, then separate for the
-final repository action in Stage 6.
+final repository action in Stage 7.
 
 Use the badges beside stage and step titles to follow your route:
 
@@ -949,8 +949,9 @@ then install and verify the Python-based build tools.
 <span id="install-python-and-zensical"></span>
 
 Use the instructions below to create and activate a project-specific Python
-\index{Python!virtual environment}, then install Zensical and the PDF system libraries on macOS, Windows, and
-Ubuntu. Refer to the [official Python installation
+\index{Python!virtual environment}, then install the project packages. PDF
+host software belongs to the separate optional stage after the website tools
+are ready. Refer to the [official Python installation
 documentation](https://docs.python.org/3/using/) if you use another operating
 system.
 
@@ -990,22 +991,7 @@ before continuing.
 
     === ":material-apple: macOS"
 
-        1. Install \index{Pango} and Node.js together for the standard
-           template's PDF and maths examples. They are not Python packages, so
-           `pip` cannot install them for you:
-
-            ``` bash
-            brew install pango node
-            ```
-
-        `pdk pdf` downloads verified Pandoc and font archives into this
-        project's `.prodockit/cache/pdf/` on first use. To prepare them now:
-
-        ``` bash
-        pdk pdf --prepare pandoc --prepare fonts
-        ```
-
-        2. Open **Terminal** in your project folder and create the virtual
+        1. Open **Terminal** in your project folder and create the virtual
            environment:
 
             ``` bash
@@ -1038,33 +1024,12 @@ before continuing.
 
     === ":fontawesome-brands-windows: Windows"
 
-        Native Windows ARM64 supports the complete website workflow, including
-        citations: Prodockit prepares the verified Windows x64 Pandoc executable
-        and runs it through Windows 11 app emulation. Local PDF generation is
-        not supported on Windows ARM64; use the GitLab build for both PDF
-        downloads and skip the preparation command below.
-
-        1. Prepare the project-local PDF runtimes. Windows x64 uses verified,
-           digest-pinned Pandoc, font, and WeasyPrint release archives, so
-           do not install MSYS2/Pango or change PATH, the registry, or
-           `WEASYPRINT_DLL_DIRECTORIES`:
-
-            ``` powershell
-            pdk pdf --prepare pandoc --prepare fonts --prepare weasyprint
-            ```
-
-            This command verifies the download, safely extracts it beneath
-            `.prodockit/cache/pdf/`, renders a smoke-test PDF, and atomically
-            activates it. The first ordinary `pdk pdf` prepares all three
-            automatically; bibliography-only use prepares Pandoc alone.
-            Windows ARM64 is not a supported local PDF target.
-
-        2. The PowerShell execution policy was set when the setup environment
+        1. The PowerShell execution policy was set when the setup environment
            was created. If you chose not to change it, use **classic CMD** and
            run `.\.venv\Scripts\activate.bat` when activating the project
            environment.
 
-        5. Confirm you are still in your project folder:
+        2. Confirm you are still in your project folder:
 
             ``` powershell
             cd C:\path\to\your-project
@@ -1120,30 +1085,7 @@ before continuing.
 
     === ":material-linux: Linux (Ubuntu)"
 
-        1. Open a terminal and install the graphics libraries
-           \index{WeasyPrint} needs together with Node.js for PDF maths:
-
-            ``` bash
-            sudo apt update
-            sudo apt install -y libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz-subset0 nodejs
-            ```
-
-            !!! info "Why the three library packages"
-                Pandoc hands the result to WeasyPrint, which draws text through \index{Pango} and won't start without it. `libharfbuzz-subset0` is easy to miss - on Debian it's a *separate* package from `libharfbuzz0b`, and WeasyPrint needs this one specifically (glib and fontconfig aren't listed, since `libpango-1.0-0` already depends on them). Skipping this still looks fine until `prodockit pdf`, which then fails with `pandoc exited with status 43` - see [WeasyPrint cannot load its graphics libraries](troubleshooting-installs.md#installtooling-weasyprint-libraries) if that happens.
-
-            !!! warning "Use a supported Debian or Ubuntu release"
-                `libharfbuzz-subset0` does not exist on older releases. If the
-                package cannot be found, upgrade the distribution rather than
-                hunting for a substitute package.
-
-            Pandoc and the PDF fonts are downloaded, verified, and cached by
-            `pdk pdf` on first use. To prepare them before building, run:
-
-            ``` bash
-            pdk pdf --prepare pandoc --prepare fonts
-            ```
-
-        2. Navigate to your project folder, then create a virtual
+        1. Navigate to your project folder, then create a virtual
            environment:
 
             ``` bash
@@ -1170,7 +1112,7 @@ before continuing.
 
 ////
 
-//// step | Install the project packages and prepare PDF runtimes
+//// step | Install the project packages
 
 <span id="which-pandoc-version"></span>
 
@@ -1186,39 +1128,21 @@ before continuing.
     use `sudo pip`, and do not continue if the prompt has lost its `(.venv)`
     prefix.
 
-1. Check that the `prodockit` command actually resolves to the one you just installed:
+    Do not install `pdf-requirements.txt` here. When local PDF output is
+    selected, `pdk pdf` installs and validates that committed PDF-only package
+    set in the active environment during Stage 6.
+
+1. Check that Python, Prodockit and Zensical resolve from the active project
+    environment:
 
     ``` bash
+    python -c "import sys; print(sys.executable)"
+    pdk --version
     prodockit --version
+    zensical --version
     ```
 
     `pip` exiting without an error only means the package landed in `.venv` - it doesn't prove your shell finds it there first. An older, separately-installed `prodockit` earlier on your `PATH` shadows it silently, and every command in this guide from here on would run against that instead.
-
-1. Verify the PDF engine before the first real build.
-
-    === ":fontawesome-brands-windows: Windows"
-
-        ``` powershell
-        pdk pdf --prepare pandoc --prepare fonts --prepare weasyprint
-        ```
-
-        A prepared or already-prepared result proves the project-local
-        standalone runtime can render a smoke-test PDF.
-
-    === ":material-apple: macOS"
-
-        ``` bash
-        pdk pdf --prepare pandoc --prepare fonts --prepare weasyprint
-        ```
-
-    === ":material-linux: Linux (Ubuntu)"
-
-        ``` bash
-        pdk pdf --prepare pandoc --prepare fonts --prepare weasyprint
-        ```
-
-    On macOS or Ubuntu, a `cannot load library` error means the native
-    libraries from the operating-system step are missing or cannot be found.
 
 1. Check the citation style configured for the project. If it uses
     `harvard-cite-them-right.csl` and that file is missing, download it from
@@ -1246,6 +1170,16 @@ before continuing.
 
     See [BibTeX bibliography](extensions/bibliography.md) for what this feature
     does and how to configure a different CSL style.
+
+    When the website uses Prodockit citations or a bibliography, prepare its
+    project-local Pandoc now. This command is also supported on Windows ARM64:
+
+    ``` bash
+    pdk pdf --prepare pandoc
+    ```
+
+    A website without citations can skip this command. Full local PDF setup
+    remains separate and optional in Stage 6.
 
 1. Check the repository's own links against `origin`:
 
@@ -1287,14 +1221,15 @@ before continuing.
 
 ///
 
-### Stage 5 — Add editor and rendering tools
+### Stage 5 — Add editor tools **Optional**{: .bg-green}
 
-Configure the editor and install the optional diagram and mathematics
-renderers used by the project.
+This whole stage is optional. Configure the editor when you want its local
+authoring assistance; otherwise continue to the optional PDF stage or final
+verification.
 
 /// steps
 
-//// step | Install Zensical Studio and the editor plugins **Optional**{: .bg-green}
+//// step | Install Zensical Studio and the editor plugins
 
 <span id="install-zensical-studio-and-other-plugins"></span>
 
@@ -1333,56 +1268,90 @@ There are many other extensions available for Visual Studio Code that can help y
 
 ////
 
-//// step | Prepare optional PDF renderers
+///
 
-Install nothing here for a website-only project. Website mathematics is owned
-by Zensical; configure it using the
+### Stage 6 — Install local PDF support **Optional**{: .bg-green}
+
+This whole stage is optional. Complete it only when this computer will generate
+PDFs locally. Skip it for website-only work and on Windows ARM64, where the
+website workflow and project-local Pandoc are supported but the GitLab pipeline
+must generate the rendered-document and source-bundle PDFs.
+
+Website mathematics is configured separately using the
 [Zensical MathJax instructions](https://zensical.org/docs/authoring/math/#mathjax){target="_blank"}.
 
-For PDFs, ProDockit downloads only the renderers that the completed document
-actually uses and keeps them in the project's `.prodockit/cache/pdf/` directory.
-Mermaid is a Python-only runtime and needs no Node.js, npm, browser or MSYS2.
+/// steps
 
-MathJax 4 is also downloaded and cached automatically, but its small SVG
-adapter currently requires Node.js on `PATH`. It does not use npm or a
-`node_modules` directory. The macOS and Ubuntu project-environment steps above
-already install Node.js together with Pango for the standard template. On
-Windows, install Node.js when the PDF contains maths:
+//// step | Install PDF host software
 
 <span id="install-nodejs"></span>
 
-``` powershell
-winget install OpenJS.NodeJS.LTS
-```
+Install the native software for the current platform. The commands include
+Node.js because eager `--prepare all` preparation includes the MathJax SVG
+adapter. For a document without PDF mathematics, ordinary lazy `pdk pdf`
+preparation lets you omit `node` or `nodejs`.
 
-Close and reopen PowerShell, return to the project, and reactivate its virtual
-environment.
+=== ":material-apple: macOS"
 
-Check Node.js when maths is used:
+    ``` bash
+    brew install pango node
+    export DYLD_FALLBACK_LIBRARY_PATH="$(brew --prefix)/lib"
+    ```
+
+=== ":fontawesome-brands-windows: Windows x64"
+
+    Windows x64 uses the verified standalone WeasyPrint runtime, so do not
+    install Pango or MSYS2 and do not change `PATH`, the registry, or
+    `WEASYPRINT_DLL_DIRECTORIES`.
+
+    ``` powershell
+    winget install OpenJS.NodeJS.LTS
+    ```
+
+    Close and reopen PowerShell, return to the project, and reactivate its
+    virtual environment.
+
+=== ":material-linux: Linux (Ubuntu)"
+
+    ``` bash
+    sudo apt update
+    sudo apt install -y libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz-subset0 nodejs
+    ```
+
+    `libharfbuzz-subset0` does not exist on older releases. Upgrade the
+    distribution rather than substituting an unqualified package.
+
+When PDF mathematics is enabled, verify Node.js after installation:
 
 ``` bash
 node --version
 ```
 
-An ordinary `pdk pdf` prepares Mermaid or MathJax transparently on first use.
-To download and validate them ahead of time without building a site or PDF:
+////
+
+//// step | Prepare the PDF components
+
+Download, verify and cache every configured PDF component:
 
 ``` bash
-pdk pdf --prepare mermaid --prepare mathjax
+pdk pdf --prepare all
 ```
 
-Repeating the command against a healthy cache is a fast, network-free check.
-No npm or MSYS2 setup is part of this PDF path.
+On macOS and Ubuntu this also installs and validates the committed
+`pdf-requirements.txt` in the active environment. Windows x64 instead prepares
+the verified standalone WeasyPrint runtime. Pandoc, fonts, Mermaid and MathJax
+remain in the ignored project-local `.prodockit/cache/pdf/` cache.
 
-!!! warning "Check the PDF as well as the website"
-    A successful website build does not prove that PDF rendering is ready.
-    Run `pdk diag`, then open the generated PDF and inspect a real diagram and
-    equation if the project uses them.
+An ordinary `pdk pdf` is the simpler lazy alternative: it prepares only the
+components used by the completed document on its first local PDF build.
+Mermaid is Python-only. MathJax uses Node.js only for its transitional SVG
+adapter. Neither path requires npm, `node_modules`, a browser or MSYS2.
 
 ////
 
 ///
-### Stage 6 — Verify and finish
+
+### Stage 7 — Verify and finish
 
 Check the local website and any PDFs you need, then complete only the path
 selected in Stage 3. A local build does not publish the website.
@@ -1397,30 +1366,41 @@ Use diagnostics to check for common installation and configuration problems:
 pdk diag
 ```
 
-Resolve failures before building the website:
+Resolve failures before building. If the project publishes a source-bundle
+PDF, generate it first so the clean website build copies it into the served
+output:
+
+``` bash
+pdk source-bundle
+```
+
+Skip that command when no source bundle is required and on Windows ARM64.
+Then build the website:
 
 ``` bash
 zensical build --clean --strict
 ```
 
-Preview the website locally and open the address printed in the terminal:
-
-``` bash
-zensical serve
-```
-
-Check the content, navigation and custom styles. Press `Ctrl+C` to stop the
-preview before continuing.
-
-If you need a PDF, generate and open it to check its layout, diagrams,
-mathematics and references:
+If local rendered-PDF output is required, build it from that completed website:
 
 ``` bash
 pdk pdf
 ```
 
-See [PDF generation](pdf.md) for downloadable PDFs and source bundles. A
-successful command cannot detect every visual problem.
+Skip local PDF generation on Windows ARM64 and inspect both PDFs from the
+successful GitLab pipeline instead.
+
+Finally, preview the completed website:
+
+``` bash
+zensical serve
+```
+
+Open the address printed in the terminal. Check the content, navigation and
+custom styles. When PDFs are enabled, open both download links and inspect the
+rendered document's layout, diagrams, mathematics and references. A successful
+command cannot detect every visual problem. Press `Ctrl+C` to stop the preview
+before continuing. See [PDF generation](pdf.md) for more detail.
 
 Continue with only the final action for the route selected in Stage 3:
 
@@ -1537,13 +1517,17 @@ Start every maintenance pass in the active project environment, with existing
 work saved on a branch. Follow the project's supported version requirements
 and the platform-specific installation steps above; do not update every
 dependency independently to its newest version. Run Diagnostics before
-rebuilding, and generate a PDF only if your project needs one:
+rebuilding. Generate the source bundle and rendered PDF only when the project
+publishes them:
 
 ```bash
 pdk diag
+pdk source-bundle     # optional
 zensical build --clean --strict
-pdk pdf
+pdk pdf               # optional
 ```
+
+On Windows ARM64, omit both PDF commands and use the GitLab pipeline outputs.
 
 For a Path 1 template project, preview `pdk template-sync` and follow the
 Template Sync review workflow when an update is available. For a Path 2

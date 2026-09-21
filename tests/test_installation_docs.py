@@ -643,7 +643,7 @@ def test_manual_install_uses_route_badges_and_creates_the_project_environment() 
 
     environment = page[
         page.index("### Stage 4 — Create the project environment") : page.index(
-            "### Stage 5 — Add editor and rendering tools"
+            "### Stage 5 — Add editor tools"
         )
     ]
     assert '"$(brew --prefix python@3.14)/bin/python3.14" -m venv .venv' in environment
@@ -651,3 +651,55 @@ def test_manual_install_uses_route_badges_and_creates_the_project_environment() 
     assert "python3.14 -m venv .venv" in environment
     assert "source .venv/bin/activate" in environment
     assert r".\.venv\Scripts\Activate.ps1" in environment
+
+
+def test_manual_install_orders_optional_pdf_work_after_project_installation() -> None:
+    page = MANUAL_INSTALL.read_text(encoding="utf-8")
+    packages = page.index("python -m pip install -r requirements.txt")
+    pandoc = page.index("pdk pdf --prepare pandoc")
+    pdf_stage = page.index("### Stage 6 — Install local PDF support **Optional**")
+    prepare_all = page.index("pdk pdf --prepare all", pdf_stage)
+    verify = page.index("### Stage 7 — Verify and finish")
+
+    assert packages < pandoc < pdf_stage < prepare_all < verify
+    before_packages = page[page.index("### Stage 4 — Create the project environment") : packages]
+    assert "pdk pdf --prepare" not in before_packages
+    assert "Do not install `pdf-requirements.txt` here" in page[packages:pdf_stage]
+    assert "`pdk pdf` installs and validates" in page[packages:pdf_stage]
+
+
+def test_manual_pdf_stage_matches_supported_platform_workflow() -> None:
+    page = MANUAL_INSTALL.read_text(encoding="utf-8")
+    pdf_stage = page[
+        page.index("### Stage 6 — Install local PDF support") : page.index(
+            "### Stage 7 — Verify and finish"
+        )
+    ]
+
+    assert "This whole stage is optional" in pdf_stage
+    assert "Skip it for website-only work and on Windows ARM64" in pdf_stage
+    assert "brew install pango node" in pdf_stage
+    assert 'export DYLD_FALLBACK_LIBRARY_PATH="$(brew --prefix)/lib"' in pdf_stage
+    assert "winget install OpenJS.NodeJS.LTS" in pdf_stage
+    assert "libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz-subset0 nodejs" in pdf_stage
+    assert "pdk pdf --prepare all" in pdf_stage
+    assert "pdf-requirements.txt" in pdf_stage
+    assert "npm, `node_modules`, a browser or MSYS2" in pdf_stage
+    assert "prodockit pdf" not in page
+
+
+def test_manual_verification_builds_downloads_in_publication_order() -> None:
+    page = MANUAL_INSTALL.read_text(encoding="utf-8")
+    verification = page[
+        page.index("### Stage 7 — Verify and finish") : page.index(
+            "## Understand the completed project"
+        )
+    ]
+
+    source = verification.index("pdk source-bundle")
+    website = verification.index("zensical build --clean --strict")
+    pdf = verification.index("pdk pdf")
+    serve = verification.index("zensical serve")
+    assert source < website < pdf < serve
+    assert "both download links" in verification
+    assert "Windows ARM64" in verification
