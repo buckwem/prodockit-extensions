@@ -285,10 +285,11 @@ def test_pdf_prepare_explains_missing_node_for_direct_and_all_requests(
     result = CliRunner().invoke(main, ["pdf", "--prepare", component])
 
     assert result.exit_code == 1, result.output
-    assert "MathJax PDF rendering needs Node.js on PATH" in result.output
-    assert command in result.output
-    assert "pdk pdf --prepare mathjax" in result.output
-    assert "ordinary `pdk pdf`" in result.output
+    assert "MathJax PDF rendering requires Node.js on PATH" in result.output
+    assert f"Install Node.js:\n  {command}" in result.output
+    assert "\n\nVerify:\n  node --version" in result.output
+    assert "\n\nThen retry:\n  pdk pdf" in result.output
+    assert "\n\nOptional ahead-of-time preparation:\n  pdk pdf --prepare mathjax" in result.output
     assert "No npm packages, node_modules, browser, or MSYS2" in result.output
     assert "Traceback" not in result.output
 

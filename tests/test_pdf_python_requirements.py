@@ -101,8 +101,8 @@ def test_missing_native_weasyprint_library_reports_exact_install_command(
         requirements._probe((requirements.Requirement("weasyprint>=69.0"),))
 
     message = str(captured.value)
-    assert command in message
-    assert "Then retry `pdk pdf`" in message
+    assert f"Install Pango and configure the current shell:\n  {command}" in message
+    assert "\n\nThen retry:\n  pdk pdf" in message
     assert "Traceback" not in message
 
 

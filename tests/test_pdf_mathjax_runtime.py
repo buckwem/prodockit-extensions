@@ -90,11 +90,15 @@ def test_probe_explains_that_node_but_not_npm_is_required(
         command,
         "node --version",
         "pdk pdf --prepare mathjax",
-        "pdk pdf --prepare all",
-        "ordinary `pdk pdf`",
         "No npm packages, node_modules, browser, or MSYS2",
     ):
         assert expected in message
+    assert f"Install Node.js:\n  {command}" in message
+    assert "\n\nVerify:\n  node --version" in message
+    assert "\n\nThen retry:\n  pdk pdf" in message
+    assert "\n\nOptional ahead-of-time preparation:\n  pdk pdf --prepare mathjax" in message
+    if selected_platform == "win32":
+        assert "After installation:\n  Close and reopen the shell." in message
 
 
 def test_provider_refuses_changed_download_metadata(tmp_path: Path) -> None:
