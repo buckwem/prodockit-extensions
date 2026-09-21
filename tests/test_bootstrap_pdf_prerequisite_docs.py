@@ -80,12 +80,15 @@ def test_template_site_pdf_step_distinguishes_forced_and_lazy_preparation() -> N
 
 def test_adopt_has_distinct_optional_pdf_install_and_prepare_steps() -> None:
     stage = "### Stage 6 — Add downloadable outputs **Optional**"
-    host = "//// step | Install PDF host software **Optional**"
-    prepare = "//// step | Prepare PDF components **Optional**"
+    host = "//// step | Install PDF host software"
+    prepare = "//// step | Prepare PDF components"
 
     assert stage in ADOPT_GUIDE
+    assert "The whole stage is optional" in ADOPT_GUIDE
     assert host in ADOPT_GUIDE
     assert prepare in ADOPT_GUIDE
+    assert f"{host} **Optional**" not in ADOPT_GUIDE
+    assert f"{prepare} **Optional**" not in ADOPT_GUIDE
     assert ADOPT_GUIDE.index(stage) < ADOPT_GUIDE.index(host) < ADOPT_GUIDE.index(prepare)
     section = ADOPT_GUIDE[
         ADOPT_GUIDE.index(stage) : ADOPT_GUIDE.index("### Stage 7a")

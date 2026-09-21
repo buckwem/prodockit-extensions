@@ -638,7 +638,8 @@ For an existing site, also check its pages, styling and navigation. Press
 
 Create downloadable PDFs of your document and its source. For an existing
 site, keep working download links and use the output filenames printed by the commands.
-If you do not need downloads, skip to the route choices at the end of this stage.
+The whole stage is optional. If you do not need downloads, skip to the route
+choices at the end of this stage.
 
 !!! note "Local downloads and published downloads are different"
 
@@ -647,7 +648,7 @@ If you do not need downloads, skip to the route choices at the end of this stage
 
 /// steps
 
-//// step | Install PDF host software **Optional**{: .bg-green}
+//// step | Install PDF host software
 
 Complete this step only when this machine will generate PDFs locally. Skip it
 for website-only work and on Windows ARM64, where the GitLab pipeline generates
@@ -690,7 +691,7 @@ No npm packages, browser or MSYS2 installation is required.
 
 ////
 
-//// step | Prepare PDF components **Optional**{: .bg-green}
+//// step | Prepare PDF components
 
 With the host software installed, download, verify and cache every configured
 PDF component:
