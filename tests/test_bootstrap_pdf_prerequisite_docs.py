@@ -79,16 +79,21 @@ def test_template_site_pdf_step_distinguishes_forced_and_lazy_preparation() -> N
 
 
 def test_adopt_has_distinct_optional_pdf_install_and_prepare_steps() -> None:
-    host = "//// step | Install optional PDF host software **Optional**"
-    prepare = "//// step | Prepare optional PDF components **Optional**"
+    stage = "### Stage 6 — Add downloadable outputs **Optional**"
+    host = "//// step | Install PDF host software **Optional**"
+    prepare = "//// step | Prepare PDF components **Optional**"
 
+    assert stage in ADOPT_GUIDE
     assert host in ADOPT_GUIDE
     assert prepare in ADOPT_GUIDE
-    assert ADOPT_GUIDE.index(host) < ADOPT_GUIDE.index(prepare)
-    section = ADOPT_GUIDE[ADOPT_GUIDE.index(host) : ADOPT_GUIDE.index("//// step | Diagnose")]
+    assert ADOPT_GUIDE.index(stage) < ADOPT_GUIDE.index(host) < ADOPT_GUIDE.index(prepare)
+    section = ADOPT_GUIDE[
+        ADOPT_GUIDE.index(stage) : ADOPT_GUIDE.index("### Stage 7a")
+    ]
     assert "Skip it\nfor website-only work and on Windows ARM64" in section
     assert "pdk pdf --prepare all" in section
-    assert "ordinary `pdk pdf` prepares only the components used" in section
+    assert "If you prefer lazy preparation" in section
+    assert "`pdk pdf` prepares only the components used" in section
     assert "No npm packages, browser or MSYS2 installation is required" in section
 
 

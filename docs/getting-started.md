@@ -559,64 +559,6 @@ pipeline generate the PDFs.
 
 ////
 
-//// step | Install optional PDF host software **Optional**{: .bg-green}
-
-Complete this step only when this machine will generate PDFs locally. Skip it
-for website-only work and on Windows ARM64, where the GitLab pipeline generates
-the PDFs.
-
-A PDF containing mathematics needs both Pango and Node.js on macOS or Ubuntu;
-the supported Windows x64 PDF runtime needs only Node.js:
-
-=== ":material-apple: macOS"
-
-    ```bash
-    brew install pango node
-    export DYLD_FALLBACK_LIBRARY_PATH="$(brew --prefix)/lib"
-    ```
-
-=== ":fontawesome-brands-windows: Windows x64"
-
-    ```powershell
-    winget install OpenJS.NodeJS.LTS
-    ```
-
-    Close and reopen PowerShell, return to the project, and reactivate its
-    virtual environment.
-
-=== ":material-linux: Linux (Ubuntu)"
-
-    ```bash
-    sudo apt update
-    sudo apt install -y libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz-subset0 nodejs
-    ```
-
-For a PDF without mathematics, omit `node` or `nodejs`. Verify Node when it is
-needed:
-
-```bash
-node --version
-```
-
-No npm packages, browser or MSYS2 installation is required.
-
-////
-
-//// step | Prepare optional PDF components **Optional**{: .bg-green}
-
-With the host software installed, download, verify and cache every configured
-PDF component:
-
-```bash
-pdk pdf --prepare all
-```
-
-Skip this step for website-only work and on Windows ARM64. If you prefer lazy
-preparation, an ordinary `pdk pdf` prepares only the components used by the
-document on its first local PDF build.
-
-////
-
 //// step | Diagnose the adopted site
 
 Check the environment, installed tools and project setup without changing files.
@@ -692,7 +634,7 @@ For an existing site, also check its pages, styling and navigation. Press
 
 ///
 
-### Stage 6 — Add downloadable outputs
+### Stage 6 — Add downloadable outputs **Optional**{: .bg-green}
 
 Create downloadable PDFs of your document and its source. For an existing
 site, keep working download links and use the output filenames printed by the commands.
@@ -704,6 +646,64 @@ If you do not need downloads, skip to the route choices at the end of this stage
     regenerate PDFs; configure publishing to keep online downloads up to date.
 
 /// steps
+
+//// step | Install PDF host software **Optional**{: .bg-green}
+
+Complete this step only when this machine will generate PDFs locally. Skip it
+for website-only work and on Windows ARM64, where the GitLab pipeline generates
+the PDFs.
+
+A PDF containing mathematics needs both Pango and Node.js on macOS or Ubuntu;
+the supported Windows x64 PDF runtime needs only Node.js:
+
+=== ":material-apple: macOS"
+
+    ```bash
+    brew install pango node
+    export DYLD_FALLBACK_LIBRARY_PATH="$(brew --prefix)/lib"
+    ```
+
+=== ":fontawesome-brands-windows: Windows x64"
+
+    ```powershell
+    winget install OpenJS.NodeJS.LTS
+    ```
+
+    Close and reopen PowerShell, return to the project, and reactivate its
+    virtual environment.
+
+=== ":material-linux: Linux (Ubuntu)"
+
+    ```bash
+    sudo apt update
+    sudo apt install -y libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz-subset0 nodejs
+    ```
+
+For a PDF without mathematics, omit `node` or `nodejs`. Verify Node when it is
+needed:
+
+```bash
+node --version
+```
+
+No npm packages, browser or MSYS2 installation is required.
+
+////
+
+//// step | Prepare PDF components **Optional**{: .bg-green}
+
+With the host software installed, download, verify and cache every configured
+PDF component:
+
+```bash
+pdk pdf --prepare all
+```
+
+Skip this step on Windows ARM64. If you prefer lazy preparation, an ordinary
+`pdk pdf` prepares only the components used by the document on its first local
+PDF build.
+
+////
 
 //// step | Generate the rendered PDF
 
