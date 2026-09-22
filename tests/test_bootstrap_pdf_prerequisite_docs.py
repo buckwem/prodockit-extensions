@@ -14,8 +14,9 @@ def test_template_site_installation_has_an_optional_pdf_software_stage() -> None
     assert "### Stage 5 — Install PDF host software **Privileged**" in GUIDE
     assert "### Stage 6 — Build the PDF downloads **Optional**" in GUIDE
     assert "### Stage 7 — Verify the project" in GUIDE
-    heading = "//// step | Install Pango and Node.js **Privileged**"
+    heading = "//// step | Install Pango and Node.js"
     assert heading in GUIDE
+    assert f"{heading} **Privileged**" not in GUIDE
     assert GUIDE.index(heading) < GUIDE.index("//// step | Run project diagnostics")
     assert "Complete this stage only when this machine will generate PDFs" in GUIDE
     assert "Skip this stage for website-only work and on Windows ARM64" in GUIDE

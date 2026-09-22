@@ -419,7 +419,7 @@ can generate both PDFs.
 
 /// steps
 
-//// step | Install Pango and Node.js **Privileged**{: .install-privileged} **Optional**{: .bg-green}
+//// step | Install Pango and Node.js
 
 Pango is needed for local PDFs on macOS and Ubuntu; Node.js is needed only
 when the PDF contains MathJax notation. Mermaid needs no Node.js. If the
