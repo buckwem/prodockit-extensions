@@ -21,10 +21,7 @@ def test_template_site_installation_has_an_optional_pdf_software_stage() -> None
     assert "Complete this stage only when this machine will generate PDFs" in GUIDE
     assert "Skip this stage for website-only work and on Windows ARM64" in GUIDE
     assert "can generate both PDFs" in GUIDE
-    assert '!!! important "Install Pandoc through Prodockit"' in GUIDE
-    assert "pdk pdf --prepare pandoc" in GUIDE
-    assert "Do not install Pandoc with Homebrew, Winget or apt" in GUIDE
-    assert "do not rely on a\n    system `pandoc` command from `PATH`" in GUIDE
+    assert '!!! important "Install Pandoc through Prodockit"' not in GUIDE
     host_stage = GUIDE.split("### Stage 5 —", 1)[1].split("### Stage 6 —", 1)[0]
     assert "pdk pdf" not in host_stage
     assert "Surrey RemoteLabs" in host_stage

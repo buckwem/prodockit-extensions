@@ -483,14 +483,6 @@ or on Surrey RemoteLabs without privileged access{% endif %}; the GitLab build
 generates both downloads. Build the source bundle last; Stage 7's
 `zensical serve` refreshes the site with both downloads.
 
-!!! important "Install Pandoc through Prodockit"
-
-    Do not install Pandoc with Homebrew, Winget or apt, and do not rely on a
-    system `pandoc` command from `PATH`. Prepare the reviewed project-local
-    version with `pdk pdf --prepare pandoc`, or let the build prepare it when
-    needed. Windows ARM64 website citations can prepare their compatible
-    Pandoc runtime even though local PDF generation is unsupported.
-
 /// steps
 
 //// step | Build the website for PDF rendering
