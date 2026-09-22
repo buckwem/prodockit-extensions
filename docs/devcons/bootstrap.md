@@ -508,7 +508,13 @@ completed Zensical build; it does not replace the website build.
 
 //// step | Build the rendered document PDF
 
-Generate the rendered document from the completed website:
+Generate the rendered document from the completed website. On the first run,
+`pdk pdf` automatically installs the project's committed PDF-only Python
+requirements and prepares verified project-local Pandoc and font caches. It
+also prepares Mermaid or MathJax only if the built content uses them (or their
+PDF configuration requests preloading). Later runs reuse healthy caches.
+This automatic preparation does not install the host Pango or Node.js software
+covered in Stage 5.
 
 ```bash
 pdk pdf

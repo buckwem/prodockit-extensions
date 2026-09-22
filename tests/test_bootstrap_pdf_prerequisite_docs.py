@@ -41,6 +41,10 @@ def test_template_site_pdf_install_builds_both_downloads() -> None:
     assert "//// step | Build the source bundle" in installation
     assert "//// step | Build the website for PDF rendering" in installation
     assert "//// step | Build the rendered document PDF" in installation
+    assert "On the first run,\n`pdk pdf` automatically installs" in installation
+    assert "prepares verified project-local Pandoc and font caches" in installation
+    assert "Later runs reuse healthy caches" in installation
+    assert "does not install the host Pango or Node.js" in installation
     assert "Stop and correct any failure before continuing" in installation
     assert "consumes this\ncompleted Zensical build" in installation
     assert "Skip it for website-only work and on Windows ARM64" in installation
