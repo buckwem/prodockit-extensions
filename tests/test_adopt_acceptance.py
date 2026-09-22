@@ -95,7 +95,8 @@ def test_a_wheel_file_or_single_wheel_directory_is_accepted(tmp_path: Path) -> N
     assert adopt_acceptance.resolve_wheel(tmp_path) == wheel.resolve()
 
 
-def test_deliverables_allow_only_expected_optional_warnings(tmp_path, monkeypatch):
+@pytest.mark.parametrize("pdf_duration", ["1.2s", "1m 0s", "2m 17s"])
+def test_deliverables_allow_only_expected_optional_warnings(tmp_path, monkeypatch, pdf_duration):
     calls = []
 
     def run(command, **kwargs):
@@ -112,7 +113,7 @@ def test_deliverables_allow_only_expected_optional_warnings(tmp_path, monkeypatc
         else:
             filename = f"{name}.pdf"
             (tmp_path / filename).write_bytes(b"%PDF-1.7\n")
-            output = f"Wrote {filename}" + (" in 1.2s" if name == "pdf" else "")
+            output = f"Wrote {filename}" + (f" in {pdf_duration}" if name == "pdf" else "")
         return subprocess.CompletedProcess(command, 0, stdout=output)
 
     monkeypatch.setattr(adopt_acceptance, "run", run)
