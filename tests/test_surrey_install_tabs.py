@@ -182,7 +182,7 @@ def test_remotelabs_tabs_and_privilege_badges_are_surrey_specific() -> None:
 
     assert surrey_install.count('=== ":material-linux: Surrey RemoteLabs"') == 5
     assert surrey_adopt.count('=== ":material-linux: Surrey RemoteLabs"') == 3
-    assert surrey_bootstrap.count('=== ":material-linux: Surrey RemoteLabs"') == 1
+    assert surrey_bootstrap.count('=== ":material-linux: Surrey RemoteLabs"') == 4
     for public in (public_install, public_adopt, public_bootstrap):
         assert "Surrey RemoteLabs" not in public
     assert "python -m venv .venv" in surrey_install
@@ -191,6 +191,7 @@ def test_remotelabs_tabs_and_privilege_badges_are_surrey_specific() -> None:
     assert "**Privileged**{: .install-privileged}" in surrey_install
     assert "**Optional**{: .bg-green}" in surrey_install
     assert "cannot be generated\n    there" in surrey_bootstrap
+    assert "These packages go into the active setup `.venv`; no `sudo` is needed" in surrey_bootstrap
 
 
 def test_no_node_pdf_recovery_keeps_host_guidance_scoped() -> None:

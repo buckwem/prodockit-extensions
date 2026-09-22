@@ -84,6 +84,8 @@ Complete section 3.1 in the parent directory that holds your repositories:
 
 Return here with that setup environment active. Bootstrap later creates a
 separate build environment inside the cloned project.
+{% if is_surrey %}On Surrey RemoteLabs, choose the RemoteLabs tabs in section
+3.1; Python is already installed and no privileged setup is needed.{% endif %}
 
 ////
 
@@ -113,6 +115,17 @@ that active environment:
     pip install --upgrade pip
     pip install --upgrade prodockit
     ```
+
+{% if is_surrey %}
+=== ":material-linux: Surrey RemoteLabs"
+
+    ```bash
+    pip install --upgrade pip
+    pip install --upgrade prodockit
+    ```
+
+    These packages go into the active setup `.venv`; no `sudo` is needed.
+{% endif %}
 
 !!! note "If pip or pip3 does not work"
 
@@ -146,6 +159,15 @@ Confirm both the installed version and the command selected by the shell:
     prodockit --version
     command -v prodockit
     ```
+
+{% if is_surrey %}
+=== ":material-linux: Surrey RemoteLabs"
+
+    ```bash
+    prodockit --version
+    command -v prodockit
+    ```
+{% endif %}
 
 The command path must be inside the setup `.venv`. An older Prodockit command
 from another Python can otherwise shadow the package just installed while
@@ -358,6 +380,18 @@ while the prompt already says `(.venv)` does not switch environments.
     cd /path/to/your-project
     source .venv/bin/activate
     ```
+
+{% if is_surrey %}
+=== ":material-linux: Surrey RemoteLabs"
+
+    ```bash
+    deactivate
+    cd /path/to/your-project
+    source .venv/bin/activate
+    ```
+
+    Replace the path with the project directory reported by Bootstrap.
+{% endif %}
 
 ////
 

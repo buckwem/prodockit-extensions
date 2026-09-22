@@ -519,7 +519,7 @@ def test_bootstrap_continues_after_shared_preparation() -> None:
     assert '=== ":fontawesome-brands-windows: Windows"' in install_step
     assert '=== ":material-linux: Linux (Ubuntu)"' in install_step
     assert "pip3 install --upgrade pip\n    pip3 install --upgrade prodockit" in install_step
-    assert install_step.count("pip install --upgrade pip\n    pip install --upgrade prodockit") == 2
+    assert install_step.count("pip install --upgrade pip\n    pip install --upgrade prodockit") == 3
     manual_start = installation.index("//// step | Complete the browser actions")
     manual_end = installation.index("//// step | Confirm every Bootstrap activity")
     manual = installation[manual_start:manual_end]
