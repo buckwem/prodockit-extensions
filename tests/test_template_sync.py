@@ -54,6 +54,7 @@ from prodockit.template_sync import (
     missing_ignores,
     missing_seeds,
     now,
+    partition_ignored_paths,
     pending_writes,
     plan_template_files,
     prodockit_requirement,
@@ -1731,6 +1732,25 @@ def test_only_what_was_written_is_staged() -> None:
     stage_changes(git, ["macros.py", ".python-version"])
 
     assert git.commands[-1] == ["git", "add", "--", "macros.py", ".python-version"]
+
+
+def test_adopt_runtime_assets_are_partitioned_without_hiding_tracked_files(tmp_path) -> None:
+    import subprocess
+
+    subprocess.run(["git", "init", "-q", str(tmp_path)], check=True)
+    (tmp_path / ".gitignore").write_text("/runtime.js\n/tracked.txt\n", encoding="utf-8")
+    (tmp_path / "tracked.txt").write_text("tracked\n", encoding="utf-8")
+    subprocess.run(["git", "-C", str(tmp_path), "add", "-f", "tracked.txt"], check=True)
+    (tmp_path / "runtime.js").write_text("generated\n", encoding="utf-8")
+    (tmp_path / "ordinary.txt").write_text("project\n", encoding="utf-8")
+
+    stageable, ignored = partition_ignored_paths(
+        tmp_path,
+        ["runtime.js", "tracked.txt", "ordinary.txt"],
+    )
+
+    assert stageable == ["tracked.txt", "ordinary.txt"]
+    assert ignored == ["runtime.js"]
 
 
 def test_staging_nothing_runs_no_command() -> None:

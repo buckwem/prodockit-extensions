@@ -1730,6 +1730,49 @@ def stage_changes(run: GitRunner, paths: Sequence[str]) -> bool:
     return run(["git", "add", "--", *paths])
 
 
+def partition_ignored_paths(
+    project_root: pathlib.Path,
+    paths: Sequence[str],
+) -> tuple[list[str], list[str]]:
+    """Split project paths into stageable and intentionally ignored paths.
+
+    Adopt may create project-local runtime assets which belong on disk but are
+    deliberately excluded from Git.  Passing one of those paths explicitly to
+    ``git add`` makes the whole Template Sync staging operation fail.  Ordinary
+    paths, including tracked files which also match a later ignore rule, must
+    remain in the staging set.
+
+    ``git check-ignore`` returns success only for an untracked ignored path.
+    Any other result, including an operational error, leaves the path in the
+    stageable set so the real ``git add`` still reports genuine failures.
+    """
+    if not paths:
+        return [], []
+
+    from prodockit.tools import find
+
+    binary = find("git")
+    stageable: list[str] = []
+    ignored: list[str] = []
+    for path in paths:
+        try:
+            completed = subprocess.run(
+                [binary, "check-ignore", "--quiet", "--", path],
+                cwd=project_root,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                check=False,
+            )
+        except OSError:
+            return list(paths), []
+        if completed.returncode == 0:
+            ignored.append(path)
+        else:
+            stageable.append(path)
+    return stageable, ignored
+
+
 def review_push_command(
     origin: str,
     target: str,
