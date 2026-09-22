@@ -96,7 +96,7 @@ VSCODE_MIN_VERSION = "1.100.0"
 # Runtime versions remain public compatibility metadata for documentation and
 # acceptance fixtures. Bootstrap does not install or inspect these PDF
 # components; pdk pdf and diagnostics own that boundary.
-WEASYPRINT_MIN_VERSION = "69.0"
+WEASYPRINT_MIN_VERSION = "70.0"
 PANDOC_VERSION = "3.10.1"
 PANDOC_MIN_MAJOR = 3
 NODE_MIN_VERSION = "22.12.0"

@@ -38,7 +38,7 @@ from prodockit.weasyprint_probe import (
 )
 
 REQUIREMENTS_NAME = "pdf-requirements.txt"
-WEASYPRINT_REQUIREMENT = 'weasyprint>=69.0; sys_platform != "win32"'
+WEASYPRINT_REQUIREMENT = 'weasyprint>=70.0; sys_platform != "win32"'
 PYMUPDF_REQUIREMENT = "pymupdf>=1.24"
 STANDARD_REQUIREMENTS = (
     "# Python packages used only when pdk pdf renders this project.\n"

@@ -64,7 +64,7 @@ jobs:
       - name: Install candidate without renderer packages
         run: >-
           python -m pip install -e ".[testing]"
-          "zensical==0.0.61" "weasyprint==69.0"
+          "zensical==0.0.63" "weasyprint==70.0"
       - name: Exercise real cold downloads, offline warm reuse and PDF rendering
         run: >-
           python tools/pdf_runtime_g5_acceptance.py
