@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import contextlib
 import os
+import tempfile
 from pathlib import Path
 from typing import Any, Protocol
 
@@ -66,6 +67,10 @@ class MermaidRenderError(RuntimeError):
     """One required Mermaid diagram could not be converted to SVG."""
 
 
+class MermaidOutputError(MermaidRenderError):
+    """The configured Mermaid output path is unsafe to write."""
+
+
 class _StandaloneWorker(Protocol):
     def render_svg(
         self,
@@ -89,6 +94,74 @@ _STANDALONE_RENDER_ERRORS = (
 )
 
 
+def _validate_output_directory(directory: Path) -> None:
+    """Reject an existing symlink or non-directory without creating anything."""
+
+    current = Path(directory.anchor)
+    try:
+        for part in directory.parts[1:]:
+            current /= part
+            if current.is_symlink():
+                raise MermaidOutputError(
+                    "Unsafe Mermaid output directory contains a symbolic link: "
+                    f"{current}. Remove the link and retry."
+                )
+            if current.exists() and not current.is_dir():
+                raise MermaidOutputError(
+                    f"Unsafe Mermaid output directory: {current}. "
+                    "Replace it with a directory and retry."
+                )
+    except OSError as error:
+        raise MermaidOutputError(
+            f"Could not inspect the Mermaid output directory {directory}: {error}"
+        ) from error
+
+
+def _safe_output_directory(directory: Path) -> None:
+    """Create ``directory`` without following a symbolic-link component."""
+
+    current = Path(directory.anchor)
+    try:
+        for part in directory.parts[1:]:
+            current /= part
+            if current.is_symlink():
+                raise MermaidOutputError(
+                    "Unsafe Mermaid output directory contains a symbolic link: "
+                    f"{current}. Remove the link and retry."
+                )
+            try:
+                current.mkdir()
+            except FileExistsError:
+                if current.is_symlink() or not current.is_dir():
+                    raise MermaidOutputError(
+                        f"Unsafe Mermaid output directory: {current}. "
+                        "Replace it with a directory and retry."
+                    ) from None
+    except OSError as error:
+        raise MermaidOutputError(
+            f"Could not prepare the Mermaid output directory {directory}: {error}"
+        ) from error
+
+
+def _safe_svg_path(output_dir: Path, index: int) -> Path:
+    """Return a local SVG destination, rejecting an existing link or non-file."""
+
+    svg_path = output_dir / f"diagram_{index}.svg"
+    if svg_path.parent != output_dir:
+        raise MermaidOutputError(f"Mermaid output path escapes its directory: {svg_path}")
+    if svg_path.is_symlink():
+        raise MermaidOutputError(
+            f"Unsafe Mermaid output is a symbolic link: {svg_path}. "
+            "Remove the link and retry."
+        )
+    if svg_path.exists() and not svg_path.is_file():
+        raise MermaidOutputError(
+            f"Unsafe Mermaid output is not a regular file: {svg_path}. "
+            "Remove it and retry."
+        )
+    return svg_path
+
+
 class StandaloneMermaidRenderer:
     """Writes static SVG returned by the isolated Python-only worker."""
 
@@ -99,7 +172,7 @@ class StandaloneMermaidRenderer:
         worker: _StandaloneWorker | None = None,
         runtime_path: Path | None = None,
     ) -> None:
-        self._output_dir = Path(output_dir)
+        self._output_dir = Path(os.path.abspath(output_dir))
         self._worker = worker or StandaloneMermaidWorker(
             runtime_site_packages=(
                 str(runtime_site_packages(runtime_path)) if runtime_path is not None else None
@@ -112,19 +185,27 @@ class StandaloneMermaidRenderer:
         index = self._next_index
         temporary_path: Path | None = None
         try:
+            _validate_output_directory(self._output_dir)
+            svg_path = _safe_svg_path(self._output_dir, index)
             svg = self._worker.render_svg(source, config=_MERMAID_CONFIG)
-            self._output_dir.mkdir(parents=True, exist_ok=True)
-            svg_path = (self._output_dir / f"diagram_{index}.svg").resolve()
-            temporary_path = svg_path.with_suffix(".svg.tmp")
-            temporary_path.write_text(svg, encoding="utf-8")
+            _safe_output_directory(self._output_dir)
+            svg_path = _safe_svg_path(self._output_dir, index)
+            descriptor, temporary_name = tempfile.mkstemp(
+                dir=self._output_dir,
+                prefix=f".{svg_path.name}.",
+                suffix=".tmp",
+                text=True,
+            )
+            temporary_path = Path(temporary_name)
+            with os.fdopen(descriptor, "w", encoding="utf-8") as temporary_file:
+                temporary_file.write(svg)
+            _safe_output_directory(self._output_dir)
+            _safe_svg_path(self._output_dir, index)
             os.replace(temporary_path, svg_path)
             return str(svg_path)
         except StandaloneRuntimeUnavailableError as error:
             raise MermaidBackendUnavailableError(str(error)) from error
         except _STANDALONE_RENDER_ERRORS as error:
-            if temporary_path is not None:
-                with contextlib.suppress(OSError):
-                    temporary_path.unlink(missing_ok=True)
             if isinstance(error, StandaloneWorkerTimeoutError):
                 detail = "the isolated worker exceeded its time limit"
             elif isinstance(error, StandaloneWorkerCrashError):
@@ -140,6 +221,10 @@ class StandaloneMermaidRenderer:
             raise MermaidRenderError(
                 f"Mermaid diagram {index} could not be rendered: {detail}"
             ) from error
+        finally:
+            if temporary_path is not None:
+                with contextlib.suppress(OSError):
+                    temporary_path.unlink(missing_ok=True)
 
     def close(self) -> None:
         self._worker.close()
