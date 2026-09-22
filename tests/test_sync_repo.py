@@ -753,6 +753,47 @@ def test_detect_remote_default_branch_reuses_a_matching_local_origin(monkeypatch
     assert not any(command[0] == "ls-remote" for command in commands)
 
 
+def test_detect_remote_default_branch_uses_matching_ssh_origin_without_prompts(
+    monkeypatch,
+) -> None:
+    observed = {}
+
+    def run(command, **kwargs):
+        if command[1:3] == ["remote", "get-url"]:
+            return subprocess.CompletedProcess(
+                command, 0, "git@gitlab.example:group/repo.git\n", ""
+            )
+        if command[1] == "symbolic-ref":
+            raise subprocess.CalledProcessError(1, command)
+        assert command[1:] == [
+            "ls-remote",
+            "--symref",
+            "git@gitlab.example:group/repo.git",
+            "HEAD",
+        ]
+        observed.update(kwargs)
+        return subprocess.CompletedProcess(
+            command,
+            0,
+            "ref: refs/heads/develop\tHEAD\nabc123\tHEAD\n",
+            "",
+        )
+
+    monkeypatch.setenv("GCM_INTERACTIVE", "Auto")
+    monkeypatch.setattr("prodockit.sync_repo.subprocess.run", run)
+
+    assert (
+        detect_remote_default_branch(
+            "https://gitlab.example/group/repo", cwd="C:/work/repo", timeout=7
+        )
+        == "develop"
+    )
+    assert observed["cwd"] == "C:/work/repo"
+    assert observed["timeout"] == 7
+    assert observed["env"]["GIT_TERMINAL_PROMPT"] == "0"
+    assert observed["env"]["GCM_INTERACTIVE"] == "Never"
+
+
 def test_a_documentation_badge_links_to_the_published_site() -> None:
     """`sync-repo` kept `site_url` correct in the config while the README
     - the page a human actually lands on - had no way through to the site

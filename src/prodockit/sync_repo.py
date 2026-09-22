@@ -143,18 +143,22 @@ def detect_remote_default_branch(
         origin_url = get_remote_url(cwd=cwd)
     except SyncRepoError:
         origin_url = ""
-    if (
-        origin_url
-        and _same_repository(remote, origin_url)
-        and (local_branch := _local_default_branch(cwd=cwd))
-    ):
+    matching_origin = bool(origin_url and _same_repository(remote, origin_url))
+    if matching_origin and (local_branch := _local_default_branch(cwd=cwd)):
         return local_branch
+
+    # ``remote`` is commonly the public HTTPS URL used in generated links,
+    # while the checkout itself uses SSH. Preserve that authenticated transport
+    # for the bounded fallback probe instead of making Git Credential Manager
+    # ask for HTTPS credentials merely to discover a branch name.
+    query_remote = origin_url if matching_origin else remote
 
     env = os.environ.copy()
     env["GIT_TERMINAL_PROMPT"] = "0"
+    env["GCM_INTERACTIVE"] = "Never"
     try:
         result = subprocess.run(
-            [find("git"), "ls-remote", "--symref", remote, "HEAD"],
+            [find("git"), "ls-remote", "--symref", query_remote, "HEAD"],
             capture_output=True,
             text=True,
             encoding="utf-8",
