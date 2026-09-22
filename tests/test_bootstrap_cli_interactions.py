@@ -501,6 +501,14 @@ def test_apply_announcement_summarises_kinds_of_work(tmp_path: Path) -> None:
     )
 
     assert "Work:     1 install · 1 configure · 1 manual" in output
+    project_environment_activity = next(
+        position
+        for position, stage in enumerate(STAGES, start=1)
+        if stage.id == "project-env"
+    )
+    assert (
+        f"activity {project_environment_activity} builds the project's own" in output
+    )
 
 
 def test_bootstrap_captures_routine_output_but_retains_failure_details(tmp_path: Path) -> None:
