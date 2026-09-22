@@ -21,6 +21,7 @@ requests rather than here.
 
 ## Unreleased
 
+- Prevented Template Sync from staging Git-ignored local assets created by Adopt.
 - Aligned Bootstrap's guide and Apply introduction with the current activity inventory.
 - Prevented Mermaid PDF rendering from following output symlinks or writing through a symlinked output directory.
 - Prevented branch detection from opening Git Credential Manager prompts and preserved a matching checkout's SSH origin for non-interactive probes.

@@ -4241,6 +4241,7 @@ def _run_template_sync(
         missing_ignores,
         missing_seeds,
         now,
+        partition_ignored_paths,
         pending_writes,
         plan_template_files,
         prodockit_requirement,
@@ -5018,11 +5019,17 @@ def _run_template_sync(
         # Everything else a run writes: the shared files it merges, and the
         # stamp. Staged alongside, or a reader is handed a half-staged change
         # and has to work out for themselves which parts belong to it.
-        also_written: list[str] = [
+        adopt_paths = [
             path.relative_to(project).as_posix()
             for path in adopt_written
             if path.is_relative_to(project)
         ]
+        also_written, ignored_adopt_paths = partition_ignored_paths(project, adopt_paths)
+        if ignored_adopt_paths:
+            say_detail(
+                "Adopt local assets: kept "
+                f"{len(ignored_adopt_paths)} Git-ignored file(s) outside review staging"
+            )
 
         if config_path.exists() and (added or updated):
             from prodockit.config_integrity import before_write

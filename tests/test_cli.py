@@ -767,7 +767,9 @@ paths = []
         "outdated\n", encoding="utf-8"
     )
     (project / ".prodockit-template").write_text(f"{old}\n", encoding="utf-8")
-    (project / ".gitignore").write_text(".prodockit-template.log\n", encoding="utf-8")
+    (project / ".gitignore").write_text(
+        ".prodockit-template.log\n/adopt-runtime.js\n", encoding="utf-8"
+    )
     subprocess.run(["git", "-C", str(project), "add", "."], check=True)
     subprocess.run(["git", "-C", str(project), "commit", "-qm", "project"], check=True)
     subprocess.run(
@@ -808,13 +810,15 @@ paths = []
     def fake_adopt(root, *args, **kwargs):
         path = root / "adopted.txt"
         path.write_text("adopted\n", encoding="utf-8")
+        runtime = root / "adopt-runtime.js"
+        runtime.write_text("generated and intentionally ignored\n", encoding="utf-8")
         config = root / "zensical.toml"
         config.write_text(
             '[project]\nsite_name = "Report"\n'
             'extra_css = ["stylesheets/pdk.css"]\n',
             encoding="utf-8",
         )
-        return [path, config]
+        return [path, runtime, config]
 
     monkeypatch.setattr(cli, "apply_adoption", fake_adopt)
     monkeypatch.setattr(
@@ -853,6 +857,14 @@ paths = []
         (["project.extra_javascript"], []),
     ]
     assert (project / "adopted.txt").read_text(encoding="utf-8") == "adopted\n"
+    assert (project / "adopt-runtime.js").read_text(encoding="utf-8") == (
+        "generated and intentionally ignored\n"
+    )
+    assert subprocess.run(
+        ["git", "-C", str(project), "ls-files", "--error-unmatch", "adopt-runtime.js"],
+        check=False,
+        capture_output=True,
+    ).returncode != 0
     config = read_config((project / "zensical.toml").read_text(encoding="utf-8"))["project"]
     assert config["extra_css"] == ["stylesheets/pdk.css"]
     assert config["extra_javascript"] == ["javascripts/pdk.js"]
