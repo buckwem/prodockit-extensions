@@ -1190,7 +1190,18 @@ def set_config_value(text: str, dotted: str, rendered: str) -> str:
             break  # the next table began; the key is absent
         name = stripped.split("=", 1)[0].strip() if "=" in stripped else ""
         if name == key:
-            lines[index] = f"{key} = {rendered}\n"
+            end = index + 1
+            while end <= len(lines):
+                fragment = f"[{table}]\n" + "".join(lines[index:end])
+                try:
+                    tomllib.loads(fragment)
+                except tomllib.TOMLDecodeError:
+                    end += 1
+                    continue
+                break
+            else:
+                raise TemplateSyncError(f"cannot find the end of {dotted} in this file")
+            lines[index:end] = [f"{key} = {rendered}\n"]
             return "".join(lines)
 
     # Absent: insert directly under the header, before the table's own

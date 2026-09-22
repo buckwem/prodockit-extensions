@@ -1363,6 +1363,47 @@ def test_a_changed_value_leaves_every_other_line_byte_identical() -> None:
     assert "# Margins are in the PDF's own units" in after
 
 
+def test_a_multiline_array_is_replaced_as_one_complete_value() -> None:
+    source = """[project]
+extra_javascript = [
+  "javascripts/pdk.js",
+  "javascripts/mathjax.js?v=config-2",
+  "javascripts/extra.js",
+]
+# This project-owned setting and its comment must survive the update.
+site_dir = "public"
+"""
+    template = {
+        "project": {
+            "extra_javascript": [
+                "javascripts/pdk.js",
+                "javascripts/mathjax.js?v=config-3",
+                "javascripts/extra.js",
+            ]
+        }
+    }
+
+    after = apply_config_changes(
+        source,
+        template,
+        [],
+        ["project.extra_javascript"],
+    )
+
+    assert read_config(after)["project"] == {
+        "extra_javascript": [
+            "javascripts/pdk.js",
+            "javascripts/mathjax.js?v=config-3",
+            "javascripts/extra.js",
+        ],
+        "site_dir": "public",
+    }
+    assert "config-2" not in after
+    assert (
+        "# This project-owned setting and its comment must survive the update." in after
+    )
+
+
 def test_a_missing_key_is_inserted_into_its_own_table() -> None:
     after = set_config_value(CONFIG, "project.extra.pdf_double_sided", "true")
 
