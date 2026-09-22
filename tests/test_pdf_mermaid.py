@@ -20,6 +20,7 @@ from prodockit.pdf._standalone_worker import (
 )
 from prodockit.pdf.mermaid import (
     MermaidBackendUnavailableError,
+    MermaidOutputError,
     MermaidRenderError,
     StandaloneMermaidRenderer,
     create_mermaid_renderer,
@@ -68,6 +69,48 @@ def test_standalone_renderer_writes_monotonic_svg_files(tmp_path: Path) -> None:
         ("two", mermaid_module._MERMAID_CONFIG),
     ]
     assert worker.closed is True
+
+
+def test_standalone_renderer_rejects_symlink_output_without_changing_target(
+    tmp_path: Path,
+) -> None:
+    worker = _FakeStandaloneWorker()
+    output_dir = tmp_path / "project" / "docs" / ".prodockit-pdf-mermaid"
+    output_dir.mkdir(parents=True)
+    external = tmp_path / "external-canary"
+    external.write_text("TRULY_OUTSIDE_PROJECT_CANARY\n", encoding="utf-8")
+    output = output_dir / "diagram_1.svg"
+    try:
+        output.symlink_to(external)
+    except OSError:
+        pytest.skip("creating symlinks is not permitted on this platform")
+    renderer = StandaloneMermaidRenderer(str(output_dir), worker=worker)
+
+    with pytest.raises(MermaidOutputError, match="output is a symbolic link"):
+        renderer.render_source("one")
+
+    assert output.is_symlink()
+    assert external.read_text(encoding="utf-8") == "TRULY_OUTSIDE_PROJECT_CANARY\n"
+    assert worker.calls == []
+
+
+def test_standalone_renderer_rejects_symlinked_output_directory(tmp_path: Path) -> None:
+    worker = _FakeStandaloneWorker()
+    external = tmp_path / "external"
+    external.mkdir()
+    output_dir = tmp_path / "project" / "docs" / ".prodockit-pdf-mermaid"
+    output_dir.parent.mkdir(parents=True)
+    try:
+        output_dir.symlink_to(external, target_is_directory=True)
+    except OSError:
+        pytest.skip("creating symlinks is not permitted on this platform")
+    renderer = StandaloneMermaidRenderer(str(output_dir), worker=worker)
+
+    with pytest.raises(MermaidOutputError, match="directory contains a symbolic link"):
+        renderer.render_source("one")
+
+    assert list(external.iterdir()) == []
+    assert worker.calls == []
 
 
 @pytest.mark.parametrize(
