@@ -19,6 +19,10 @@ only when it adds or changes behaviour that matters to a user, or requires an
 upgrade action. Defect-by-defect history belongs in GitHub issues and pull
 requests rather than here.
 
+## Unreleased
+
+- Prevented branch detection from opening Git Credential Manager prompts and preserved a matching checkout's SSH origin for non-interactive probes.
+
 ## 0.70.1 (2026-09-21)
 
 - Aligned manual installation with the optional project-local PDF workflow and supported platform boundaries.
