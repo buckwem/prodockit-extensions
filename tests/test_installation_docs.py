@@ -543,7 +543,7 @@ def test_bootstrap_continues_after_shared_preparation() -> None:
     assert verification.count("pdk diag") == 1
     assert verification.count("pdk template-sync") == 1
     assert "pdk pdf" not in pdf_installation
-    assert pdf_build.count("zensical build --clean --strict") == 2
+    assert pdf_build.count("zensical build --clean --strict") == 1
     assert pdf_build.count("\npdk pdf\n") == 1
     assert pdf_build.count("pdk source-bundle") == 1
     assert "//// step | Build the source bundle" in pdf_build

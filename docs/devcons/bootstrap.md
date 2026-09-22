@@ -480,8 +480,8 @@ command and verification. No npm packages, browser or MSYS2 are required.
 Complete this stage only when you need local PDF output and have any required
 host software. Skip it for website-only work and on Windows ARM64{% if is_surrey %},
 or on Surrey RemoteLabs without privileged access{% endif %}; the GitLab build
-generates both downloads. Build the source bundle last, then refresh the site so both
-downloads are included in its served output.
+generates both downloads. Build the source bundle last; Stage 7's
+`zensical serve` refreshes the site with both downloads.
 
 !!! important "Install Pandoc through Prodockit"
 
@@ -520,15 +520,14 @@ The rendered PDF is written to `docs/site_documentation.pdf`.
 
 //// step | Build the source bundle
 
-Generate the separate PDF containing the project's source files, then rebuild
-the website so it copies both new PDFs into its served output:
+Generate the separate PDF containing the project's source files:
 
 ```bash
 pdk source-bundle
-zensical build --clean --strict
 ```
 
-Check `docs/source_bundle.pdf` and both download buttons in Stage 7.
+Check `docs/source_bundle.pdf`. When Stage 7 starts `zensical serve`, it builds
+the current site and makes both PDF download buttons available for review.
 
 ////
 
