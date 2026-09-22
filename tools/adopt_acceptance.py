@@ -388,8 +388,9 @@ def verify_deliverables(python: Path, project: Path, config: Path) -> None:
         outputs = re.findall(r"(?m)^Wrote (.+)$", completed.stdout)
         if len(outputs) != 1:
             raise AcceptanceError(f"{command} did not report its output:\n{completed.stdout}")
-        # PDF prints timing after its path; source-bundle prints only the path.
-        filename = re.sub(r" in [0-9.]+s$", "", outputs[0])
+        # PDF prints seconds below a minute, then minutes and seconds.
+        # Source-bundle prints only the path.
+        filename = re.sub(r" in (?:[0-9]+m [0-9]+s|[0-9]+(?:\.[0-9]+)?s)$", "", outputs[0])
         path = project / filename
         if not path.is_file() or not path.read_bytes().startswith(b"%PDF"):
             raise AcceptanceError(f"{command} did not produce a PDF: {path}")
