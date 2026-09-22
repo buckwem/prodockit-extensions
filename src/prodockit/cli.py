@@ -124,6 +124,7 @@ from prodockit.pdf.source_bundle import SourceBundleError
 from prodockit.project_config import ProjectConfigError, load_project_config
 from prodockit.renderer_resilience import RetryNotice
 from prodockit.revision_dates import RevisionDateError, update_built_site_revision_dates
+from prodockit.settings import SettingError, resolve_index_settings
 from prodockit.sync_repo import SyncRepoError, sync_repo_metadata
 
 _P = ParamSpec("_P")
@@ -2837,8 +2838,18 @@ def pdf(
             if unsupported and not requested.issubset({"pandoc"}):
                 raise click.ClickException(unsupported)
             python_prepared = None
-            if sys.platform != "win32" and requested.intersection({"weasyprint", "all"}):
-                python_prepared = prepare_pdf_python_requirements(config_file)
+            include_index = False
+            if "all" in requested:
+                project_config = load_project_config(config_file)
+                include_index = resolve_index_settings(
+                    project_config.markdown_extensions.get("prodockit.index")
+                ).include
+            if requested.intersection({"weasyprint", "all"}) and (
+                sys.platform != "win32" or include_index
+            ):
+                python_prepared = prepare_pdf_python_requirements(
+                    config_file, include_index=include_index
+                )
             runtime_request = tuple(
                 component
                 for component in prepare_components
@@ -2848,8 +2859,10 @@ def pdf(
         except (
             PdfRuntimeConfigError,
             PdfPythonRequirementsError,
+            ProjectConfigError,
             RuntimeProviderUnavailableError,
             RuntimeStoreError,
+            SettingError,
             OSError,
         ) as error:
             raise click.ClickException(str(error)) from error

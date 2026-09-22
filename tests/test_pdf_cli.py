@@ -175,13 +175,19 @@ def test_pdf_prepare_all_is_accepted_by_the_public_interface(monkeypatch, tmp_pa
     import prodockit.cli as cli_module
     from prodockit.pdf.python_requirements import PdfPythonPreparation
 
+    _write_project(tmp_path)
+    monkeypatch.chdir(tmp_path)
     calls = []
     python_calls = []
+
+    def prepare_python(config, *, include_index=False):
+        python_calls.append((config, include_index))
+        return PdfPythonPreparation(tmp_path, False, {"weasyprint": "69.0"})
+
     monkeypatch.setattr(
         cli_module,
         "prepare_pdf_python_requirements",
-        lambda config: python_calls.append(config)
-        or PdfPythonPreparation(tmp_path, False, {"weasyprint": "69.0"}),
+        prepare_python,
     )
     monkeypatch.setattr(
         cli_module,
@@ -193,8 +199,79 @@ def test_pdf_prepare_all_is_accepted_by_the_public_interface(monkeypatch, tmp_pa
 
     assert result.exit_code == 0, result.output
     assert calls == [("zensical.toml", ("all",))]
-    assert python_calls == ["zensical.toml"]
+    assert python_calls == [("zensical.toml", False)]
     assert "Prepared PDF Python requirements (weasyprint 69.0)" in result.output
+    assert "pymupdf" not in result.output
+
+
+@pytest.mark.parametrize("selected_platform", ["linux", "win32"])
+def test_pdf_prepare_all_includes_index_python_requirement_when_enabled(
+    selected_platform: str,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    import prodockit.cli as cli_module
+    from prodockit.pdf.python_requirements import PdfPythonPreparation
+
+    _write_project(tmp_path)
+    with (tmp_path / "zensical.toml").open("a", encoding="utf-8") as config:
+        config.write(
+            '\n[project.markdown_extensions."prodockit.index"]\ninclude = true\n'
+        )
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(cli_module.sys, "platform", selected_platform)
+    python_calls = []
+
+    def prepare_python(config, *, include_index=False):
+        python_calls.append((config, include_index))
+        versions = {"weasyprint": "70.0"}
+        if include_index:
+            versions["pymupdf"] = "1.28.2"
+        return PdfPythonPreparation(tmp_path, False, versions)
+
+    monkeypatch.setattr(
+        cli_module,
+        "prepare_pdf_python_requirements",
+        prepare_python,
+    )
+    monkeypatch.setattr(
+        cli_module,
+        "prepare_runtime_components",
+        lambda _config, _components: (),
+    )
+
+    result = CliRunner().invoke(main, ["pdf", "--prepare", "all"])
+
+    assert result.exit_code == 0, result.output
+    assert python_calls == [("zensical.toml", True)]
+    assert "pymupdf 1.28.2" in result.output
+
+
+def test_pdf_prepare_all_skips_python_requirements_on_windows_without_index(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    import prodockit.cli as cli_module
+
+    _write_project(tmp_path)
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(cli_module.sys, "platform", "win32")
+    monkeypatch.setattr(
+        cli_module,
+        "prepare_pdf_python_requirements",
+        lambda *_args, **_kwargs: pytest.fail(
+            "Windows without an index must not prepare Python PDF requirements"
+        ),
+    )
+    monkeypatch.setattr(
+        cli_module,
+        "prepare_runtime_components",
+        lambda _config, _components: (),
+    )
+
+    result = CliRunner().invoke(main, ["pdf", "--prepare", "all"])
+
+    assert result.exit_code == 0, result.output
 
 
 def test_pdf_prepare_weasyprint_uses_python_requirements_outside_windows(
@@ -208,7 +285,7 @@ def test_pdf_prepare_weasyprint_uses_python_requirements_outside_windows(
     monkeypatch.setattr(
         cli_module,
         "prepare_pdf_python_requirements",
-        lambda config: calls.append(config)
+        lambda config, **_kwargs: calls.append(config)
         or PdfPythonPreparation(tmp_path, True, {"weasyprint": "70.0"}),
     )
     monkeypatch.setattr(
@@ -267,12 +344,14 @@ def test_pdf_prepare_explains_missing_node_for_direct_and_all_requests(
     (tmp_path / mathjax_runtime.MATHJAX_LICENCE).write_text(
         "Apache-2.0\n", encoding="utf-8"
     )
+    _write_project(tmp_path)
+    monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(mathjax_runtime.shutil, "which", lambda _name: None)
     monkeypatch.setattr(mathjax_runtime.sys, "platform", selected_platform)
     monkeypatch.setattr(
         cli_module,
         "prepare_pdf_python_requirements",
-        lambda _config: PdfPythonPreparation(
+        lambda _config, **_kwargs: PdfPythonPreparation(
             tmp_path, True, {"weasyprint": "69.0"}
         ),
     )

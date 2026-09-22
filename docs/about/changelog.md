@@ -22,6 +22,7 @@ requests rather than here.
 ## Unreleased
 
 - Validated and adopted Zensical 0.0.63, WeasyPrint 70.0, and PyMdown Extensions 12.0.1 without website or PDF regressions.
+- Made `pdk pdf --prepare all` include PyMuPDF when the configured back-of-book index is enabled.
 - Prevented Template Sync from staging Git-ignored local assets created by Adopt.
 - Aligned Bootstrap's guide and Apply introduction with the current activity inventory.
 - Prevented Mermaid PDF rendering from following output symlinks or writing through a symlinked output directory.
