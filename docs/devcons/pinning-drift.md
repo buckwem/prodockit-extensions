@@ -697,11 +697,11 @@ Run the same gate locally from a checkout with the normal PDF prerequisites:
 
 ```bash
 python tools/zensical_compatibility.py pair \
-  --baseline 0.0.59 --candidate 0.0.61 \
+  --baseline 0.0.61 --candidate 0.0.63 \
   --output /tmp/zensical-config-review
 
 python tools/zensical_compatibility.py pair \
-  --baseline 0.0.59 --candidate 0.0.61 --full \
+  --baseline 0.0.61 --candidate 0.0.63 --full \
   --template ../prodockit-template \
   --browser-script tools/compatibility/redirect_browser.cjs \
   --output /tmp/zensical-full-review

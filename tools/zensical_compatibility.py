@@ -389,9 +389,9 @@ def pair(args: argparse.Namespace) -> int:
         requirements = [
             str(ROOT) + "[testing]",
             "zensical==" + args.candidate,
-            "weasyprint==69.0",
+            "weasyprint==70.0",
             "Markdown==3.10.3",
-            "pymdown-extensions==11.0.2",
+            "pymdown-extensions==12.0.1",
             "mkdocs-table-reader-plugin",
         ]
         if args.template:

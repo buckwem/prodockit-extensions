@@ -27,7 +27,7 @@ dependencies = [
   # propagate to every consumer and hard-conflict with any project needing a
   # different Zensical.
   #
-  # 0.0.61 is the version this is developed and built against, not a minimum
+  # 0.0.63 is the version this is developed and built against, not a minimum
   # below which anything breaks - earlier releases may still work. It is recorded
   # because Zensical is pre-1.0 and prodockit reaches well past its public
   # surface (the config loader, the per-page render context prodockit.
@@ -39,7 +39,7 @@ dependencies = [
   # committed. 0.0.52 silently redrew the GitHub brand icon (Font Awesome
   # 7.2.0 -> 7.3.1) on every page. Reproducibility needs a pin on the
   # *build* side - a constraint in docs.yml - not in library metadata.
-  "zensical>=0.0.61",
+  "zensical>=0.0.63",
   # Declared since 0.34.0, and it was deliberately absent before that.
   # The old reasoning was that prodockit never imported it - it only
   # matched the class shapes pymdownx emits, from a stylesheet and a Lua
@@ -56,7 +56,7 @@ dependencies = [
   # and weasyprint above: `prodockit pins --check` reads a floor behind
   # the exact pin as drift rather than a wider allowance, and it is right
   # to - the two are one decision written twice.
-  "pymdown-extensions>=11.0.2",
+  "pymdown-extensions>=12.0.1",
   #
   # Markdown itself is declared at the top of this list, and is a direct
   # import rather than a transitive convenience.
