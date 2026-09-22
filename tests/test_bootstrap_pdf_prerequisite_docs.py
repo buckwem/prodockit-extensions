@@ -44,7 +44,8 @@ def test_template_site_pdf_install_builds_both_downloads() -> None:
     assert "Stop and correct any failure before continuing" in installation
     assert "consumes this\ncompleted Zensical build" in installation
     assert "Skip it for website-only work and on Windows ARM64" in installation
-    assert "the GitLab build\ngenerates both downloads" in installation
+    assert '!!! note "Surrey RemoteLabs: use GitLab for PDFs"' in installation
+    assert "The Surrey GitLab CI workflow generates both PDF downloads" in installation
     assert installation.count("zensical build --clean --strict") == 1
     assert "`zensical serve` refreshes the site with both downloads" in installation
 

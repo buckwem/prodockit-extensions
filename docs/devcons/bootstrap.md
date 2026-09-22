@@ -478,10 +478,18 @@ command and verification. No npm packages, browser or MSYS2 are required.
 ### Stage 6 — Build the PDF downloads **Optional**{: .bg-green}
 
 Complete this stage only when you need local PDF output and have any required
-host software. Skip it for website-only work and on Windows ARM64{% if is_surrey %},
-or on Surrey RemoteLabs without privileged access{% endif %}; the GitLab build
-generates both downloads. Build the source bundle last; Stage 7's
-`zensical serve` refreshes the site with both downloads.
+host software. Skip it for website-only work and on Windows ARM64; use a
+supported CI runner for PDF generation instead. Build the source bundle last;
+Stage 7's `zensical serve` refreshes the site with both downloads.
+
+{% if is_surrey %}
+!!! note "Surrey RemoteLabs: use GitLab for PDFs"
+
+    RemoteLabs does not provide Pango or Node.js, and student accounts cannot
+    install them. Build and preview the website locally, but skip these local
+    PDF steps. The Surrey GitLab CI workflow generates both PDF downloads on
+    its supported runner; check them on the published site.
+{% endif %}
 
 /// steps
 

@@ -192,6 +192,8 @@ def test_remotelabs_tabs_and_privilege_badges_are_surrey_specific() -> None:
     assert "**Optional**{: .bg-green}" in surrey_install
     assert "cannot be generated\n    there" in surrey_bootstrap
     assert "These packages go into the active setup `.venv`; no `sudo` is needed" in surrey_bootstrap
+    assert '!!! note "Surrey RemoteLabs: use GitLab for PDFs"' in surrey_bootstrap
+    assert '!!! note "Surrey RemoteLabs: use GitLab for PDFs"' not in public_bootstrap
 
 
 def test_no_node_pdf_recovery_keeps_host_guidance_scoped() -> None:
