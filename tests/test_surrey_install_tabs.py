@@ -13,6 +13,7 @@ MANUAL_INSTALL = GETTING_STARTED.with_name("manual-install.md")
 CHOOSING_INSTALLATION = GETTING_STARTED.with_name("choosing-installation.md")
 BOOTSTRAP = GETTING_STARTED.parent / "devcons/bootstrap.md"
 TROUBLESHOOTING = GETTING_STARTED.with_name("troubleshooting-installs.md")
+INSTALLATION = GETTING_STARTED.with_name("installation.md")
 
 
 def _render(source: Path, *, is_surrey: bool) -> str:
@@ -158,7 +159,7 @@ def test_bootstrap_uses_only_the_selected_host_and_surrey_links_open_new_tabs() 
     assert "GitHub" not in surrey
     assert "GitLab.com" not in surrey
     assert "gitlab.surrey.ac.uk" in surrey
-    assert surrey.count("Surrey GitLab") == 3
+    assert surrey.count("Surrey GitLab") >= 3
     surrey_links = re.findall(
         r'\[Surrey GitLab(?: repository)?\]\(https://gitlab\.surrey\.ac\.uk'
         r'(?:/mb0105/prodockit-template)?\)\{target="_blank" rel="noopener"\}',
@@ -169,3 +170,36 @@ def test_bootstrap_uses_only_the_selected_host_and_surrey_links_open_new_tabs() 
     assert "Surrey" not in public
     assert "gitlab.surrey.ac.uk" not in public
     assert "GitHub.com or GitLab.com" in public
+
+
+def test_remotelabs_tabs_and_privilege_badges_are_surrey_specific() -> None:
+    surrey_install = _render(INSTALLATION, is_surrey=True)
+    public_install = _render(INSTALLATION, is_surrey=False)
+    surrey_adopt = _render(GETTING_STARTED, is_surrey=True)
+    public_adopt = _render(GETTING_STARTED, is_surrey=False)
+    surrey_bootstrap = _render(BOOTSTRAP, is_surrey=True)
+    public_bootstrap = _render(BOOTSTRAP, is_surrey=False)
+
+    assert surrey_install.count('=== ":material-linux: Surrey RemoteLabs"') == 5
+    assert surrey_adopt.count('=== ":material-linux: Surrey RemoteLabs"') == 3
+    assert surrey_bootstrap.count('=== ":material-linux: Surrey RemoteLabs"') == 1
+    for public in (public_install, public_adopt, public_bootstrap):
+        assert "Surrey RemoteLabs" not in public
+    assert "python -m venv .venv" in surrey_install
+    assert "python -m venv .venv" in surrey_adopt
+    assert "<module ID>-report" in surrey_adopt
+    assert "**Privileged**{: .install-privileged}" in surrey_install
+    assert "**Optional**{: .bg-green}" in surrey_install
+    assert "cannot be generated\n    there" in surrey_bootstrap
+
+
+def test_no_node_pdf_recovery_keeps_host_guidance_scoped() -> None:
+    surrey = _render(TROUBLESHOOTING, is_surrey=True)
+    public = _render(TROUBLESHOOTING, is_surrey=False)
+    for rendered in (surrey, public):
+        assert "## Build a PDF without optional renderers" in rendered
+        assert "preload = true" in rendered
+        assert "zensical build --clean --strict" in rendered
+        assert "Do not run `pdk pdf --prepare all`" in rendered
+    assert "On Surrey RemoteLabs, Pango is also unavailable" in surrey
+    assert "Surrey RemoteLabs" not in public

@@ -450,7 +450,7 @@ def test_first_site_proves_zensical_before_adopting_prodockit() -> None:
     assert "pdk pdf" in page[pdf:source]
     assert "pdk source-bundle" in page[source:downloads]
     handoff = page[prepare_directory:install_zensical]
-    assert handoff.count("    cd ~/repos\n") == 3
+    assert handoff.count("    cd ~/repos\n") == 4
     assert "mkdir prodockit-project" in handoff
     assert "cd prodockit-project" in handoff
     assert "Set-Location" not in handoff
@@ -492,8 +492,8 @@ def test_bootstrap_continues_after_shared_preparation() -> None:
 
     assert ".prodockit-components.toml" in page
     assert "/// tree" not in page
-    assert "records Mermaid and maths as selected" in page
-    assert "neither Bootstrap nor a later" in page
+    assert "Mermaid and maths are optional components" in page
+    assert "not selected by default in the template's" in page
 
     installation = page[
         page.index("## Install with bootstrap") : page.index("## Understand the completed project")
@@ -504,8 +504,8 @@ def test_bootstrap_continues_after_shared_preparation() -> None:
     assert "### Stage 2 — Assess and preview" in installation
     assert "### Stage 3 — Apply and confirm" in installation
     assert "### Stage 4 — Enter the project" in installation
-    assert "### Stage 5 — Install PDF support (optional)" in installation
-    assert "### Stage 6 — Build the PDF downloads (optional)" in installation
+    assert "### Stage 5 — Install PDF host software **Privileged**" in installation
+    assert "### Stage 6 — Build the PDF downloads **Optional**" in installation
     assert "### Stage 7 — Verify the project" in installation
     assert "//// step | Prepare Python and the setup environment" in installation
     assert "//// step | Restart the terminal on Windows if instructed" in installation
@@ -528,12 +528,12 @@ def test_bootstrap_continues_after_shared_preparation() -> None:
     assert "Do not run the complete `pdk diag` here" in installation
     post_installation = installation[installation.index("### Stage 4 — Enter the project") :]
     pdf_installation = installation[
-        installation.index("### Stage 5 — Install PDF support (optional)") : installation.index(
-            "### Stage 6 — Build the PDF downloads (optional)"
+        installation.index("### Stage 5 — Install PDF host software **Privileged**") : installation.index(
+            "### Stage 6 — Build the PDF downloads **Optional**"
         )
     ]
     pdf_build = installation[
-        installation.index("### Stage 6 — Build the PDF downloads (optional)") : installation.index(
+        installation.index("### Stage 6 — Build the PDF downloads **Optional**") : installation.index(
             "### Stage 7 — Verify the project"
         )
     ]
@@ -542,16 +542,16 @@ def test_bootstrap_continues_after_shared_preparation() -> None:
     assert post_installation.count("pdk diag") == 2
     assert verification.count("pdk diag") == 1
     assert verification.count("pdk template-sync") == 1
-    assert "pdk pdf --prepare all" in pdf_installation
-    assert pdf_build.count("zensical build --clean --strict") == 1
+    assert "pdk pdf" not in pdf_installation
+    assert pdf_build.count("zensical build --clean --strict") == 2
     assert pdf_build.count("\npdk pdf\n") == 1
     assert pdf_build.count("pdk source-bundle") == 1
     assert "//// step | Build the source bundle" in pdf_build
     assert "//// step | Build the website for PDF rendering" in pdf_build
     assert "//// step | Build the rendered document PDF" in pdf_build
-    assert pdf_build.index("pdk source-bundle") < pdf_build.index(
-        "zensical build --clean --strict"
-    ) < pdf_build.index("\npdk pdf\n")
+    assert pdf_build.index("zensical build --clean --strict") < pdf_build.index(
+        "\npdk pdf\n"
+    ) < pdf_build.index("pdk source-bundle")
     assert verification.count("zensical serve") == 1
     assert "Open the address printed by Zensical in a browser" in verification
     assert "rendered document PDF and source-bundle PDF" in verification

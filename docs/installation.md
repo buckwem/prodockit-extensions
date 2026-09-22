@@ -34,11 +34,20 @@ enter their project directory and create or replace that project's own
 `.venv`; those important transitions are shown in their own steps rather than
 hidden here.
 
+Use the badges in this section as a key: **Privileged**{: .install-privileged}
+means installing system software needs administrator or `sudo` access;
+**Optional**{: .bg-green} means skip a step when its software is already
+available or the feature is not needed. Neither badge applies to commands
+run inside your own virtual environment.
+
 /// steps
 
-//// step | Install Python 3.14
+//// step | Install Python 3.14 **Privileged**{: .install-privileged} **Optional**{: .bg-green}
 
-Install and verify the supported interpreter before creating an environment.
+Python 3.14 must be available before creating an environment. Installing it is
+optional if it is already present, but a new system installation requires the
+necessary administrator privileges. Verify the installed version even when
+you skip installation.
 
 === ":material-apple: macOS"
 
@@ -87,6 +96,17 @@ Install and verify the supported interpreter before creating an environment.
     python3.14 --version
     ```
 
+{% if is_surrey %}
+=== ":material-linux: Surrey RemoteLabs"
+
+    Python is already installed on Surrey RemoteLabs. Do not run `sudo apt`
+    or try to replace the managed interpreter; verify it instead:
+
+    ```bash
+    python --version
+    ```
+{% endif %}
+
 Every check must report Python 3.14 before you continue.
 
 ////
@@ -131,6 +151,15 @@ Create or enter the repositories directory:
     cd ~/repos
     ```
 
+{% if is_surrey %}
+=== ":material-linux: Surrey RemoteLabs"
+
+    ```bash
+    mkdir -p ~/repos
+    cd ~/repos
+    ```
+{% endif %}
+
 Next create the setup virtual environment in that directory. Python stores it
 in a folder named `.venv` alongside, rather than inside, the individual
 repository folders that will be created later.
@@ -152,6 +181,14 @@ repository folders that will be created later.
     ```bash
     python3.14 -m venv .venv
     ```
+
+{% if is_surrey %}
+=== ":material-linux: Surrey RemoteLabs"
+
+    ```bash
+    python -m venv .venv
+    ```
+{% endif %}
 
 Creating the environment does not activate it or change system Python.
 
@@ -187,6 +224,14 @@ documentation tools.
     source .venv/bin/activate
     ```
 
+{% if is_surrey %}
+=== ":material-linux: Surrey RemoteLabs"
+
+    ```bash
+    source .venv/bin/activate
+    ```
+{% endif %}
+
 The shell prompt normally gains a `(.venv)` prefix.
 
 ////
@@ -215,6 +260,15 @@ Verify both the version and the interpreter selected by the shell.
     python --version
     command -v python
     ```
+
+{% if is_surrey %}
+=== ":material-linux: Surrey RemoteLabs"
+
+    ```bash
+    python --version
+    command -v python
+    ```
+{% endif %}
 
 The version must report Python 3.14 and the executable path must be inside the
 parent repositories directory's `.venv`. If either check points elsewhere,

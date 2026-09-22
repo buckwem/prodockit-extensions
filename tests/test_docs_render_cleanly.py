@@ -49,6 +49,10 @@ _INTENTIONAL_JINJA_BY_PAGE = {
         "{% else %}",
         "{% endif %}",
     },
+    "installation.md": {
+        "{% if is_surrey %}",
+        "{% endif %}",
+    },
     "manual-install.md": {
         "{% if is_surrey %}",
         "{% if not is_surrey %}",

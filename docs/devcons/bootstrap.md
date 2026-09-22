@@ -375,46 +375,30 @@ repositories on every host.
 
 ///
 
-### Stage 5 — Install PDF support (optional)
+### Stage 5 — Install PDF host software **Privileged**{: .install-privileged} **Optional**{: .bg-green}
 
-Complete Stages 5 and 6 only when you need to generate PDFs locally. Skip both
-for website-only work and on Windows ARM64. Windows ARM64 supports the website
-workflow but not local PDF generation; use the GitLab build for both PDF
-downloads.
+Complete this stage only when this machine will generate PDFs and its host
+software is missing. Installing Pango or Node.js needs administrator or `sudo`
+access. Skip this stage for website-only work and on Windows ARM64{% if is_surrey %},
+or on Surrey RemoteLabs without privileged access{% endif %}. The GitLab build
+can generate both PDFs.
 
 /// steps
 
-//// step | Install optional PDF software
+//// step | Install Pango and Node.js **Privileged**{: .install-privileged} **Optional**{: .bg-green}
 
-Bootstrap creates the project and its Python environment, but deliberately
-leaves optional PDF software to `pdk pdf`. Prodockit downloads and verifies
-project-local Pandoc, fonts, Mermaid and MathJax runtimes only when the
-completed document uses them.
-
-!!! important "Install Pandoc through Prodockit"
-
-    Do not install Pandoc with Homebrew, Winget or apt, and do not rely on a
-    system `pandoc` command from `PATH`. Prepare the reviewed project-local
-    version with:
-
-    ```bash
-    pdk pdf --prepare pandoc
-    ```
-
-    An ordinary `pdk pdf` prepares Pandoc automatically when it is needed, and
-    `pdk pdf --prepare all` includes it when populating every PDF cache in
-    advance. Windows ARM64 must still skip local PDF generation; a website
-    build that uses citations prepares its compatible Pandoc runtime
-    transparently.
-
-The standard template includes PDF output and example mathematics. Install its
-macOS host prerequisites together before the first PDF build:
+Pango is needed for local PDFs on macOS and Ubuntu; Node.js is needed only
+when the PDF contains MathJax notation. Mermaid needs no Node.js. If the
+software is already present, verify it and skip installation. A website-only
+project needs neither prerequisite.
 
 === ":material-apple: macOS"
 
     ```bash
     brew install pango node
     export DYLD_FALLBACK_LIBRARY_PATH="$(brew --prefix)/lib"
+    brew list --versions pango node
+    node --version
     ```
 
 === ":fontawesome-brands-windows: Windows"
@@ -422,68 +406,58 @@ macOS host prerequisites together before the first PDF build:
     This step is for Windows x64 only. Do not run it on Windows ARM64; use the
     GitLab build for PDF generation instead. The supported Windows x64 path
     uses a verified project-local WeasyPrint runtime and needs no Pango or
-    MSYS2 installation. Install Node.js for the template's PDF maths:
+    MSYS2 installation. Install Node.js only for PDF mathematics:
 
     ```powershell
     winget install OpenJS.NodeJS.LTS
     ```
 
     Close and reopen PowerShell after installation, return to the project,
-    and reactivate its virtual environment.
+    reactivate its virtual environment, and verify with `node --version`.
 
 === ":material-linux: Linux (Ubuntu)"
 
     ```bash
     sudo apt update
     sudo apt install -y libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz-subset0 nodejs
+    dpkg-query -W libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz-subset0 nodejs
+    node --version
     ```
 
-PDF mathematics currently uses Node.js to run MathJax's transitional SVG
-adapter. Bootstrap and Adopt do not install this optional host prerequisite.
-The macOS and Ubuntu commands above install it alongside Pango for the standard
-template. For a PDF without maths, omit `node` or `nodejs`. A website-only
-project can skip this whole step.
+{% if is_surrey %}
+=== ":material-linux: Surrey RemoteLabs"
 
-Verify Node and force every optional component with `--prepare all` when you
-need an ahead-of-time installation:
+    Pango and Node.js are not installed on the RemoteLabs image, and a student
+    account cannot install them. You can still build and preview the website.
+    A local PDF containing Mermaid or MathJax examples cannot be generated
+    there; the Surrey GitLab CI workflow has the software needed to render
+    those examples in its PDF build. Do not try to run `sudo apt` on RemoteLabs.
+{% endif %}
 
-```bash
-node --version
-pdk pdf --prepare all
-```
-
-Ordinary `pdk pdf` is the simpler default: it prepares only components found
-in the completed content. Mermaid is Python-only and needs no Node.js, npm,
-browser or MSYS2. MathJax needs Node.js but no npm package or `node_modules`
-directory. See [Create a PDF](../pdf.md#pdf-quick-start) for the complete
-platform prerequisites and troubleshooting guidance.
+For a PDF without mathematics, omit `node` or `nodejs` from the installation
+command and verification. No npm packages, browser or MSYS2 are required.
 
 ////
 
 ///
 
-### Stage 6 — Build the PDF downloads (optional)
+### Stage 6 — Build the PDF downloads **Optional**{: .bg-green}
 
-Complete this stage only when you need local PDF output and have completed
-Stage 5. Skip it for website-only work and on Windows ARM64, where the GitLab
-build generates both downloads. Build the source bundle before the website so
-Zensical includes it in the served output, then add the rendered document PDF
-to that completed website.
+Complete this stage only when you need local PDF output and have any required
+host software. Skip it for website-only work and on Windows ARM64{% if is_surrey %},
+or on Surrey RemoteLabs without privileged access{% endif %}; the GitLab build
+generates both downloads. Build the source bundle last, then refresh the site so both
+downloads are included in its served output.
+
+!!! important "Install Pandoc through Prodockit"
+
+    Do not install Pandoc with Homebrew, Winget or apt, and do not rely on a
+    system `pandoc` command from `PATH`. Prepare the reviewed project-local
+    version with `pdk pdf --prepare pandoc`, or let the build prepare it when
+    needed. Windows ARM64 website citations can prepare their compatible
+    Pandoc runtime even though local PDF generation is unsupported.
 
 /// steps
-
-//// step | Build the source bundle
-
-Generate the separate PDF containing the project's source files:
-
-```bash
-pdk source-bundle
-```
-
-Building this first places `docs/source_bundle.pdf` where the clean website
-build can copy it into the published output.
-
-////
 
 //// step | Build the website for PDF rendering
 
@@ -506,7 +480,21 @@ Generate the rendered document from the completed website:
 pdk pdf
 ```
 
-The standard template now has both outputs in the website as downloads.
+The rendered PDF is written to `docs/site_documentation.pdf`.
+
+////
+
+//// step | Build the source bundle
+
+Generate the separate PDF containing the project's source files, then rebuild
+the website so it copies both new PDFs into its served output:
+
+```bash
+pdk source-bundle
+zensical build --clean --strict
+```
+
+Check `docs/source_bundle.pdf` and both download buttons in Stage 7.
 
 ////
 
@@ -526,10 +514,11 @@ pdk diag
 ```
 
 Bootstrap leaves every PDF runtime to `pdk pdf`, which prepares verified
-project-local caches on first use. It records Mermaid and maths as selected
-components in `.prodockit-components.toml`; neither Bootstrap nor a later
-Adopt run installs those runtimes. Bootstrap also does not block completion on
-optional PDF system prerequisites; the first `pdk pdf` checks them when needed.
+project-local caches on first use. Mermaid and maths are optional components
+and are not selected by default in the template's
+`.prodockit-components.toml`; content that uses
+them can still trigger preparation. Bootstrap does not block completion on
+optional PDF system prerequisites; the first applicable PDF build checks them.
 
 The `Project` line must name the clone rather than its parent setup directory.
 Add `--verbose` for resolved evidence or `--json` when attaching the report to
