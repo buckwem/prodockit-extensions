@@ -2174,14 +2174,11 @@ def test_the_documented_stages_are_the_stages() -> None:
         assert plain == stage.summary, f"row {number}: {plain!r} != {stage.summary!r}"
 
 
-def test_the_bootstrap_page_does_not_hard_code_a_stage_count() -> None:
-    """A number written in prose goes stale silently, which is how #413
-    happened - five releases of it. The tool reports the count at the end
-    of a run; the page names the stages instead of counting them."""
+def test_the_bootstrap_page_reports_the_current_activity_count() -> None:
+    """Keep the guide's prose count aligned with the executable inventory."""
     page = BOOTSTRAP_PAGE.read_text(encoding="utf-8").lower()
 
-    for stale in ("eighteen stages", "nineteen stages", "twenty stages", "22 stages"):
-        assert stale not in page, stale
+    assert f"lists all {len(STAGES)}\nactivities" in page
 
 
 def test_a_service_that_is_running_by_the_time_we_look_carries_on(

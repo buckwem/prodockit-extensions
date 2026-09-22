@@ -1002,11 +1002,17 @@ def _announce_apply(
         summary = _bootstrap_work_summary(reports)
         if summary:
             click.echo(f"  Work:     {summary}")
+    project_environment_activity = next(
+        position
+        for position, stage in enumerate(STAGES, start=1)
+        if stage.id == "project-env"
+    )
     click.echo("")
     click.echo(
         "  Run this from the setup directory containing .pdkboot.toml. The project\n"
         "  shown above will be created beneath it. Use the virtual environment\n"
-        "  prodockit itself is installed in - activity 16 builds the project's own.\n"
+        f"  prodockit itself is installed in - activity {project_environment_activity} "
+        "builds the project's own.\n"
         "  Nothing is changed without asking first."
     )
     click.echo("")

@@ -18,7 +18,7 @@ This is not a general Zensical installer; it is the route for building from `pro
 This guide organises what you do into documentation **stages and steps**.
 Bootstrap reports its own work as **phases and activities**, allowing each
 activity to be checked, repaired, and checked again. The [Bootstrap command
-reference](../commands/bootstrap.md#cmd-bootstrap-phases) lists all 23
+reference](../commands/bootstrap.md#cmd-bootstrap-phases) lists all 20
 activities.
 
 ## Start with prodockit-template {: #bootstrap-template }
