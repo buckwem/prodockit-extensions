@@ -19,7 +19,7 @@ only when it adds or changes behaviour that matters to a user, or requires an
 upgrade action. Defect-by-defect history belongs in GitHub issues and pull
 requests rather than here.
 
-## Unreleased
+## 0.71.0 (2026-09-22)
 
 - Validated and adopted Zensical 0.0.63, WeasyPrint 70.0, and PyMdown Extensions 12.0.1 without website or PDF regressions.
 - Prevented Template Sync from staging Git-ignored local assets created by Adopt.
