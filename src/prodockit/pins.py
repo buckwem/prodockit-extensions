@@ -114,7 +114,7 @@ DEFAULT_PACKAGES = (
 #: test suite checks it against this repository's declarations so a new wheel
 #: cannot accidentally retain the preceding release's suggestions.
 TESTED_VERSIONS: dict[str, str] = {
-    "zensical": "0.0.63",
+    "zensical": "0.0.64",
     "weasyprint": "70.0",
     "prodockit": __version__,
     "markdown": "3.10.3",
