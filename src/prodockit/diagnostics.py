@@ -58,7 +58,8 @@ from prodockit.renderer_resilience import RetryReporter, run_with_retries
 from prodockit.shared_files import SharedFileError
 from prodockit.shared_files import apply as apply_shared_files
 from prodockit.shared_files import inspect as inspect_shared_files
-from prodockit.text_encoding import inspect_project_text_encoding
+from prodockit.table_jinja import untrimmed_table_controls
+from prodockit.text_encoding import inspect_project_text_encoding, project_text_files
 from prodockit.weasyprint_probe import ProbeResult, pango_install_guidance, run_probe
 
 if sys.version_info >= (3, 11):
@@ -86,6 +87,7 @@ DIAGNOSTIC_IDS = frozenset(
         "project.configuration",
         "project.pdf-configuration",
         "project.text-encoding",
+        "project.jinja-table",
         "dependencies.pins",
         "dependencies.shared-files",
         "dependencies.inspection",
@@ -291,6 +293,12 @@ REPAIR_REGISTRY: dict[str, RepairPolicy] = {
         "Prodockit cannot safely guess which invalid bytes the author intended.",
         "Open each reported file, replace or re-save the affected text as UTF-8, "
         "then rerun diagnostics.",
+    ),
+    "project.jinja-table": RepairPolicy(
+        "manual",
+        "Only the author can decide where conditional table rows belong.",
+        "Add a right-trim marker to each reported control (for example, "
+        "`{% if condition -%}` and `{% endif -%}`), then rerun `pdk diag`.",
     ),
     "dependencies.pins": RepairPolicy(
         "ambiguous",
@@ -2698,6 +2706,40 @@ def _text_encoding_check(
     )
 
 
+def _jinja_table_check(root: Path, config_file: Path, docs_dir: Path) -> DiagnosticResult:
+    """Check source branches without changing or rendering project Markdown."""
+    details: list[str] = []
+    for path in project_text_files(root, config_file, docs_dir):
+        if path.suffix != ".md" or not path.is_relative_to(docs_dir):
+            continue
+        try:
+            source = path.read_text(encoding="utf-8")
+        except UnicodeError:
+            # The dedicated UTF-8 check reports the byte-accurate location.
+            continue
+        except OSError as error:
+            details.append(f"{_display_path(path, root)}: cannot inspect: {error}")
+            continue
+        for line in untrimmed_table_controls(source):
+            details.append(
+                f"{_display_path(path, root)}:{line}: standalone Jinja control "
+                "inside a Markdown pipe table may insert a blank line, ending "
+                "the table and detaching later rows or its caption; add `-` "
+                "before `%}` (for example, `{% if condition -%}` or "
+                "`{% endif -%}`)."
+            )
+    return DiagnosticResult(
+        "project.jinja-table",
+        "Project configuration and inputs",
+        "fail" if details else "pass",
+        f"{len(details)} Jinja table control problem(s) found"
+        if details
+        else "Jinja controls in Markdown tables preserve row continuity",
+        tuple(details),
+        {"problem_count": len(details)},
+    )
+
+
 def _configuration_repairable_problems(
     config: ProjectConfig, problems: tuple[Any, ...]
 ) -> list[dict[str, str]]:
@@ -4006,6 +4048,18 @@ def inspect(
         "Project text encoding",
         lambda: [
             _text_encoding_check(
+                root,
+                requested,
+                config.docs_dir if config is not None else root / "docs",
+            )
+        ],
+    )
+    collect(
+        "project.jinja-table",
+        "Project configuration and inputs",
+        "Markdown table Jinja controls",
+        lambda: [
+            _jinja_table_check(
                 root,
                 requested,
                 config.docs_dir if config is not None else root / "docs",

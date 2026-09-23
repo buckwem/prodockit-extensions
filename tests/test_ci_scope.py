@@ -127,6 +127,7 @@ def test_shared_packaging_and_command_files_select_every_matrix() -> None:
 def test_diagnostic_wheel_scope_is_narrow_and_fail_closed() -> None:
     for path in (
         "src/prodockit/diagnostics.py",
+        "src/prodockit/table_jinja.py",
         "src/prodockit/renderer_health.py",
         "src/prodockit/pins.py",
         "src/prodockit/project_config.py",

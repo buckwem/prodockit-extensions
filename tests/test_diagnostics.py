@@ -2488,6 +2488,39 @@ def test_diag_has_a_named_utf8_check_with_all_affected_files(
     assert not any("invalid UTF-8" in detail for detail in configuration.details)
 
 
+def test_diag_reports_untrimmed_jinja_table_controls_without_mutating_source(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config = tmp_path / "zensical.toml"
+    docs = tmp_path / "docs"
+    docs.mkdir()
+    config.write_text('[project]\nsite_name = "Example"\n', encoding="utf-8")
+    page = docs / "table.md"
+    source = (
+        "| A | B |\n|---|---|\n| 1 | 2 |\n"
+        "{% if show_extra %}\n| 3 | 4 |\n{% endif %}\n| 5 | 6 |\n"
+    )
+    page.write_text(source, encoding="utf-8")
+    monkeypatch.setattr(diagnostics, "_environment_checks", lambda _root: [])
+    monkeypatch.setattr(diagnostics, "_installation_checks", lambda _root: [])
+    monkeypatch.setattr(diagnostics, "_pin_checks", lambda _root, _online: [])
+    monkeypatch.setattr(diagnostics, "_renderer_checks", lambda _config, _root, **_kwargs: [])
+    monkeypatch.setattr(diagnostics, "_repository_checks", lambda _root, _online: [])
+    monkeypatch.setattr(diagnostics, "_adopt_readiness_checks", lambda *_args, **_kwargs: [])
+
+    report = diagnostics.inspect(config)
+    check = next(item for item in report.checks if item.id == "project.jinja-table")
+    assert check.status == "fail"
+    assert check.data["problem_count"] == 2
+    assert check.details[0].startswith("docs/table.md:4:")
+    assert check.details[1].startswith("docs/table.md:6:")
+    assert page.read_text(encoding="utf-8") == source
+
+    page.write_text(source.replace("%}", "-%}"), encoding="utf-8")
+    fixed = diagnostics._jinja_table_check(tmp_path, config, docs)
+    assert fixed.status == "pass"
+
+
 def test_diag_reports_invalid_active_config_location_only_once(tmp_path: Path) -> None:
     config = tmp_path / "zensical.toml"
     config.write_bytes(b'[project]\nsite_name = "\xff"\n')
@@ -2772,6 +2805,7 @@ def test_author_guide_documents_every_stable_check_id() -> None:
         "installation.inspection",
         "project.configuration",
         "project.text-encoding",
+        "project.jinja-table",
         "dependencies.pins",
         "dependencies.shared-files",
         "dependencies.inspection",
