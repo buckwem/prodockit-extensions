@@ -68,7 +68,8 @@ def write_executable(path: Path, body: str) -> Path:
     return path
 
 
-def test_surrey_fixture_is_the_exact_bootstrap_derivation(tmp_path: Path) -> None:
+def test_surrey_fixture_keeps_its_explicit_existing_allowlist(tmp_path: Path) -> None:
+    """Do not retarget a privileged live test when Bootstrap defaults change."""
     fixture = live.Fixture.read(write_fixture(tmp_path / "fixture.json"))
 
     assert fixture.namespace == "assessment-liveprovider-2026"

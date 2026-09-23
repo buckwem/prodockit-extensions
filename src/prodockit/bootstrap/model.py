@@ -192,9 +192,9 @@ SURREY_GITLAB = Host(
         "    Name  - shown in the breadcrumb at the top of the page\n"
         "    URL   - the part of the web address after the hostname\n"
         "Renaming a group changes its Name and leaves its URL alone, so the two "
-        "can disagree. A group whose breadcrumb reads 'assessment-comm058-2026' "
-        "can still live at gitlab.example/comm058-2026, and git only ever finds "
-        "it at comm058-2026.\n"
+        "can disagree. A subgroup whose breadcrumb reads '2026-27' "
+        "can still live at gitlab.example/CSEE/COMM058/old-year, and git only "
+        "ever finds it at that URL path.\n"
         "Open the group in your browser and read the address bar, not the "
         "breadcrumb. The part after the hostname is what belongs here."
     ),

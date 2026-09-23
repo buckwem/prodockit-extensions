@@ -36,12 +36,12 @@ SURREY_HOSTS = frozenset({"gitlab.surrey.ac.uk"})
 EMAIL_DOMAIN = "surrey.ac.uk"
 
 #: The assessment stages, in the order they are offered. The first is the
-#: ordinary case; the other two are resits, and each has a group of its
-#: own on the host.
+#: ordinary case; the other two are resits, and each has a year subgroup
+#: of its own on the host.
 STAGES: tuple[tuple[str, str, str], ...] = (
     ("1", "First", ""),
-    ("2", "SRA", "-sra"),
-    ("3", "LSA", "-lsa"),
+    ("2", "SRA", "-SRA"),
+    ("3", "LSA", "-LSA"),
 )
 
 
@@ -73,12 +73,13 @@ _EARLIEST_YEAR, _LATEST_YEAR = 2000, 2100
 
 
 def default_year(today: date | None = None) -> str:
-    """The year to offer, which is this one.
+    """The year in which the current academic year started.
 
     Taken as an argument rather than read from the clock inside a check,
     so a test can say what day it is.
     """
-    return str((today or date.today()).year)
+    current = today or date.today()
+    return str(current.year if current.month >= 9 else current.year - 1)
 
 
 def module_year(typed: str) -> str:
@@ -122,46 +123,31 @@ class Assessment:
 def namespace_for(course: str, login: str, assessment: Assessment, year: str = "") -> str:
     """The group or user the repository lives under.
 
-    Assessed work goes to a group per course, *year* and attempt, so an
-    examiner finds one cohort's submissions in one place and last year's
-    are somewhere else. Unassessed work goes to the student's own
-    namespace, where nobody else needs it and no year applies.
-
-    The year is the one the module *starts* in: a semester 2 module
-    should be the year after the Christmas break, and for SRA and LSA the
-    year should be the year prior to the year the retake is being
-    assessed.
+    Assessed work belongs under CSEE/module/academic-year, with SRA or
+    LSA appended to the year subgroup. Unassessed work stays in the
+    student's own namespace.
     """
     if not assessment.assessed:
         return login_id(login)
-    parts = ["assessment", course_code(course)]
-    if year.strip():
-        parts.append(year.strip())
-    return "-".join(parts) + assessment.stage_suffix
+    start = module_year(year)
+    if not start:
+        raise ValueError("assessed Surrey work needs a four-digit academic-year start")
+    following = str((int(start) + 1) % 100).zfill(2)
+    return f"CSEE/{course_code(course).upper()}/{start}-{following}{assessment.stage_suffix}"
 
 
 def project_name_for(
     course: str, login: str, year: str = "", assessment: Assessment | None = None
 ) -> str:
-    """`report-comm058-2026-ab1234-sra` - course, cohort, owner, attempt.
+    """Use `comm058-ab1234` for assessed work in its year subgroup.
 
-    In that order for the same reason the namespace is: the course first
-    so a listing groups by module, the year next so one cohort sorts
-    together within it, the ID where a marker reading down a column
-    expects a name, and the attempt last because it is the exception.
-
-    The name carries the year even for unassessed work, where the
-    namespace does not. A student keeps their own repositories side by
-    side in one namespace, and two years of the same module would
-    otherwise be two repositories with one name between them.
-
-    A resit needs the same distinction for the same reason: one student's
-    first attempt and their SRA are two repositories, and without the
-    suffix they are two repositories with one name.
+    Keep the previous report/year naming for explicit unassessed work;
+    that path does not have a year subgroup to distinguish repositories.
     """
+    if assessment is not None and assessment.assessed:
+        return f"{course_code(course)}-{login_id(login)}"
     parts = ["report", course_code(course)]
     if year.strip():
         parts.append(year.strip())
     parts.append(login_id(login))
-    suffix = assessment.stage_suffix if assessment is not None else ""
-    return "-".join(parts) + suffix
+    return "-".join(parts)

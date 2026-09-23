@@ -462,16 +462,13 @@ def _ask_surrey(config: BootstrapConfig) -> None:
                 click.echo("  Type 1, 2 or 3.\n", err=True)
         click.echo("")
         while True:
-            # Named here rather than above: the year question names SRA
-            # and LSA, and nothing before it had said what those are. The
-            # stage menu just shown introduces them, so this refers back
-            # to it rather than repeating it (prodockit-extensions#437).
+            # The stage menu just shown introduces SRA and LSA before the
+            # academic-year question refers to their subgroups (#437).
             year = surrey.module_year(
                 click.prompt(
-                    f"7/{_SURREY_QUESTIONS_ASSESSED} What year does the module "
-                    "start in? A semester 2 module should be the year after the "
-                    "Christmas break. For SRA and LSA the year should be the year "
-                    "prior to the year the retake is being assessed.",
+                    f"7/{_SURREY_QUESTIONS_ASSESSED} In which year does the academic "
+                    "year start? For example, enter 2026 for 2026-27. "
+                    "SRA and LSA use that same starting year.",
                     default=surrey.default_year(),
                     show_default=True,
                 )

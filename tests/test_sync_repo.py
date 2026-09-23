@@ -610,6 +610,10 @@ def test_a_known_instance_gets_its_pages_url_derived() -> None:
     assert site_url_for("gitlab", "MB0105", "Report", None, "gitlab.surrey.ac.uk").startswith(
         "https://mb0105.pages.surrey.ac.uk/"
     )
+    assert site_url_for(
+        "gitlab", "CSEE/COMMTEST/2026-27-SRA", "commtest-ab1234", None,
+        "gitlab.surrey.ac.uk",
+    ) == "https://csee.pages.surrey.ac.uk/COMMTEST/2026-27-SRA/commtest-ab1234/"
     # Every other instance is still declined rather than guessed at.
     for host in ("gitlab.example.edu", "gitlab.com", "git.acme.com", ""):
         assert site_url_for("gitlab", "mb0105", "report", None, host) is None, host
