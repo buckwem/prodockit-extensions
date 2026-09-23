@@ -27,6 +27,7 @@ from packaging.version import InvalidVersion, Version
 
 import prodockit
 from prodockit.config_diagnostics import inspect_config
+from prodockit.pdf.config import _find_tex2svg_script
 from prodockit.pdf.font_runtime import FontProvider
 from prodockit.pdf.font_runtime import probe_runtime as probe_font_runtime
 from prodockit.pdf.mathjax_runtime import MathJaxProvider, node_install_guidance
@@ -54,6 +55,7 @@ from prodockit.pins import (
 )
 from prodockit.project_config import ProjectConfig, ProjectConfigError, load_project_config
 from prodockit.project_integrity import renderer_requirements
+from prodockit.renderer_health import probe_mathjax
 from prodockit.renderer_resilience import RetryReporter, run_with_retries
 from prodockit.shared_files import SharedFileError
 from prodockit.shared_files import apply as apply_shared_files
@@ -3166,6 +3168,40 @@ def _project_cached_runtime_check(
     )
 
 
+def _explicit_mathjax_check(config: ProjectConfig, root: Path) -> DiagnosticResult:
+    """Probe the same author-selected script that the PDF build will use."""
+    configured = str(config.extra["pdf_tex2svg_script"])
+    script = _find_tex2svg_script(configured)
+    node = shutil.which("node")
+    if script is None:
+        problem = (
+            f"Configured script {configured!r} does not exist. "
+            "Correct or remove pdf_tex2svg_script."
+        )
+    elif node is None:
+        problem = f"Node.js is unavailable. {node_install_guidance()}"
+    else:
+        probe = probe_mathjax(node, script)
+        problem = probe.error or ""
+    path = _display_path(Path(script), root) if script else None
+    details: tuple[str, ...] = (f"selected script: {path or configured}",)
+    if problem:
+        details += (
+            f"{_sanitise_text(problem, root)} Remove pdf_tex2svg_script "
+            "to use the project-local JIT renderer.",
+        )
+    return DiagnosticResult(
+        "renderer.mathjax",
+        "Rendering toolchain",
+        "fail" if problem else "pass",
+        "Explicit MathJax script failed its health check"
+        if problem
+        else "Explicit MathJax script is healthy",
+        details,
+        {"required": True, "backend": "explicit-script", "path": path, "version": None},
+    )
+
+
 def _windows_cached_weasyprint_check(
     config: ProjectConfig | None,
     root: Path,
@@ -3437,11 +3473,18 @@ def _renderer_checks(
         component="mermaid",
         required=mermaid_required and not windows_arm64,
     )
-    mathjax = _project_cached_runtime_check(
-        config,
-        root,
-        component="mathjax",
-        required=maths_required and not windows_arm64,
+    mathjax = (
+        _explicit_mathjax_check(config, root)
+        if config
+        and maths_required
+        and config.extra.get("pdf_tex2svg_script")
+        and not windows_arm64
+        else _project_cached_runtime_check(
+            config,
+            root,
+            component="mathjax",
+            required=maths_required and not windows_arm64,
+        )
     )
     index_options = config.markdown_extensions.get("prodockit.index", {}) if config else {}
     include_index = index_options.get("include") is True

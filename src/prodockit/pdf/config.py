@@ -153,17 +153,14 @@ def _css_escape_content_string(text: str) -> str:
 
 
 def _find_tex2svg_script(configured: str | None) -> str | None:
-    """Resolves a usable `tex2svg`-style Node script path for TeX math
-    pre-rendering: an explicit `configured` path if given and it exists,
-    else a common local-install location, else None (math formulas are
-    then left as literal, unrendered text rather than failing the whole
-    build). A relative configured path resolves against the current working
-    directory."""
+    """Resolve only an explicitly selected legacy MathJax script.
+
+    A leftover tools/mathjax tree from an older template must not override
+    the supported project-local JIT runtime merely because a file exists.
+    Relative configured paths resolve against the current working directory.
+    """
     if configured and os.path.exists(configured):
         return os.path.abspath(configured)
-    candidate = os.path.join("tools", "mathjax", "tex2svg.js")
-    if os.path.exists(candidate):
-        return os.path.abspath(candidate)
     return None
 
 
@@ -260,7 +257,7 @@ def build_pdf_from_built_site(
       `heading_numbering` (default `true`), `reference_style` (`"european"`
       - the default - or `"global"`), `reference_spacing_european`,
       `reference_indent_global`, `reference_spacing_global`,
-      `pdf_tex2svg_script` (auto-detected if unset - see
+      `pdf_tex2svg_script` (an explicit legacy override only - see
       `_find_tex2svg_script`). Mermaid uses the audited Python runtime;
       maths remains browser-checked when it appears),
       `pdf_math_dir`. Remaining PDF-only settings are read from
@@ -408,11 +405,17 @@ def build_pdf_from_built_site(
     # for a document that does not contain the matching active markup.
     renderer_requirements = detect_renderer_requirements(page_objects)
 
+    configured_tex2svg = extra.get("pdf_tex2svg_script")
     legacy_tex2svg = (
-        _find_tex2svg_script(extra.get("pdf_tex2svg_script"))
+        _find_tex2svg_script(configured_tex2svg)
         if renderer_requirements.maths
         else None
     )
+    if renderer_requirements.maths and configured_tex2svg and legacy_tex2svg is None:
+        raise ValueError(
+            f"Configured pdf_tex2svg_script {configured_tex2svg!r} does not exist. "
+            "Correct it or remove it to use project-local JIT MathJax."
+        )
     prepare_mathjax = (
         runtime_policy.policy_for("mathjax").preload
         or (renderer_requirements.maths and legacy_tex2svg is None)

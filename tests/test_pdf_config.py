@@ -116,6 +116,33 @@ def test_find_tex2svg_script_returns_none_when_nothing_is_found(
     assert _find_tex2svg_script("/does/not/exist") is None
 
 
+def test_legacy_mathjax_tree_is_not_auto_detected(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    script = tmp_path / "tools" / "mathjax" / "tex2svg.js"
+    script.parent.mkdir(parents=True)
+    script.write_text("// retired renderer\n", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+
+    assert _find_tex2svg_script(None) is None
+    assert _find_tex2svg_script("tools/mathjax/tex2svg.js") == str(script)
+
+
+def test_missing_explicit_mathjax_script_fails_instead_of_silently_using_jit(
+    project, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = project(extra='[project.extra]\npdf_tex2svg_script = "missing/tex2svg.js"')
+    monkeypatch.setattr(config, "validate_built_site", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(
+        config,
+        "page_html",
+        lambda _project, source: f'<h1>{source}</h1><span class="arithmatex">\\(x^2\\)</span>',
+    )
+
+    with pytest.raises(ValueError, match="remove it to use project-local JIT MathJax"):
+        build_pdf_from_built_site(str(root / "zensical.toml"))
+
+
 def test_find_tex2svg_script_relative_configured_path_resolves_against_cwd_not_the_config_file(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -1642,6 +1669,9 @@ def test_used_maths_prepares_project_mathjax_and_passes_cached_runtime(
     project, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     root = project()
+    retired = root / "tools" / "mathjax" / "tex2svg.js"
+    retired.parent.mkdir(parents=True)
+    retired.write_text("// old adapter without node_modules\n", encoding="utf-8")
     cached = root / ".prodockit/cache/pdf/mathjax"
     captured = {}
     prepared = []
@@ -1652,7 +1682,6 @@ def test_used_maths_prepares_project_mathjax_and_passes_cached_runtime(
         "page_html",
         lambda _project, source: f'<h1>{source}</h1><span class="arithmatex">\\(x^2\\)</span>',
     )
-    monkeypatch.setattr(config, "_find_tex2svg_script", lambda _configured: None)
     monkeypatch.setattr(config, "publish_pdf_to_built_site", lambda *_args: None)
 
     def prepare(_config_path, components):

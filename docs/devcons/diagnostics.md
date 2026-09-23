@@ -132,6 +132,10 @@ the first PDF build; an incompatible or corrupt cache points to
 `pdk pdf --prepare mermaid` or `pdk pdf --prepare mathjax`. Mermaid requires
 only its reviewed Python wheels; MathJax additionally requires Node.js on `PATH`.
 Neither production path uses npm, Puppeteer or a browser.
+If `project.extra.pdf_tex2svg_script` explicitly selects a legacy MathJax
+script, `renderer.mathjax` probes that script instead and reports its selected
+path. An old `tools/mathjax` directory alone never selects it; remove an
+unusable override to return to project-local JIT MathJax.
 
 For `project.configuration`, automatic edits are restricted to
 `zensical.toml`. Each unique spelling correction, obsolete index-setting move,
@@ -264,7 +268,7 @@ so first-use convenience does not hide a broken working toolchain.
 | `renderer.weasyprint` | On Windows x64, a warning says first-use preparation is pending; a failure means an existing runtime is incompatible, corrupt, or fails its absolute-path CLI probe. Elsewhere, a clean project defers installation of `pdf-requirements.txt`; an established preparation that no longer imports is a failure. | Let the first `pdk pdf` install and check the complete toolchain, or run `pdk pdf --prepare weasyprint`. On macOS/Linux, install any reported native Pango libraries from the installation guide. |
 | `renderer.node` | A missing or unusable Node command is deferred while a clean MathJax cache awaits first use, then becomes a failure after MathJax preparation has begun. | Let the first maths PDF build check it, or install the supported Node version and confirm with `node --version`. |
 | `renderer.mermaid` | A warning says first-use preparation is pending. A failure means an existing cache is incompatible, corrupt, or fails its fresh-process SVG probe. | Let the next PDF build prepare it, or run `pdk pdf --prepare mermaid`; diagnostics itself never downloads or changes the cache. |
-| `renderer.mathjax` | A warning says first-use preparation is pending. A failure means an existing MathJax 4 cache is incompatible, corrupt, or fails a real TeX-to-SVG probe; Node has its own prerequisite check. | Install Node.js if required, then let the next PDF build prepare MathJax or run `pdk pdf --prepare mathjax`; no npm installation is used. |
+| `renderer.mathjax` | A warning says first-use preparation is pending. A failure means the selected MathJax 4 cache is incompatible or unhealthy, or an explicitly configured legacy script fails its own SVG probe. Node has its own prerequisite check. | Install Node.js if required, then let the next PDF build prepare MathJax or run `pdk pdf --prepare mathjax`. For a failed legacy override, correct or remove `pdf_tex2svg_script`; a leftover `tools/mathjax` tree is ignored unless selected explicitly. |
 | `renderer.inspection` | An operating-system error prevented the rendering tools from being inspected. | Correct the path or permissions named in the detail. Run each shown executable with `--version`, then rerun `pdk diag --verbose`. |
 /// table-caption | <
     attrs: {id: tab-diagnostics-rendering-toolchain}
