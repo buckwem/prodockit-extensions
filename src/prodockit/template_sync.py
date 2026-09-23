@@ -1157,6 +1157,17 @@ def _table_header(dotted: str) -> tuple[str, str] | None:
     return ".".join(parts[:-1]), parts[-1]
 
 
+def _toml_value_end(lines: list[str], start: int, dotted: str) -> int:
+    """Return the first line after one complete TOML assignment."""
+    for end in range(start + 1, len(lines) + 1):
+        try:
+            tomllib.loads("".join(lines[start:end]))
+        except tomllib.TOMLDecodeError:
+            continue
+        return end
+    raise TemplateSyncError(f"cannot find the end of {dotted}'s TOML value")
+
+
 def set_config_value(text: str, dotted: str, rendered: str) -> str:
     """Sets one key in a TOML document, leaving every other line alone.
 
@@ -1184,14 +1195,30 @@ def set_config_value(text: str, dotted: str, rendered: str) -> str:
     if start is None:
         raise TemplateSyncError(f"no [{table}] table in this file")
 
-    for index in range(start + 1, len(lines)):
+    index = start + 1
+    while index < len(lines):
         stripped = lines[index].lstrip()
         if stripped.startswith("["):
             break  # the next table began; the key is absent
+        if not stripped.strip() or stripped.startswith("#"):
+            index += 1
+            continue
         name = stripped.split("=", 1)[0].strip() if "=" in stripped else ""
+        if name:
+            # Skip each complete value, so a nested array or a multiline
+            # string cannot masquerade as a new table or another setting.
+            end = _toml_value_end(lines, index, f"{table}.{name}")
+        else:
+            index += 1
+            continue
         if name == key:
-            lines[index] = f"{key} = {rendered}\n"
+            last_line = lines[end - 1]
+            newline = (
+                "\r\n" if last_line.endswith("\r\n") else "\n" if last_line.endswith("\n") else ""
+            )
+            lines[index:end] = [f"{key} = {rendered}{newline}"]
             return "".join(lines)
+        index = end
 
     # Absent: insert directly under the header, before the table's own
     # comments so the new line is not attributed to the wrong setting.

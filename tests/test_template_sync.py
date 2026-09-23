@@ -1363,6 +1363,106 @@ def test_a_changed_value_leaves_every_other_line_byte_identical() -> None:
     assert "# Margins are in the PDF's own units" in after
 
 
+def test_a_multiline_array_is_replaced_without_leaving_continuation_lines() -> None:
+    before = (
+        "[project]\n"
+        "site_name = \"My Report\"\n"
+        "extra_javascript = [\n"
+        "  \"javascripts/pdk.js\",\n"
+        "  \"javascripts/mathjax.js?v=config-2\",\n"
+        "  \"javascripts/extra.js\",\n"
+        "]\n"
+        "# The next setting belongs to the author.\n"
+        "copyright = \"Mark\"\n"
+        "\n[project.extra]\n"
+        "pdf_page_size = \"A4\"\n"
+    )
+
+    after = set_config_value(
+        before,
+        "project.extra_javascript",
+        '["javascripts/pdk.js", "javascripts/mathjax.js?v=config-3", "javascripts/extra.js"]',
+    )
+
+    assert read_config(after)["project"]["extra_javascript"] == [
+        "javascripts/pdk.js",
+        "javascripts/mathjax.js?v=config-3",
+        "javascripts/extra.js",
+    ]
+    assert "config-2" not in after
+    assert '# The next setting belongs to the author.\ncopyright = "Mark"' in after
+    assert after.endswith('[project.extra]\npdf_page_size = "A4"\n')
+
+
+def test_template_sync_updates_multiline_assets_and_preserves_project_entries() -> None:
+    before = (
+        "[project]\n"
+        "site_name = \"My Report\"\n"
+        "extra_javascript = [\n"
+        "  \"javascripts/pdk.js\",\n"
+        "  \"javascripts/mathjax.js?v=config-2\",\n"
+        "  \"javascripts/author.js\",\n"
+        "]\n"
+        "# Author comment\n"
+    )
+    incoming = {
+        "project": {
+            "site_name": "My Report",
+            "extra_javascript": [
+                "javascripts/pdk.js",
+                "javascripts/mathjax.js?v=config-3",
+            ],
+        }
+    }
+
+    after = apply_config_changes(
+        before, incoming, added=[], updated=["project.extra_javascript"]
+    )
+
+    assert read_config(after)["project"]["extra_javascript"] == [
+        "javascripts/pdk.js",
+        "javascripts/mathjax.js?v=config-3",
+        "javascripts/author.js",
+    ]
+    assert after.endswith("# Author comment\n")
+
+
+def test_multiline_string_and_crlf_value_boundaries_are_preserved() -> None:
+    before = (
+        '[project]\r\n'
+        'description = """\r\n'
+        'A value containing ] and #.\r\n'
+        '"""\r\n'
+        'site_name = "My Report"\r\n'
+    )
+
+    after = set_config_value(before, "project.description", '"Replacement"')
+
+    assert after == (
+        '[project]\r\n'
+        'description = "Replacement"\r\n'
+        'site_name = "My Report"\r\n'
+    )
+    assert read_config(after)["project"]["description"] == "Replacement"
+
+
+def test_a_prior_multiline_value_does_not_hide_a_later_setting() -> None:
+    before = (
+        "[project]\n"
+        "nested = [\n"
+        "  [\"one\", \"two\"],\n"
+        "]\n"
+        'site_name = "Old"\n'
+    )
+
+    after = set_config_value(before, "project.site_name", '"New"')
+
+    assert read_config(after)["project"] == {
+        "nested": [["one", "two"]],
+        "site_name": "New",
+    }
+
+
 def test_a_missing_key_is_inserted_into_its_own_table() -> None:
     after = set_config_value(CONFIG, "project.extra.pdf_double_sided", "true")
 
