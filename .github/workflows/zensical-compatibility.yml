@@ -6,11 +6,11 @@ name: Zensical compatibility
     inputs:
       baseline:
         description: Exact supported Zensical release
-        default: 0.0.61
+        default: 0.0.63
         required: true
       candidate:
         description: Exact candidate Zensical release
-        default: 0.0.63
+        default: 0.0.64
         required: true
       template_ref:
         description: Template Git ref (resolved commit is recorded)
@@ -54,8 +54,8 @@ jobs:
     - name: Compare consumer configurations
       shell: bash
       env:
-        BASELINE: ${{ inputs.baseline || '0.0.61' }}
-        CANDIDATE: ${{ inputs.candidate || '0.0.63' }}
+        BASELINE: ${{ inputs.baseline || '0.0.63' }}
+        CANDIDATE: ${{ inputs.candidate || '0.0.64' }}
       run: python tools/zensical_compatibility.py pair --baseline "$BASELINE" --candidate "$CANDIDATE" --output
         "$RUNNER_TEMP/zensical-config"
     - name: Publish report

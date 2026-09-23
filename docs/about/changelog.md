@@ -19,6 +19,10 @@ only when it adds or changes behaviour that matters to a user, or requires an
 upgrade action. Defect-by-defect history belongs in GitHub issues and pull
 requests rather than here.
 
+## Unreleased
+
+- Qualified Zensical 0.0.64 for website and PDF builds and updated the supported dependency floor and build pins.
+
 ## 0.72.0 (2026-09-23)
 
 - Moved PDF project-file setup and legacy-setting migration from Adopt to the first `pdk pdf` run; configured projects remain unchanged.
