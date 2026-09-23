@@ -25,6 +25,7 @@ requests rather than here.
 - Added a concise installation path with copyable Zensical extension and stylesheet settings, without requiring Adopt.
 - Made `pdk pdf --prepare all` install PyMuPDF when a back-of-book index is enabled, while leaving index-free projects lightweight.
 - Fixed MathJax SVG rendering in generated PDFs and preserved complete multiline TOML values during Template Sync.
+- Kept text inside compact PDF table cells by wrapping unbreakable words before they overlap adjacent columns.
 - Added unprivileged Surrey RemoteLabs installation guidance.
 
 ## 0.71.0 (2026-09-22)
