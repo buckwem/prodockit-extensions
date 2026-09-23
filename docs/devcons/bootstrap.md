@@ -117,7 +117,7 @@ that active environment:
     ```
 
 {% if is_surrey %}
-=== ":material-linux: Surrey RemoteLabs"
+=== ":stag-stag_icon_32: Surrey RemoteLabs"
 
     ```bash
     pip install --upgrade pip
@@ -161,7 +161,7 @@ Confirm both the installed version and the command selected by the shell:
     ```
 
 {% if is_surrey %}
-=== ":material-linux: Surrey RemoteLabs"
+=== ":stag-stag_icon_32: Surrey RemoteLabs"
 
     ```bash
     prodockit --version
@@ -382,7 +382,7 @@ while the prompt already says `(.venv)` does not switch environments.
     ```
 
 {% if is_surrey %}
-=== ":material-linux: Surrey RemoteLabs"
+=== ":stag-stag_icon_32: Surrey RemoteLabs"
 
     ```bash
     deactivate
@@ -459,7 +459,7 @@ project needs neither prerequisite.
     ```
 
 {% if is_surrey %}
-=== ":material-linux: Surrey RemoteLabs"
+=== ":stag-stag_icon_32: Surrey RemoteLabs"
 
     Pango and Node.js are not installed on the RemoteLabs image, and a student
     account cannot install them. You can still build and preview the website.

@@ -97,7 +97,7 @@ you skip installation.
     ```
 
 {% if is_surrey %}
-=== ":material-linux: Surrey RemoteLabs"
+=== ":stag-stag_icon_32: Surrey RemoteLabs"
 
     Python is already installed on Surrey RemoteLabs. Do not run `sudo apt`
     or try to replace the managed interpreter; verify it instead:
@@ -152,7 +152,7 @@ Create or enter the repositories directory:
     ```
 
 {% if is_surrey %}
-=== ":material-linux: Surrey RemoteLabs"
+=== ":stag-stag_icon_32: Surrey RemoteLabs"
 
     ```bash
     mkdir -p ~/repos
@@ -183,7 +183,7 @@ repository folders that will be created later.
     ```
 
 {% if is_surrey %}
-=== ":material-linux: Surrey RemoteLabs"
+=== ":stag-stag_icon_32: Surrey RemoteLabs"
 
     ```bash
     python -m venv .venv
@@ -225,7 +225,7 @@ documentation tools.
     ```
 
 {% if is_surrey %}
-=== ":material-linux: Surrey RemoteLabs"
+=== ":stag-stag_icon_32: Surrey RemoteLabs"
 
     ```bash
     source .venv/bin/activate
@@ -262,7 +262,7 @@ Verify both the version and the interpreter selected by the shell.
     ```
 
 {% if is_surrey %}
-=== ":material-linux: Surrey RemoteLabs"
+=== ":stag-stag_icon_32: Surrey RemoteLabs"
 
     ```bash
     python --version

@@ -110,7 +110,7 @@ Run each line in turn. **If `cd` fails, stop and correct the path before continu
     ```
 
 {% if is_surrey %}
-=== ":material-linux: Surrey RemoteLabs"
+=== ":stag-stag_icon_32: Surrey RemoteLabs"
 
     ```bash
     deactivate
@@ -155,7 +155,7 @@ commands use this site's packages rather than another project's.
     ```
 
 {% if is_surrey %}
-=== ":material-linux: Surrey RemoteLabs"
+=== ":stag-stag_icon_32: Surrey RemoteLabs"
 
     ```bash
     python -m venv .venv
@@ -195,7 +195,7 @@ installing Zensical:
     ```
 
 {% if is_surrey %}
-=== ":material-linux: Surrey RemoteLabs"
+=== ":stag-stag_icon_32: Surrey RemoteLabs"
 
     ```bash
     pwd
