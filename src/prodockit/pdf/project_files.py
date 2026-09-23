@@ -122,24 +122,21 @@ def prepare_project_files(config_file: str | Path) -> tuple[Path, ...]:
     if not isinstance(legacy, dict):
         legacy = {}
 
-    # Reject malformed legacy settings before creating or changing files.
-    load_pdf_runtime_config(config).resolve_pdf_settings(legacy)
+    # Reject malformed or conflicting legacy settings before creating or
+    # changing files. The same resolved result drives config and diagnostics.
+    resolved = load_pdf_runtime_config(config).resolve_pdf_settings(legacy)
+    if resolved.conflicting_legacy:
+        old_key = resolved.conflicting_legacy[0]
+        target = PDF_SETTING_PATHS[old_key]
+        raise PdfProjectFilesError(
+            f"{old_key} conflicts with pdk-pdf.toml {target}; resolve the values "
+            "before running pdk pdf"
+        )
 
     pdf_path = root / "pdk-pdf.toml"
     current_pdf = pdf_path.read_text(encoding="utf-8") if pdf_path.is_file() else ""
     if pdf_path.is_file():
         load_pdf_runtime_config(config)
-    existing = tomllib.loads(current_pdf) if current_pdf else {}
-    for old_key, target in PDF_SETTING_PATHS.items():
-        if old_key not in legacy:
-            continue
-        table_name, field = target.removeprefix("[").split("].", 1)
-        current = existing.get(table_name, {}).get(field)
-        if current is not None and current != legacy[old_key]:
-            raise PdfProjectFilesError(
-                f"{old_key} conflicts with pdk-pdf.toml {target}; resolve the values "
-                "before running pdk pdf"
-            )
     planned_pdf = _update_pdf(current_pdf, legacy)
     if config.suffix == ".toml":
         planned_config = original

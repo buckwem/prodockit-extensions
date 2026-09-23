@@ -157,8 +157,25 @@ def test_reports_explicit_and_default_resolved_values(tmp_path: Path) -> None:
     assert "Title: Index" in result.output
 
 
-def test_pdk_pdf_value_wins_and_reports_its_source(tmp_path: Path) -> None:
-    path = _config(tmp_path, "\n[project.extra]\npdf_page_size = false\n")
+def test_config_check_rejects_conflicting_legacy_pdf_value(tmp_path: Path) -> None:
+    path = _config(tmp_path, '\n[project.extra]\npdf_page_size = "Letter"\n')
+    (tmp_path / "pdk-pdf.toml").write_text(
+        'schema_version = 1\n\n[document]\npage_size = "A5"\n',
+        encoding="utf-8",
+    )
+
+    result = _run(path, check=True)
+
+    assert result.exit_code == 1
+    assert (
+        "project.extra.pdf_page_size: conflicts with pdk-pdf.toml "
+        "[document].page_size" in result.output
+    )
+    assert "Traceback" not in result.output
+
+
+def test_config_check_accepts_matching_legacy_pdf_value(tmp_path: Path) -> None:
+    path = _config(tmp_path, '\n[project.extra]\npdf_page_size = "A5"\n')
     (tmp_path / "pdk-pdf.toml").write_text(
         'schema_version = 1\n\n[document]\npage_size = "A5"\n',
         encoding="utf-8",
@@ -167,7 +184,6 @@ def test_pdk_pdf_value_wins_and_reports_its_source(tmp_path: Path) -> None:
     result = _run(path, check=True)
 
     assert result.exit_code == 0, result.output
-    assert "pdf_page_size" in result.output
     assert "A5" in result.output
     assert "pdk-pdf.toml [document].page_size" in result.output
 
