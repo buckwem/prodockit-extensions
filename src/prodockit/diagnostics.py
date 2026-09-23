@@ -2665,20 +2665,41 @@ def _pdf_configuration_check(config: ProjectConfig) -> DiagnosticResult:
             "pass",
             "PDF-only settings use pdk-pdf.toml or supported defaults",
             (),
-            {"legacy_settings": [], "policy_file": policy.path.name},
+            {
+                "legacy_settings": [],
+                "conflicting_settings": [],
+                "policy_file": policy.path.name,
+            },
         )
+    conflicts = set(resolved.conflicting_legacy)
+    shadowed = set(resolved.shadowed_legacy)
     details = tuple(
-        f"project.extra.{key} -> pdk-pdf.toml {PDF_SETTING_PATHS[key]}"
-        + (" (ignored because pdk-pdf.toml wins)" if key in resolved.shadowed_legacy else "")
+        (
+            f"project.extra.{key} conflicts with pdk-pdf.toml {PDF_SETTING_PATHS[key]}; "
+            "resolve the values before running pdk pdf"
+            if key in conflicts
+            else f"project.extra.{key} -> pdk-pdf.toml {PDF_SETTING_PATHS[key]}"
+            + (
+                " (matches pdk-pdf.toml; remove the legacy setting)"
+                if key in shadowed
+                else ""
+            )
+        )
         for key in sorted(legacy)
     )
     return DiagnosticResult(
         "project.pdf-configuration",
         "Project configuration and inputs",
-        "warn",
-        f"{len(legacy)} legacy PDF setting(s) remain in zensical.toml",
+        "fail" if conflicts else "warn",
+        f"{len(conflicts)} conflicting legacy PDF setting(s) remain in zensical.toml"
+        if conflicts
+        else f"{len(legacy)} legacy PDF setting(s) remain in zensical.toml",
         details,
-        {"legacy_settings": sorted(legacy), "policy_file": policy.path.name},
+        {
+            "legacy_settings": sorted(legacy),
+            "conflicting_settings": sorted(conflicts),
+            "policy_file": policy.path.name,
+        },
     )
 
 

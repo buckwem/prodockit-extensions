@@ -1197,6 +1197,46 @@ def test_pdf_configuration_check_warns_about_legacy_fallback(tmp_path: Path) -> 
     assert "project.extra.pdf_page_size -> pdk-pdf.toml [document].page_size" in check.details
 
 
+def test_pdf_configuration_check_fails_for_conflicting_legacy_value(tmp_path: Path) -> None:
+    (tmp_path / "pdk-pdf.toml").write_text(
+        'schema_version = 1\n[document]\npage_size = "A5"\n',
+        encoding="utf-8",
+    )
+    config = ProjectConfig(
+        path=tmp_path / "zensical.toml",
+        project={"extra": {"pdf_page_size": "Letter"}},
+        nav_pages=(),
+        markdown_extensions={},
+    )
+
+    check = diagnostics._pdf_configuration_check(config)
+
+    assert check.status == "fail"
+    assert (
+        "project.extra.pdf_page_size conflicts with pdk-pdf.toml "
+        "[document].page_size" in check.details[0]
+    )
+    assert "ignored because pdk-pdf.toml wins" not in check.details[0]
+
+
+def test_pdf_configuration_check_warns_for_matching_shadowed_value(tmp_path: Path) -> None:
+    (tmp_path / "pdk-pdf.toml").write_text(
+        'schema_version = 1\n[document]\npage_size = "A5"\n',
+        encoding="utf-8",
+    )
+    config = ProjectConfig(
+        path=tmp_path / "zensical.toml",
+        project={"extra": {"pdf_page_size": "A5"}},
+        nav_pages=(),
+        markdown_extensions={},
+    )
+
+    check = diagnostics._pdf_configuration_check(config)
+
+    assert check.status == "warn"
+    assert "matches pdk-pdf.toml; remove the legacy setting" in check.details[0]
+
+
 def test_missing_downloadable_renderers_are_deferred_until_first_use(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

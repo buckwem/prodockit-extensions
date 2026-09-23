@@ -151,6 +151,21 @@ page_size = "Letter"
     assert settings.source_for("pdf_margin_top").endswith("(deprecated fallback)")
     assert settings.legacy == ("pdf_margin_top",)
     assert settings.shadowed_legacy == ("pdf_page_size",)
+    assert settings.conflicting_legacy == ("pdf_page_size",)
+
+
+def test_matching_legacy_pdf_setting_is_shadowed_without_a_conflict(tmp_path: Path) -> None:
+    (tmp_path / "pdk-pdf.toml").write_text(
+        'schema_version = 1\n[document]\npage_size = "Letter"\n',
+        encoding="utf-8",
+    )
+
+    settings = load_pdf_runtime_config(tmp_path / "zensical.toml").resolve_pdf_settings(
+        {"pdf_page_size": "Letter"}
+    )
+
+    assert settings.shadowed_legacy == ("pdf_page_size",)
+    assert settings.conflicting_legacy == ()
 
 
 @pytest.mark.parametrize(

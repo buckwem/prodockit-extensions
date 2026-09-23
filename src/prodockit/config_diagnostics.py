@@ -19,7 +19,7 @@ from prodockit.citations import CitationsExtension
 from prodockit.glossary import GlossaryExtension
 from prodockit.headings import HeadingsExtension
 from prodockit.index import IndexExtension
-from prodockit.pdf.runtime_config import load_pdf_runtime_config
+from prodockit.pdf.runtime_config import PDF_SETTING_PATHS, load_pdf_runtime_config
 from prodockit.project_config import ProjectConfig
 from prodockit.project_integrity import inspect_project
 from prodockit.refs import RefsExtension
@@ -168,6 +168,14 @@ def inspect_config(
             valid_legacy_extra.pop(setting.key, None)
             diagnostics.append(Diagnostic(f"project.extra.{setting.key}", str(error)))
     pdf_settings = policy.resolve_pdf_settings(valid_legacy_extra)
+    for key in pdf_settings.conflicting_legacy:
+        diagnostics.append(
+            Diagnostic(
+                f"project.extra.{key}",
+                f"conflicts with pdk-pdf.toml {PDF_SETTING_PATHS[key]}; "
+                "resolve the values before running pdk pdf",
+            )
+        )
 
     for setting in EXTRA_SETTINGS:
         if setting.key in migrated_pdf_keys:

@@ -52,6 +52,7 @@ class ResolvedPdfSettings:
     sources: Mapping[str, str]
     legacy: tuple[str, ...]
     shadowed_legacy: tuple[str, ...]
+    conflicting_legacy: tuple[str, ...]
 
     def value(self, key: str) -> Any:
         try:
@@ -101,12 +102,15 @@ class PdfRuntimeConfig:
         sources = dict(self.pdf_sources)
         legacy: list[str] = []
         shadowed: list[str] = []
+        conflicts: list[str] = []
         for setting in PDF_EXTRA_SETTINGS:
             key = setting.key
             if key not in legacy_extra:
                 continue
             if key in self.pdf_explicit:
                 shadowed.append(key)
+                if legacy_extra[key] != self.pdf_values[key]:
+                    conflicts.append(key)
                 continue
             try:
                 setting.validate(legacy_extra[key])
@@ -120,6 +124,7 @@ class PdfRuntimeConfig:
             sources,
             tuple(sorted(legacy)),
             tuple(sorted(shadowed)),
+            tuple(sorted(conflicts)),
         )
 
 
