@@ -50,7 +50,11 @@ process.stdin.on('end', async () => {
     const html = MathJax.startup.adaptor.outerHTML(container);
     const svg = html.match(/<svg[\s\S]*<\/svg>/)?.[0];
     if (!svg) throw new Error('no SVG was produced');
-    process.stdout.write(svg);
+    // MathJax's HTML serializer leaves SSML tags inside accessibility
+    // attributes. An external SVG image must be well-formed XML for WeasyPrint.
+    const xmlSvg = svg.replace(/="[^"]*"/g, (attribute) =>
+      attribute.replaceAll('<', '&lt;').replaceAll('>', '&gt;'));
+    process.stdout.write(xmlSvg);
     MathJax.done();
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
