@@ -184,9 +184,8 @@ def test_remotelabs_tabs_and_privilege_badges_are_surrey_specific() -> None:
     assert surrey_install.count(stag_tab) == 5
     assert surrey_adopt.count(stag_tab) == 3
     assert surrey_bootstrap.count(stag_tab) == 4
-    assert (
-        GETTING_STARTED.parent.parent / "overrides/.icons/stag/stag_icon_32.svg"
-    ).is_file()
+    icon = GETTING_STARTED.parent.parent / "overrides/.icons/stag/stag_icon_32.svg"
+    assert 'fill="currentColor"' in icon.read_text(encoding="utf-8")
     for public in (public_install, public_adopt, public_bootstrap):
         assert "Surrey RemoteLabs" not in public
     assert "python -m venv .venv" in surrey_install
