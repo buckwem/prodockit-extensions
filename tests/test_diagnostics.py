@@ -541,6 +541,89 @@ def test_diagnostics_reports_the_same_pending_adopt_stages(
     assert "Component choices" in check.details[2]
 
 
+@pytest.mark.parametrize("version", ("3.10", "3.11", "3.12", "3.13"))
+def test_diagnostics_warns_for_compatibility_tested_python(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, version: str
+) -> None:
+    from prodockit import toolchain
+    from prodockit.adopt import AdoptChoiceResolution, AdoptOptions, Step
+
+    monkeypatch.setattr(toolchain, "installed_python_version", lambda: version)
+    monkeypatch.setattr(
+        "prodockit.adopt.resolve_options",
+        lambda _root: AdoptChoiceResolution(AdoptOptions(), "defaults", False),
+    )
+    blocked = toolchain.plan(tmp_path).blocked
+    monkeypatch.setattr(
+        "prodockit.adopt.assess",
+        lambda _root, _options, **_kwargs: [
+            Step("dependency", "Integrate", "Supported toolchain", "wrong", blocked),
+            Step("core", "Integrate", "Standard components", "missing", "add styles"),
+        ],
+    )
+
+    check = diagnostics._adopt_readiness_checks(tmp_path, online=False)[0]
+
+    assert check.status == "warn"
+    assert f"Python {version} is supported for use" in check.summary
+    assert "full Adopt toolchain integration is qualified on Python 3.14" in check.details[0]
+    assert check.data["adopt_blocked_by_python"] is True
+    assert "Standard components: add styles" in check.details
+    assert diagnostics._adopt_candidates(check)[0].status == "manual"
+
+
+@pytest.mark.parametrize("version", ("3.9", "3.15"))
+def test_diagnostics_still_fails_for_unsupported_python(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, version: str
+) -> None:
+    from prodockit import toolchain
+    from prodockit.adopt import AdoptChoiceResolution, AdoptOptions, Step
+
+    monkeypatch.setattr(toolchain, "installed_python_version", lambda: version)
+    monkeypatch.setattr(
+        "prodockit.adopt.resolve_options",
+        lambda _root: AdoptChoiceResolution(AdoptOptions(), "defaults", False),
+    )
+    blocked = toolchain.plan(tmp_path).blocked
+    monkeypatch.setattr(
+        "prodockit.adopt.assess",
+        lambda _root, _options, **_kwargs: [
+            Step("dependency", "Integrate", "Supported toolchain", "wrong", blocked),
+        ],
+    )
+
+    check = diagnostics._adopt_readiness_checks(tmp_path, online=False)[0]
+
+    assert check.status == "fail"
+    assert check.data["adopt_blocked_by_python"] is False
+
+
+def test_diagnostics_still_fails_for_other_adopt_blockers_on_supported_python(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from prodockit import toolchain
+    from prodockit.adopt import AdoptChoiceResolution, AdoptOptions, Step
+
+    monkeypatch.setattr(toolchain, "installed_python_version", lambda: "3.12")
+    monkeypatch.setattr(
+        "prodockit.adopt.resolve_options",
+        lambda _root: AdoptChoiceResolution(AdoptOptions(), "defaults", False),
+    )
+    blocked = toolchain.plan(tmp_path).blocked
+    monkeypatch.setattr(
+        "prodockit.adopt.assess",
+        lambda _root, _options, **_kwargs: [
+            Step("dependency", "Integrate", "Supported toolchain", "wrong", blocked),
+            Step("core", "Integrate", "Standard components", "wrong", "invalid project file"),
+        ],
+    )
+
+    check = diagnostics._adopt_readiness_checks(tmp_path, online=False)[0]
+
+    assert check.status == "fail"
+    assert check.data["blockers"] == ["dependency", "core"]
+
+
 def test_diagnostics_passes_when_adopt_is_aligned(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

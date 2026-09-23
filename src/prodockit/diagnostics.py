@@ -1163,6 +1163,8 @@ def _configuration_candidates(check: DiagnosticResult) -> list[RepairCandidate]:
 def _adopt_candidates(check: DiagnosticResult) -> list[RepairCandidate]:
     """Offer only the deterministic core-asset part of pending Adopt work."""
     policy = REPAIR_REGISTRY[check.id]
+    if check.data.get("adopt_blocked_by_python"):
+        return [_generic_candidate(check)]
     if "core" not in check.data.get("pending", ()):
         return [_generic_candidate(check)]
     paths = tuple(str(path) for path in check.data.get("core_paths", ()))
@@ -3783,6 +3785,7 @@ def _adopt_readiness_checks(
     retry_reporter: RetryReporter | None = None,
 ) -> list[DiagnosticResult]:
     """Report the same local integration work that Adopt and template-sync see."""
+    from prodockit import toolchain as supported_toolchain
     from prodockit.adopt import AdoptError, assess, resolve_options
 
     try:
@@ -3824,12 +3827,26 @@ def _adopt_readiness_checks(
     integration_steps = [step for step in steps if step.id in integration_ids]
     blockers = [step for step in integration_steps if step.selected and step.status == "wrong"]
     pending = [step for step in integration_steps if step.needs_work]
+    active_python = supported_toolchain.installed_python_version()
+    limited_python = next(
+        (
+            step
+            for step in blockers
+            if step.id == "dependency"
+            and supported_toolchain.is_limited_test_python(active_python)
+            and step.detail.startswith(
+                f"Python {active_python} is supported for Prodockit package use"
+            )
+        ),
+        None,
+    )
     data: dict[str, Any] = {
         "options": {"mermaid": options.mermaid, "maths": options.maths},
         "options_source": resolution.source,
         "options_saved": resolution.saved,
         "blockers": [step.id for step in blockers],
         "pending": [step.id for step in pending],
+        "adopt_blocked_by_python": limited_python is not None,
         "core_paths": [],
         "core_fingerprint": None,
         "steps": [
@@ -3853,7 +3870,7 @@ def _adopt_readiness_checks(
             # The enclosing Adopt report remains useful. Without an exact
             # bounded target set, Diagnostics deliberately leaves repair to Adopt.
             pass
-    if blockers:
+    if blockers and (limited_python is None or len(blockers) > 1):
         return [
             DiagnosticResult(
                 "maintenance.adopt-readiness",
@@ -3861,6 +3878,28 @@ def _adopt_readiness_checks(
                 "fail",
                 f"Adopt has {len(blockers)} blocking integration problem(s)",
                 tuple(f"{step.summary}: {step.detail}" for step in blockers),
+                data,
+            )
+        ]
+    if limited_python is not None:
+        tested_python = TESTED_VERSIONS["python"]
+        return [
+            DiagnosticResult(
+                "maintenance.adopt-readiness",
+                "Repository and template maintenance",
+                "warn",
+                f"Python {active_python} is supported for use; Adopt needs Python {tested_python}",
+                (
+                    f"Compatibility tests cover Python 3.10–{tested_python}; full Adopt "
+                    f"toolchain integration is qualified on Python {tested_python}.",
+                    f"Adopt will not change packages or project files under Python "
+                    f"{active_python}; activate Python {tested_python} before using Adopt.",
+                    *(
+                        f"{step.summary}: {step.detail}"
+                        for step in pending
+                        if step is not limited_python
+                    ),
+                ),
                 data,
             )
         ]

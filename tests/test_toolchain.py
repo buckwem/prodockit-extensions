@@ -83,10 +83,28 @@ def test_python_mismatch_blocks_before_inventory_or_mutation(
 
     planned = toolchain.plan(tmp_path)
 
-    assert "Python 3.13 is active" in planned.blocked
+    assert "Python 3.13 is supported for Prodockit package use" in planned.blocked
+    assert "full Adopt toolchain integration is qualified on Python 3.14" in planned.blocked
     assert "Python 3.14 virtual environment" in planned.blocked
     assert planned.commands == ()
     assert (tmp_path / "requirements.txt").read_text(encoding="utf-8") == "untouched\n"
+
+
+@pytest.mark.parametrize(
+    ("version", "limited"),
+    (
+        ("3.9", False),
+        ("3.10", True),
+        ("3.11", True),
+        ("3.12", True),
+        ("3.13", True),
+        ("3.14", False),
+        ("3.15", False),
+        ("invalid", False),
+    ),
+)
+def test_limited_python_versions(version: str, limited: bool) -> None:
+    assert toolchain.is_limited_test_python(version) is limited
 
 
 @pytest.mark.parametrize(
