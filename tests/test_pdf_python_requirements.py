@@ -17,35 +17,48 @@ def _project(tmp_path: Path, source: str = requirements.STANDARD_REQUIREMENTS) -
     return tmp_path
 
 
+@pytest.mark.parametrize("include_index", [False, True])
 def test_cold_prepare_installs_once_then_warm_prepare_never_invokes_pip(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, include_index: bool
 ) -> None:
     project = _project(tmp_path)
     installed: dict[str, str] | None = None
     commands: list[tuple[str, ...]] = []
+    versions = {"weasyprint": "69.0"}
+    if include_index:
+        versions["pymupdf"] = "1.28.2"
 
     monkeypatch.setattr(requirements, "_installed_versions", lambda _items: installed)
     monkeypatch.setattr(
         requirements,
         "_fresh_versions",
-        lambda _items: {"weasyprint": "69.0"},
+        lambda _items: versions,
     )
     monkeypatch.setattr(requirements, "_probe", lambda _items: None)
 
     def run(command, **_kwargs):
         nonlocal installed
         commands.append(command)
-        installed = {"weasyprint": "69.0"}
+        installed = versions
 
     monkeypatch.setattr(requirements, "run_install_command", run)
 
-    cold = requirements.prepare_pdf_python_requirements(project / "zensical.toml")
-    warm = requirements.prepare_pdf_python_requirements(project / "zensical.toml")
+    cold = requirements.prepare_pdf_python_requirements(
+        project / "zensical.toml", include_index=include_index
+    )
+    warm = requirements.prepare_pdf_python_requirements(
+        project / "zensical.toml", include_index=include_index
+    )
 
     assert cold.cached is False
     assert warm.cached is True
+    assert warm.versions == versions
     assert len(commands) == 1
-    assert commands[0][-2:] == ("-r", str(project / requirements.REQUIREMENTS_NAME))
+    assert commands[0][-2:] == (
+        ("-r", str(project / requirements.REQUIREMENTS_NAME))
+        if not include_index
+        else (str(project / requirements.REQUIREMENTS_NAME), requirements.PYMUPDF_REQUIREMENT)
+    )
     assert requirements.cache_manifest_path(project).is_file()
 
 
