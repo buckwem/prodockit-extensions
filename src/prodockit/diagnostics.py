@@ -3184,7 +3184,7 @@ def _explicit_mathjax_check(config: ProjectConfig, root: Path) -> DiagnosticResu
         probe = probe_mathjax(node, script)
         problem = probe.error or ""
     path = _display_path(Path(script), root) if script else None
-    details = (f"selected script: {path or configured}",)
+    details: tuple[str, ...] = (f"selected script: {path or configured}",)
     if problem:
         details += (
             f"{_sanitise_text(problem, root)} Remove pdf_tex2svg_script "
