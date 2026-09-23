@@ -26,7 +26,6 @@ from prodockit.adopt import (
     assess,
     component_asset_exclusions,
     ensure_javascripts,
-    ensure_pdf_requirements,
     ensure_requirement,
     ensure_stylesheet,
     ensure_stylesheets,
@@ -137,17 +136,15 @@ def test_pdf_requirements_migration_is_reviewable_and_preserves_unrelated_packag
     )
 
     assert core.status == "missing"
-    assert core.files == (requirements, project / "pdf-requirements.txt")
-    assert "REMOVE: requirements.txt: weasyprint==70.0" in core.plan_lines[0]
-    assert "REMOVE: requirements.txt: pandoc" in core.plan_lines[1]
-    assert any(
-        line == 'ADD: pdf-requirements.txt: weasyprint==70.0; sys_platform != "win32"  # project PDF pin'
-        for line in core.plan_lines
-    )
+    assert core.files == ()
+    assert core.plan_lines == ()
 
-    written = ensure_pdf_requirements(project)
+    from prodockit.pdf.project_files import prepare_project_files
 
-    assert written == [requirements, project / "pdf-requirements.txt"]
+    written = prepare_project_files(project / "zensical.toml")
+
+    assert requirements in written
+    assert project / "pdf-requirements.txt" in written
     assert requirements.read_text(encoding="utf-8") == "zensical>=0.0.61\ntoml\n"
     pdf_source = (project / "pdf-requirements.txt").read_text(encoding="utf-8")
     assert 'weasyprint==70.0; sys_platform != "win32"  # project PDF pin' in pdf_source
@@ -162,9 +159,12 @@ def test_pdf_requirements_migration_preserves_an_existing_pdf_policy(tmp_path: P
     requirements = project / "requirements.txt"
     requirements.write_text("zensical\nweasyprint>=69.0\n", encoding="utf-8")
 
-    ensure_pdf_requirements(project)
+    from prodockit.pdf.project_files import PdfProjectFilesError, prepare_project_files
 
-    assert requirements.read_text(encoding="utf-8") == "zensical\n"
+    with pytest.raises(PdfProjectFilesError, match="conflicts"):
+        prepare_project_files(project / "zensical.toml")
+
+    assert requirements.read_text(encoding="utf-8") == "zensical\nweasyprint>=69.0\n"
     assert pdf_requirements.read_text(encoding="utf-8") == (
         'weasyprint==70.0; sys_platform != "win32"\n'
     )
@@ -334,12 +334,7 @@ language = "en-GB"
     assert '"stylesheets/mine.css"' in config
     assert '"stylesheets/pdk.css"' in config
     assert config.index('site_name = "Mine"') < config.index("extra_css = [")
-    assert load_pdf_runtime_config(project / "zensical.toml").pdf_values[
-        "pdf_extra_css"
-    ] == [
-        "stylesheets/pdk-pdf.css",
-        "stylesheets/print.css",
-    ]
+    assert not (project / "pdk-pdf.toml").exists()
     assert config.index("extra_javascript = [") < config.index("[project.theme]")
     assert config.index('"stylesheets/pdk.css"') < config.index('"stylesheets/mine.css"')
     for extension in CORE_EXTENSIONS:
@@ -377,16 +372,15 @@ pdf_extra_css = ["stylesheets/print.css"]
     config = (project / "zensical.toml").read_text(encoding="utf-8")
     assert config.index('"stylesheets/pdk.css"') < config.index('"stylesheets/template.css"')
     assert config.index('"stylesheets/template.css"') < config.index('"stylesheets/extra.css"')
+    assert not (project / "pdk-pdf.toml").exists()
+    from prodockit.pdf.project_files import prepare_project_files
+
+    prepare_project_files(project / "zensical.toml")
     pdf_config = (project / "pdk-pdf.toml").read_text(encoding="utf-8")
     assert pdf_config.index('"stylesheets/pdk-pdf.css"') < pdf_config.index(
         '"stylesheets/print.css"'
     )
-    assert {path.name for path in written} == {
-        "pdk.css",
-        "pdk-pdf.css",
-        "extra.css",
-        "print.css",
-    }
+    assert {path.name for path in written} == {"pdk.css", "extra.css"}
     assert extra.read_text(encoding="utf-8") == "/* author website styles */\n"
     assert print_css.read_text(encoding="utf-8") == "/* author PDF styles */\n"
 
@@ -407,8 +401,12 @@ extra.pdf_extra_css = ["stylesheets/course-print.css"]
     ensure_zensical_config(project, AdoptOptions())
 
     config = (project / "zensical.toml").read_text(encoding="utf-8")
-    assert "extra.pdf_copyright" not in config
+    assert "extra.pdf_copyright" in config
     assert not re.search(r"(?m)^\[project.extra\]", config)
+    assert not (project / "pdk-pdf.toml").exists()
+    from prodockit.pdf.project_files import prepare_project_files
+
+    prepare_project_files(project / "zensical.toml")
     pdf_config = (project / "pdk-pdf.toml").read_text(encoding="utf-8")
     assert 'copyright = "Keep this footer"' in pdf_config
     assert pdf_config.index('"stylesheets/pdk-pdf.css"') < pdf_config.index(
@@ -436,18 +434,21 @@ pdf_source_bundle_output = "dist/source.pdf"
 """,
     )
     (project / "pdk-pdf.toml").write_text(
-        'schema_version = 1\n\n[document]\npage_size = "A5"\n',
+        'schema_version = 1\n\n[document]\npage_size = "Letter"\n',
         encoding="utf-8",
     )
 
     ensure_zensical_config(project, AdoptOptions())
+    from prodockit.pdf.project_files import prepare_project_files
+
+    prepare_project_files(project / "zensical.toml")
     first = (project / "pdk-pdf.toml").read_text(encoding="utf-8")
     ensure_zensical_config(project, AdoptOptions())
 
     assert (project / "pdk-pdf.toml").read_text(encoding="utf-8") == first
     policy = load_pdf_runtime_config(project / "zensical.toml")
     assert policy.pdf_values["pdf_output"] == "dist/report.pdf"
-    assert policy.pdf_values["pdf_page_size"] == "A5"
+    assert policy.pdf_values["pdf_page_size"] == "Letter"
     assert policy.pdf_values["pdf_margin_top"] == "3cm"
     assert policy.pdf_values["pdf_double_sided"] is True
     assert policy.pdf_values["pdf_include_table_of_contents"] is False
@@ -466,8 +467,8 @@ def test_core_adoption_creates_missing_user_managed_styles_without_replacing_the
     styles = project / "docs" / "stylesheets"
     extra = styles / "extra.css"
     print_css = styles / "print.css"
-    assert "project-specific website and PDF" in extra.read_text(encoding="utf-8")
-    assert "project-specific PDF-only" in print_css.read_text(encoding="utf-8")
+    assert "project-specific website styles" in extra.read_text(encoding="utf-8")
+    assert not print_css.exists()
 
     extra.write_text("/* keep my website CSS */\n", encoding="utf-8")
     print_css.write_text("/* keep my PDF CSS */\n", encoding="utf-8")
@@ -479,7 +480,7 @@ def test_core_adoption_creates_missing_user_managed_styles_without_replacing_the
     assert extra.read_text(encoding="utf-8") == "/* keep my website CSS */\n"
     assert print_css.read_text(encoding="utf-8") == "/* keep my PDF CSS */\n"
     assert (styles / "pdk.css").read_text(encoding="utf-8") != "/* old managed CSS */\n"
-    assert (styles / "pdk-pdf.css").read_text(encoding="utf-8") != ("/* old managed PDF CSS */\n")
+    assert (styles / "pdk-pdf.css").read_text(encoding="utf-8") == ("/* old managed PDF CSS */\n")
 
 
 def test_core_adoption_installs_javascript_without_mathjax(tmp_path: Path) -> None:
@@ -679,9 +680,13 @@ extra:
     assert (
         "extra_css: [stylesheets/pdk.css, stylesheets/theme.css, stylesheets/extra.css]" in config
     )
-    assert "pdf_extra_css" not in config
-    assert "pdf_page_size" not in config
-    assert "pdf_double_sided" not in config
+    assert "pdf_extra_css" in config
+    assert "pdf_page_size" in config
+    assert "pdf_double_sided" in config
+    assert not (project / "pdk-pdf.toml").exists()
+    from prodockit.pdf.project_files import prepare_project_files
+
+    prepare_project_files(project / "zensical.yml")
     pdf_config = (project / "pdk-pdf.toml").read_text(encoding="utf-8")
     assert pdf_config.index('"stylesheets/pdk-pdf.css"') < pdf_config.index(
         '"stylesheets/custom-print.css"'
@@ -1433,10 +1438,9 @@ def test_stylesheet_follows_a_custom_docs_directory(tmp_path: Path) -> None:
     assert path == project / "docs" / "src" / "markdown" / "stylesheets" / "pdk.css"
     assert path.is_file()
     stylesheet_dir = project / "docs" / "src" / "markdown" / "stylesheets"
-    assert all(
-        (stylesheet_dir / name).is_file()
-        for name in ("pdk.css", "extra.css", "pdk-pdf.css", "print.css")
-    )
+    assert all((stylesheet_dir / name).is_file() for name in ("pdk.css", "extra.css"))
+    assert not (stylesheet_dir / "pdk-pdf.css").exists()
+    assert not (stylesheet_dir / "print.css").exists()
     assert not (project / STYLESHEET).exists()
 
 

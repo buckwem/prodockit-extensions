@@ -1129,7 +1129,7 @@ before continuing.
     prefix.
 
     Do not install `pdf-requirements.txt` here. When local PDF output is
-    selected, `pdk pdf` installs and validates that committed PDF-only package
+    selected, `pdk pdf` creates, installs and validates the PDF-only package
     set in the active environment during Stage 6.
 
 1. Check that Python, Prodockit and Zensical resolve from the active project
@@ -1337,7 +1337,7 @@ Download, verify and cache every configured PDF component:
 pdk pdf --prepare all
 ```
 
-On macOS and Ubuntu this also installs and validates the committed
+On macOS and Ubuntu this also creates, installs and validates
 `pdf-requirements.txt` in the active environment. Windows x64 instead prepares
 the verified standalone WeasyPrint runtime. Pandoc, fonts, Mermaid and MathJax
 remain in the ignored project-local `.prodockit/cache/pdf/` cache.

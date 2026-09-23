@@ -108,6 +108,7 @@ from prodockit.pdf.config import (
     build_source_bundle_from_zensical_config,
 )
 from prodockit.pdf.mermaid import MermaidBackendUnavailableError, MermaidRenderError
+from prodockit.pdf.project_files import PdfProjectFilesError, prepare_project_files
 from prodockit.pdf.python_requirements import (
     PdfPythonRequirementsError,
     prepare_pdf_python_requirements,
@@ -2722,6 +2723,12 @@ def bootstrap(
     sys.exit(1)
 
 
+def _report_pdf_project_files(config_file: str) -> None:
+    root = Path(config_file).resolve().parent
+    for path in prepare_project_files(config_file):
+        click.echo(f"  Updated PDF project file: {path.relative_to(root)}")
+
+
 def _run_pdf_command(
     config_file: str,
     markdown_file: str | None,
@@ -2752,6 +2759,8 @@ def _run_pdf_command(
 
     started = time.monotonic()
     try:
+        if Path(config_file).is_file():
+            _report_pdf_project_files(config_file)
         output_path = build_pdf_from_built_site(
             config_file,
             markdown_file=markdown_file,
@@ -2765,6 +2774,7 @@ def _run_pdf_command(
         MermaidBackendUnavailableError,
         MermaidRenderError,
         PdfPythonRequirementsError,
+        PdfProjectFilesError,
         RuntimeProviderUnavailableError,
         RuntimeStoreError,
         ValueError,
@@ -2837,6 +2847,8 @@ def pdf(
             unsupported = _windows_arm64_local_pdf_error()
             if unsupported and not requested.issubset({"pandoc"}):
                 raise click.ClickException(unsupported)
+            if not unsupported and Path(config_file).is_file():
+                _report_pdf_project_files(config_file)
             python_prepared = None
             include_index = False
             if "all" in requested:
@@ -2861,6 +2873,7 @@ def pdf(
         except (
             PdfRuntimeConfigError,
             PdfPythonRequirementsError,
+            PdfProjectFilesError,
             ProjectConfigError,
             RuntimeProviderUnavailableError,
             RuntimeStoreError,

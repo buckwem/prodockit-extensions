@@ -74,8 +74,8 @@ only `location = "cache"`: it means the derived project-local store at
 Resolved versions, hashes, platform identity and last-known-good state are
 recorded inside that store rather than in `pdk-pdf.toml`.
 
-PDF-only Python packages have a separate committed policy file,
-`pdf-requirements.txt`. On macOS and Linux its standard WeasyPrint requirement
+PDF-only Python packages have a separate project policy file,
+`pdf-requirements.txt`, created by `pdk pdf` when missing. On macOS and Linux its standard WeasyPrint requirement
 is installed into the active project environment on first use. If the index is
 enabled, PyMuPDF is added for that build. The preparation fingerprint includes
 the file, interpreter and environment, so another virtual environment prepares

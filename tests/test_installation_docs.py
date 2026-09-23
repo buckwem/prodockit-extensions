@@ -665,7 +665,7 @@ def test_manual_install_orders_optional_pdf_work_after_project_installation() ->
     before_packages = page[page.index("### Stage 4 — Create the project environment") : packages]
     assert "pdk pdf --prepare" not in before_packages
     assert "Do not install `pdf-requirements.txt` here" in page[packages:pdf_stage]
-    assert "`pdk pdf` installs and validates" in page[packages:pdf_stage]
+    assert "`pdk pdf` creates, installs and validates" in page[packages:pdf_stage]
 
 
 def test_manual_pdf_stage_matches_supported_platform_workflow() -> None:

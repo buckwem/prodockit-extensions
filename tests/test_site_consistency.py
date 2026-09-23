@@ -257,9 +257,10 @@ def test_install_choice_starts_with_an_expert_quick_install() -> None:
     assert "activated project virtual environment" in quick
     assert "python -m pip install --upgrade prodockit" in quick
     assert "zensical new ." not in quick
-    assert "pdk adopt --apply" in quick
-    assert "Run Adopt once" in quick
-    assert "already been adopted" in quick
+    assert "pdk adopt --apply" not in quick
+    assert '[project.markdown_extensions."prodockit.tables"]' in quick
+    assert '[project.markdown_extensions."pymdownx.blocks.caption"]' in quick
+    assert 'extra_css = ["stylesheets/pdk.css", "stylesheets/extra.css"]' in quick
     assert "For optional local PDF generation" in quick
     assert "brew install pango node" in quick
     assert "winget install OpenJS.NodeJS.LTS" in quick
