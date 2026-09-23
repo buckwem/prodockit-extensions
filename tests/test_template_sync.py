@@ -1283,6 +1283,14 @@ def test_files_no_longer_delivered_are_reported_not_removed() -> None:
     ]
 
 
+def test_retired_mathjax_tree_is_reported_despite_template_tools_ownership() -> None:
+    manifest = load_manifest(MANIFEST.replace('"macros.py", "test/**"', '"macros.py", "test/**", "tools/**"'))
+    retired = ["tools/mathjax/package.json", "tools/mathjax/tex2svg.js"]
+
+    assert leftovers(manifest, retired, template_files=["tools/current.py"]) == retired
+    assert leftovers(manifest, retired, template_files=[*retired]) == []
+
+
 def test_existing_pdf_settings_are_preserved_even_when_the_manifest_claims_them() -> None:
     """The template's broad `take` pattern must not restore page defaults
     or put the template author's name on somebody else's report."""

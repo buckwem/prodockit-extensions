@@ -115,6 +115,12 @@ explanation:
 Reading a Template Sync preview
 ///
 
+Older files that the current template no longer delivers are listed for review,
+not deleted. In particular, a retained `tools/mathjax` tree from an older
+template is reported even though the template once owned `tools/**`. Remove it
+if unused; `pdk pdf` now selects project-local JIT MathJax unless
+`pdf_tex2svg_script` is explicitly configured.
+
 For a GitLab.com project, SSH access is required only for the project's
 GitLab.com remote. Template Sync fetches the public template from GitHub over
 HTTPS, so it does not require a GitHub account or a second SSH key. If GitHub

@@ -1123,14 +1123,34 @@ def missing_ignores(manifest: Manifest, current: Sequence[str]) -> list[str]:
     return [line for line in wanted if line.strip() not in have]
 
 
-def leftovers(manifest: Manifest, project_files: Iterable[str]) -> list[str]:
+_RETIRED_MATHJAX_FILES = frozenset(
+    {
+        "tools/mathjax/package.json",
+        "tools/mathjax/package-lock.json",
+        "tools/mathjax/tex2svg.js",
+    }
+)
+
+
+def leftovers(
+    manifest: Manifest,
+    project_files: Iterable[str],
+    *,
+    template_files: Iterable[str] = (),
+) -> list[str]:
     """Files the project has that are no longer delivered.
 
     Reported, never deleted. Removing files from somebody's repository
     because a manifest changed its mind is a different and more dangerous
     operation than updating a file the template owns.
     """
-    return sorted(p for p in project_files if manifest.owner(p) == "excluded")
+    delivered = set(template_files)
+    return sorted(
+        p
+        for p in project_files
+        if manifest.owner(p) == "excluded"
+        or (p in _RETIRED_MATHJAX_FILES and p not in delivered)
+    )
 
 
 # ---------------------------------------------------------------------------

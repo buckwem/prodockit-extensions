@@ -4558,6 +4558,7 @@ def _run_template_sync(
                 encoding="utf-8",
                 check=False,
             ).stdout.split(),
+            template_files=files,
         )
 
         config_path = project / "zensical.toml"
@@ -4858,6 +4859,13 @@ def _run_template_sync(
             say_detail(f"Older template files left alone: {len(stale)}")
             for path in stale:
                 say_detail(f"      {path}")
+            if any(path.startswith("tools/mathjax/") for path in stale):
+                say_warning(
+                    "  Retired tools/mathjax files remain. Review and remove them if "
+                    "unused; JIT MathJax no longer selects them automatically. "
+                    "Keep an intentional pdf_tex2svg_script override only if it passes "
+                    "`pdk diag`. Template Sync does not delete project files."
+                )
 
         def explain_environment_only_update() -> None:
             """Explain an environment-only prerequisite update."""

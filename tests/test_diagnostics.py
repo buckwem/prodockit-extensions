@@ -1355,6 +1355,92 @@ def test_missing_node_remains_a_failure_after_mathjax_has_been_prepared(
     assert node.data.get("deferred") is not True
 
 
+def test_explicit_mathjax_diagnostic_checks_selected_script_not_jit_cache(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config = _project(tmp_path, required=True)
+    config.project["extra"]["pdf_tex2svg_script"] = "tools/mathjax/tex2svg.js"
+    script = tmp_path / "tools" / "mathjax" / "tex2svg.js"
+    script.parent.mkdir(parents=True)
+    script.write_text("// missing npm dependencies\n", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(diagnostics.shutil, "which", lambda name: "node" if name == "node" else None)
+    monkeypatch.setattr(
+        diagnostics,
+        "probe_mathjax",
+        lambda _node, _script: SimpleNamespace(error="Cannot find module 'mathjax-full'"),
+    )
+
+    check = diagnostics._explicit_mathjax_check(config, tmp_path)
+
+    assert check.status == "fail"
+    assert check.data["backend"] == "explicit-script"
+    assert check.data["path"] == "tools/mathjax/tex2svg.js"
+    assert "Cannot find module" in check.details[1]
+    assert "Remove pdf_tex2svg_script" in check.details[1]
+
+    def cached(_config, _root, *, component, required):
+        assert component != "mathjax", "the JIT cache must not mask an explicit script"
+        return DiagnosticResult(
+            f"renderer.{component}", "Rendering toolchain", "pass", "healthy",
+            data={"required": required},
+        )
+
+    monkeypatch.setattr(diagnostics, "_project_cached_runtime_check", cached)
+    monkeypatch.setattr(
+        diagnostics, "_system_weasyprint_check",
+        lambda *_args, **_kwargs: DiagnosticResult(
+            "renderer.weasyprint", "Rendering toolchain", "pass", "healthy"
+        ),
+    )
+    monkeypatch.setattr(
+        diagnostics, "_windows_cached_weasyprint_check",
+        lambda *_args, **_kwargs: DiagnosticResult(
+            "renderer.weasyprint", "Rendering toolchain", "pass", "healthy"
+        ),
+    )
+    monkeypatch.setattr(
+        diagnostics, "_tool_result",
+        lambda *_args, **_kwargs: DiagnosticResult(
+            "renderer.node", "Rendering toolchain", "pass", "healthy"
+        ),
+    )
+    monkeypatch.setattr(
+        diagnostics, "pdf_python_requirements_prepared", lambda *_args, **_kwargs: True
+    )
+    monkeypatch.setattr(
+        diagnostics, "pdf_python_requirements_established", lambda *_args, **_kwargs: True
+    )
+
+    mathjax = next(
+        item for item in diagnostics._renderer_checks(config, tmp_path)
+        if item.id == "renderer.mathjax"
+    )
+    assert mathjax.status == "fail"
+    assert mathjax.data["backend"] == "explicit-script"
+
+
+def test_explicit_mathjax_diagnostic_reports_a_working_override(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config = _project(tmp_path, required=True)
+    config.project["extra"]["pdf_tex2svg_script"] = "custom/mathjax.js"
+    script = tmp_path / "custom" / "mathjax.js"
+    script.parent.mkdir()
+    script.write_text("// custom renderer\n", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(diagnostics.shutil, "which", lambda name: "node" if name == "node" else None)
+    monkeypatch.setattr(
+        diagnostics, "probe_mathjax", lambda _node, _script: SimpleNamespace(error=None)
+    )
+
+    check = diagnostics._explicit_mathjax_check(config, tmp_path)
+
+    assert check.status == "pass"
+    assert check.data["backend"] == "explicit-script"
+    assert check.details == ("selected script: custom/mathjax.js",)
+
+
 def test_mermaid_diagnostic_reports_missing_project_cache(
     tmp_path: Path,
 ) -> None:
