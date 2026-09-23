@@ -26,6 +26,11 @@ nav = [
 """
 
 
+@pytest.fixture(autouse=True)
+def _isolate_cli_working_directory(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.chdir(tmp_path)
+
+
 def _write_project(tmp_path: Path) -> None:
     docs_dir = tmp_path / "docs"
     docs_dir.mkdir()
@@ -66,6 +71,11 @@ def test_pdf_command_builds_using_the_default_config_file(
 
     assert result.exit_code == 0
     assert "Using the completed Zensical build in site" in result.output
+    assert (tmp_path / "docs/stylesheets/pdk-pdf.css").is_file()
+    assert (tmp_path / "docs/stylesheets/print.css").is_file()
+    assert 'stylesheets/pdk-pdf.css' in (tmp_path / "pdk-pdf.toml").read_text()
+    assert 'stylesheets/print.css' in (tmp_path / "pdk-pdf.toml").read_text()
+    assert 'prodockit.pdf' not in (tmp_path / "zensical.toml").read_text()
     assert "Wrote docs/site_documentation.pdf" in result.output
     assert (tmp_path / "docs" / "site_documentation.pdf").exists()
     assert (tmp_path / "site" / "site_documentation.pdf").read_bytes() == (
@@ -343,6 +353,8 @@ def test_pdf_prepare_explains_missing_node_for_direct_and_all_requests(
     import prodockit.cli as cli_module
     from prodockit.pdf import mathjax_runtime
     from prodockit.pdf.python_requirements import PdfPythonPreparation
+
+    _write_project(tmp_path)
 
     runtime = tmp_path / mathjax_runtime.MATHJAX_DIRECTORY
     runtime.mkdir(parents=True)

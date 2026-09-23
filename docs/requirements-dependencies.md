@@ -50,8 +50,9 @@ minimum independently. Run `prodockit pins` to select the supported set.
 
 ## Installed on first PDF use {: #requirements-pdf-python }
 
-The project commits `pdf-requirements.txt` separately from its website
-requirements. On macOS and Linux, `pdk pdf` installs its WeasyPrint declaration
+`pdk pdf` creates `pdf-requirements.txt` on first use if it is absent; projects
+may commit it separately from website requirements. On macOS and Linux,
+`pdk pdf` installs its WeasyPrint declaration
 into the active project environment on first use, validates the native loader,
 and records the requirements and environment fingerprint beneath
 `.prodockit/cache/pdf/python/`. An unchanged warm build does not invoke pip.

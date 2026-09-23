@@ -105,8 +105,8 @@ operating system when the route above requires them:
 Pandoc and the Inter/JetBrains Mono PDF fonts require no host installation.
 The first applicable build downloads verified archives into
 `.prodockit/cache/pdf/`; bibliography-only use prepares Pandoc without fonts.
-On macOS and Linux, the first PDF build also installs the packages declared in
-the committed `pdf-requirements.txt` into the active project environment. The
+On macOS and Linux, the first PDF build also creates a missing
+`pdf-requirements.txt` and installs its packages into the active project environment. The
 standard file contains only WeasyPrint. When the back-of-book index is enabled,
 Prodockit adds PyMuPDF to that first-use preparation. A matching warm build
 does not invoke pip or contact a package index.
@@ -241,11 +241,11 @@ build conceal a fallback or incomplete document. The complete project checks
 are described under [Test the built output](devcons/testing.md#testing-quick-start).
 
 Projects created before this boundary can continue reading
-`project.extra.pdf_*` values. Run `pdk adopt` to copy those values into the
-matching `pdk-pdf.toml` tables and remove the old keys. An explicit value
-already present in `pdk-pdf.toml` wins, so adoption preserves the newer policy;
-running the migration again makes no further change. The legacy reader is a
-deprecated upgrade bridge, not a second writer.
+`project.extra.pdf_*` values. On first `pdk pdf` use, the command copies those
+values into the matching `pdk-pdf.toml` tables and removes the old keys. If
+both files specify different values, it stops and asks you to resolve the
+conflict; it never silently chooses one. A repeat run makes no further change.
+The legacy reader is a deprecated upgrade bridge, not a second writer.
 
 \ref{tab-pdf-building-a-single-file} compares a single-page diagnostic build with the checks performed for a complete document.
 

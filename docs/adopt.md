@@ -313,9 +313,9 @@ copy is available.
 Adoption records selected PDF components without installing them. Its final
 diagnostics report a clean missing project cache as deferred until first use.
 `pdk pdf` then downloads, verifies and activates only the runtimes the document
-needs and installs the committed `pdf-requirements.txt` in the active project
+needs and creates or migrates `pdf-requirements.txt` in the active project
 environment; `pdk pdf --prepare COMPONENT` remains available when preparation
-must be forced before a build. Adopt previews and moves legacy WeasyPrint out
+must be forced before a build. The PDF command also moves legacy WeasyPrint out
 of base `requirements.txt`, removes the obsolete Python `pandoc` declaration,
 and creates the dedicated PDF file. Established renderer failures remain
 actionable.

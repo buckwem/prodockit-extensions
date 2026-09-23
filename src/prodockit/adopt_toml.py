@@ -10,8 +10,6 @@ from typing import TYPE_CHECKING, Any, cast
 import tomlkit
 from tomlkit.items import Item
 
-from prodockit.pdf.runtime_config import PDF_SETTING_PATHS, SCHEMA_VERSION
-
 if TYPE_CHECKING:
     from prodockit.adopt import AdoptOptions
 
@@ -135,8 +133,6 @@ def update(source: str, options: "AdoptOptions") -> str:
 
     asset(project, "extra_css", "stylesheets/pdk.css", first=True)
     asset(project, "extra_css", "stylesheets/extra.css")
-    for key in PDF_SETTING_PATHS:
-        extra.pop(key, None)
     if options.mermaid:
         fences = extension("pymdownx.superfences")
         if "custom_fences" not in fences:
@@ -166,40 +162,6 @@ def update(source: str, options: "AdoptOptions") -> str:
         asset(project, "extra_javascript", WEBSITE_MATHJAX_CONFIG, first=True)
     asset(project, "extra_javascript", "javascripts/pdk.js", first=True)
     asset(project, "extra_javascript", "javascripts/extra.js")
-    output = tomlkit.dumps(document)
-    tomllib.loads(output)
-    return output
-
-
-def update_pdf(source: str, legacy_extra: Mapping[str, object]) -> str:
-    """Migrate PDF-only policy and register Adopt's PDF styles safely."""
-    document = tomlkit.parse(source) if source else tomlkit.document()
-    document["schema_version"] = SCHEMA_VERSION
-    for key, path in PDF_SETTING_PATHS.items():
-        if key not in legacy_extra:
-            continue
-        table_name, field = path.removeprefix("[").split("].", 1)
-        if table_name not in document:
-            document[table_name] = tomlkit.table()
-        table = document[table_name]
-        if field not in table:
-            table[field] = inline(legacy_extra[key])
-    if "document" not in document:
-        document["document"] = tomlkit.table()
-    pdf_document = document["document"]
-
-    def asset(expected: str, *, first: bool = False) -> None:
-        if "extra_css" not in pdf_document:
-            pdf_document["extra_css"] = tomlkit.array().multiline(True)
-        values = pdf_document["extra_css"]
-        if not isinstance(values, list):
-            raise TypeError("[document].extra_css must be an array")
-        if expected in values:
-            return
-        values.insert(0, expected) if first else values.append(expected)
-
-    asset("stylesheets/pdk-pdf.css", first=True)
-    asset("stylesheets/print.css")
     output = tomlkit.dumps(document)
     tomllib.loads(output)
     return output

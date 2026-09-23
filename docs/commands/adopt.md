@@ -131,13 +131,12 @@ Adopt output structure
 Adopt can install, upgrade, or downgrade software in the active project
 environment to the combination supported by the installed Prodockit release.
 It can also align version declarations, enable the standard extensions, install
-the managed `pdk.css`, `pdk-pdf.css`, and `pdk.js` files; create missing
-user-managed `extra.css`, `print.css`, and `extra.js` files without replacing
-their contents; migrate PDF-only settings to `pdk-pdf.toml`; record the
+the managed `pdk.css` and `pdk.js` files; create missing user-managed
+`extra.css` and `extra.js` files without replacing their contents; record the
 stylesheet and JavaScript cascades; save component choices; provision the
 configured citation style when it is missing; and initialise selected
-authoring configuration. Optional PDF renderers are prepared transparently by
-`pdk pdf` when the document first uses them; Adopt does not install Node, npm,
+authoring configuration. PDF policy files, stylesheets, and renderers are
+prepared by `pdk pdf` on first use; Adopt does not install Node, npm,
 MSYS2, browsers, fonts, or PDF runtimes.
 It cannot rewrite the parent terminal's environment: if the verification still
 fails, an uppercase restart message includes the platform's activation command.
@@ -189,8 +188,8 @@ This prevents an older Adopt from replacing files supplied by a newer template
 sync. Once Prodockit is compatible, Adopt can still upgrade or downgrade its
 dependencies to the supported combination.
 
-Adopt records selected PDF components but does not install or align their
-runtimes. Its final diagnostics label a clean missing project cache as deferred
+Adopt records selected authoring components but does not create PDF policy
+files or install their runtimes. Its final diagnostics label a clean missing project cache as deferred
 first-use preparation, not as a failed adoption. Run `pdk pdf` to prepare only
 the components the completed document uses, or `pdk pdf --prepare COMPONENT`
 to force preparation before a build.

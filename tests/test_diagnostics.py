@@ -489,7 +489,7 @@ extra_javascript = ["javascripts/extra.js"]
     assert config.index('"javascripts/pdk.js"') < config.index('"javascripts/extra.js"')
     assert all(
         (tmp_path / "docs/stylesheets" / name).is_file()
-        for name in ("pdk.css", "extra.css", "pdk-pdf.css", "print.css")
+        for name in ("pdk.css", "extra.css")
     )
     assert result.manifest is not None
 

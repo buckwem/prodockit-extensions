@@ -15,6 +15,7 @@ from prodockit.adopt import (
     resolve_options,
     write_manifest,
 )
+from prodockit.pdf.project_files import prepare_project_files
 from prodockit.pdf.runtime_config import load_pdf_runtime_config
 from prodockit.project_config import load_project_config
 
@@ -63,6 +64,8 @@ def test_author_pdf_defaults_are_preserved(tmp_path: Path):
     path = tmp_path / "zensical.toml"
     path.write_text('[project]\nsite_name = "Mine"\nextra.pdf_page_size = "letter" # keep\n')
     ensure_zensical_config(tmp_path, AdoptOptions())
+    assert "extra.pdf_page_size" in path.read_text()
+    prepare_project_files(path)
     assert "extra.pdf_page_size" not in path.read_text()
     assert load_pdf_runtime_config(path).pdf_values["pdf_page_size"] == "letter"
 
