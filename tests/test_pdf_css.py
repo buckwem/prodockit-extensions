@@ -1,6 +1,8 @@
 # Copyright (c) 2026 Mark Buckwell and contributors
 # SPDX-License-Identifier: MIT
 
+from pathlib import Path
+
 import pytest
 
 from prodockit.pdf.css import build_css, build_structural_guard_css
@@ -316,6 +318,118 @@ def test_index_entry_breaks_a_long_term_instead_of_overflowing_its_column() -> N
     assert "div.prodockit-index-entry {" in css
     rule = css.split("div.prodockit-index-entry {")[1].split("}")[0]
     assert "overflow-wrap: break-word !important;" in rule
+
+
+def test_only_compact_pdf_table_cells_get_emergency_word_breaks() -> None:
+    css = build_css("Inter", "Fira Code", "Register")
+    selector = "table.prodockit-table-compact th, table.prodockit-table-compact td {"
+    rule = css.split(selector, 1)[1].split("}", 1)[0]
+    assert "padding: 3px 5px !important;" in rule
+    assert "overflow-wrap: break-word !important;" in rule
+    assert "word-break: break-all" not in css
+
+
+def test_compact_threat_risk_table_text_stays_inside_its_pdf_cells(tmp_path: Path) -> None:
+    """The 14-column register in #997 must not paint into adjacent cells."""
+    weasyprint = pytest.importorskip("weasyprint")
+    css = build_css("Inter", "Fira Code", "Register")
+    headers = [
+        "Threat Target", "Attack Technique", "Threat Agent", "Likelihood",
+        "Tech. Impact", "Bus. Impact", "Overall Risk", "Preventive",
+        "Detective", "Corrective", "Likelihood", "Tech. Impact",
+        "Bus. Impact", "Overall Risk",
+    ]
+    first_headers = "".join(
+        f'<th id="header-{index}" rowspan="2">{label}</th>'
+        for index, label in enumerate(headers[:3])
+    )
+    first_headers += (
+        '<th colspan="4">Risk evaluation</th>'
+        '<th colspan="3">Risk Mitigation</th>'
+        '<th colspan="4">Residual Risk</th>'
+    )
+    second_headers = "".join(
+        f'<th id="header-{index}">{label}</th>'
+        for index, label in enumerate(headers[3:], start=3)
+    )
+    values = [
+        "Investment Data", "Privileged access to highly confidential data",
+        "Internal IT Staff", "H", "L", "H", "H",
+        "Encryption of sensitive data fields in database",
+        "Detect access from unauthorised application",
+        "Automated block on access from threat agent", "L", "H", "H", "VL",
+    ]
+    body = "".join(
+        f'<td id="body-{index}">{value}</td>'
+        for index, value in enumerate(values)
+    )
+    html = (
+        f"<style>{css}</style><div class='landscape-page'>"
+        "<table class='prodockit-table-compact prodockit-table-sized'>"
+        "<colgroup><col><col><col>"
+        "<col style='width:6.638298%'><col style='width:6.638298%'>"
+        "<col style='width:6.085106%'><col style='width:6.638298%'>"
+        "<col><col><col>"
+        "<col style='width:5.777778%'><col style='width:6.933333%'>"
+        "<col style='width:6.355556%'><col style='width:6.933333%'>"
+        "</colgroup>"
+        f"<thead><tr>{first_headers}</tr><tr>{second_headers}</tr></thead>"
+        f"<tbody><tr>{body}</tr></tbody></table>"
+        "<table class='prodockit-table-compact prodockit-table-sized'>"
+        "<colgroup><col style='width:135px'><col></colgroup>"
+        "<tr><td id='normal-wrap'>ordinary words wrap at spaces</td>"
+        "<td>Adjacent cell</td></tr></table></div>"
+    )
+    document = weasyprint.HTML(string=html).render()
+    document.write_pdf(tmp_path / "threat-risk-register.pdf")
+    pages = document.pages
+    assert len(pages) == 1
+
+    def text_lines(cell_id: str) -> list[str]:
+        def walk(box: object) -> object | None:
+            element = getattr(box, "element", None)
+            if element is not None and element.get("id") == cell_id:
+                return box
+            for child in getattr(box, "children", []):
+                found = walk(child)
+                if found is not None:
+                    return found
+            return None
+
+        cell = walk(pages[0]._page_box)
+        assert cell is not None, cell_id
+        right = cell.border_box_x() + cell.border_width()
+        lines = []
+        for line in cell.children:
+            parts = []
+            for text in line.children:
+                if getattr(text, "text", ""):
+                    assert text.position_x + text.width <= right + 0.5, (
+                        f"{cell_id}: {text.text!r} extends beyond its cell"
+                    )
+                    parts.append(text.text)
+            if parts:
+                lines.append("".join(parts))
+        return lines
+
+    likelihood = text_lines("header-10")
+    detective = text_lines("body-8")
+    corrective = text_lines("body-9")
+    for index in range(14):
+        text_lines(f"header-{index}")
+        text_lines(f"body-{index}")
+    assert len(likelihood) > 1
+    assert "".join(likelihood).replace(" ", "") == "Likelihood"
+    assert "".join(text_lines("header-11")).replace(" ", "") == "Tech.Impact"
+    assert "".join(detective).replace(" ", "") == (
+        "Detectaccessfromunauthorisedapplication"
+    )
+    assert "".join(corrective).replace(" ", "") == (
+        "Automatedblockonaccessfromthreatagent"
+    )
+    ordinary = text_lines("normal-wrap")
+    assert len(ordinary) > 1
+    assert " ".join(ordinary) == "ordinary words wrap at spaces"
 
 
 def test_index_title_heading_sets_the_running_chapter_title() -> None:
