@@ -185,6 +185,19 @@ Adopt backups are excluded. Each failure names the file and its one-based line
 and byte column; correct or re-save that file as UTF-8, then rerun the command.
 This is an encoding and readability check, not a security scan.
 
+`project.jinja-table` reads Markdown below the configured `docs_dir` without
+rendering Jinja or changing files. It detects standalone
+`{% raw %}{% if %}{% endraw %}`, `{% raw %}{% elif %}{% endraw %}`,
+`{% raw %}{% else %}{% endraw %}` and `{% raw %}{% endif %}{% endraw %}` lines
+between rows of a pipe table established
+by a header and delimiter. Without a right-trim marker, a rendered branch can
+insert a blank line, ending the table and leaving later rows or its caption
+detached. Each failure gives a source file and line. Add `-` before `%}` on
+each reported control, such as `{% raw %}{% if condition -%}{% endraw %}` or
+`{% raw %}{% endif -%}{% endraw %}`, then
+rerun `pdk diag` and a strict Zensical build. The check ignores code examples,
+comments, raw Jinja blocks, and conditionals outside established tables.
+
 `project.configuration` loads the same project model used by Prodockit's PDF
 pipeline and reuses the complete `pdk config --check` integrity inspection. It
 does not replace Zensical's own strict build.
