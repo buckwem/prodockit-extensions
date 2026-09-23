@@ -92,19 +92,22 @@ def main() -> int:
     migrated = _legacy_pdf_fixture(config_path)
 
     apply_step(project, AdoptOptions(), "core")
+    adopted_config = config_path.read_bytes()
+    if (project / "pdk-pdf.toml").exists():
+        raise AssertionError("Adopt created PDF policy before first PDF use")
+    apply_step(project, AdoptOptions(), "core")
+    if config_path.read_bytes() != adopted_config or (project / "pdk-pdf.toml").exists():
+        raise AssertionError("a second Adopt pass changed PDF configuration")
+
+    website_seconds = _run([_command("zensical"), "build", "--clean", "--strict"], cwd=project)
+    cold_seconds = _run([_command("pdk"), "pdf"], cwd=project)
     first_config = config_path.read_bytes()
     first_policy = (project / "pdk-pdf.toml").read_bytes()
-    apply_step(project, AdoptOptions(), "core")
-    if (
-        config_path.read_bytes() != first_config
-        or (project / "pdk-pdf.toml").read_bytes() != first_policy
-    ):
-        raise AssertionError("a second Adopt migration changed configuration")
 
     after = load_project_config(config_path).extra
     remaining = sorted(set(after) & set(PDF_SETTING_PATHS))
     if remaining:
-        raise AssertionError(f"legacy PDF settings remain after Adopt: {remaining}")
+        raise AssertionError(f"legacy PDF settings remain after first PDF use: {remaining}")
     policy = load_pdf_runtime_config(config_path)
     if policy.pdf_values["pdf_margin_bottom"] != "2.75cm":
         raise AssertionError("template's author-selected bottom margin was not migrated")
@@ -114,8 +117,6 @@ def main() -> int:
     ]:
         raise AssertionError("template's PDF stylesheet cascade was not migrated")
 
-    website_seconds = _run([_command("zensical"), "build", "--clean", "--strict"], cwd=project)
-    cold_seconds = _run([_command("pdk"), "pdf"], cwd=project)
     pdf = project / "docs/site_documentation.pdf"
     with pymupdf.open(pdf) as document:  # type: ignore[no-untyped-call]
         if document.page_count < 1:
@@ -152,6 +153,8 @@ def main() -> int:
         }
     )
     warm_seconds = _run([_command("pdk"), "pdf"], cwd=project, environment=blocked)
+    if config_path.read_bytes() != first_config or policy_path.read_bytes() != first_policy:
+        raise AssertionError("a warm PDF build changed migrated configuration")
 
     report = {
         "migrated_settings": migrated,
