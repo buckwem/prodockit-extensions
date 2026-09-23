@@ -178,6 +178,14 @@ def installed_python_version() -> str:
     return f"{sys.version_info.major}.{sys.version_info.minor}"
 
 
+def is_limited_test_python(version: str) -> bool:
+    """Whether package compatibility is tested but Adopt alignment is not."""
+    try:
+        return Version("3.10") <= Version(version) < Version(TESTED_VERSIONS["python"])
+    except InvalidVersion:
+        return False
+
+
 def _requirements_path(root: Path) -> Path:
     candidates = (
         Path("requirements.txt"),
@@ -344,17 +352,27 @@ def plan(root: Path, *, offline: bool = False, fresh: bool = False) -> Toolchain
     supported_python = TESTED_VERSIONS["python"]
     declaration_changes, files = _declarations(root)
     if python != supported_python:
+        if is_limited_test_python(python):
+            reason = (
+                f"Python {python} is supported for Prodockit package use with compatibility "
+                f"tests, but full Adopt toolchain integration is qualified on Python "
+                f"{supported_python}. No packages or project files will be changed. "
+                f"Create and activate a Python {supported_python} virtual environment "
+                "before running `prodockit adopt`."
+            )
+        else:
+            reason = (
+                f"Python {python} is active, but this Prodockit release supports its tested "
+                f"Python {supported_python} toolchain. No packages or project files will be "
+                f"changed. Run `prodockit bootstrap` or create and activate a Python "
+                f"{supported_python} virtual environment, then rerun `prodockit adopt`."
+            )
         return ToolchainPlan(
             (),
             declaration_changes,
             (),
             files,
-            blocked=(
-                f"Python {python} is active, but this Prodockit release supports its tested "
-                f"Python {supported_python} toolchain. No packages or project files will be "
-                f"changed. Run `prodockit bootstrap` or create and activate a Python "
-                f"{supported_python} virtual environment, then rerun `prodockit adopt`."
-            ),
+            blocked=reason,
             offline=offline,
         )
 
