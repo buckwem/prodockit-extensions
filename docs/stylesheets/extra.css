@@ -10,6 +10,16 @@
   font-weight: bold;
 }
 
+/* Installation requirements are distinct from path and optional badges. */
+.install-privileged {
+  background-color: #7b3448;
+  color: #fff;
+  padding: 2px 4px;
+  border-radius: 4px;
+  font-weight: bold;
+  white-space: nowrap;
+}
+
 /* Path labels remain distinct from blue actions and green Optional labels. */
 .md-typeset .install-clean,
 .md-typeset .install-update,

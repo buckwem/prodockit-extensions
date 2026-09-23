@@ -29,7 +29,7 @@ the checks most likely to help.
 | Prodockit does not start, or it reports an unexpected project or version | • [Open the correct project folder](#directory-holds-projects)<br>• [Activate this project's environment](#wrong-virtual-environment)<br>• [Make the command available](#installtooling-command-not-recognised) |
 | `pdk diag` reports the wrong Python or says installed packages are missing | • [Activate this project's environment](#wrong-virtual-environment)<br>• [Recreate it with the correct Python](#wrong-python)<br>• Rerun diagnostics before installing anything |
 | An installation appears stuck, times out, or stops part-way through | • [Recover the interrupted installation](#installtooling-download-fails)<br>• [Check the connection](#git-host-unreachable)<br>• Repeat only the failed command or stage |
-| Diagram, mathematics, or PDF setup fails | • [Repair Node.js](#installtooling-npm-missing)<br>• [Repair WeasyPrint](#installtooling-weasyprint-libraries)<br>• [Bring project versions into step](#toolchain-not-aligned) |
+| Diagram, mathematics, or PDF setup fails | • [Build a PDF without optional renderers](#pdf-without-renderers)<br>• [Repair Node.js](#installtooling-npm-missing)<br>• [Repair WeasyPrint](#installtooling-weasyprint-libraries)<br>• [Bring project versions into step](#toolchain-not-aligned) |
 | Template Sync remains on `Checking this project...`, or Git cannot clone, pull, or push | • [Check the connection to {% if is_surrey %}Surrey GitLab{% else %}GitLab or GitHub{% endif %}](#git-host-unreachable)<br>• [Check the SSH key](#installtooling-git-permission-denied)<br>• [Check an existing project folder](#installtooling-directory-exists) |
 | `pdk diag` reports warnings after Prodockit was upgraded | • [Activate this project's environment](#wrong-virtual-environment)<br>• [Bring project versions into step](#toolchain-not-aligned)<br>• Rerun `pdk diag` |
 
@@ -352,6 +352,38 @@ If the command is missing, return to [Install
 Node.js](manual-install.md#install-nodejs) and use the supported installer for
 the operating system. The project-local MathJax adapter needs Node.js but does
 not use npm or a `node_modules` directory.
+
+## Build a PDF without optional renderers {: #pdf-without-renderers }
+
+If your account cannot install Node.js, you can still generate a local PDF
+that does not use MathJax, provided the other PDF prerequisites (including
+Pango on macOS or Linux) are available. Mermaid itself is Python-only; the
+following route removes both optional renderer requirements so the document
+does not prepare either one:
+
+1. Remove Mermaid diagrams and MathJax notation from the Markdown that the
+   website builds. Check included pages as well as the page you edited.
+2. Check `pdk-pdf.toml`: neither `[mathjax]` nor `[mermaid]` should set
+   `preload = true`. Comment out those overrides or set `preload = false`.
+3. Rebuild the website from the project root so the PDF sees the new content:
+
+    ```bash
+    zensical build --clean --strict
+    ```
+
+4. Build the PDF without forcing optional components:
+
+    ```bash
+    pdk pdf
+    ```
+
+Do not run `pdk pdf --prepare all` for this route: it deliberately prepares
+MathJax even when the document has no maths and therefore still needs Node.js.
+If `pdk pdf` asks for Node.js after these checks, search the built pages for
+remaining maths or a MathJax preload override.
+{% if is_surrey %}On Surrey RemoteLabs, Pango is also unavailable to
+unprivileged accounts, so use the Surrey GitLab build for the PDF instead of
+attempting a local render.{% endif %}
 
 ## Recover a failed or interrupted installation {: #installtooling-download-fails }
 

@@ -34,6 +34,7 @@ Use the badges beside stage and step titles to follow your route:
 - **Clean**{: .install-clean}: only for a new site in an empty directory.
 - **Update**{: .install-update}: only for an existing Zensical site, with or without Prodockit.
 - **Optional**{: .bg-green}: skip when already completed or not needed.
+- **Privileged**{: .install-privileged}: installing host software needs administrator or `sudo` access.
 - [Go to](#stage-1-prepare-the-project-environment){ .install-go }: click to jump to another section.
 
 Steps without a path badge apply to both routes. The words identify the path
@@ -46,7 +47,7 @@ Stage 7b helps an existing
 project review Adopt's changes and follow its own release process. You can
 stop after local testing if you are not ready to commit or publish.
 
-### Stage 1 — Prepare the setup environment {: #stage-1-prepare-the-project-environment }
+### Stage 1 — Prepare the setup environment **Privileged**{: .install-privileged} {: #stage-1-prepare-the-project-environment }
 
 Python 3.14 must be installed before either a clean installation or an update.
 An existing Zensical site may use an older Python version; installing or
@@ -108,6 +109,20 @@ Run each line in turn. **If `cd` fails, stop and correct the path before continu
     cd prodockit-project
     ```
 
+{% if is_surrey %}
+=== ":material-linux: Surrey RemoteLabs"
+
+    ```bash
+    deactivate
+    cd ~/repos
+    mkdir -p <module ID>-report
+    cd <module ID>-report
+    ```
+
+    Replace `<module ID>` with your actual module identifier before running
+    the commands. Do not type the angle brackets literally.
+{% endif %}
+
 ////
 
 //// step | Create and activate the project environment
@@ -139,6 +154,15 @@ commands use this site's packages rather than another project's.
     source .venv/bin/activate
     ```
 
+{% if is_surrey %}
+=== ":material-linux: Surrey RemoteLabs"
+
+    ```bash
+    python -m venv .venv
+    source .venv/bin/activate
+    ```
+{% endif %}
+
 ////
 
 //// step | Verify the project environment
@@ -169,6 +193,16 @@ installing Zensical:
     python --version
     python -c 'import sys; print(sys.prefix)'
     ```
+
+{% if is_surrey %}
+=== ":material-linux: Surrey RemoteLabs"
+
+    ```bash
+    pwd
+    python --version
+    python -c 'import sys; print(sys.prefix)'
+    ```
+{% endif %}
 
 The results should show your project folder, Python 3.14 and that folder's
 `.venv`—not `~/repos/.venv`. If they do not, correct the directory and activate

@@ -11,24 +11,25 @@ MANUAL_GUIDE = (ROOT / "docs/manual-install.md").read_text(encoding="utf-8")
 
 def test_template_site_installation_has_an_optional_pdf_software_stage() -> None:
     assert "### Stage 4 — Enter the project" in GUIDE
-    assert "### Stage 5 — Install PDF support (optional)" in GUIDE
-    assert "### Stage 6 — Build the PDF downloads (optional)" in GUIDE
+    assert "### Stage 5 — Install PDF host software **Privileged**" in GUIDE
+    assert "### Stage 6 — Build the PDF downloads **Optional**" in GUIDE
     assert "### Stage 7 — Verify the project" in GUIDE
-    heading = "//// step | Install optional PDF software"
+    heading = "//// step | Install Pango and Node.js"
     assert heading in GUIDE
+    assert f"{heading} **Privileged**" not in GUIDE
     assert GUIDE.index(heading) < GUIDE.index("//// step | Run project diagnostics")
-    assert "Complete Stages 5 and 6 only when you need to generate PDFs locally" in GUIDE
-    assert "Skip both\nfor website-only work and on Windows ARM64" in GUIDE
-    assert "use the GitLab build for both PDF\ndownloads" in GUIDE
-    assert '!!! important "Install Pandoc through Prodockit"' in GUIDE
-    assert "pdk pdf --prepare pandoc" in GUIDE
-    assert "Do not install Pandoc with Homebrew, Winget or apt" in GUIDE
-    assert "do not rely on a\n    system `pandoc` command from `PATH`" in GUIDE
+    assert "Complete this stage only when this machine will generate PDFs" in GUIDE
+    assert "Skip this stage for website-only work and on Windows ARM64" in GUIDE
+    assert "can generate both PDFs" in GUIDE
+    assert '!!! important "Install Pandoc through Prodockit"' not in GUIDE
+    host_stage = GUIDE.split("### Stage 5 —", 1)[1].split("### Stage 6 —", 1)[0]
+    assert "pdk pdf" not in host_stage
+    assert "Surrey RemoteLabs" in host_stage
 
 
 def test_template_site_pdf_install_builds_both_downloads() -> None:
     installation = GUIDE[
-        GUIDE.index("### Stage 6 — Build the PDF downloads (optional)") : GUIDE.index(
+        GUIDE.index("### Stage 6 — Build the PDF downloads **Optional**") : GUIDE.index(
             "### Stage 7 — Verify the project"
         )
     ]
@@ -36,14 +37,21 @@ def test_template_site_pdf_install_builds_both_downloads() -> None:
     pdf = installation.index("\npdk pdf\n")
     source_bundle = installation.index("pdk source-bundle")
 
-    assert source_bundle < website < pdf
+    assert website < pdf < source_bundle
     assert "//// step | Build the source bundle" in installation
     assert "//// step | Build the website for PDF rendering" in installation
     assert "//// step | Build the rendered document PDF" in installation
+    assert "On the first run,\n`pdk pdf` automatically installs" in installation
+    assert "prepares verified project-local Pandoc and font caches" in installation
+    assert "Later runs reuse healthy caches" in installation
+    assert "does not install the host Pango or Node.js" in installation
     assert "Stop and correct any failure before continuing" in installation
     assert "consumes this\ncompleted Zensical build" in installation
     assert "Skip it for website-only work and on Windows ARM64" in installation
-    assert "GitLab\nbuild generates both downloads" in installation
+    assert '!!! note "Surrey RemoteLabs: use GitLab for PDFs"' in installation
+    assert "The Surrey GitLab CI workflow generates both PDF downloads" in installation
+    assert installation.count("zensical build --clean --strict") == 1
+    assert "`zensical serve` refreshes the site with both downloads" in installation
 
 
 def test_template_site_verification_serves_and_checks_both_downloads() -> None:
@@ -66,16 +74,13 @@ def test_template_site_pdf_step_covers_supported_host_prerequisites() -> None:
         "libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz-subset0 nodejs",
         "winget install OpenJS.NodeJS.LTS",
         "node --version",
-        "pdk pdf --prepare all",
     ):
         assert command in GUIDE
 
 
 def test_template_site_pdf_step_distinguishes_forced_and_lazy_preparation() -> None:
-    assert "force every optional component with `--prepare all`" in GUIDE
-    assert "Ordinary `pdk pdf` is the simpler default" in GUIDE
-    assert "prepares only components found" in GUIDE
-    assert "no Node.js, npm,\nbrowser or MSYS2" in GUIDE
+    assert "Mermaid needs no Node.js" in GUIDE
+    assert "No npm packages, browser or MSYS2" in GUIDE
 
 
 def test_adopt_has_distinct_optional_pdf_install_and_prepare_steps() -> None:
