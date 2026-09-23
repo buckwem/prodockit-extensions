@@ -538,16 +538,17 @@ table td.prodockit-table-cell-valign-bottom {
 /* A dense table, marked `{: .compact }` on a header cell.
 
    The website's problem is the theme's `min-width: 5rem` on every header
-   cell; the PDF has no such minimum, so only the padding is at stake
-   here. It is tightened by the same proportion for the same reason: a
+   cell; the PDF has no such minimum, but padding and unbreakable words
+   still matter. Padding is tightened by the same proportion because a
    14-column table spends most of its width on padding, and on the
    columns that need it least (prodockit-extensions#489).
 
-   Set here as well as in the website stylesheet so a table marked
-   compact is compact in both outputs. A difference between the two is
-   the failure this project keeps meeting. */
+   The website theme also wraps an otherwise unbreakable word. Match that
+   only for compact PDF cells, after ordinary word-boundary wrapping has
+   been tried, so a narrow heading cannot paint into its neighbour (#997). */
 table.prodockit-table-compact th, table.prodockit-table-compact td {
     padding: 3px 5px !important;
+    overflow-wrap: break-word !important;
 }
 /* A header turned on its side, from `{: rotate=270 width="..." }`.
 
