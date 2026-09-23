@@ -424,8 +424,9 @@ def test_unassessed_surrey_namespace_ignores_course_and_year() -> None:
     assert namespace_for("COMM058", "AB1234", Assessment.not_assessed(), "2026") == "ab1234"
 
 
-def test_assessed_surrey_names_work_without_an_optional_year() -> None:
+def test_assessed_surrey_names_require_an_academic_year() -> None:
     assessment = Assessment.at_stage("1")
 
-    assert namespace_for("COMM058", "AB1234", assessment) == "assessment-comm058"
-    assert project_name_for("COMM058", "AB1234", assessment=assessment) == "report-comm058-ab1234"
+    with pytest.raises(ValueError, match="academic-year start"):
+        namespace_for("COMM058", "AB1234", assessment)
+    assert project_name_for("COMM058", "AB1234", assessment=assessment) == "comm058-ab1234"

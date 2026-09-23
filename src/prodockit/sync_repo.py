@@ -287,7 +287,8 @@ def site_url_for(
     if pages_base:
         return f"{pages_base.rstrip('/')}/{repo_name}/"
     if (layout := KNOWN_PAGES_LAYOUTS.get(host.lower())) is not None:
-        return layout.format(namespace=namespace.lower(), repo=repo_name)
+        top_level, *subgroups = namespace.split("/")
+        return layout.format(namespace=top_level.lower(), repo="/".join((*subgroups, repo_name)))
     if kind == "github":
         owner = namespace.lower()
         if repo_name.lower() == f"{owner}.github.io":

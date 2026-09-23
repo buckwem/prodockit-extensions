@@ -4287,17 +4287,17 @@ def test_surrey_derives_five_answers_from_four_questions(  # type: ignore[no-unt
     assert stored.full_name == "Ada Lovelace"
     assert stored.email == "ab1234@surrey.ac.uk"
     assert stored.username == "ab1234"
-    assert stored.namespace == "assessment-comm058-2026-sra"
-    assert stored.project_name == "report-comm058-2026-ab1234-sra"
-    assert stored.project_dir.endswith("report-comm058-2026-ab1234-sra")
+    assert stored.namespace == "CSEE/COMM058/2026-27-SRA"
+    assert stored.project_name == "comm058-ab1234"
+    assert stored.project_dir.endswith("comm058-ab1234")
 
     # None of the five derived questions was put to the reader.
     for never_asked in ("email address used", "username", "group, organisation"):
         assert never_asked not in result.output, never_asked
     # ...and what was derived is shown, because a student has to find the
     # repository on a website afterwards.
-    assert "assessment-comm058-2026-sra" in result.output
-    assert "report-comm058-2026-ab1234-sra" in result.output
+    assert "CSEE/COMM058/2026-27-SRA" in result.output
+    assert "comm058-ab1234" in result.output
 
 
 def test_a_first_run_stops_before_the_stage_list(  # type: ignore[no-untyped-def]
@@ -4371,16 +4371,10 @@ def test_filling_one_later_gap_still_asks_for_that_field(  # type: ignore[no-unt
     assert load(tmp_path / "b.toml").project_name == "report-x"
 
 
-def test_the_module_year_is_asked_for_and_defaults_to_this_one(  # type: ignore[no-untyped-def]
+def test_the_academic_year_is_asked_for_and_defaults_to_its_start(  # type: ignore[no-untyped-def]
     cli_bootstrap, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A cohort's work belongs in that cohort's group.
-
-    Which year that is takes explaining twice over - a semester 2 module
-    should be the year after the Christmas break, and for SRA and LSA the
-    year should be the year prior to the year the retake is being assessed
-    - so both sentences are in the question rather than in a handbook.
-    """
+    """A cohort's work belongs in the subgroup named for its academic year."""
     monkeypatch.setattr("prodockit.cli._is_interactive", lambda: True)
     monkeypatch.setattr("prodockit.cli.connection_problem", lambda value: None)
 
@@ -4393,9 +4387,10 @@ def test_the_module_year_is_asked_for_and_defaults_to_this_one(  # type: ignore[
     from prodockit.bootstrap import surrey
 
     stored = load(tmp_path / "b.toml")
-    assert stored.namespace == f"assessment-comm058-{surrey.default_year()}"
-    assert "semester 2" in result.output, "why it is not simply this year"
-    assert "prior to the year the retake is being assessed" in result.output
+    start = int(surrey.default_year())
+    assert stored.namespace == f"CSEE/COMM058/{start}-{(start + 1) % 100:02d}"
+    assert "academic year start" in result.output
+    assert "SRA and LSA use that same starting year" in result.output
 
 
 def test_a_year_that_is_not_a_year_is_asked_again(  # type: ignore[no-untyped-def]
@@ -4412,7 +4407,7 @@ def test_a_year_that_is_not_a_year_is_asked_again(  # type: ignore[no-untyped-de
     )
 
     assert "Four figures" in result.output
-    assert load(tmp_path / "b.toml").namespace == "assessment-comm058-2026"
+    assert load(tmp_path / "b.toml").namespace == "CSEE/COMM058/2026-27"
 
 
 def test_the_stage_menu_comes_before_the_year_that_names_it(  # type: ignore[no-untyped-def]
@@ -4434,8 +4429,8 @@ def test_the_stage_menu_comes_before_the_year_that_names_it(  # type: ignore[no-
     )
     output = result.output
 
-    assert output.index("2. SRA") < output.index("For SRA and LSA the year"), output
-    assert load(tmp_path / "b.toml").namespace == "assessment-comm058-2026-sra"
+    assert output.index("2. SRA") < output.index("SRA and LSA use that same"), output
+    assert load(tmp_path / "b.toml").namespace == "CSEE/COMM058/2026-27-SRA"
 
 
 def test_unassessed_work_is_asked_for_its_namespace_and_nothing_else(  # type: ignore[no-untyped-def]
@@ -7258,6 +7253,20 @@ def test_a_missing_site_remains_a_finding(tmp_path: Path) -> None:
     assert result.status is Status.MISSING
 
 
+def test_surrey_subgroup_pages_url_uses_top_level_group_as_host(tmp_path: Path) -> None:
+    from prodockit.bootstrap.stages import site_url
+
+    context = _context(
+        tmp_path,
+        namespace="CSEE/COMMTEST/2026-27-SRA",
+        project_name="commtest-ab1234",
+    )
+
+    assert site_url(context) == (
+        "https://csee.pages.surrey.ac.uk/COMMTEST/2026-27-SRA/commtest-ab1234/"
+    )
+
+
 def test_browser_confirmation_resolves_an_inconclusive_login_response(
     tmp_path: Path,
 ) -> None:
@@ -7672,7 +7681,7 @@ def test_the_address_the_url_was_built_from_is_named(tmp_path: Path) -> None:
     assert "breadcrumb" in said, "and which one not to trust"
     # A worked example of the two disagreeing, not just an assertion that
     # they can - the difference is the thing that is hard to believe.
-    assert "comm058-2026" in said
+    assert "CSEE/COMM058/old-year" in said
 
 
 def test_the_namespace_note_is_the_hosts_own(tmp_path: Path) -> None:
@@ -7835,9 +7844,9 @@ def test_assessed_work_is_still_asked_for_a_course_code() -> None:
 
     assert "5/7 Your course code" in rendered
     assert "6/7 Which stage" in rendered
-    assert "7/7 What year" in rendered
+    assert "7/7 In which year does the academic year start" in rendered
     assert "questions rather than" not in rendered, (
         "no count-drop notice on the path that matches the initial count"
     )
-    assert config.namespace == "assessment-comm058-2026"
-    assert config.project_name == "report-comm058-2026-ab1234"
+    assert config.namespace == "CSEE/COMM058/2026-27"
+    assert config.project_name == "comm058-ab1234"

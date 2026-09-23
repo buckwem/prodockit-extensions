@@ -210,7 +210,11 @@ Bootstrap clones it without replacing its history.
 
 Bootstrap derives several coursework values from your user ID, module,
 assessment stage, and academic year. Check the proposed namespace and
-repository name before applying the plan.
+repository name before applying the plan. For assessed work, `commtest`,
+`ab1234`, and the academic year starting in 2026 produce
+`CSEE/COMMTEST/2026-27/commtest-ab1234`; SRA and LSA append `-SRA` or
+`-LSA` to the year subgroup. From January through August, Bootstrap's
+default year is the previous calendar year; confirm it against your module.
 {% else %}
 Choose GitHub.com or GitLab.com. Bootstrap uses the public GitHub template for
 either host. If you have already been given a repository, supply its SSH URL

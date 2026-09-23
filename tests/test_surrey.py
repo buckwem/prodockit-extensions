@@ -48,11 +48,21 @@ def test_assessed_work_goes_to_a_group_per_course_year_and_attempt() -> None:
     lsa = surrey.Assessment.at_stage("3")
     named = ("comm058", "ab1234")
 
-    assert surrey.namespace_for(*named, first, "2026") == "assessment-comm058-2026"
-    assert surrey.namespace_for(*named, sra, "2026") == "assessment-comm058-2026-sra"
-    assert surrey.namespace_for(*named, lsa, "2026") == "assessment-comm058-2026-lsa"
+    assert surrey.namespace_for(*named, first, "2026") == "CSEE/COMM058/2026-27"
+    assert surrey.namespace_for(*named, sra, "2026") == "CSEE/COMM058/2026-27-SRA"
+    assert surrey.namespace_for(*named, lsa, "2026") == "CSEE/COMM058/2026-27-LSA"
     # The attempt comes last, after the year, so a group sorts by cohort.
     assert surrey.namespace_for(*named, sra, "2025") < surrey.namespace_for(*named, sra, "2026")
+
+
+def test_issue_1003_example_destination() -> None:
+    first = surrey.Assessment.at_stage("1")
+    assert surrey.namespace_for("commtest", "ab1234", first, "2026") == (
+        "CSEE/COMMTEST/2026-27"
+    )
+    assert surrey.project_name_for("commtest", "ab1234", "2026", first) == (
+        "commtest-ab1234"
+    )
 
 
 def test_a_year_has_to_look_like_one() -> None:
@@ -64,13 +74,17 @@ def test_a_year_has_to_look_like_one() -> None:
         assert surrey.module_year(wrong) == "", wrong
 
 
-def test_the_year_offered_is_the_current_one() -> None:
+def test_the_year_offered_is_when_the_academic_year_started() -> None:
     """Taken as an argument rather than read from the clock inside a
     check, so a test can say what day it is."""
     from datetime import date
 
-    assert surrey.default_year(date(2026, 8, 17)) == "2026"
-    assert surrey.default_year(date(2027, 1, 3)) == "2027"
+    assert surrey.default_year(date(2026, 1, 1)) == "2025"
+    assert surrey.default_year(date(2026, 8, 17)) == "2025"
+    assert surrey.default_year(date(2026, 9, 1)) == "2026"
+    assert surrey.default_year(date(2027, 1, 3)) == "2026"
+    assert surrey.default_year(date(2027, 8, 31)) == "2026"
+    assert surrey.default_year(date(2027, 9, 1)) == "2027"
 
 
 def test_unassessed_work_stays_in_the_students_own_namespace() -> None:
@@ -81,6 +95,11 @@ def test_unassessed_work_stays_in_the_students_own_namespace() -> None:
     ), "no group and no year - nobody else needs it"
 
 
+def test_assessed_work_requires_a_year() -> None:
+    with pytest.raises(ValueError, match="academic-year start"):
+        surrey.namespace_for("comm058", "ab1234", surrey.Assessment.at_stage("1"))
+
+
 def test_a_stage_that_was_not_offered_is_refused() -> None:
     """Silently treating an unknown answer as "first attempt" would put a
     resit in the wrong group, which is not a thing to guess at."""
@@ -89,38 +108,34 @@ def test_a_stage_that_was_not_offered_is_refused() -> None:
             surrey.Assessment.at_stage(typed)
 
 
-def test_the_project_is_named_for_its_course_cohort_and_owner() -> None:
-    """Course first so a listing groups by module, the year next so one
-    cohort sorts together within it, and the ID last so a marker reading
-    down a column finds a name where they expect one."""
+def test_the_project_is_named_for_its_module_and_owner() -> None:
+    """The year and attempt live in the subgroup, not in the repository name."""
+    first = surrey.Assessment.at_stage("1")
     assert (
-        surrey.project_name_for("comm058", "ab1234", "2026")
-        == "report-comm058-2026-ab1234"
+        surrey.project_name_for("comm058", "ab1234", "2026", first)
+        == "comm058-ab1234"
     )
-    assert surrey.project_name_for("COMM058", "AB1234@surrey.ac.uk", "2026") == (
-        "report-comm058-2026-ab1234"
+    assert surrey.project_name_for("COMM058", "AB1234@surrey.ac.uk", "2026", first) == (
+        "comm058-ab1234"
     ), "one course however it is capitalised"
 
 
 def test_a_resit_is_a_repository_of_its_own() -> None:
-    """A student's first attempt and their SRA are two repositories, in
-    two groups. Without the suffix they would be two repositories with
-    one name between them."""
+    """Attempts use distinct subgroups but the same repository name."""
     named = ("comm058", "ab1234", "2026")
 
     assert (
         surrey.project_name_for(*named, surrey.Assessment.at_stage("2"))
-        == "report-comm058-2026-ab1234-sra"
+        == "comm058-ab1234"
     )
     assert (
         surrey.project_name_for(*named, surrey.Assessment.at_stage("3"))
-        == "report-comm058-2026-ab1234-lsa"
+        == "comm058-ab1234"
     )
-    # A first attempt is the ordinary case and carries no suffix, in the
-    # name or the namespace.
+    # A first attempt is the ordinary case; unassessed work keeps its old name.
     assert (
         surrey.project_name_for(*named, surrey.Assessment.at_stage("1"))
-        == "report-comm058-2026-ab1234"
+        == "comm058-ab1234"
     )
     assert (
         surrey.project_name_for(*named, surrey.Assessment.not_assessed())

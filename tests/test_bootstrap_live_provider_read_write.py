@@ -105,7 +105,8 @@ builtins.__import__ = guarded_import
     assert result.returncode == 0, result.stderr
 
 
-def test_surrey_fixture_is_the_exact_configured_destination(tmp_path: Path) -> None:
+def test_surrey_fixture_keeps_its_exact_authorised_destination(tmp_path: Path) -> None:
+    """The live destination is authorised separately from Bootstrap defaults."""
     fixture = live.Fixture.read(write_fixture(tmp_path / "fixture.json"))
 
     assert fixture.source_remote == ("git@gitlab.surrey.ac.uk:mb0105/prodockit-template.git")

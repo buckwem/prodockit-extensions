@@ -3335,6 +3335,9 @@ def site_url(context: Context) -> str:
     project = context.config.project_name.strip()
     if not (template and namespace and project):
         return ""
+    if context.host.key in {"surrey", "gitlab"} and "/" in namespace:
+        top_level, *subgroups = namespace.split("/")
+        return template.format(namespace=top_level.lower(), project="/".join((*subgroups, project)))
     return template.format(namespace=namespace, project=project)
 
 
