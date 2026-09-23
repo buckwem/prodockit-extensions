@@ -180,9 +180,12 @@ def test_remotelabs_tabs_and_privilege_badges_are_surrey_specific() -> None:
     surrey_bootstrap = _render(BOOTSTRAP, is_surrey=True)
     public_bootstrap = _render(BOOTSTRAP, is_surrey=False)
 
-    assert surrey_install.count('=== ":material-linux: Surrey RemoteLabs"') == 5
-    assert surrey_adopt.count('=== ":material-linux: Surrey RemoteLabs"') == 3
-    assert surrey_bootstrap.count('=== ":material-linux: Surrey RemoteLabs"') == 4
+    stag_tab = '=== ":stag-stag_icon_32: Surrey RemoteLabs"'
+    assert surrey_install.count(stag_tab) == 5
+    assert surrey_adopt.count(stag_tab) == 3
+    assert surrey_bootstrap.count(stag_tab) == 4
+    icon = GETTING_STARTED.parent.parent / "overrides/.icons/stag/stag_icon_32.svg"
+    assert 'fill="currentColor"' in icon.read_text(encoding="utf-8")
     for public in (public_install, public_adopt, public_bootstrap):
         assert "Surrey RemoteLabs" not in public
     assert "python -m venv .venv" in surrey_install
