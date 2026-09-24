@@ -115,6 +115,14 @@ Each activity checks observable evidence before proposing work. An applied
 activity is checked again before Bootstrap continues, and a failure stops later
 dependent activities from running.
 
+Activity 15 installs the exact Prodockit release paired with a fresh template
+clone. For an existing repository, its recorded `prodockit>=` version is a
+historical minimum, not an exact pairing: Bootstrap offers the release running
+the setup, keeps an already newer compatible project environment, and does not
+change committed version declarations. Review those separately with `pdk pins`
+or Template Sync. An explicit requirement that excludes the proposed release
+stops the activity before pip changes the project environment.
+
 ## Modes and activity states {: #cmd-bootstrap-modes }
 
 A normal check and `--dry-run` make no changes. `--apply` shows and asks

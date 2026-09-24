@@ -38,7 +38,10 @@ import tempfile
 from collections.abc import Callable, Sequence
 from pathlib import Path
 
-from prodockit import shared_files, tools
+from packaging.requirements import InvalidRequirement, Requirement
+from packaging.version import InvalidVersion, Version
+
+from prodockit import __version__, shared_files, tools
 from prodockit.adopt import MANIFEST as ADOPT_MANIFEST
 from prodockit.adopt import AdoptOptions, manifest_source
 from prodockit.bootstrap.model import (
@@ -2578,17 +2581,75 @@ _PRODOCKIT_VERSION_PROBE = (
 _PYTHON_VERSION_PROBE = "import platform; print(platform.python_version())"
 
 
-def _paired_prodockit_requirement(project: Path) -> tuple[str, str] | None:
-    """The exact runtime paired with the template, including its extras.
+def _existing_project_environment(context: Context) -> bool:
+    """Whether this is an existing project rather than a new template clone.
+
+    The clone-source stage records an existing repository in this run's
+    configuration, including a template clone repointed on an earlier run.
+    Do not infer this from a venv: a fresh clone gains one during Activity 15,
+    before its post-install check repeats.
+    """
+    return bool(context.config.source_url.strip())
+
+
+def _project_prodockit_requirements(project: Path) -> tuple[Requirement, ...]:
+    """Read direct Prodockit requirements before planning a pip transaction."""
+    path = project / "requirements.txt"
+    if not path.is_file():
+        return ()
+    requirements: list[Requirement] = []
+    for raw in path.read_text(encoding="utf-8").splitlines():
+        line = raw.split("#", 1)[0].strip()
+        if not re.match(r"(?i)^prodockit(?:\[|\s|[<>=!~;@]|$)", line):
+            continue
+        try:
+            requirement = Requirement(line)
+        except InvalidRequirement:
+            continue  # pip will report a malformed requirement itself.
+        if requirement.name.lower() == "prodockit" and (
+            requirement.marker is None or requirement.marker.evaluate()
+        ):
+            requirements.append(requirement)
+    return tuple(requirements)
+
+
+def _prodockit_constraint_problem(project: Path, target: str) -> str | None:
+    """Explain an explicit requirement that cannot accept the planned release."""
+    for requirement in _project_prodockit_requirements(project):
+        if requirement.url or not requirement.specifier.contains(target, prereleases=True):
+            return (
+                f"requirements.txt declares {requirement}, which excludes Prodockit {target}; "
+                "leave the project environment unchanged and use a compatible "
+                "Bootstrap release or review the project's version declarations "
+                "with `pdk pins` before retrying"
+            )
+    return None
+
+
+def _at_least_prodockit(installed: str, target: str) -> bool:
+    """Accept newer existing environments without mistaking a floor for a pin."""
+    try:
+        return Version(installed) >= Version(target)
+    except InvalidVersion:
+        return installed == target
+
+
+def _paired_prodockit_requirement(context: Context) -> tuple[str, str] | None:
+    """Choose the runtime for a fresh template or an existing project.
 
     Older or non-Prodockit projects may not declare the package at all.  They
     retain Bootstrap's existing requirements-only behaviour; supported
     templates provide a declaration which can be made exact for installation.
+    An existing project's declaration is only a historical floor, so use the
+    release running Bootstrap instead of downgrading to that floor.
     """
+    project = context.config.resolved_project_dir(context.home)
     try:
         version, extras = template_prodockit_version(project)
     except (FileNotFoundError, TemplateSyncError):
         return None
+    if _existing_project_environment(context):
+        version = __version__
     return version, f"prodockit{extras}=={version}"
 
 
@@ -2640,12 +2701,31 @@ def _check_project_env(context: Context) -> CheckResult:
         )
     if not _imports_from_project_venv(context, "zensical").ok:
         return _missing("the project's dependencies are not installed")
-    paired_prodockit = _paired_prodockit_requirement(project)
+    paired_prodockit = _paired_prodockit_requirement(context)
     if paired_prodockit is not None:
         target, _specifier = paired_prodockit
         installed = _project_prodockit_version(context)
-        if installed != target:
+        existing = _existing_project_environment(context)
+        preserve_newer = existing and installed is not None and _at_least_prodockit(
+            installed, target
+        )
+        if problem := _prodockit_constraint_problem(
+            project, installed if preserve_newer and installed is not None else target
+        ):
+            return _wrong(problem)
+        ready = (
+            _at_least_prodockit(installed, target)
+            if existing and installed is not None
+            else installed == target
+        )
+        if not ready:
             actual = installed or "not installed"
+            if existing:
+                return _wrong(
+                    f"the project environment has Prodockit {actual}, but this Bootstrap "
+                    f"release needs Prodockit {target} or later; the project's older "
+                    "version floor is not an exact pairing"
+                )
             return _wrong(
                 f"the project environment has Prodockit {actual}, but the template "
                 f"is paired with Prodockit {target}"
@@ -2848,14 +2928,21 @@ def _plan_project_env(context: Context) -> Plan:
     if not python.exists() or rebuild:
         commands.append([sys.executable, "-m", "venv", str(venv)])
     install = [str(python), "-m", "pip", "install", "-r", str(project / "requirements.txt")]
-    paired_prodockit = _paired_prodockit_requirement(project)
+    paired_prodockit = _paired_prodockit_requirement(context)
     if paired_prodockit is not None:
-        _target, specifier = paired_prodockit
-        # requirements.txt intentionally carries a compatibility floor.  Add
-        # the template's exact paired release to this one transaction so pip
-        # cannot float to a newer release which Template Sync must immediately
-        # downgrade (#867).
-        install.append(specifier)
+        target, specifier = paired_prodockit
+        existing = _existing_project_environment(context)
+        installed = _project_prodockit_version(context) if existing else None
+        preserve_newer = installed is not None and _at_least_prodockit(installed, target)
+        if problem := _prodockit_constraint_problem(
+            project, installed if preserve_newer and installed is not None else target
+        ):
+            return Plan(cwd=str(project), instructions=[problem], commands=[])
+        if not preserve_newer:
+            # Fresh templates require their exact paired release (#867).
+            # Existing projects receive at least this Bootstrap release, but
+            # never downgrade an already newer compatible environment.
+            install.append(specifier)
     commands.append(install)
     if (
         context.guided
@@ -2882,7 +2969,18 @@ def _plan_project_env(context: Context) -> Plan:
                 _BOOTSTRAP_ADOPT_MANIFEST,
             ]
         )
-    return Plan(cwd=str(project), commands=commands)
+    return Plan(
+        cwd=str(project),
+        commands=commands,
+        follow_up=(
+            [
+                "This updated the existing project's environment, not its committed "
+                "version declarations. Review them with `pdk pins` or Template Sync."
+            ]
+            if paired_prodockit is not None and _existing_project_environment(context)
+            else []
+        ),
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -3910,6 +4008,12 @@ def _check_clone_source(context: Context) -> CheckResult:
     # is ahead of them, so that one stays a question.
     origin = _origin_url(context)
     if origin and origin != context.host.template_remote:
+        if not context.config.source_url.strip():
+            # Record this run's existing-project route even when the saved
+            # Bootstrap answer is blank. After a fresh template is repointed,
+            # its origin looks the same on the next run; by then it too is an
+            # existing project whose historical floor must not downgrade it.
+            context.config.source_url = origin
         return _ok(f"already cloned from {origin}")
     if context.config.source_url.strip():
         return _ok(f"cloning {context.config.source_url.strip()}")

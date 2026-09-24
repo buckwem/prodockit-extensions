@@ -3369,9 +3369,144 @@ def test_bootstrap_installs_the_template_paired_prodockit_release(tmp_path: Path
     assert install[-1] == "prodockit[index]==0.65.3"
 
 
-def test_bootstrap_rejects_a_project_environment_newer_than_its_template(
+def test_existing_project_installs_bootstrap_release_not_its_old_floor(tmp_path: Path) -> None:
+    project = tmp_path / "GitLab" / "report-al01234"
+    (project / ".git").mkdir(parents=True)
+    (project / "requirements.txt").write_text(
+        "zensical>=0.0.61\nprodockit[index]>=0.63.0\n", encoding="utf-8"
+    )
+    (project / ".prodockit-toolchain.toml").write_text(
+        'schema = 1\n\n[versions]\nprodockit = "0.63.0"\n', encoding="utf-8"
+    )
+
+    plan = next(s for s in STAGES if s.id == "project-env").plan(
+        _context(tmp_path, source_url="group/report-al01234")
+    )
+    install = next(command for command in plan.commands if "install" in command)
+
+    assert install[-1] == f"prodockit[index]=={__version__}"
+    assert "prodockit[index]==0.63.0" not in install
+
+
+def test_existing_project_older_environment_needs_bootstrap_release(
     tmp_path: Path,
 ) -> None:
+    project = tmp_path / "GitLab" / "report-al01234"
+    (project / ".git").mkdir(parents=True)
+    (project / "requirements.txt").write_text(
+        "zensical>=0.0.61\nprodockit>=0.63.0\n", encoding="utf-8"
+    )
+    (project / ".prodockit-toolchain.toml").write_text(
+        'schema = 1\n\n[versions]\nprodockit = "0.63.0"\n', encoding="utf-8"
+    )
+    (project / ".prodockit-components.toml").write_text(
+        "schema = 1\n\n[components]\nmermaid = true\nmaths = true\n", encoding="utf-8"
+    )
+    python = project / ".venv" / "bin" / "python"
+    python.parent.mkdir(parents=True)
+    python.touch()
+    (python.parent / "activate").touch()
+    runner = FakeRunner(
+        {
+            "-m pip --version": CommandResult(0, "pip 26.0.1"),
+            "import zensical": CommandResult(0),
+            "importlib.metadata.version('prodockit')": CommandResult(0, "0.65.1\n"),
+        }
+    )
+
+    result = next(s for s in STAGES if s.id == "project-env").check(
+        _context(
+            tmp_path, platform=UBUNTU, runner=runner, source_url="group/report-al01234"
+        )
+    )
+
+    assert result.status is Status.WRONG
+    assert "has Prodockit 0.65.1" in result.detail
+    assert f"needs Prodockit {__version__} or later" in result.detail
+    assert "older version floor is not an exact pairing" in result.detail
+
+
+@pytest.mark.parametrize(
+    ("installed", "requirement"),
+    [(__version__, "prodockit>=0.63.0"), ("9.0.0", "prodockit==9.0.0")],
+)
+def test_existing_project_accepts_compatible_newer_environment(
+    tmp_path: Path, installed: str, requirement: str
+) -> None:
+    project = tmp_path / "GitLab" / "report-al01234"
+    (project / ".git").mkdir(parents=True)
+    (project / "requirements.txt").write_text(
+        f"zensical>=0.0.61\n{requirement}\n", encoding="utf-8"
+    )
+    (project / ".prodockit-toolchain.toml").write_text(
+        'schema = 1\n\n[versions]\nprodockit = "0.63.0"\n', encoding="utf-8"
+    )
+    (project / ".prodockit-components.toml").write_text(
+        "schema = 1\n\n[components]\nmermaid = true\nmaths = true\n", encoding="utf-8"
+    )
+    python = project / ".venv" / "bin" / "python"
+    python.parent.mkdir(parents=True)
+    python.touch()
+    (python.parent / "activate").touch()
+    runner = FakeRunner(
+        {
+            "-m pip --version": CommandResult(0, "pip 26.0.1"),
+            "import zensical": CommandResult(0),
+            "importlib.metadata.version('prodockit')": CommandResult(0, f"{installed}\n"),
+        }
+    )
+    context = _context(tmp_path, runner=runner, source_url="group/report-al01234")
+    stage = next(s for s in STAGES if s.id == "project-env")
+
+    assert stage.check(context).status is Status.OK
+    assert not any(
+        any(argument.startswith("prodockit==") for argument in command)
+        for command in stage.plan(context).commands
+    )
+
+
+def test_existing_project_rejects_incompatible_exact_requirement_before_pip(
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "GitLab" / "report-al01234"
+    (project / ".git").mkdir(parents=True)
+    (project / "requirements.txt").write_text(
+        "zensical>=0.0.61\nprodockit==0.63.0\n", encoding="utf-8"
+    )
+    (project / ".prodockit-toolchain.toml").write_text(
+        'schema = 1\n\n[versions]\nprodockit = "0.63.0"\n', encoding="utf-8"
+    )
+
+    plan = next(s for s in STAGES if s.id == "project-env").plan(
+        _context(tmp_path, source_url="group/report-al01234")
+    )
+
+    assert plan.commands == []
+    assert "prodockit==0.63.0" in plan.instructions[0]
+    assert "pdk pins" in plan.instructions[0]
+    assert "leave the project environment unchanged" in plan.instructions[0]
+
+
+def test_existing_project_does_not_lower_a_newer_explicit_floor(tmp_path: Path) -> None:
+    project = tmp_path / "GitLab" / "report-al01234"
+    (project / ".git").mkdir(parents=True)
+    (project / "requirements.txt").write_text(
+        "zensical>=0.0.61\nprodockit>=9.0.0\n", encoding="utf-8"
+    )
+    (project / ".prodockit-toolchain.toml").write_text(
+        'schema = 1\n\n[versions]\nprodockit = "9.0.0"\n', encoding="utf-8"
+    )
+
+    plan = next(s for s in STAGES if s.id == "project-env").plan(
+        _context(tmp_path, source_url="group/report-al01234")
+    )
+
+    assert plan.commands == []
+    assert "prodockit>=9.0.0" in plan.instructions[0]
+    assert "compatible Bootstrap release" in plan.instructions[0]
+
+
+def test_fresh_template_remains_paired_after_creating_its_venv(tmp_path: Path) -> None:
     project = tmp_path / "GitLab" / "report-al01234"
     (project / ".git").mkdir(parents=True)
     (project / "requirements.txt").write_text(
@@ -3391,17 +3526,13 @@ def test_bootstrap_rejects_a_project_environment_newer_than_its_template(
         {
             "-m pip --version": CommandResult(0, "pip 26.0.1"),
             "import zensical": CommandResult(0),
-            "importlib.metadata.version('prodockit')": CommandResult(0, "0.65.6\n"),
+            "importlib.metadata.version('prodockit')": CommandResult(0, "0.65.3\n"),
         }
     )
 
-    result = next(s for s in STAGES if s.id == "project-env").check(
-        _context(tmp_path, platform=UBUNTU, runner=runner)
-    )
-
-    assert result.status is Status.WRONG
-    assert "has Prodockit 0.65.6" in result.detail
-    assert "paired with Prodockit 0.65.3" in result.detail
+    assert next(s for s in STAGES if s.id == "project-env").check(
+        _context(tmp_path, runner=runner)
+    ).status is Status.OK
 
 
 def test_first_path_project_environment_is_independent_of_template_dependencies(
@@ -6874,6 +7005,31 @@ def test_an_answer_already_recorded_is_not_asked_again(tmp_path: Path) -> None:
 
     assert result.status is Status.OK
     assert "buckwem/report-linux-v4" in result.detail
+
+
+def test_rechecking_a_repointed_template_treats_it_as_an_existing_project(
+    tmp_path: Path,
+) -> None:
+    """After a fresh run, origin names the author's repo but old pins remain."""
+    project = tmp_path / "GitLab" / "report-al01234"
+    (project / ".git").mkdir(parents=True)
+    (project / "requirements.txt").write_text(
+        "zensical>=0.0.61\nprodockit>=0.63.0\n", encoding="utf-8"
+    )
+    (project / ".prodockit-toolchain.toml").write_text(
+        'schema = 1\n\n[versions]\nprodockit = "0.63.0"\n', encoding="utf-8"
+    )
+    own = "git@gitlab.surrey.ac.uk:group/report-al01234.git"
+    context = _context(
+        tmp_path,
+        runner=FakeRunner({"remote get-url origin": CommandResult(0, f"{own}\n")}),
+    )
+
+    assert next(s for s in STAGES if s.id == "clone-source").check(context).status is Status.OK
+    assert context.config.source_url == own
+    plan = next(s for s in STAGES if s.id == "project-env").plan(context)
+    install = next(command for command in plan.commands if "install" in command)
+    assert install[-1] == f"prodockit=={__version__}"
 
 
 def test_the_choice_is_written_down(tmp_path: Path) -> None:
