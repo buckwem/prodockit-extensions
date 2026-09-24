@@ -19,10 +19,14 @@ only when it adds or changes behaviour that matters to a user, or requires an
 upgrade action. Defect-by-defect history belongs in GitHub issues and pull
 requests rather than here.
 
-## Unreleased
+## 0.73.0 (2026-09-24)
 
 - Qualified Zensical 0.0.64 for website and PDF builds and updated the supported dependency floor and build pins.
 - Prevented Bootstrap from downgrading existing projects to historical Prodockit floors while retaining fresh-template pairing.
+- Aligned Surrey Bootstrap URLs with academic-year GitLab groups and warned instead of failing for compatibility-tested Python versions.
+- Diagnosed Jinja controls that split Markdown tables and conflicting legacy PDF settings.
+- Preferred just-in-time MathJax preparation over retired template scripts.
+- Added stag icons and used the compact icon for Surrey RemoteLabs tabs.
 
 ## 0.72.0 (2026-09-23)
 
