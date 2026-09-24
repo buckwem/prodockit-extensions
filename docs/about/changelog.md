@@ -22,6 +22,7 @@ requests rather than here.
 ## Unreleased
 
 - Qualified Zensical 0.0.64 for website and PDF builds and updated the supported dependency floor and build pins.
+- Prevented Bootstrap from downgrading existing projects to historical Prodockit floors while retaining fresh-template pairing.
 
 ## 0.72.0 (2026-09-23)
 
