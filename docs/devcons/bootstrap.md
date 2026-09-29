@@ -194,13 +194,13 @@ resolve anything that needs attention before allowing changes.
 <span id="bootstrap-source"></span>
 
 ```bash
-pdk boot
+pdk boot --configure
 ```
 
-The first run asks for the Git host, your identity, and the project location,
-then saves the answers in `.pdkboot.toml` in the setup directory. It stops
-after configuration so the answers and next instruction remain visible; run it
-again to assess the configured work.
+This asks for the Git host, your identity, and the project location, then
+saves the answers in `.pdkboot.toml` in the setup directory. It stops after
+configuration, including when you rerun it to change earlier answers. Use
+the dry run in the next step to assess the configured work.
 
 {% if is_surrey %}
 Choose [Surrey GitLab](https://gitlab.surrey.ac.uk){target="_blank" rel="noopener"}
