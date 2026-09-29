@@ -1069,6 +1069,43 @@ def test_successful_installer_still_shows_and_confirms_its_follow_up(
     assert "confirmed" in output
 
 
+def test_existing_project_environment_needs_no_second_confirmation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config = _config()
+    config.source_url = "group/report-al01234"
+    context = build_context(
+        config,
+        runner=CliFakeRunner(),
+        platform=MACOS,
+        home=tmp_path,
+        fetch=unreachable,
+        guided=True,
+    )
+    project = tmp_path / "GitLab" / "report-al01234"
+    project.mkdir(parents=True)
+    (project / "requirements.txt").write_text("prodockit>=0.63.0\n", encoding="utf-8")
+    stage = next(stage for stage in STAGES if stage.id == "project-env")
+    plan = stage.plan(context)
+    report = StageReport(stage, CheckResult(Status.MISSING, "no virtual environment"), plan)
+    monkeypatch.setattr(
+        "prodockit.cli.apply_stage",
+        lambda context, stage, plan, **kwargs: ApplyResult(
+            stage=stage,
+            ran=plan.commands,
+            verified=CheckResult(Status.OK),
+        ),
+    )
+
+    _, output, _ = _isolated(lambda: _work_through(context, [report], None), input="y\n")
+
+    assert output.count("Run ") == 1
+    assert "commands?" in output
+    assert "  done" in output
+    assert "one more step" not in output
+    assert "Tell me when that is done" not in output
+
+
 def test_instructions_and_commands_have_one_approval_prompt(tmp_path: Path) -> None:
     context = _context(tmp_path)
     stage = _stage(

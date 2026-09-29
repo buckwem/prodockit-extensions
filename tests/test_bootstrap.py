@@ -3386,6 +3386,7 @@ def test_existing_project_installs_bootstrap_release_not_its_old_floor(tmp_path:
 
     assert install[-1] == f"prodockit[index]=={__version__}"
     assert "prodockit[index]==0.63.0" not in install
+    assert not plan.follow_up
 
 
 def test_existing_project_older_environment_needs_bootstrap_release(

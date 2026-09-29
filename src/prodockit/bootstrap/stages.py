@@ -2969,18 +2969,7 @@ def _plan_project_env(context: Context) -> Plan:
                 _BOOTSTRAP_ADOPT_MANIFEST,
             ]
         )
-    return Plan(
-        cwd=str(project),
-        commands=commands,
-        follow_up=(
-            [
-                "This updated the existing project's environment, not its committed "
-                "version declarations. Review them with `pdk pins` or Template Sync."
-            ]
-            if paired_prodockit is not None and _existing_project_environment(context)
-            else []
-        ),
-    )
+    return Plan(cwd=str(project), commands=commands)
 
 
 # ---------------------------------------------------------------------------
