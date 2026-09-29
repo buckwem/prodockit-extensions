@@ -19,6 +19,10 @@ only when it adds or changes behaviour that matters to a user, or requires an
 upgrade action. Defect-by-defect history belongs in GitHub issues and pull
 requests rather than here.
 
+## 0.73.1 (2026-09-29)
+
+- Made existing-project Bootstrap continue automatically after verifying its updated environment, without a redundant confirmation prompt.
+
 ## 0.73.0 (2026-09-24)
 
 - Qualified Zensical 0.0.64 for website and PDF builds and updated the supported dependency floor and build pins.
