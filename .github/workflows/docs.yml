@@ -250,11 +250,8 @@ jobs:
       # Zensical itself or cleans the generated output.
       - run: python tools/docs_page_pdfs.py check
       - run: zensical build --clean --strict
-      # Two pandoc+WeasyPrint passes when a selected document contains index
-      # terms: the back-of-book index can only be built once WeasyPrint has
-      # laid the document out (see prodockit.pdf.index). The reviewed matrix
-      # includes index-terms.md deliberately, so that behavior is exercised
-      # through the distinct single-page path as well as the complete PDF.
+      # The complete PDF builds its back-of-book index in a second pass.
+      # Single-page downloads omit that index, even for index-terms.md.
       - run: prodockit pdf
       - name: Build reviewed single-page PDF matrix
         run: |

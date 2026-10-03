@@ -1045,6 +1045,30 @@ def test_include_index_reads_from_the_extension_and_a_custom_title(
     assert captured["index_title"] == "Glossary of Terms"
 
 
+def test_markdown_file_omits_configured_back_of_book_index(
+    project, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = project(
+        extra='\n[project.markdown_extensions."prodockit.index"]\ninclude = true\n'
+    )
+    import prodockit.pdf.config as config_module
+
+    captured = {}
+
+    def _prepare(_path, *, include_index):
+        captured["prepared_index"] = include_index
+        return "pandoc", ""
+
+    def _build(_pages, _output_path, **kwargs):
+        captured["built_index"] = kwargs["include_index"]
+
+    monkeypatch.setattr(config_module, "_prepare_pdf_build_runtime", _prepare)
+    monkeypatch.setattr(config_module, "build_pdf", _build)
+    build_pdf_from_built_site(str(root / "zensical.toml"), markdown_file="chapter1.md")
+
+    assert captured == {"prepared_index": False, "built_index": False}
+
+
 @pytest.mark.parametrize(
     "setting",
     ['include = "false"', "include = 1", 'title = ""', 'title = "   "', "title = 1"],

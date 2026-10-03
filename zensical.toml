@@ -215,7 +215,7 @@ numbering = "continuous"
 # docs describe, so the project's PDF demonstrates the feature. Terms are
 # marked where each is discussed throughout the documentation. This costs
 # one extra Pandoc and WeasyPrint pass for the complete PDF; single-page
-# builds with no index markers still skip that pass.
+# builds omit the back-of-book index altogether.
 include = true
 
 # `generic = true` is required, not stylistic: it emits
