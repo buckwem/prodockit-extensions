@@ -19,9 +19,10 @@ only when it adds or changes behaviour that matters to a user, or requires an
 upgrade action. Defect-by-defect history belongs in GitHub issues and pull
 requests rather than here.
 
-## 0.73.1 (2026-09-29)
+## 0.73.1 (2026-10-03)
 
 - Made existing-project Bootstrap continue automatically after verifying its updated environment, without a redundant confirmation prompt.
+- Documented how Surrey RemoteLabs users can bypass the system Python alias in virtual environments and make that change persist.
 
 ## 0.73.0 (2026-09-24)
 
