@@ -278,9 +278,11 @@ def build_pdf_from_built_site(
     - Under `project.markdown_extensions."prodockit.index"`: `include`
       (default `false`) generates a back-of-book index from every
       `\\index{Term}` marker, and `title` (default `"Index"`) sets that
-      page's heading. See `build_pdf()`'s own `include_index` documentation
-      for why this needs a real two-pass build, and `prodockit.pdf.index`
-      for the module behind it.
+      page's heading. This applies only to the complete PDF: a
+      `markdown_file`-scoped build has no back-of-book index. See
+      `build_pdf()`'s own `include_index` documentation for why the complete
+      PDF needs a real two-pass build, and `prodockit.pdf.index` for the
+      module behind it.
     - `project.extra_css` - your site's own stylesheet(s) (the same setting
       Zensical itself reads to style the live website), passed through as
       `build_pdf()`'s own `extra_css` - so a project-specific `@media print`
@@ -522,13 +524,16 @@ def build_pdf_from_built_site(
     index_settings = resolve_index_settings(
         (config.get("mdx_configs") or {}).get("prodockit.index") or {}
     )
+    # A back-of-book index belongs to the complete document, not a
+    # --markdown-file download of one page.
+    include_index = index_settings.include and markdown_file is None
 
     build_output_path = output_path
     if not Path(output_path).is_absolute():
         build_output_path = str(project_config.root / output_path)
 
     pandoc_executable, prepared_font_css = (
-        _prepare_pdf_build_runtime(config_path, include_index=index_settings.include)
+        _prepare_pdf_build_runtime(config_path, include_index=include_index)
     )
     prepared_weasyprint = prepare_windows_weasyprint_runtime(config_path)
     prepared_weasyprint_executable = (
@@ -587,7 +592,7 @@ def build_pdf_from_built_site(
                 pdf_settings.value("pdf_include_table_of_contents")
             ),
             table_of_contents_title=pdf_settings.value("pdf_table_of_contents_title"),
-            include_index=index_settings.include,
+            include_index=include_index,
             index_title=index_settings.title,
             pandoc_executable=pandoc_executable,
             weasyprint_executable=prepared_weasyprint_executable,
