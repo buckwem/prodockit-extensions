@@ -392,9 +392,12 @@ while the prompt already says `(.venv)` does not switch environments.
     deactivate
     cd /path/to/your-project
     source .venv/bin/activate
+    unalias python 2>/dev/null || true
     ```
 
-    Replace the path with the project directory reported by Bootstrap.
+    Replace the path with the project directory reported by Bootstrap. A new
+    login may restore the `python` alias; remove it again after activating
+    the project's environment.
 {% endif %}
 
 ////

@@ -265,18 +265,45 @@ Verify both the version and the interpreter selected by the shell.
 === ":stag-stag_icon_32: Surrey RemoteLabs"
 
     ```bash
+    unalias python 2>/dev/null || true
     python --version
     command -v python
+    python -c 'import sys; print(sys.prefix)'
     ```
 {% endif %}
 
 The version must report Python 3.14 and the executable path must be inside the
-parent repositories directory's `.venv`. If either check points elsewhere,
+parent repositories directory's `.venv`.
+{% if is_surrey %}On Surrey RemoteLabs, the printed prefix must also be that
+`.venv`. The login shell may alias `python` to `/usr/bin/python3`, which takes
+precedence over the activated environment. `unalias` removes the override for
+this terminal only and is harmless when no alias exists; repeat it after
+activation in a new login.{% endif %} If a check still points elsewhere,
 repeat the activation step. The route you follow next will say when to keep
 using this setup environment and when to create or activate a project-local
 one.
 
 ////
+
+{% if is_surrey %}
+//// step | Remove the Python alias on future logins **Optional**{: .bg-green}
+
+If your RemoteLabs login shell is Bash, you can make the alias fix automatic
+for your own account. Open `~/.bashrc` in a text editor and add this line at
+the end:
+
+```bash
+unalias python 2>/dev/null || true
+```
+
+Log out and back in, activate `.venv` again, then repeat Step 4. `type -a
+python` should no longer list the `/usr/bin/python3` alias, and `sys.prefix`
+should name your `.venv`. This changes only your account's interactive Bash
+startup file; Prodockit never edits it for you. If you skip this step, run
+`unalias python` after activating a new terminal instead.
+
+////
+{% endif %}
 
 ///
 
