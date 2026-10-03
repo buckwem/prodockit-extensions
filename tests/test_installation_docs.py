@@ -31,6 +31,30 @@ MANUAL_INSTALL = REPO / "docs" / "manual-install.md"
 POWERSHELL_POLICY = "Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned"
 
 
+def test_surrey_python_alias_is_removed_before_environment_checks() -> None:
+    installation = INSTALLATION.read_text(encoding="utf-8")
+    preparation = installation.split(
+        "//// step | Verify the active environment", 1
+    )[1].split("////", 1)[0]
+    surrey = preparation.split('=== ":stag-stag_icon_32: Surrey RemoteLabs"', 1)[1]
+    assert surrey.index("unalias python 2>/dev/null || true") < surrey.index(
+        "python --version"
+    )
+    optional = installation.split(
+        "//// step | Remove the Python alias on future logins **Optional**", 1
+    )[1].split("////", 1)[0]
+    assert "~/.bashrc" in optional
+    assert "unalias python 2>/dev/null || true" in optional
+
+    bootstrap = BOOTSTRAP_GUIDE.read_text(encoding="utf-8").split(
+        "//// step | Enter and activate the project", 1
+    )[1].split("////", 1)[0]
+    surrey = bootstrap.split('=== ":stag-stag_icon_32: Surrey RemoteLabs"', 1)[1]
+    assert surrey.index("source .venv/bin/activate") < surrey.index(
+        "unalias python 2>/dev/null || true"
+    )
+
+
 def test_project_structure_trees_are_alphabetical() -> None:
     """The Adopt and template trees should match a normal directory listing."""
     page = INSTALLATION.read_text(encoding="utf-8")
@@ -220,7 +244,7 @@ def test_installation_preparation_is_shared_by_later_routes() -> None:
     assert "close Terminal completely and reopen" in preparation
     assert "current terminal will not know about the new `brew` command" in preparation
 
-    assert preparation.count("//// step | ") == 4
+    assert preparation.count("//// step | ") == 5
     assert preparation.count('=== ":material-apple: macOS"') == 5
     assert preparation.count('=== ":fontawesome-brands-windows: Windows"') == 5
     assert preparation.count('=== ":material-linux: Linux (Ubuntu)"') == 5
