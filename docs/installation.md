@@ -103,7 +103,7 @@ you skip installation.
     or try to replace the managed interpreter; verify it instead:
 
     ```bash
-    python --version
+    python3 --version
     ```
 {% endif %}
 
@@ -186,7 +186,7 @@ repository folders that will be created later.
 === ":stag-stag_icon_32: Surrey RemoteLabs"
 
     ```bash
-    python -m venv .venv
+    python3 -m venv .venv
     ```
 {% endif %}
 
@@ -265,9 +265,9 @@ Verify both the version and the interpreter selected by the shell.
 === ":stag-stag_icon_32: Surrey RemoteLabs"
 
     ```bash
-    python --version
-    command -v python
-    python -c 'import sys; print(sys.prefix)'
+    python3 --version
+    command -v python3
+    python3 -c 'import sys; print(sys.prefix)'
     ```
 {% endif %}
 
@@ -275,10 +275,12 @@ The version must report Python 3.14 and the executable path must be inside the
 parent repositories directory's `.venv`. If `python` resolves to an alias,
 follow Step 5, then repeat this check; activating the environment again will
 not remove the alias. If a check points elsewhere without an alias, repeat the
-activation step. {% if is_surrey %}On Surrey RemoteLabs, the printed prefix
-must also be that `.venv`; if it names `/usr`, follow Step 5 and repeat this
-check.{% endif %} The route you follow next will say when to keep using this
-setup environment and when to create or activate a project-local one.
+activation step. {% if is_surrey %}On Surrey RemoteLabs, the printed
+`python3` prefix must also be that `.venv`; if it names `/usr`, reactivate the
+environment and repeat this check. These tabs use `python3` because the login
+shell may alias `python` to `/usr/bin/python3`.{% endif %} The route you follow
+next will say when to keep using this setup environment and when to create or
+activate a project-local one.
 
 ////
 
@@ -287,9 +289,10 @@ setup environment and when to create or activate a project-local one.
 If Step 4 detects a `python` alias that overrides `.venv`, remove it in the
 current Bash terminal.
 
-{% if is_surrey %}This is normally needed on Surrey RemoteLabs, where the
-login shell may alias `python` to `/usr/bin/python3`. It also applies if you
-set a `python` alias yourself.{% endif %}
+{% if is_surrey %}Surrey RemoteLabs may alias `python` to `/usr/bin/python3`.
+The Surrey tabs above use `python3` to avoid that alias. Use this step if you
+need the `python` command for other tasks, or if you set a `python` alias
+yourself.{% endif %}
 
 ```bash
 unalias python 2>/dev/null || true
