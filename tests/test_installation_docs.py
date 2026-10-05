@@ -31,20 +31,20 @@ MANUAL_INSTALL = REPO / "docs" / "manual-install.md"
 POWERSHELL_POLICY = "Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned"
 
 
-def test_surrey_python_alias_is_removed_before_environment_checks() -> None:
+def test_python_alias_repair_follows_environment_checks() -> None:
     installation = INSTALLATION.read_text(encoding="utf-8")
     preparation = installation.split(
         "//// step | Verify the active environment", 1
     )[1].split("////", 1)[0]
     surrey = preparation.split('=== ":stag-stag_icon_32: Surrey RemoteLabs"', 1)[1]
-    assert surrey.index("unalias python 2>/dev/null || true") < surrey.index(
-        "python --version"
-    )
+    assert "python --version" in surrey
+    assert "unalias python" not in preparation
     optional = installation.split(
-        "//// step | Remove the Python alias on future logins **Optional**", 1
+        "//// step | Fix the Python alias when needed **Optional**", 1
     )[1].split("////", 1)[0]
     assert "~/.bashrc" in optional
     assert "unalias python 2>/dev/null || true" in optional
+    assert "To verify the `~/.bashrc` change" in optional
 
     bootstrap = BOOTSTRAP_GUIDE.read_text(encoding="utf-8").split(
         "//// step | Enter and activate the project", 1
