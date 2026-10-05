@@ -193,8 +193,11 @@ def test_remotelabs_tabs_and_privilege_badges_are_surrey_specific() -> None:
     assert "<module ID>-report" in surrey_adopt
     assert "**Privileged**{: .install-privileged}" in surrey_install
     assert "**Optional**{: .bg-green}" in surrey_install
-    assert "//// step | Remove the Python alias on future logins **Optional**" in surrey_install
-    assert "//// step | Remove the Python alias on future logins **Optional**" not in public_install
+    alias_step = "//// step | Fix the Python alias when needed **Optional**{: .bg-green}"
+    assert alias_step in surrey_install
+    assert alias_step in public_install
+    assert "This is normally needed on Surrey RemoteLabs" in surrey_install
+    assert "This is normally needed on Surrey RemoteLabs" not in public_install
     assert "cannot be generated\n    there" in surrey_bootstrap
     assert "These packages go into the active setup `.venv`; no `sudo` is needed" in surrey_bootstrap
     assert '!!! note "Surrey RemoteLabs: use GitLab for PDFs"' in surrey_bootstrap
