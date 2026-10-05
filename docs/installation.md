@@ -308,9 +308,10 @@ it is not already present, preserving the file's existing content:
 grep -qxF 'unalias python 2>/dev/null || true' ~/.bashrc 2>/dev/null || printf '\n%s\n' 'unalias python 2>/dev/null || true' >> ~/.bashrc
 ```
 
-Log out and back in, activate `.venv`, then repeat Step 4. If you skip the
-persistent change, repeat the current-terminal command in Step 5 whenever a
-new login restores the alias. Prodockit does not change your shell setup.
+To verify the `~/.bashrc` change, log out and back in, activate `.venv`, then
+repeat Step 4. If you skip the persistent change, repeat the current-terminal
+command in Step 5 whenever a new login restores the alias. Prodockit does not
+change your shell setup.
 
 ////
 
