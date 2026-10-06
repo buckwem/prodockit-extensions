@@ -33,7 +33,7 @@ import pathlib
 import re
 import subprocess
 import warnings
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from typing import Any
 from urllib.parse import urlparse, urlunparse
 
@@ -409,7 +409,7 @@ def define_env(env: Any) -> None:
             "</style>"
         )
 
-    def legacy_alias(name: str, replacement: Any) -> Any:
+    def legacy_alias(name: str, replacement: Callable[..., str]) -> Any:
         def old_macro(*args: Any, **kwargs: Any) -> str:
             if name not in _warned_legacy_macros:
                 _warned_legacy_macros.add(name)
