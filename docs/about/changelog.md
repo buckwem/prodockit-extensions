@@ -19,6 +19,12 @@ only when it adds or changes behaviour that matters to a user, or requires an
 upgrade action. Defect-by-defect history belongs in GitHub issues and pull
 requests rather than here.
 
+## 0.74.0 (2026-10-06)
+
+- Added `pdk_` website macros and variables, retaining old names temporarily with migration warnings during site and PDF builds.
+- Skipped back-of-book index processing for single-page PDFs.
+- Clarified optional Python-alias repair for virtual environments, including Surrey RemoteLabs.
+
 ## 0.73.1 (2026-10-03)
 
 - Made existing-project Bootstrap continue automatically after verifying its updated environment, without a redundant confirmation prompt.
