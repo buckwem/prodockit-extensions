@@ -104,7 +104,7 @@ def test_macro_docs_explain_repo_and_release_compatibility_policy() -> None:
     macros = " ".join(_text("docs/macros.md").split())
 
     for phrase in (
-        "Why `repo_url` and `applied_release` remain Prodockit variables",
+        "Why `pdk_repo_url` and `pdk_applied_release` remain Prodockit variables",
         "active `origin`",
         "removes embedded CI credentials",
         "prevents a token-bearing clone URL",

@@ -57,7 +57,7 @@ The values used by Prodockit projects are listed in \ref{tab-macros-variables}.
 | `{% raw %}{{ pdk_repo_url }}{% endraw %}` | The fully-qualified `https://` URL for the current checkout's git `origin` remote (converted from `git@host:path.git` SSH syntax, with any embedded CI credentials stripped) - `""` if there's no git remote configured. |
 | `{% raw %}{{ pdk_applied_release }}{% endraw %}` | The `prodockit-template` release most recently applied successfully. Bootstrap initialises it from the highest versioned release tag reachable in the pristine template's history; `template-sync --apply` then updates the persisted `.prodockit-template` value only after applying a template update. A student's own repository tags cannot change it. |
 | `{% raw %}{{ config.site_name }}{% endraw %}` | Native Zensical value for `project.site_name` from `zensical.toml`. Prefer it to the removed Prodockit `site_name` alias. |
-| `{% raw %}{{ git.short_tag }}{% endraw %}` | Native Zensical value for the nearest reachable tag in the current documentation repository. Prefer it to the removed Prodockit `release` alias when showing the document's own release. This is deliberately different from `applied_release`. |
+| `{% raw %}{{ git.short_tag }}{% endraw %}` | Native Zensical value for the nearest reachable tag in the current documentation repository. Prefer it to the removed Prodockit `release` alias when showing the document's own release. This is deliberately different from `pdk_applied_release`. |
 /// table-caption | <
     attrs: {id: tab-macros-variables}
 
