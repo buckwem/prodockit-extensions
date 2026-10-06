@@ -2,7 +2,7 @@
 icon: lucide/triangle-alert
 ---
 
-{{ heading_counter_reset(page) }}
+{{ pdk_heading_counter_reset(page) }}
 
 # Known limitations
 
@@ -30,7 +30,7 @@ with a page prefix, such as `{% raw %}{#methods-sampling}{% endraw %}`.
 
 ## A website macro appears as text
 
-**What you see:** a macro such as `{% raw %}{{ word_count }}{% endraw %}` appears
+**What you see:** a macro such as `{% raw %}{{ pdk_word_count }}{% endraw %}` appears
 unchanged, or another macro on the same page stops working.
 
 **What to do:** if the page is meant to *run* the macro, check its name and
@@ -67,7 +67,7 @@ no browser JavaScript or interactive controls.
 
 ## The word count omits unexpected content
 
-**What you see:** `{% raw %}{{ word_count }}{% endraw %}` is lower than expected.
+**What you see:** `{% raw %}{{ pdk_word_count }}{% endraw %}` is lower than expected.
 
 **What to do:** keep a dedicated cover page first in `nav`. The first page is
 excluded automatically, as are pages marked `exclude_from_word_count: true`.

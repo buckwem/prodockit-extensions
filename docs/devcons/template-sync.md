@@ -2,7 +2,7 @@
 icon: lucide/refresh-cw
 ---
 
-{{ heading_counter_reset(page) }}
+{{ pdk_heading_counter_reset(page) }}
 
 # Staying in step with the template {: #tsync-staying-in-step }
 
@@ -702,7 +702,7 @@ the wrong version and report unedited files as edited.
 
 The `.prodockit-template` stamp records two related values: the exact template
 commit used for safe file comparison and the nearest template release tag.
-Use `{% raw %}{{ applied_release }}{% endraw %}` on a cover or information page
+Use `{% raw %}{{ pdk_applied_release }}{% endraw %}` on a cover or information page
 to show the latter. Bootstrap initialises it before separating a new project
 from the template's Git history.
 

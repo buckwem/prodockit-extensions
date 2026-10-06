@@ -121,7 +121,7 @@ class TemplateStamp:
 
     ``revision`` keeps template-sync's content comparison exact, including
     commits made after a tag. ``applied_release`` is the stable value shown
-    to an author through ``{{ applied_release }}``; it changes only when a
+    to an author through ``{{ pdk_applied_release }}``; it changes only when a
     template update has been successfully applied.
     """
 

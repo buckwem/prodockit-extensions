@@ -2,7 +2,7 @@
 icon: lucide/list-checks
 ---
 
-{{ heading_counter_reset(page) }}
+{{ pdk_heading_counter_reset(page) }}
 
 # Check and update a template project
 

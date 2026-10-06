@@ -95,7 +95,7 @@ def test_doc_page_has_no_stash_placeholder_leak(
     docs_rel_path = str(doc_path.relative_to(DOCS_DIR))
     html = page_html(built_project, docs_rel_path)
     assert "klzzwxh" not in html
-    assert "<p>{{ heading_counter_reset(page) }}</p>" not in html
+    assert "<p>{{ pdk_heading_counter_reset(page) }}</p>" not in html
 
 
 @pytest.mark.parametrize("doc_path", _DOC_FILES, ids=lambda p: str(p.relative_to(DOCS_DIR)))
@@ -103,7 +103,7 @@ def test_doc_page_has_no_unintended_jinja_delimiter(doc_path: Path) -> None:
     docs_rel_path = str(doc_path.relative_to(DOCS_DIR))
     text = doc_path.read_text(encoding="utf-8")
     text = re.sub(r"{% raw %}.*?{% endraw %}", "", text, flags=re.DOTALL)
-    text = text.replace("{{ heading_counter_reset(page) }}", "")
+    text = text.replace("{{ pdk_heading_counter_reset(page) }}", "")
     for expression in _INTENTIONAL_JINJA_BY_PAGE.get(docs_rel_path, set()):
         text = text.replace(expression, "")
 

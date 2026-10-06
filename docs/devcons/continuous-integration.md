@@ -2,7 +2,7 @@
 icon: lucide/workflow
 ---
 
-{{ heading_counter_reset(page) }}
+{{ pdk_heading_counter_reset(page) }}
 
 # Publish automatically {: #ci-continuous-integration }
 

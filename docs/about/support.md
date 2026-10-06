@@ -2,7 +2,7 @@
 icon: lucide/badge-check
 ---
 
-{{ heading_counter_reset(page) }}
+{{ pdk_heading_counter_reset(page) }}
 
 # Support and compatibility
 

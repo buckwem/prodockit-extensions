@@ -32,7 +32,8 @@ import os
 import pathlib
 import re
 import subprocess
-from collections.abc import Mapping
+import warnings
+from collections.abc import Callable, Mapping
 from typing import Any
 from urllib.parse import urlparse, urlunparse
 
@@ -47,6 +48,24 @@ from prodockit.wordcount import compute_word_count
 # "Word count" in a project's own customisation docs. Shared with
 # prodockit.pdf's own PDF-side word count, if a project computes one there too.
 WORD_COUNT_EXCLUDED_FRONT_MATTER_KEY = "exclude_from_word_count"
+_LEGACY_MACRO_CALL = re.compile(
+    r"\{\{\s*(heading_counter_reset|reference_style|acronym_style|glossary_style)\s*\("
+)
+_warned_legacy_macros: set[str] = set()
+
+
+def find_legacy_macro_calls(docs_dir: pathlib.Path) -> list[tuple[pathlib.Path, str]]:
+    """Find live legacy Jinja calls without treating literal examples as calls."""
+    found: list[tuple[pathlib.Path, str]] = []
+    for path in docs_dir.rglob("*.md"):
+        try:
+            source = path.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        source = re.sub(r"\{%\s*raw\s*%\}.*?\{%\s*endraw\s*%\}", "", source, flags=re.S)
+        source = re.sub(r"(?m)^\s*(```|~~~).*?^\s*\1[^\n]*$", "", source, flags=re.S | re.M)
+        found.extend((path, match.group(1)) for match in _LEGACY_MACRO_CALL.finditer(source))
+    return found
 
 
 def _front_matter_flag(path: str, key: str) -> bool:
@@ -71,7 +90,7 @@ def _compute_site_word_count(config: dict[str, Any]) -> str:
     """Sums the prose word count across every nav page except the first
     (assumed to be the cover page) and any page flagged
     `exclude_from_word_count: true`. Returns a comma-formatted string (e.g.
-    `"9,971"`) ready to drop straight into a page with `{{ word_count }}`."""
+    `"9,971"`) ready to drop straight into a page with `{{ pdk_word_count }}`."""
     docs_dir = config.get("docs_dir") or "docs"
     nav_pages = flatten_nav(config.get("nav") or [])
     counted_texts = []
@@ -255,20 +274,23 @@ def define_env(env: Any) -> None:
     validate_extra_settings(
         config.get("extra"), groups=frozenset({"Shared rendering", "Website"})
     )
-    env.variables["word_count"] = _compute_site_word_count(config)
-    env.variables["repo_url"] = _get_repo_url()
+    env.variables["pdk_word_count"] = _compute_site_word_count(config)
+    env.variables["pdk_repo_url"] = _get_repo_url()
     short_tag = _short_tag(variables)
     _warn_if_release_lost_to_a_shallow_clone(short_tag or _get_release())
-    env.variables["applied_release"] = _get_applied_release(project_root, short_tag)
+    env.variables["pdk_applied_release"] = _get_applied_release(project_root, short_tag)
+    # Retain old variable names until the Template and User Guide migrations land.
+    for name in ("word_count", "repo_url", "applied_release"):
+        env.variables[name] = env.variables[f"pdk_{name}"]
 
     @env.macro  # type: ignore[untyped-decorator]
-    def heading_counter_reset(page: Any) -> str:
+    def pdk_heading_counter_reset(page: Any) -> str:
         """Continues chapter/section numbering (and the matching sidebar
         numbering) across pages, from this page's position in nav - see
         `prodockit.headings.prescan()`, the single source of truth for what
         number/letter a page actually gets, so this always matches what
         `\\ref{}` shows for a heading on this page. Usage: place
-        `{{ heading_counter_reset(page) }}` near the top of each page;
+        `{{ pdk_heading_counter_reset(page) }}` near the top of each page;
         nothing else needs to change when pages are reordered or headings
         are added/removed.
 
@@ -319,7 +341,7 @@ def define_env(env: Any) -> None:
         )
 
     @env.macro  # type: ignore[untyped-decorator]
-    def reference_style() -> str:
+    def pdk_reference_style() -> str:
         """Controls the layout of `.reference` paragraphs on a references
         page. The default look is the "european" style: single line
         spacing throughout, no indent, entries close together - spacing
@@ -329,7 +351,7 @@ def define_env(env: Any) -> None:
         spacing within each entry, but double spacing *between* entries
         (`reference_spacing_global`), with a hanging indent on wrapped
         lines (`reference_indent_global`). Usage: place
-        `{{ reference_style() }}` once near the top of the references
+        `{{ pdk_reference_style() }}` once near the top of the references
         page."""
         extra = config.get("extra") or {}
         style, spacing_european, indent_global, spacing_global = reference_style_values(extra)
@@ -354,13 +376,13 @@ def define_env(env: Any) -> None:
         )
 
     @env.macro  # type: ignore[untyped-decorator]
-    def acronym_style() -> str:
+    def pdk_acronym_style() -> str:
         """Controls the layout of `.acronym` paragraphs on an acronyms page
         - same tight spacing as the references page's default "european"
         look, and the same `project.extra.reference_spacing_european`
-        setting (see `reference_style()` above), since neither the acronym
+        setting (see `pdk_reference_style()` above), since neither the acronym
         nor glossary list has a "global"-style alternative to switch to.
-        Usage: place `{{ acronym_style() }}` once near the top of the
+        Usage: place `{{ pdk_acronym_style() }}` once near the top of the
         acronyms page."""
         extra = config.get("extra") or {}
         _, spacing_european, _, _ = reference_style_values(extra)
@@ -373,10 +395,10 @@ def define_env(env: Any) -> None:
         )
 
     @env.macro  # type: ignore[untyped-decorator]
-    def glossary_style() -> str:
+    def pdk_glossary_style() -> str:
         """Controls the layout of `.glossary` paragraphs on a glossary page
-        - see `acronym_style()` above, same reasoning. Usage: place
-        `{{ glossary_style() }}` once near the top of the glossary page."""
+        - see `pdk_acronym_style()` above, same reasoning. Usage: place
+        `{{ pdk_glossary_style() }}` once near the top of the glossary page."""
         extra = config.get("extra") or {}
         _, spacing_european, _, _ = reference_style_values(extra)
         return (
@@ -386,3 +408,25 @@ def define_env(env: Any) -> None:
             "  }\n"
             "</style>"
         )
+
+    def legacy_alias(name: str, replacement: Callable[..., str]) -> Any:
+        def old_macro(*args: Any, **kwargs: Any) -> str:
+            if name not in _warned_legacy_macros:
+                _warned_legacy_macros.add(name)
+                warnings.warn(
+                    f"Prodockit macro {name}() is deprecated; use pdk_{name}() instead.",
+                    FutureWarning,
+                    stacklevel=2,
+                )
+            return replacement(*args, **kwargs)
+
+        old_macro.__name__ = name
+        return env.macro(old_macro)
+
+    legacy_alias("heading_counter_reset", pdk_heading_counter_reset)
+    legacy_reference_style = legacy_alias("reference_style", pdk_reference_style)
+    legacy_alias("acronym_style", pdk_acronym_style)
+    legacy_alias("glossary_style", pdk_glossary_style)
+    # Zensical 0.0.68 puts project.extra variables ahead of registered macros.
+    # Preserve the callable legacy alias despite extra.reference_style's value.
+    env.variables["reference_style"] = legacy_reference_style

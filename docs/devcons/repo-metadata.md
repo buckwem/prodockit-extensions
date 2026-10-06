@@ -2,7 +2,7 @@
 icon: lucide/git-fork
 ---
 
-{{ heading_counter_reset(page) }}
+{{ pdk_heading_counter_reset(page) }}
 
 # Repository metadata {: #sync-repo-repository-metadata }
 

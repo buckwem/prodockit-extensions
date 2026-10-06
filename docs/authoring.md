@@ -2,7 +2,7 @@
 icon: lucide/pencil-line
 ---
 
-{{ heading_counter_reset(page) }}
+{{ pdk_heading_counter_reset(page) }}
 
 # Authoring reference
 

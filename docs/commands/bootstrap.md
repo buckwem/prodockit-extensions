@@ -2,7 +2,7 @@
 icon: lucide/package-open
 ---
 
-{{ heading_counter_reset(page) }}
+{{ pdk_heading_counter_reset(page) }}
 
 # `pdk bootstrap`
 

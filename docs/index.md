@@ -4,7 +4,7 @@ hide:
     - toc
 ---
 
-{{ heading_counter_reset(page) }}
+{{ pdk_heading_counter_reset(page) }}
 
 <div class="cover-hero" markdown="1">
 <div class="cover-hero-text" markdown="1">

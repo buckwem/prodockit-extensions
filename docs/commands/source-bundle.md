@@ -2,7 +2,7 @@
 icon: lucide/files
 ---
 
-{{ heading_counter_reset(page) }}
+{{ pdk_heading_counter_reset(page) }}
 
 # `pdk source-bundle`
 

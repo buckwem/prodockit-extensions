@@ -3,7 +3,7 @@ icon: lucide/history
 pdf_include: false
 ---
 
-{{ heading_counter_reset(page) }}
+{{ pdk_heading_counter_reset(page) }}
 
 # Release notes
 

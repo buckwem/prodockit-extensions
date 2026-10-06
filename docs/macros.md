@@ -2,7 +2,7 @@
 icon: lucide/braces
 ---
 
-{{ heading_counter_reset(page) }}
+{{ pdk_heading_counter_reset(page) }}
 
 # Website macros {: #macros-website-macros }
 
@@ -46,22 +46,25 @@ returning the unrendered page and allowing a broken site to be published.
 
 Zensical already exposes project configuration through `config` and repository
 metadata through `git`. Prodockit adds only values with different semantics.
+Use the `pdk_` prefix for its public names to avoid collisions with project
+and plugin names. The old unprefixed names remain temporarily for compatibility;
+old macro calls emit a deprecation warning.
 The values used by Prodockit projects are listed in \ref{tab-macros-variables}.
 
 | Variable {: width="32%" } | Description |
 |---|---|
-| `{% raw %}{{ word_count }}{% endraw %}` | Prose word count across every nav page except the first (assumed to be the cover page) and any page flagged `exclude_from_word_count: true` in its own front matter - a comma-formatted string (e.g. `"9,971"`). |
-| `{% raw %}{{ repo_url }}{% endraw %}` | The fully-qualified `https://` URL for the current checkout's git `origin` remote (converted from `git@host:path.git` SSH syntax, with any embedded CI credentials stripped) - `""` if there's no git remote configured. |
-| `{% raw %}{{ applied_release }}{% endraw %}` | The `prodockit-template` release most recently applied successfully. Bootstrap initialises it from the highest versioned release tag reachable in the pristine template's history; `template-sync --apply` then updates the persisted `.prodockit-template` value only after applying a template update. A student's own repository tags cannot change it. |
+| `{% raw %}{{ pdk_word_count }}{% endraw %}` | Prose word count across every nav page except the first (assumed to be the cover page) and any page flagged `exclude_from_word_count: true` in its own front matter - a comma-formatted string (e.g. `"9,971"`). |
+| `{% raw %}{{ pdk_repo_url }}{% endraw %}` | The fully-qualified `https://` URL for the current checkout's git `origin` remote (converted from `git@host:path.git` SSH syntax, with any embedded CI credentials stripped) - `""` if there's no git remote configured. |
+| `{% raw %}{{ pdk_applied_release }}{% endraw %}` | The `prodockit-template` release most recently applied successfully. Bootstrap initialises it from the highest versioned release tag reachable in the pristine template's history; `template-sync --apply` then updates the persisted `.prodockit-template` value only after applying a template update. A student's own repository tags cannot change it. |
 | `{% raw %}{{ config.site_name }}{% endraw %}` | Native Zensical value for `project.site_name` from `zensical.toml`. Prefer it to the removed Prodockit `site_name` alias. |
-| `{% raw %}{{ git.short_tag }}{% endraw %}` | Native Zensical value for the nearest reachable tag in the current documentation repository. Prefer it to the removed Prodockit `release` alias when showing the document's own release. This is deliberately different from `applied_release`. |
+| `{% raw %}{{ git.short_tag }}{% endraw %}` | Native Zensical value for the nearest reachable tag in the current documentation repository. Prefer it to the removed Prodockit `release` alias when showing the document's own release. This is deliberately different from `pdk_applied_release`. |
 /// table-caption | <
     attrs: {id: tab-macros-variables}
 
 Variables
 ///
 
-### Why `repo_url` and `applied_release` remain Prodockit variables
+### Why `pdk_repo_url` and `pdk_applied_release` remain Prodockit variables
 
 Zensical's built-in macro context already exposes the project configuration
 through `config` and repository metadata through `git`. Prodockit uses native
@@ -71,7 +74,7 @@ not currently provide. See
 [Zensical's built-in template variables](https://zensical.org/docs/setup/extensions/macros/#built-in-template-variables)
 for the native interface they complement.
 
-`{% raw %}{{ repo_url }}{% endraw %}` describes the checkout being built, not
+`{% raw %}{{ pdk_repo_url }}{% endraw %}` describes the checkout being built, not
 only the URL last written to `zensical.toml`. It reads the active `origin`,
 converts Git's SSH form to an ordinary HTTPS link, and removes embedded CI
 credentials before the value reaches generated HTML. This keeps a fork or
@@ -80,7 +83,7 @@ from becoming a public link. The native `config.repo_url` remains the right
 choice when the configured value is intentionally different from the active
 checkout.
 
-`{% raw %}{{ applied_release }}{% endraw %}` records the version of
+`{% raw %}{{ pdk_applied_release }}{% endraw %}` records the version of
 `prodockit-template` most recently applied successfully, not the latest tag in
 the student's repository. The native `git.short_tag` is therefore the right
 value for the document's own release but cannot describe its template state.
@@ -88,12 +91,12 @@ Keeping these meanings separate lets maintainers see whether a project has
 successfully received a template fix even after the project creates its own
 tags.
 
-Both Prodockit names are stable author-facing interfaces. If a future Zensical
+The prefixed Prodockit names are stable author-facing interfaces. If a future Zensical
 release provides the same normalized, credential-safe repository URL or an
 equivalent persisted template-release value, Prodockit will implement the
 matching variable as a compatibility alias to Zensical's native value. Authors
-will not need to rewrite existing `{% raw %}{{ repo_url }}{% endraw %}` or
-`{% raw %}{{ applied_release }}{% endraw %}` expressions, while Prodockit can
+will not need to rewrite existing `{% raw %}{{ pdk_repo_url }}{% endraw %}` or
+`{% raw %}{{ pdk_applied_release }}{% endraw %}` expressions, while Prodockit can
 stop maintaining duplicate discovery logic.
 
 ## Macros
@@ -103,10 +106,10 @@ inserts.
 
 | Macro {: width="38%" } | Description |
 |---|---|
-| `{% raw %}{{ heading_counter_reset(page) }}{% endraw %}` | Place near the top of every page - continues chapter/section numbering (and the matching sidebar numbering) across pages, from this page's position in nav. See below. |
-| `{% raw %}{{ reference_style() }}{% endraw %}` | Place once near the top of a references page - controls `.reference` paragraph spacing. See below. |
-| `{% raw %}{{ acronym_style() }}{% endraw %}` | Place once near the top of an acronyms page - matches `reference_style()`'s default spacing. |
-| `{% raw %}{{ glossary_style() }}{% endraw %}` | Place once near the top of a glossary page - matches `reference_style()`'s default spacing. |
+| `{% raw %}{{ pdk_heading_counter_reset(page) }}{% endraw %}` | Place near the top of every page - continues chapter/section numbering (and the matching sidebar numbering) across pages, from this page's position in nav. See below. |
+| `{% raw %}{{ pdk_reference_style() }}{% endraw %}` | Place once near the top of a references page - controls `.reference` paragraph spacing. See below. |
+| `{% raw %}{{ pdk_acronym_style() }}{% endraw %}` | Place once near the top of an acronyms page - matches `pdk_reference_style()`'s default spacing. |
+| `{% raw %}{{ pdk_glossary_style() }}{% endraw %}` | Place once near the top of a glossary page - matches `pdk_reference_style()`'s default spacing. |
 /// table-caption | <
     attrs: {id: tab-macros-macros}
 
@@ -117,7 +120,7 @@ Macros
 
 The macros plugin processes Jinja delimiters before Markdown code formatting.
 Backticks therefore do not protect a literal macro example. A literal
-`{% raw %}{{ word_count }}{% endraw %}`, GitHub expression, or compact
+`{% raw %}{{ pdk_word_count }}{% endraw %}`, GitHub expression, or compact
 `{% raw %}{#heading-id}{% endraw %}` example can stop every macro on that page
 from being rendered.
 
@@ -134,7 +137,7 @@ $&#123;&#123; github.token &#125;&#125;
 The raw wrapper is removed from the website and the intended braces remain.
 Use an unwrapped expression when it is meant to run.
 
-### `heading_counter_reset(page)`
+### `pdk_heading_counter_reset(page)`
 
 Continues heading numbering from wherever the previous page left off. The
 numbering stays aligned with `\ref{}` links and updates when pages are
@@ -149,7 +152,7 @@ numbering instead - "Appendix A", "A.1", "A.1.1" - matching
 Contributors changing how page numbers are discovered should read
 [Extension integration](devcons/extension-internals.md#share-definitions-across-pages).
 
-### `reference_style()` / `acronym_style()` / `glossary_style()`
+### `pdk_reference_style()` / `pdk_acronym_style()` / `pdk_glossary_style()`
 
 Controls list-entry spacing, driven by the same `project.extra.*` settings
 [`prodockit.pdf`](pdf.md) reads for the PDF, so both outputs stay in sync from
@@ -159,14 +162,14 @@ one configured value:
 
 | Setting {: width="32%" } | Default | What it does |
 |---|---|---|
-| \index{prodockit.zensical_macros!`reference_style`} | `"european"` | `"european"`: single line spacing throughout, no indent, entries close together. `"global"`: single line spacing within each entry, double spacing *between* entries, with a hanging indent on wrapped lines (the common APA/MLA/Chicago style). Only `reference_style()`/the References page switches look - acronyms/glossary always use the tight "european" spacing. |
+| \index{prodockit.zensical_macros!`reference_style`} | `"european"` | `"european"`: single line spacing throughout, no indent, entries close together. `"global"`: single line spacing within each entry, double spacing *between* entries, with a hanging indent on wrapped lines (the common APA/MLA/Chicago style). Only `pdk_reference_style()`/the References page switches look - acronyms/glossary always use the tight "european" spacing. |
 | \index{prodockit.zensical_macros!`reference_spacing_european`} | `"-0.8em"` | Gap between entries, "european" style - also used unconditionally for the acronym/glossary lists. |
 | \index{prodockit.zensical_macros!`reference_indent_global`} | `"1.27cm"` | Hanging indent on wrapped lines, "global" style. |
 | \index{prodockit.zensical_macros!`reference_spacing_global`} | `"2em"` | Gap between entries, "global" style. |
 /// table-caption | <
     attrs: {id: tab-macros-reference-style-acronym-style-glossary-style}
 
-reference_style() / acronym_style() / glossary_style()
+pdk_reference_style() / pdk_acronym_style() / pdk_glossary_style()
 ///
 
 For supported versions and the pre-1.0 stability boundary, see

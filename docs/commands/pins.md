@@ -2,7 +2,7 @@
 icon: lucide/pin
 ---
 
-{{ heading_counter_reset(page) }}
+{{ pdk_heading_counter_reset(page) }}
 
 # `pdk pins`
 

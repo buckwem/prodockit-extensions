@@ -2,7 +2,7 @@
 icon: lucide/heading
 ---
 
-{{ heading_counter_reset(page) }}
+{{ pdk_heading_counter_reset(page) }}
 
 # Headings
 

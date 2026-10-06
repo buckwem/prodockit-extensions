@@ -2,7 +2,7 @@
 icon: lucide/refresh-cw
 ---
 
-{{ heading_counter_reset(page) }}
+{{ pdk_heading_counter_reset(page) }}
 
 # `pdk template-sync`
 

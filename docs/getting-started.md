@@ -2,7 +2,7 @@
 icon: lucide/rocket
 ---
 
-{{ heading_counter_reset(page) }}
+{{ pdk_heading_counter_reset(page) }}
 
 # Adopt prodockit
 

@@ -102,7 +102,7 @@ def test_home_page_hero_does_not_force_a_full_viewport() -> None:
 
 
 def test_every_navigated_page_resets_its_heading_counter_from_nav() -> None:
-    macro = "{{ heading_counter_reset(page) }}"
+    macro = "{{ pdk_heading_counter_reset(page) }}"
 
     for relative_path in _paths(_nav()):
         text = _text(f"docs/{relative_path}")

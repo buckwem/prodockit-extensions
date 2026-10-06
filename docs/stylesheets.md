@@ -2,7 +2,7 @@
 icon: material/palette-outline
 ---
 
-{{ heading_counter_reset(page) }}
+{{ pdk_heading_counter_reset(page) }}
 
 # Stylesheets
 

@@ -162,7 +162,7 @@ def test_template_introduction_explains_contents_and_ownership() -> None:
     assert not missing, f"template concepts absent from the introduction: {missing}"
 
     template = Environment(autoescape=False).from_string(
-        guide.replace("{{ heading_counter_reset(page) }}", "")
+        guide.replace("{{ pdk_heading_counter_reset(page) }}", "")
     )
     public = template.render(is_surrey=False)
     surrey = template.render(is_surrey=True)

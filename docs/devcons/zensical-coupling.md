@@ -2,7 +2,7 @@
 icon: lucide/link-2
 ---
 
-{{ heading_counter_reset(page) }}
+{{ pdk_heading_counter_reset(page) }}
 
 # Zensical coupling {: #coupling-zensical-coupling }
 

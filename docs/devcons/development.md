@@ -2,7 +2,7 @@
 icon: lucide/code
 ---
 
-{{ heading_counter_reset(page) }}
+{{ pdk_heading_counter_reset(page) }}
 
 # Development and code map
 

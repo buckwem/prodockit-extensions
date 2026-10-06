@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 import prodockit.zensical_macros as zensical_macros
-from prodockit.zensical_macros import define_env
+from prodockit.zensical_macros import define_env, find_legacy_macro_calls
 
 
 class _MacroEnvironment:
@@ -85,6 +85,40 @@ def test_define_env_uses_native_values_and_adds_applied_release(
     assert env.variables["applied_release"] == ""
     assert "release" not in env.variables
     assert "site_name" not in env.variables
+    for name in ("word_count", "repo_url", "applied_release"):
+        assert env.variables[f"pdk_{name}"] == env.variables[name]
+
+
+def test_prefixed_macros_match_legacy_aliases_with_actionable_warnings(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(zensical_macros, "_warned_legacy_macros", set())
+    env = _macro_env(_write_project(tmp_path))
+    define_env(env)
+    for name, args in (
+        ("heading_counter_reset", (object(),)),
+        ("reference_style", ()),
+        ("acronym_style", ()),
+        ("glossary_style", ()),
+    ):
+        expected = env.macros[f"pdk_{name}"](*args)
+        with pytest.warns(FutureWarning, match=f"use pdk_{name}\\(\\) instead"):
+            assert env.macros[name](*args) == expected
+    assert env.variables["reference_style"] is env.macros["reference_style"]
+
+
+def test_legacy_call_scan_ignores_raw_examples_and_fenced_code(tmp_path: Path) -> None:
+    (tmp_path / "page.md").write_text(
+        "{{ reference_style() }}\n"
+        "{% raw %}{{ acronym_style() }}{% endraw %}\n"
+        "```jinja\n{{ glossary_style() }}\n```\n"
+        "{{ pdk_heading_counter_reset(page) }}\n",
+        encoding="utf-8",
+    )
+    assert [(path.name, name) for path, name in find_legacy_macro_calls(tmp_path)] == [
+        ("page.md", "reference_style")
+    ]
 
 
 def test_pristine_template_initialises_applied_release_from_short_tag(

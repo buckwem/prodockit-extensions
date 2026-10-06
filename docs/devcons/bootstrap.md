@@ -2,7 +2,7 @@
 icon: lucide/rocket
 ---
 
-{{ heading_counter_reset(page) }}
+{{ pdk_heading_counter_reset(page) }}
 
 # Build a template site {: #bootstrap-machine-bootstrap }
 

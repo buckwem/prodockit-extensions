@@ -2,7 +2,7 @@
 icon: lucide/shield-check
 ---
 
-{{ heading_counter_reset(page) }}
+{{ pdk_heading_counter_reset(page) }}
 
 # Version pinning and drift {: #pinning-version-pinning-and-drift }
 

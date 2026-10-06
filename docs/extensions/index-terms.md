@@ -2,7 +2,7 @@
 icon: lucide/book-a
 ---
 
-{{ heading_counter_reset(page) }}
+{{ pdk_heading_counter_reset(page) }}
 
 # Index (PDF only)
 
