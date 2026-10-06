@@ -2,7 +2,7 @@
 icon: lucide/file-text
 ---
 
-{{ heading_counter_reset(page) }}
+{{ pdk_heading_counter_reset(page) }}
 
 # `pdk pdf`
 

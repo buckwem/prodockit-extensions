@@ -2,7 +2,7 @@
 icon: lucide/table
 ---
 
-{{ heading_counter_reset(page) }}
+{{ pdk_heading_counter_reset(page) }}
 
 # Tables
 

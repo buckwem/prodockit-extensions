@@ -2,7 +2,7 @@
 icon: lucide/library
 ---
 
-{{ heading_counter_reset(page) }}
+{{ pdk_heading_counter_reset(page) }}
 
 # BibTeX bibliography
 

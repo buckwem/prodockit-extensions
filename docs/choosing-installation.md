@@ -2,7 +2,7 @@
 icon: lucide/signpost
 ---
 
-{{ heading_counter_reset(page) }}
+{{ pdk_heading_counter_reset(page) }}
 
 # Choose your install
 

@@ -83,6 +83,23 @@ def test_pdf_command_builds_using_the_default_config_file(
     ).read_bytes()
 
 
+def test_pdf_warns_about_live_legacy_macro_calls(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _write_project(tmp_path)
+    (tmp_path / "docs/index.md").write_text(
+        "# Cover\n{{ reference_style() }}\n{% raw %}{{ glossary_style() }}{% endraw %}\n",
+        encoding="utf-8",
+    )
+    _install_fake_pandoc(tmp_path, monkeypatch, 'echo "%PDF-1.4 stub" > "$3"')
+
+    result = CliRunner().invoke(main, ["pdf"])
+
+    assert result.exit_code == 0, result.output
+    assert "reference_style() -> pdk_reference_style()" in result.output
+    assert "glossary_style() ->" not in result.output
+
+
 def test_pdf_command_accepts_a_config_file_option(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

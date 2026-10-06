@@ -2,7 +2,7 @@
 icon: lucide/activity
 ---
 
-{{ heading_counter_reset(page) }}
+{{ pdk_heading_counter_reset(page) }}
 
 # Diagnose a project
 

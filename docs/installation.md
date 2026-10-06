@@ -2,7 +2,7 @@
 icon: lucide/package-plus
 ---
 
-{{ heading_counter_reset(page) }}
+{{ pdk_heading_counter_reset(page) }}
 
 # Prepare to install
 

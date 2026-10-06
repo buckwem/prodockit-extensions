@@ -2,7 +2,7 @@
 icon: lucide/calendar-clock
 ---
 
-{{ heading_counter_reset(page) }}
+{{ pdk_heading_counter_reset(page) }}
 
 # `pdk update-dates`
 

@@ -2,7 +2,7 @@
 icon: lucide/list-checks
 ---
 
-{{ heading_counter_reset(page) }}
+{{ pdk_heading_counter_reset(page) }}
 
 # Bootstrap design
 

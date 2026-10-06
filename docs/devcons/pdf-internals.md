@@ -2,7 +2,7 @@
 icon: lucide/file-cog
 ---
 
-{{ heading_counter_reset(page) }}
+{{ pdk_heading_counter_reset(page) }}
 
 # PDF pipeline and API
 

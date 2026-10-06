@@ -2,7 +2,7 @@
 icon: lucide/package-check
 ---
 
-{{ heading_counter_reset(page) }}
+{{ pdk_heading_counter_reset(page) }}
 
 # Build and release
 

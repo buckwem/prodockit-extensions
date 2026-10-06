@@ -2,7 +2,7 @@
 icon: lucide/link
 ---
 
-{{ heading_counter_reset(page) }}
+{{ pdk_heading_counter_reset(page) }}
 
 # Cross-references
 

@@ -18,7 +18,7 @@ INSTALLATION = GETTING_STARTED.with_name("installation.md")
 
 def _render(source: Path, *, is_surrey: bool) -> str:
     text = source.read_text(encoding="utf-8")
-    text = text.replace("{{ heading_counter_reset(page) }}", "")
+    text = text.replace("{{ pdk_heading_counter_reset(page) }}", "")
     return Environment(autoescape=False).from_string(text).render(is_surrey=is_surrey)
 
 

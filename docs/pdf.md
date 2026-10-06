@@ -2,7 +2,7 @@
 icon: lucide/file-text
 ---
 
-{{ heading_counter_reset(page) }}
+{{ pdk_heading_counter_reset(page) }}
 
 # PDF generation {: #pdf-pdf-generation }
 
@@ -396,8 +396,8 @@ configuration needed:
 
 | Marker {: width="25%" } | Becomes |
 |---|---|
-| `{WORDCOUNT}` | The site-wide word count (the same value a `{% raw %}{{ word_count }}{% endraw %}` website [macro variable](macros.md#variables) would show), so a submission's PDF and its live website page never disagree. |
-| `{REPOURL}` | The git-detected repo URL (the same value `{% raw %}{{ repo_url }}{% endraw %}` gives a website macro). |
+| `{WORDCOUNT}` | The site-wide word count (the same value a `{% raw %}{{ pdk_word_count }}{% endraw %}` website [macro variable](macros.md#variables) would show), so a submission's PDF and its live website page never disagree. |
+| `{REPOURL}` | The git-detected repo URL (the same value `{% raw %}{{ pdk_repo_url }}{% endraw %}` gives a website macro). |
 | `{RELEASE}` | The latest published GitHub/GitLab release tag (e.g. `v1.2.0`). The *whole line* containing this marker is dropped instead if there isn't one - most projects never publish a release at all, so nothing shows a bare `"Release: "` label by default. |
 | `{% raw %}{{ config.site_name }}{% endraw %}` | Your project's own `site_name`, substituted literally - `prodockit pdf` never evaluates Jinja, so the exact same native Zensical expression works here too, one line of Markdown for both outputs. The former `{% raw %}{{ site_name }}{% endraw %}` spelling remains accepted while projects migrate. |
 /// table-caption | <

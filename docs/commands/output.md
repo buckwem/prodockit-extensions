@@ -2,7 +2,7 @@
 icon: lucide/list-tree
 ---
 
-{{ heading_counter_reset(page) }}
+{{ pdk_heading_counter_reset(page) }}
 
 # Reading command output
 

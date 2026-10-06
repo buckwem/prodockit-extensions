@@ -2735,6 +2735,20 @@ def _run_pdf_command(
         click.echo(f"Building PDF from {config_file} using {markdown_file}...")
     else:
         click.echo(f"Building PDF from {config_file}...")
+    if Path(config_file).is_file():
+        from prodockit.zensical_macros import find_legacy_macro_calls
+
+        try:
+            project = load_project_config(config_file)
+        except (OSError, ValueError):
+            pass  # The PDF renderer reports invalid configuration below.
+        else:
+            old_names = sorted({name for _, name in find_legacy_macro_calls(project.docs_dir)})
+            if old_names:
+                replacements = ", ".join(f"{name}() -> pdk_{name}()" for name in old_names)
+                click.echo(
+                    f"Warning: legacy Prodockit macros in Markdown: {replacements}", err=True
+                )
     try:
         built_site = load_project_config(config_file).site_dir
         try:

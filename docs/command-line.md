@@ -2,7 +2,7 @@
 icon: lucide/terminal
 ---
 
-{{ heading_counter_reset(page) }}
+{{ pdk_heading_counter_reset(page) }}
 
 # Command-line tools
 

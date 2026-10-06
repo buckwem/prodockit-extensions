@@ -2,7 +2,7 @@
 icon: lucide/quote
 ---
 
-{{ heading_counter_reset(page) }}
+{{ pdk_heading_counter_reset(page) }}
 
 # Hand-written citations and references
 

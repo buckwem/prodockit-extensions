@@ -2,7 +2,7 @@
 icon: lucide/scan-search
 ---
 
-{{ heading_counter_reset(page) }}
+{{ pdk_heading_counter_reset(page) }}
 
 # Implementation limitations
 
@@ -395,7 +395,7 @@ page's displayed chapter/section number can lag behind an edit to an
 under `zensical serve`'s live reload. Not an issue for a one-shot
 `zensical build`.
 
-**`{% raw %}{{ repo_url }}{% endraw %}` reflects the local checkout's own git remote,
+**`{% raw %}{{ pdk_repo_url }}{% endraw %}` reflects the local checkout's own git remote,
 not
 `project.repo_url`**: computed from `git config --get remote.origin.url`
 directly, deliberately, so it reflects wherever *this* checkout actually
@@ -405,7 +405,7 @@ display) - in practice this usually, but isn't guaranteed to, match
 repository link). A fork or a differently-configured clone can show a
 different URL from the two.
 
-**`{% raw %}{{ word_count }}{% endraw %}` assumes the first page in `nav` is a cover
+**`{% raw %}{{ pdk_word_count }}{% endraw %}` assumes the first page in `nav` is a cover
 page** and
 unconditionally excludes it from the count, on top of any page explicitly
 flagged `exclude_from_word_count: true` - a project whose `nav` doesn't

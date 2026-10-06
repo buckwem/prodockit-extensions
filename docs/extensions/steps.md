@@ -2,7 +2,7 @@
 icon: lucide/list-ordered
 ---
 
-{{ heading_counter_reset(page) }}
+{{ pdk_heading_counter_reset(page) }}
 
 # Numbered steps
 
