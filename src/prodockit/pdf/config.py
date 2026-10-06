@@ -311,7 +311,7 @@ def build_pdf_from_built_site(
 
     - `{WORDCOUNT}` - the site-wide word count (see
       `prodockit.zensical_macros._compute_site_word_count()` - the exact
-      same value a `{{ word_count }}` website macro would show), so a
+      same value a `{{ pdk_word_count }}` website variable would show), so a
       submission's PDF cover page and its live website page never
       disagree.
     - `{REPOURL}` - the git-detected repo URL (see
@@ -479,7 +479,7 @@ def build_pdf_from_built_site(
             cover_html = cover_html.replace("{WORDCOUNT}", _compute_site_word_count(config))
         if "{REPOURL}" in cover_html or "{RELEASE}" in cover_html:
             # Computed from the local git remote (like the website's own
-            # {{ repo_url }} - see _get_repo_url()), not this function's
+            # {{ pdk_repo_url }} - see _get_repo_url()), not this function's
             # own repo_url (config.get("repo_url"), passed to build_pdf()
             # below): in practice they usually match, but they're not the
             # same mechanism.

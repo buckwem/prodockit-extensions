@@ -162,7 +162,7 @@ one configured value:
 
 | Setting {: width="32%" } | Default | What it does |
 |---|---|---|
-| \index{prodockit.zensical_macros!`reference_style`} | `"european"` | `"european"`: single line spacing throughout, no indent, entries close together. `"global"`: single line spacing within each entry, double spacing *between* entries, with a hanging indent on wrapped lines (the common APA/MLA/Chicago style). Only `reference_style()`/the References page switches look - acronyms/glossary always use the tight "european" spacing. |
+| \index{prodockit.zensical_macros!`reference_style`} | `"european"` | `"european"`: single line spacing throughout, no indent, entries close together. `"global"`: single line spacing within each entry, double spacing *between* entries, with a hanging indent on wrapped lines (the common APA/MLA/Chicago style). Only `pdk_reference_style()`/the References page switches look - acronyms/glossary always use the tight "european" spacing. |
 | \index{prodockit.zensical_macros!`reference_spacing_european`} | `"-0.8em"` | Gap between entries, "european" style - also used unconditionally for the acronym/glossary lists. |
 | \index{prodockit.zensical_macros!`reference_indent_global`} | `"1.27cm"` | Hanging indent on wrapped lines, "global" style. |
 | \index{prodockit.zensical_macros!`reference_spacing_global`} | `"2em"` | Gap between entries, "global" style. |

@@ -382,6 +382,6 @@ The stable hooks are listed in
 generated reference-list entry also gets `class="reference"` (in
 addition to Pandoc's own `csl-entry`) - matching the class
 `prodockit.citations`' own hand-authored entries already use, so
-[`prodockit.zensical_macros`](../macros.md)' `reference_style()`/
+[`prodockit.zensical_macros`](../macros.md)' `pdk_reference_style()`/
 [prodockit.pdf](../pdf.md)'s own `reference_style` setting apply uniformly,
 whether an entry was hand-typed or generated.

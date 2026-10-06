@@ -386,7 +386,7 @@ unrelated reasons.
 The \index{limitations!website macros} run during Zensical's page build and
 inherit its incremental-build and theme-output boundaries.
 
-**`heading_counter_reset(page)` inherits the same `zensical serve`
+**`pdk_heading_counter_reset(page)` inherits the same `zensical serve`
 staleness bound as extensions above**: it calls
 [`prodockit.headings.prescan()`](extension-internals.md#share-definitions-across-pages)
 directly - the identical pre-scan continuous numbering itself uses - so a
@@ -412,8 +412,8 @@ flagged `exclude_from_word_count: true` - a project whose `nav` doesn't
 start with a dedicated cover page gets a word count silently short by
 that first page's own prose.
 
-**`heading_counter_reset()`/`reference_style()`/`acronym_style()`/
-`glossary_style()` all emit CSS targeting Zensical's Material theme
+**`pdk_heading_counter_reset()`/`pdk_reference_style()`/`pdk_acronym_style()`/
+`pdk_glossary_style()` all emit CSS targeting Zensical's Material theme
 own internal class names and counters** (`.md-typeset`, `.md-nav--secondary`,
 `counter(h1-count)`/`counter(toc1)`, and so on) - undocumented
 implementation details of the theme itself, not a public API it commits
