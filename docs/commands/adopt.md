@@ -105,7 +105,7 @@ and change directory; do not create a configuration merely to satisfy Adopt.
 | `--offline` | Use only the configured wheelhouse and validated native cache. |
 | `--mermaid`, `--no-mermaid` | Select or omit Python Mermaid rendering. |
 | `--maths`, `--no-maths` | Select or omit MathJax rendering. |
-| `-v`, `--verbose` | Show the files and commands behind each activity summary. |
+| `-v`, `--verbose` | Show progress before initial checks as well as the files and commands behind each activity summary; the last progress line identifies a stalled operation. |
 | `-h`, `--help` | Show installed help and exit. |
 /// table-caption | <
     attrs: {id: tab-cmd-adopt-options}

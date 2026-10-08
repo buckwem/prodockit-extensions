@@ -24,7 +24,7 @@ phases, activities, modes, and saved configuration.
 Use one mutually exclusive mode for each Bootstrap run.
 
 ```text
-pdk bootstrap [--check | --dry-run | --apply | --configure] [--config PATH]
+pdk bootstrap [--check | --dry-run | --apply | --configure] [--config PATH] [--verbose]
 pdk boot [OPTIONS]
 ```
 
@@ -54,6 +54,7 @@ project path or configuration questions are unexpected; do not save a second
 | `-a`, `--apply` | Set up outstanding activities, asking before each change. |
 | `--configure` | Ask the configuration questions again, save the answers, then stop. |
 | `--config PATH` | Use a specific Bootstrap configuration instead of the nearest `.pdkboot.toml`. |
+| `-v`, `--verbose` | Print each configuration operation and activity check or plan before it starts, so the last line identifies a stalled operation. |
 | `--version` | Print the Bootstrap/Prodockit version and exit. |
 | `-h`, `--help` | Show installed help and exit. |
 /// table-caption | <

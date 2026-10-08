@@ -100,6 +100,27 @@ def test_bootstrap_profile_is_passed_while_the_command_context_is_built(
     assert received == [True]
 
 
+@pytest.mark.parametrize("mode", ["--check", "--dry-run"])
+def test_bootstrap_verbose_identifies_a_stalled_activity_before_it_runs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mode: str
+) -> None:
+    from prodockit.cli import main
+
+    def stalled_check(context):  # type: ignore[no-untyped-def]
+        raise RuntimeError("simulated stalled probe")
+
+    monkeypatch.setattr("prodockit.cli.load_bootstrap_config", lambda path: _config())
+    monkeypatch.setattr("prodockit.cli._offer_to_fill_gaps", lambda config, path: (config, False))
+    monkeypatch.setattr("prodockit.cli.build_bootstrap_context", lambda config, guided: _context(tmp_path))
+    monkeypatch.setattr("prodockit.cli.STAGES", (_stage(stalled_check, lambda context: Plan()),))
+
+    result = CliRunner().invoke(main, ["boot", mode, "--verbose"])
+
+    assert isinstance(result.exception, RuntimeError)
+    assert "[boot] loading configuration" in result.output
+    assert "[boot] activity 1/1: checking Edge stage" in result.output
+
+
 def _isolated(call, *, input: str, color: bool = False):  # type: ignore[no-untyped-def]
     runner = CliRunner()
     with runner.isolation(input=input, color=color) as (out, err, _):

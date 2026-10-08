@@ -198,6 +198,41 @@ def test_report_uses_prominent_phases_and_stages(tmp_path: Path, monkeypatch) ->
     assert "Excluded: SSH, editors, commits, pushes and Pages configuration" in result.output
 
 
+def test_adopt_verbose_identifies_initial_assessment_before_it_runs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    project = _project(tmp_path)
+    monkeypatch.chdir(project)
+
+    def stalled_assessment(*args, **kwargs):
+        kwargs["progress"]("checking Python toolchain")
+        raise RuntimeError("simulated stalled toolchain probe")
+
+    monkeypatch.setattr("prodockit.cli.assess_adoption", stalled_assessment)
+    result = CliRunner().invoke(main, ["adopt", "--dry-run", "--verbose"])
+
+    assert isinstance(result.exception, RuntimeError)
+    assert "[adopt] checking project location and environment" in result.output
+    assert "[adopt] loading template settings" in result.output
+    assert "[adopt] checking Python toolchain" in result.output
+
+
+def test_adoption_assessment_reports_operations_before_their_probes(tmp_path: Path) -> None:
+    project = _project(tmp_path)
+    operations: list[str] = []
+
+    assess(project, AdoptOptions(), offline=True, progress=operations.append)
+
+    assert operations == [
+        "checking project files and configuration",
+        "planning Zensical settings",
+        "checking Python toolchain",
+        "checking authoring components and workflows",
+        "checking citation style",
+        "assembling adoption plan",
+    ]
+
+
 def test_adopt_refuses_a_mixed_project_environment_before_mutation(
     tmp_path: Path, monkeypatch
 ) -> None:

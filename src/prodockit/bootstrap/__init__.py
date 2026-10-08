@@ -552,7 +552,12 @@ class StageReport:
         return self.result.needs_work
 
 
-def check_all(context: Context, stages: tuple[Stage, ...] = STAGES) -> list[StageReport]:
+def check_all(
+    context: Context,
+    stages: tuple[Stage, ...] = STAGES,
+    *,
+    progress: Callable[[str, Stage, int, int], None] | None = None,
+) -> list[StageReport]:
     """Runs every stage's `check` and reports. Changes nothing.
 
     Host answers are reused within this one pass: three stages ask the
@@ -561,10 +566,20 @@ def check_all(context: Context, stages: tuple[Stage, ...] = STAGES) -> list[Stag
     Starting fresh, because state may have changed since the last pass.
     """
     forget_contacts(context)
-    return [StageReport(stage=stage, result=stage.check(context)) for stage in stages]
+    reports = []
+    for number, stage in enumerate(stages, start=1):
+        if progress:
+            progress("checking", stage, number, len(stages))
+        reports.append(StageReport(stage=stage, result=stage.check(context)))
+    return reports
 
 
-def plan_all(context: Context, stages: tuple[Stage, ...] = STAGES) -> list[StageReport]:
+def plan_all(
+    context: Context,
+    stages: tuple[Stage, ...] = STAGES,
+    *,
+    progress: Callable[[str, Stage, int, int], None] | None = None,
+) -> list[StageReport]:
     """Checks every stage, and works out a plan for those that need one.
 
     A stage that is already `OK` gets no plan - the point of a rerun is to
@@ -577,12 +592,16 @@ def plan_all(context: Context, stages: tuple[Stage, ...] = STAGES) -> list[Stage
     """
     forget_contacts(context)
     reports = []
-    for stage in stages:
+    for number, stage in enumerate(stages, start=1):
+        if progress:
+            progress("checking", stage, number, len(stages))
         result = stage.check(context)
         # `BLOCKED` joins `UNKNOWN` here for a different reason but the
         # same treatment: a plan built now would run commands an earlier
         # stage is about to undo (#311).
         plannable = result.needs_work and result.status not in (Status.UNKNOWN, Status.BLOCKED)
+        if plannable and progress:
+            progress("planning", stage, number, len(stages))
         plan = stage.plan(context) if plannable else None
         reports.append(StageReport(stage=stage, result=result, plan=plan))
     return reports
