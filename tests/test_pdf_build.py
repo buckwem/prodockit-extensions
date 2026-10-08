@@ -27,7 +27,7 @@ def _fake_pandoc(tmp_path: Path, script: str) -> Path:
     """Writes a fake `pandoc` executable (a shell script) onto PATH so a
     test can exercise build_pdf() without a real Pandoc/WeasyPrint install.
     The real invocation shape is:
-    pandoc <html> -o <output> --pdf-engine=weasyprint --pdf-engine-opt=-q
+    pandoc <html> -o <output> --pdf-engine=weasyprint
     --mathjax --wrap=none --lua-filter=<lua> -f html --resource-path=.
     --resource-path=<docs_dir> --css=<css>, so $1=<html> $3=<output> (after
     -o) ... - written to accept any args and just run `script`, which can
@@ -79,6 +79,7 @@ def test_pandoc_receives_the_selected_weasyprint_executable(
     )
 
     assert f"--pdf-engine={selected}" in args_path.read_text(encoding="utf-8").splitlines()
+    assert "--pdf-engine-opt=-q" not in args_path.read_text(encoding="utf-8").splitlines()
 
 
 def test_build_uses_selected_pandoc_and_project_font_css(tmp_path: Path) -> None:
@@ -109,6 +110,32 @@ def test_raises_pdf_build_error_when_pandoc_fails(tmp_path: Path, fake_pandoc_on
         )
     assert exc_info.value.returncode == 1
     assert "boom" in (exc_info.value.stderr or "")
+
+
+def test_pdf_failure_keeps_renderer_diagnostics_without_quiet_mode(
+    tmp_path: Path, fake_pandoc_on_path, capsys,
+) -> None:
+    fake_pandoc_on_path(
+        'for arg in "$@"; do if [ "$arg" = "--pdf-engine-opt=-q" ]; then '
+        'echo "Error producing PDF." >&2; exit 43; fi; done; '
+        'echo "WeasyPrint: renderer failure detail" >&2; exit 43'
+    )
+    with pytest.raises(PdfBuildError) as error:
+        build_pdf([Page(docs_rel_path="index.md", html="<h1>Report</h1>", is_index=True)],
+                  str(tmp_path / "out.pdf"))
+    assert error.value.returncode == 43
+    assert "renderer failure detail" in error.value.stderr
+    assert "renderer failure detail" not in capsys.readouterr().err
+
+
+def test_successful_pdf_captures_renderer_warnings_without_printing(
+    tmp_path: Path, fake_pandoc_on_path, capsys,
+) -> None:
+    fake_pandoc_on_path('echo "WeasyPrint: warning" >&2; echo "%PDF-1.4 stub" > "$3"')
+    build_pdf([Page(docs_rel_path="index.md", html="<h1>Report</h1>", is_index=True)],
+              str(tmp_path / "out.pdf"))
+    captured = capsys.readouterr()
+    assert "WeasyPrint: warning" not in captured.out + captured.err
 
 
 def test_raises_pdf_build_error_when_pandoc_hangs_past_the_timeout(

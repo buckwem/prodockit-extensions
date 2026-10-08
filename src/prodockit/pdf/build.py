@@ -572,7 +572,10 @@ def build_pdf(
             "-o",
             output_path,
             f"--pdf-engine={weasyprint_executable}",
-            "--pdf-engine-opt=-q",
+            # Do not pass WeasyPrint's quiet flag: it hides the renderer cause
+            # behind Pandoc's generic "Error producing PDF". subprocess.run
+            # captures stderr below, so successful builds remain quiet while
+            # failed builds retain diagnostics on PdfBuildError.stderr.
             "--mathjax",
             # `pagetitle` sets the generated PDF's Title metadata without
             # creating Pandoc's visible title block. Without it, Pandoc falls
