@@ -194,6 +194,13 @@ Zensical render-result shape. Do not replace these with an unlabelled
 subprocess status or raw selector failure; callers need to know which boundary
 changed.
 
+Pandoc invokes WeasyPrint without its quiet (`-q`) flag so renderer errors are
+not suppressed behind a generic PDF failure. Output is still captured rather
+than streamed: successful builds do not print renderer warnings, and failures
+retain the captured text in `PdfBuildError.stderr`. Callers displaying that
+text must redact credentials and private document URLs and apply sensible
+output limits; captured diagnostics are not automatically safe to publish.
+
 `MermaidRenderError` identifies the failed diagram number and a bounded failure
 category without echoing diagram source. It stops the supported PDF pipeline
 before Pandoc can replace the requested PDF or the result can be copied into
