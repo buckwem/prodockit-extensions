@@ -19,6 +19,10 @@ only when it adds or changes behaviour that matters to a user, or requires an
 upgrade action. Defect-by-defect history belongs in GitHub issues and pull
 requests rather than here.
 
+## 0.74.2 (2026-10-08)
+
+- Preserved WeasyPrint error details on failed PDF builds while keeping successful builds quiet.
+
 ## 0.74.1 (2026-10-08)
 
 - Added early `--verbose` progress to Bootstrap and Adopt so a stalled setup shows its current operation.

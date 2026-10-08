@@ -113,6 +113,6 @@ alongside them.
 See https://prodockit.org/ for documentation.
 """
 
-__version__ = "0.74.1"
+__version__ = "0.74.2"
 
 __all__ = ["__version__"]
