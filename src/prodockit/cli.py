@@ -2578,12 +2578,19 @@ def shared_files(root: str, check: bool, apply_changes: bool, verbose: bool) -> 
         "Pass another bootstrap config path explicitly."
     ),
 )
+@click.option(
+    "-v",
+    "--verbose",
+    is_flag=True,
+    help="Report each setup operation before it starts, including checks that may take time.",
+)
 def bootstrap(
     check_only: bool,
     dry_run: bool,
     apply_stages: bool,
     configure: bool,
     config_file: str | None,
+    verbose: bool,
 ) -> None:
     """Set up this machine and a project based on prodockit-template.
 
@@ -2619,7 +2626,13 @@ def bootstrap(
     if not dry_run and not apply_stages and not configure:
         check_only = True
 
+    def progress(message: str) -> None:
+        if verbose:
+            click.echo(f"[boot] {message}", err=True)
+
+    progress("locating configuration")
     path = Path(config_file) if config_file else bootstrap_local_config_path()
+    progress("loading configuration")
     try:
         config = load_bootstrap_config(path)
     except BootstrapConfigError as error:
@@ -2629,6 +2642,7 @@ def bootstrap(
     # Asked for explicitly, or because applying without the answers would
     # clone into a directory named after nothing.
     if configure or (apply_stages and not config.is_complete):
+        progress("collecting configuration answers")
         config = _ask_for_configuration(config)
         save_bootstrap_config(path, config)
         click.echo(f"\nSaved to {path}")
@@ -2640,6 +2654,7 @@ def bootstrap(
     # Offer to fill anything still blank before checking, so the run that
     # follows can actually judge the project stages rather than reporting
     # three unknowns and leaving the reader to work out what to do.
+    progress("checking configuration answers")
     config, answered_in_full = _offer_to_fill_gaps(config, path)
     if answered_in_full:
         # Stopping where `--configure` stops, and for the same reason: the
@@ -2649,6 +2664,7 @@ def bootstrap(
         return
 
     try:
+        progress("preparing host checks")
         # The guided profile affects how the command runner itself is constructed,
         # not only how reports are presented. On Windows the
         # runner must give Git the built-in OpenSSH executable connected to
@@ -2661,7 +2677,22 @@ def bootstrap(
         sys.exit(1)
 
     stages = STAGES
-    reports = check_all(context, stages) if check_only else plan_all(context, stages)
+    def stage_progress(action: str, stage: Stage, number: int, total: int) -> None:
+        progress(f"activity {number}/{total}: {action} {stage.summary}")
+
+    if check_only:
+        reports = (
+            check_all(context, stages, progress=stage_progress)
+            if verbose
+            else check_all(context, stages)
+        )
+    else:
+        reports = (
+            plan_all(context, stages, progress=stage_progress)
+            if verbose
+            else plan_all(context, stages)
+        )
+    progress("activity checks complete")
 
     if apply_stages:
         _apply_outstanding(context, reports, path)
@@ -3427,7 +3458,7 @@ def _renderer_retry_warning(notice: RetryNotice) -> None:
     "-v",
     "--verbose",
     is_flag=True,
-    help="Show the files and commands behind each concise activity description.",
+    help="Show early progress and the files and commands behind each activity.",
 )
 def adopt_command(
     template_config: Path | None,
@@ -3455,6 +3486,11 @@ def adopt_command(
     """
     if dry_run and apply:
         raise click.UsageError("choose either --dry-run or --apply, not both")
+    def progress(message: str) -> None:
+        if verbose:
+            click.echo(f"[adopt] {message}", err=True)
+
+    progress("checking project location and environment")
     root = Path.cwd()
     _reject_workspace_parent(root, purpose="adopted")
     from prodockit.environment import project_environment_problem
@@ -3471,6 +3507,7 @@ def adopt_command(
             fg=(230, 159, 0),
             bold=True,
         )
+    progress("reading component choices")
     try:
         resolution = resolve_adopt_options(root)
     except AdoptError as error:
@@ -3503,6 +3540,7 @@ def adopt_command(
 
     if (root / "zensical.toml").is_file():
         try:
+            progress("loading template settings (may contact GitHub)")
             click.echo("Checking template settings...")
             snapshot = load_adopt_settings_snapshot(
                 offline=offline, local=template_config, reporter=_renderer_retry_warning
@@ -3515,16 +3553,19 @@ def adopt_command(
     elif template_config is not None:
         raise click.UsageError("--template-config settings review currently requires zensical.toml")
 
+    progress("assessing project adoption activities")
     try:
         steps = assess_adoption(
             root,
             options,
             retry_reporter=_renderer_retry_warning,
             offline=offline,
+            progress=progress if verbose else None,
         )
     except AdoptError as error:
         raise click.ClickException(str(error)) from error
     build_command = adopt_build_command(root)
+    progress("assessment complete")
 
     _adopt_plan_summary(steps)
     if not apply and not verbose:

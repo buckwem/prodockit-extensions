@@ -23,7 +23,7 @@ import re
 import shutil
 import sys
 import tempfile
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from contextlib import suppress
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -1447,10 +1447,16 @@ def assess(
     *,
     retry_reporter: RetryReporter | None = None,
     offline: bool = False,
+    progress: Callable[[str], None] | None = None,
 ) -> list[Step]:
+    def report(message: str) -> None:
+        if progress:
+            progress(message)
+
     try:
         from prodockit.config_integrity import check_project
 
+        report("checking project files and configuration")
         check_project(root, AdoptError)
         _check_project_release(root)
         config_path, _source, parsed = _config(root)
@@ -1460,6 +1466,7 @@ def assess(
 
     config_error = ""
     review_pending = False
+    report("planning Zensical settings")
     try:
         _planned_zensical_config(root, options)
         if config_path.suffix == ".toml" and options.template_snapshot is not None:
@@ -1473,7 +1480,9 @@ def assess(
     except AdoptError as error:
         config_error = str(error)
 
+    report("checking Python toolchain")
     toolchain = supported_toolchain.plan(root, offline=offline)
+    report("checking authoring components and workflows")
     configured = _extensions(parsed)
     missing = _missing_core_extensions(parsed)
     style_paths = _stylesheet_paths(root, parsed)
@@ -1562,6 +1571,7 @@ def assess(
         if choices_ok
         else f"save the selected component choices in {MANIFEST}"
     )
+    report("checking citation style")
     csl = _csl_activity(root, parsed, offline=offline)
     # Renderer binaries are optional project caches. Adopt records the choices
     # and authoring configuration; Diagnostics or pdk pdf prepares the exact
@@ -1583,6 +1593,7 @@ def assess(
         and (not options.maths or maths_ok)
     )
     command = _build_command(config_path)
+    report("assembling adoption plan")
     return [
         Step(
             "project",
