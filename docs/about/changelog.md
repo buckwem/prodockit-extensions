@@ -19,6 +19,10 @@ only when it adds or changes behaviour that matters to a user, or requires an
 upgrade action. Defect-by-defect history belongs in GitHub issues and pull
 requests rather than here.
 
+## 0.74.1 (2026-10-08)
+
+- Added early `--verbose` progress to Bootstrap and Adopt so a stalled setup shows its current operation.
+
 ## 0.74.0 (2026-10-06)
 
 - Added `pdk_` website macros and variables, retaining old names temporarily with migration warnings during site and PDF builds.
