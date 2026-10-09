@@ -590,7 +590,7 @@ def test_template_sync_rejects_a_stale_resume_before_resolving_the_template(
 @pytest.mark.parametrize(
     "remote",
     [
-        "git@gitlab.surrey.ac.uk:mb0105/prodockit-template.git",
+        "git@gitlab.surrey.ac.uk:csee/mb0105/prodockit-template.git",
         "git@github.com:buckwem/prodockit-template.git",
     ],
 )

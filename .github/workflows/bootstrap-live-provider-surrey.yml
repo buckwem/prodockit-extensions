@@ -284,7 +284,7 @@ jobs:
           ssh-add "$RUNNER_TEMP/candidate/ssh/id_ed25519"
           export GIT_SSH_COMMAND="ssh -o BatchMode=yes -o IdentitiesOnly=yes -o IdentityFile=$RUNNER_TEMP/candidate/ssh/id_ed25519.pub -o IdentityAgent=$SSH_AUTH_SOCK -o StrictHostKeyChecking=yes -o UserKnownHostsFile=$RUNNER_TEMP/candidate/ssh/known_hosts"
           source_commit=$(python -c 'import json, os; print(json.load(open(os.environ["HANDOFF"], encoding="utf-8"))["source_commit"])')
-          git clone --no-checkout --no-tags git@gitlab.surrey.ac.uk:mb0105/prodockit-template.git "$RUNNER_TEMP/surrey-template"
+          git clone --no-checkout --no-tags git@gitlab.surrey.ac.uk:csee/mb0105/prodockit-template.git "$RUNNER_TEMP/surrey-template"
           git -C "$RUNNER_TEMP/surrey-template" checkout --detach "$source_commit"
           python tools/bootstrap_live_provider_surrey_fixture.py \
             --handoff "$RUNNER_TEMP/reset-evidence/reset-handoff.json" \

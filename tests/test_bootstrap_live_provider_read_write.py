@@ -109,7 +109,7 @@ def test_surrey_fixture_keeps_its_exact_authorised_destination(tmp_path: Path) -
     """The live destination is authorised separately from Bootstrap defaults."""
     fixture = live.Fixture.read(write_fixture(tmp_path / "fixture.json"))
 
-    assert fixture.source_remote == ("git@gitlab.surrey.ac.uk:mb0105/prodockit-template.git")
+    assert fixture.source_remote == ("git@gitlab.surrey.ac.uk:csee/mb0105/prodockit-template.git")
     assert fixture.destination_namespace == "assessment-liveprovider-2026"
     assert fixture.destination_project == "report-liveprovider-2026-mb0105"
     assert fixture.destination_remote == (
@@ -1047,8 +1047,8 @@ def test_both_repository_paths_use_real_stages_against_local_bare_repositories(
     (source / "zensical.toml").write_text(
         "[project]\n"
         'site_name = "Live-provider fixture"\n'
-        'site_url = "https://gitlab.surrey.ac.uk/mb0105/prodockit-template/"\n'
-        'repo_url = "https://gitlab.surrey.ac.uk/mb0105/prodockit-template"\n'
+        'site_url = "https://gitlab.surrey.ac.uk/csee/mb0105/prodockit-template/"\n'
+        'repo_url = "https://gitlab.surrey.ac.uk/csee/mb0105/prodockit-template"\n'
         'repo_name = "prodockit-template"\n'
         'edit_uri = "edit/main/docs/"\n'
         'docs_dir = "docs"\n\n'
@@ -1141,7 +1141,7 @@ def test_both_repository_paths_use_real_stages_against_local_bare_repositories(
         return config, "configured"
 
     monkeypatch.setattr(live, "configure_candidate", configured)
-    source_path = "mb0105/prodockit-template.git"
+    source_path = "csee/mb0105/prodockit-template.git"
     destination_path = f"{live.SURREY_NAMESPACE}/{live.SURREY_PROJECT}.git"
     shim_body = (
         'case "$*" in\n'

@@ -1272,7 +1272,7 @@ def test_surrey_clones_the_template_from_surrey_not_github(tmp_path: Path) -> No
     """
     context = _context(tmp_path, source_url="")
     plan = next(s for s in STAGES if s.id == "clone").plan(context)
-    assert plan.commands[0][2] == "git@gitlab.surrey.ac.uk:mb0105/prodockit-template.git"
+    assert plan.commands[0][2] == "git@gitlab.surrey.ac.uk:csee/mb0105/prodockit-template.git"
 
 
 def test_source_url_overrides_the_template(tmp_path: Path) -> None:
@@ -4855,7 +4855,7 @@ def test_every_prompt_defaults_to_yes_except_the_destructive_one(tmp_path: Path)
     # question of a machine without that state would prove nothing.
     machine = _ready_machine(tmp_path)
     machine["remote get-url origin"] = CommandResult(
-        0, "git@gitlab.surrey.ac.uk:mb0105/prodockit-template.git\n"
+        0, "git@gitlab.surrey.ac.uk:csee/mb0105/prodockit-template.git\n"
     )
     context = _context(tmp_path, runner=FakeRunner(machine))
     destructive = [s.id for s in STAGES if s.plan(context).destructive]
@@ -6185,7 +6185,7 @@ def test_bootstrap_does_not_retry_a_command_that_can_duplicate_work(
     assert delays == []
 
 
-TEMPLATE_ORIGIN = "git@gitlab.surrey.ac.uk:mb0105/prodockit-template.git"
+TEMPLATE_ORIGIN = "git@gitlab.surrey.ac.uk:csee/mb0105/prodockit-template.git"
 
 
 def _clone_pointing_at(tmp_path: Path, origin: str) -> FakeRunner:
@@ -6576,7 +6576,7 @@ def test_saying_no_to_a_destructive_step_does_not_then_offer_it(
     machine = _ready_machine(tmp_path)
     project = tmp_path / "GitLab" / "report-al01234"
     machine["remote get-url origin"] = CommandResult(
-        0, "git@gitlab.surrey.ac.uk:mb0105/prodockit-template.git\n"
+        0, "git@gitlab.surrey.ac.uk:csee/mb0105/prodockit-template.git\n"
     )
     (project / ".git").mkdir(parents=True, exist_ok=True)
 
@@ -6652,7 +6652,7 @@ def test_the_report_says_which_repository_was_used(tmp_path: Path) -> None:
     has scrolled away."""
     machine = _ready_machine(tmp_path)
     machine["remote get-url origin"] = CommandResult(
-        0, "git@gitlab.surrey.ac.uk:mb0105/prodockit-template.git\n"
+        0, "git@gitlab.surrey.ac.uk:csee/mb0105/prodockit-template.git\n"
     )
     from_template = next(s for s in STAGES if s.id == "clone").check(
         _context(tmp_path, runner=FakeRunner(machine))

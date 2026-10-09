@@ -23,7 +23,7 @@ activities.
 
 ## Start with prodockit-template {: #bootstrap-template }
 
-The \index{`prodockit-template`} project ({% if is_surrey %}[Surrey GitLab repository](https://gitlab.surrey.ac.uk/mb0105/prodockit-template){target="_blank" rel="noopener"}{% else %}[GitHub repository](https://github.com/buckwem/prodockit-template){% endif %}) is a ready-made
+The \index{`prodockit-template`} project ({% if is_surrey %}[Surrey GitLab repository](https://gitlab.surrey.ac.uk/csee/mb0105/prodockit-template){target="_blank" rel="noopener"}{% else %}[GitHub repository](https://github.com/buckwem/prodockit-template){% endif %}) is a ready-made
 Zensical project for coursework, assignments, and professional reports. Its
 central promise is **one source, two outputs**: write the report as Markdown
 under `docs/`, then build both a browsable website and a single PDF from the
@@ -35,7 +35,7 @@ your project into a live copy of the template.
 
 {% if is_surrey %}
 For coursework, Bootstrap downloads the template from
-[Surrey GitLab](https://gitlab.surrey.ac.uk/mb0105/prodockit-template){target="_blank" rel="noopener"}.
+[Surrey GitLab](https://gitlab.surrey.ac.uk/csee/mb0105/prodockit-template){target="_blank" rel="noopener"}.
 {% else %}
 The template is maintained on GitHub. Bootstrap uses that source when setting
 up projects on GitHub.com or GitLab.com.

@@ -2389,11 +2389,26 @@ def test_two_hosts_templates_do_not_share_a_cache_entry() -> None:
     would hand a project the other one's files."""
     root = pathlib.Path("/cache")
     github = cache_path_for("git@github.com:buckwem/prodockit-template.git", root)
-    surrey = cache_path_for("git@gitlab.surrey.ac.uk:mb0105/prodockit-template.git", root)
+    surrey = cache_path_for("git@gitlab.surrey.ac.uk:csee/mb0105/prodockit-template.git", root)
 
     assert github != surrey
     assert "github.com" in github.parts
     assert "gitlab.surrey.ac.uk" in surrey.parts
+
+
+def test_surrey_template_move_ignores_the_retired_redirect_cache(tmp_path: pathlib.Path) -> None:
+    """The old mb0105 project is a redirect site, not a template with a manifest."""
+    old = "git@gitlab.surrey.ac.uk:mb0105/prodockit-template.git"
+    current = resolve_template("git@gitlab.surrey.ac.uk:students/report.git")
+    assert current == "git@gitlab.surrey.ac.uk:csee/mb0105/prodockit-template.git"
+    retired_cache = cache_path_for(old, tmp_path)
+    (retired_cache / ".git").mkdir(parents=True)
+    current_cache = cache_path_for(current, tmp_path)
+    runner = RecordingGit()
+
+    assert current_cache != retired_cache
+    assert ensure_template(current, current_cache, runner) == "cloned"
+    assert runner.commands[-1] == ["git", "clone", "--quiet", current, str(current_cache)]
 
 
 def test_a_template_that_is_not_there_yet_is_cloned(tmp_path: pathlib.Path) -> None:

@@ -62,7 +62,7 @@ from live_provider_resilience import (
 from live_provider_state import ResetHandoff, StateError
 
 SURREY_HOSTNAME = "gitlab.surrey.ac.uk"
-SURREY_SOURCE = "git@gitlab.surrey.ac.uk:mb0105/prodockit-template.git"
+SURREY_SOURCE = "git@gitlab.surrey.ac.uk:csee/mb0105/prodockit-template.git"
 SURREY_NAMESPACE = "assessment-liveprovider-2026"
 SURREY_PROJECT = "report-liveprovider-2026-mb0105"
 SURREY_DESTINATION = (

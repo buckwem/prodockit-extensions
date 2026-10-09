@@ -297,7 +297,7 @@ def test_template_preflight_requires_group_bot_source_access(tmp_path: Path) -> 
 
     client = HiddenTemplate(fixture)
 
-    with pytest.raises(lifecycle.LifecycleError, match="share mb0105/prodockit-template"):
+    with pytest.raises(lifecycle.LifecycleError, match="share csee/mb0105/prodockit-template"):
         lifecycle.template_preflight(client, fixture)
 
 
