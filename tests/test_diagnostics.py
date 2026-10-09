@@ -46,9 +46,9 @@ def test_public_github_template_check_uses_https() -> None:
     )
     assert (
         diagnostics._diagnostic_template_remote(
-            "git@gitlab.surrey.ac.uk:mb0105/prodockit-template.git"
+            "git@gitlab.surrey.ac.uk:csee/mb0105/prodockit-template.git"
         )
-        == "git@gitlab.surrey.ac.uk:mb0105/prodockit-template.git"
+        == "git@gitlab.surrey.ac.uk:csee/mb0105/prodockit-template.git"
     )
 
 

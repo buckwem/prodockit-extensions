@@ -176,7 +176,7 @@ class Host:
 
 SURREY_GITLAB = Host(
     key="surrey",
-    template_remote="git@gitlab.surrey.ac.uk:mb0105/prodockit-template.git",
+    template_remote="git@gitlab.surrey.ac.uk:csee/mb0105/prodockit-template.git",
     key_suffix="gitlab",
     hostname="gitlab.surrey.ac.uk",
     # Confirmed by running against it, not inferred: GitLab's default

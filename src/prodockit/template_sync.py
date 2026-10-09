@@ -52,7 +52,7 @@ else:  # pragma: no cover - `tomllib` is 3.11+, and this package supports 3.10
 #: trust or account decision for a public dependency made a clean Windows
 #: GitLab.com project fail immediately after Bootstrap had succeeded.
 TEMPLATE_REMOTES = {
-    "gitlab.surrey.ac.uk": "git@gitlab.surrey.ac.uk:mb0105/prodockit-template.git",
+    "gitlab.surrey.ac.uk": "git@gitlab.surrey.ac.uk:csee/mb0105/prodockit-template.git",
     "gitlab.com": "https://github.com/buckwem/prodockit-template.git",
     "github.com": "https://github.com/buckwem/prodockit-template.git",
 }

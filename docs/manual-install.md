@@ -739,7 +739,7 @@ or GitHub{% endif %} repository.
 
 {% if is_surrey %}
     ``` bash
-    git clone git@gitlab.surrey.ac.uk:mb0105/prodockit-template.git report-az1234
+    git clone git@gitlab.surrey.ac.uk:csee/mb0105/prodockit-template.git report-az1234
     ```
 {% else %}
     ``` bash

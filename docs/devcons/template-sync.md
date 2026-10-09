@@ -735,7 +735,7 @@ account of itself to `.prodockit-template.log`, and adds that file to
 
 ```text
 === 2026-08-19T14:37:35+01:00  started  prodockit template-sync
-Template source: git@gitlab.surrey.ac.uk:mb0105/prodockit-template.git
+Template source: git@gitlab.surrey.ac.uk:csee/mb0105/prodockit-template.git
 
   Template-managed files: 15 (updated unless you changed them)
       .github/workflows/docs.yml

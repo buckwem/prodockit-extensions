@@ -381,7 +381,7 @@ def test_surrey_github_workflow_keeps_three_credential_boundaries() -> None:
     assert "surrey-retained-state-${{ github.run_id }}" in seal
     assert "surrey_retained_state.py validate" in reset
     assert "assessment-liveprovider-2026/report-liveprovider-2026-mb0105" in reset
-    assert "git@gitlab.surrey.ac.uk:mb0105/prodockit-template.git" in candidate
+    assert "git@gitlab.surrey.ac.uk:csee/mb0105/prodockit-template.git" in candidate
     assert "bootstrap_live_provider_prerequisites.py" in candidate
     assert "prerequisites.json" in candidate
 

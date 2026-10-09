@@ -162,7 +162,7 @@ def test_bootstrap_uses_only_the_selected_host_and_surrey_links_open_new_tabs() 
     assert surrey.count("Surrey GitLab") >= 3
     surrey_links = re.findall(
         r'\[Surrey GitLab(?: repository)?\]\(https://gitlab\.surrey\.ac\.uk'
-        r'(?:/mb0105/prodockit-template)?\)\{target="_blank" rel="noopener"\}',
+        r'(?:/csee/mb0105/prodockit-template)?\)\{target="_blank" rel="noopener"\}',
         surrey,
     )
     assert len(surrey_links) == 3
