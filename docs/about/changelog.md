@@ -19,6 +19,11 @@ only when it adds or changes behaviour that matters to a user, or requires an
 upgrade action. Defect-by-defect history belongs in GitHub issues and pull
 requests rather than here.
 
+## 0.74.3 (2026-10-09)
+
+- Reported inaccessible macOS SSH-agent directory permissions before Bootstrap waits for the agent.
+- Followed the relocated CSEE Surrey template mirror in Bootstrap and Template Sync.
+
 ## 0.74.2 (2026-10-08)
 
 - Preserved WeasyPrint error details on failed PDF builds while keeping successful builds quiet.
