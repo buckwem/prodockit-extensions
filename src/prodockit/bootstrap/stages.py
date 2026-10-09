@@ -1237,6 +1237,20 @@ _AGENT_IS_EMPTY = 1
 _AGENT_NOT_RUNNING = 2
 
 
+def _macos_agent_directory_problem(context: Context) -> str | None:
+    """Catch an inaccessible socket directory before ssh-add waits on launchd."""
+    if context.platform != MACOS:
+        return None
+    directory = context.home / ".ssh" / "agent"
+    if not directory.exists():
+        return None
+    if not directory.is_dir():
+        return f"{directory} is not a directory"
+    if not os.access(directory, os.X_OK):
+        return f"{directory} cannot be traversed"
+    return None
+
+
 def _key_fingerprint(context: Context) -> str | None:
     """This key's SHA256 fingerprint, as `ssh-add -l` would print it."""
     public = _key_path(context).with_suffix(".pub")
@@ -1264,6 +1278,9 @@ def _check_ssh_agent(context: Context) -> CheckResult:
     upload stage reports it as `the host rejected the key`: the key is
     fine, uploaded, and unusable (prodockit-extensions#246).
     """
+    directory_problem = _macos_agent_directory_problem(context)
+    if directory_problem:
+        return _missing(f"{directory_problem}; check its permissions before starting ssh-agent")
     listed = context.runner.run(["ssh-add", "-l"])
     if listed.returncode == _AGENT_NOT_RUNNING:
         return _missing("no ssh agent is running")
@@ -1284,6 +1301,20 @@ def _plan_ssh_agent(context: Context) -> Plan:
     Windows is different: its agent is a system service, so prodockit bootstrap can
     request elevation through UAC and continue once that service starts.
     """
+    directory_problem = _macos_agent_directory_problem(context)
+    if directory_problem:
+        directory = context.home / ".ssh" / "agent"
+        return Plan(
+            instructions=[
+                f"{directory_problem}. Exit Bootstrap, then check ownership with "
+                f"`ls -ld {directory}`. If you own it, run `chmod 700 {directory}` "
+                "in the same terminal. Then run "
+                '`eval "$(ssh-agent -s)"` and retry `pdk boot`. '
+                "Do not delete the directory or keys."
+            ],
+            confirm="Exit now to repair the SSH agent directory?",
+            needs_a_new_run=True,
+        )
     private = _key_path(context)
     listed = context.runner.run(["ssh-add", "-l"])
 

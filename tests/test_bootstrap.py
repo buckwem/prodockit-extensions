@@ -2993,6 +2993,30 @@ def test_an_empty_agent_is_missing(tmp_path: Path) -> None:
     assert "not loaded" in result.detail
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="Unix directory execute permission")
+def test_macos_agent_directory_needs_execute_permission(tmp_path: Path) -> None:
+    directory = tmp_path / ".ssh" / "agent"
+    directory.mkdir(parents=True)
+    directory.chmod(0o600)
+    runner = FakeRunner(_agent(1, "The agent has no identities."))
+    stage = next(s for s in STAGES if s.id == "ssh-agent")
+    try:
+        context = _context(tmp_path, runner=runner)
+        result = stage.check(context)
+        plan = stage.plan(context)
+        assert result.status is Status.MISSING
+        assert "cannot be traversed" in result.detail
+        assert runner.calls == [], "do not call ssh-add while its socket directory is inaccessible"
+        assert f"chmod 700 {directory}" in "\n".join(plan.instructions)
+        assert plan.needs_a_new_run
+    finally:
+        directory.chmod(0o700)
+
+    result = stage.check(context)
+    assert "not loaded" in result.detail
+    assert runner.calls[0] == ["ssh-add", "-l"]
+
+
 def test_somebody_elses_key_in_the_agent_does_not_count(tmp_path: Path) -> None:
     """An agent holding a *different* key authenticates nothing here, and
     "the agent has keys" would report it as done."""
