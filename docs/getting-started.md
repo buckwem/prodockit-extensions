@@ -158,7 +158,7 @@ commands use this site's packages rather than another project's.
 === ":stag-stag_icon_32: Surrey RemoteLabs"
 
     ```bash
-    python -m venv .venv
+    python3 -m venv .venv
     source .venv/bin/activate
     ```
 {% endif %}
@@ -199,8 +199,8 @@ installing Zensical:
 
     ```bash
     pwd
-    python --version
-    python -c 'import sys; print(sys.prefix)'
+    python3 --version
+    python3 -c 'import sys; print(sys.prefix)'
     ```
 {% endif %}
 
