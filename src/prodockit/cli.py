@@ -4303,6 +4303,7 @@ def _run_template_sync(
         apply_dependency_updates,
         apply_file_actions,
         apply_seeds,
+        atomic_write,
         author_asset_seeds,
         baseline_report,
         blocking_changes,
@@ -4331,6 +4332,7 @@ def _run_template_sync(
         read_config,
         read_stamp,
         resolve_template,
+        restore_template_records,
         review_url,
         stage_changes,
         start_branch,
@@ -4558,6 +4560,45 @@ def _run_template_sync(
         say_report(baseline_report, baseline, details_only=True)
         say_detail()
 
+        # The incoming rules govern this run, even when they classify their
+        # own audit copy as template-owned. Record that copy separately at
+        # finalization, together with the applied-release stamp.
+        incoming_manifest = manifest_path.read_bytes()
+        local_manifest_path = project / MANIFEST_FILE
+        local_manifest = (
+            local_manifest_path.read_bytes() if local_manifest_path.is_file() else None
+        )
+        manifest_needs_update = local_manifest != incoming_manifest
+        if manifest_needs_update and local_manifest is not None:
+            recorded_version = stamp or baseline.version
+            recorded_blob = blob_at(recorded_version, MANIFEST_FILE) if recorded_version else None
+            local_blob = blob_of(local_manifest_path)
+            # Earlier Template Sync releases advanced the stamp but left this
+            # audit copy behind. Any exact historical template blob is safe to
+            # refresh; a genuinely edited copy is not.
+            history = subprocess.run(
+                ["git", "-C", str(template), "rev-list", "--objects", "HEAD", "--", MANIFEST_FILE],
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                check=False,
+            )
+            if history.returncode:
+                raise TemplateSyncError("could not verify the ownership manifest history")
+            historical_blobs = {
+                line.split(" ", 1)[0]
+                for line in history.stdout.splitlines()
+                if line.endswith(" " + MANIFEST_FILE)
+            }
+            if local_blob != recorded_blob and local_blob not in historical_blobs:
+                raise TemplateSyncError(
+                    f"{MANIFEST_FILE} differs from the recorded template copy. "
+                    "It may contain local edits, so Template Sync will not overwrite it. "
+                    "Review and back up those edits, then restore the recorded copy or "
+                    "remove the local audit copy before rerunning; neither the manifest "
+                    "nor applied-release stamp was changed"
+                )
+
         # 4. Whether it is safe to write.
         dirty = [
             line[3:]
@@ -4570,7 +4611,11 @@ def _run_template_sync(
             ).stdout.splitlines()
         ]
         blocked = blocking_changes(
-            manifest, [path for path in dirty if path not in configured_seeds]
+            manifest,
+            [
+                path for path in dirty
+                if path not in configured_seeds and path != MANIFEST_FILE
+            ],
         )
         if blocked:
             raise TemplateSyncError(
@@ -4588,7 +4633,12 @@ def _run_template_sync(
         shared_targets = {state.file.target for state in incoming_shared}
         plan = plan_template_files(
             manifest,
-            [path for path in files if path not in shared_targets and path not in configured_seeds],
+            [
+                path for path in files
+                if path not in shared_targets
+                and path not in configured_seeds
+                and path != MANIFEST_FILE
+            ],
             lambda p: blob_of(project / manifest.rename(p)),
             lambda p: blob_at(versions[0], p) if versions else None,
             baseline,
@@ -4685,6 +4735,7 @@ def _run_template_sync(
             or dependency_plan
             or shared_drift
             or stamp_is_stale
+            or manifest_needs_update
         )
 
         # Normal mode answers the author's questions and stops. Diagnostic
@@ -4733,7 +4784,11 @@ def _run_template_sync(
             say_key(f"  Shared files to refresh: {len(shared_drift)}")
             for state in shared_drift:
                 say_detail(f"      {state.file.target}")
-        if stamp_is_stale and not (pending or seeds or added or updated or ignores):
+        if manifest_needs_update:
+            say_key(f"  Template ownership audit copy to refresh: {MANIFEST_FILE}")
+        if stamp_is_stale and not (
+            pending or seeds or added or updated or ignores or manifest_needs_update
+        ):
             say_key(
                 "  The saved template version needs refreshing; no project content will change."
             )
@@ -5174,21 +5229,40 @@ def _run_template_sync(
         say("Changes made:")
         say_report(written_report, written)
 
-        # 10, last: the stamp describes a state that now exists.
-        previous_stamp = read_stamp(project)
-        if baseline.version:
-            write_stamp(project, wanted_stamp, wanted_applied_release)
-            also_written.append(STAMP_FILE)
-        if not stage_changes(git, [w.path for w in written] + also_written):
-            if baseline.version:
-                if previous_stamp is None:
-                    (project / STAMP_FILE).unlink(missing_ok=True)
-                else:
-                    write_stamp(project, previous_stamp, previous_applied_release)
+        # 10, last: publish the validated audit copy and stamp as one review
+        # unit. A filesystem cannot replace two paths in one syscall, so keep
+        # exact pre-apply bytes and restore both if either replacement or Git
+        # staging fails. The eventual Git commit makes the pair atomic to
+        # everyone receiving the update.
+        originals = {
+            name: (project / name).read_bytes() if (project / name).is_file() else None
+            for name in (MANIFEST_FILE, STAMP_FILE)
+        }
+        try:
+            if manifest_needs_update:
+                atomic_write(local_manifest_path, incoming_manifest)
+                also_written.append(MANIFEST_FILE)
+            if baseline.version or manifest_needs_update:
+                write_stamp(project, wanted_stamp, wanted_applied_release)
+                also_written.append(STAMP_FILE)
+            if not stage_changes(git, [w.path for w in written] + also_written):
+                raise TemplateSyncError("could not stage the applied template update")
+        except (OSError, TemplateSyncError) as error:
+            restore_template_records(project, originals)
             raise TemplateSyncError(
-                "could not stage the applied template update; the successfully applied "
-                "release record was left unchanged"
-            )
+                f"{error}; the ownership audit copy and applied-release stamp "
+                "were left unchanged"
+            ) from error
+
+        def undo_unfinished_record() -> None:
+            """Keep the two audit files old when review/publishing is declined."""
+            restore_template_records(project, originals)
+            if not git(["git", "add", "-A", "--", MANIFEST_FILE, STAMP_FILE]):
+                raise TemplateSyncError(
+                    "could not restage the previous ownership audit copy and release "
+                    "stamp; review the two files before retrying Template Sync"
+                )
+
         say()
         if local_only or reviewed_sidecars:
             say("The changes are ready for you to review.")
@@ -5199,6 +5273,7 @@ def _run_template_sync(
         read = git_reader(project)
         target = default_branch(read)
         if target is None:
+            undo_unfinished_record()
             raise TemplateSyncError(
                 "cannot find the main branch to update. The changes remain ready on "
                 f"{name}; nothing has been sent to GitHub or GitLab"
@@ -5209,6 +5284,7 @@ def _run_template_sync(
 
         if not push:
             if not origin_remote:
+                undo_unfinished_record()
                 raise TemplateSyncError(
                     "this project has no origin to receive the update. The changes remain "
                     f"ready on {name}; nothing has been sent"
@@ -5223,11 +5299,7 @@ def _run_template_sync(
                 # unfinished sync work and publish the branch again. Without
                 # this, recovery would require the Git commands this path is
                 # specifically intended to remove.
-                if baseline.version:
-                    if previous_stamp is None:
-                        (project / STAMP_FILE).unlink(missing_ok=True)
-                    else:
-                        write_stamp(project, previous_stamp, previous_applied_release)
+                undo_unfinished_record()
                 raise
             say()
             if merge_request:
@@ -5247,6 +5319,7 @@ def _run_template_sync(
         # rebuilt is not finished until this happens.
         blockers = publish_blockers(read, target, name)
         if blockers:
+            undo_unfinished_record()
             say("The changes are ready, but cannot be sent directly to the main project:")
             for problem in blockers:
                 say(f"  - {problem}")
@@ -5260,6 +5333,7 @@ def _run_template_sync(
         say("  This does not create a pull request or merge request.")
         say()
         if not click.confirm("Update the main project now?", default=False):
+            undo_unfinished_record()
             say("Stopped safely. Nothing was committed or sent to GitHub or GitLab.")
             return
 

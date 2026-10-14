@@ -357,6 +357,14 @@ The split is decided by a **manifest** that lives in the template, not by
 the command, and every file the template ships is classified in it. A file
 that is in neither list stops the run rather than being guessed at.
 
+After a successful update, the project also keeps an exact audit copy of the
+incoming `.prodockit-template.toml` beside its `.prodockit-template` release
+stamp. The incoming copy controls the update even if it changes ownership of
+the manifest itself. Preview and incomplete runs leave both local records
+unchanged. If you edited the local audit copy, Template Sync stops instead of
+overwriting it; back up the edits and restore the previously recorded copy (or
+remove the audit copy after reviewing it) before retrying.
+
 \ref{tab-devcons-template-sync-what-it-will-and-will-not-write} explains how template-sync treats managed, author-owned, generated, and unclassified files.
 
 | Group | Examples | What happens |

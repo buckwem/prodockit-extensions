@@ -33,6 +33,7 @@ import pathlib
 import re
 import subprocess
 import sys
+import tempfile
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -439,10 +440,22 @@ def load_manifest(text: str) -> Manifest:
     except tomllib.TOMLDecodeError as error:
         raise TemplateSyncError(f"{MANIFEST_FILE} is not valid TOML: {error}") from error
 
+    for section in ("template", "project", "shared", "excluded", "renames"):
+        if not isinstance(data.get(section, {}), dict):
+            raise TemplateSyncError(f"{section} must be a table")
+    if not isinstance(data.get("shared", {}).get("zensical_toml", {}), dict):
+        raise TemplateSyncError("shared.zensical_toml must be a table")
+
     def strings(section: str, key: str) -> tuple[str, ...]:
         value = data.get(section, {}).get(key, [])
         if not isinstance(value, list) or not all(isinstance(v, str) for v in value):
             raise TemplateSyncError(f"{section}.{key} must be a list of strings")
+        return tuple(value)
+
+    def config_strings(key: str) -> tuple[str, ...]:
+        value = data.get("shared", {}).get("zensical_toml", {}).get(key, [])
+        if not isinstance(value, list) or not all(isinstance(v, str) for v in value):
+            raise TemplateSyncError(f"shared.zensical_toml.{key} must be a list of strings")
         return tuple(value)
 
     renames = data.get("renames", {})
@@ -457,8 +470,8 @@ def load_manifest(text: str) -> Manifest:
         seed=strings("project", "seed"),
         ignore=strings("project", "ignore"),
         shared=strings("shared", "files"),
-        take=tuple(data.get("shared", {}).get("zensical_toml", {}).get("take", [])),
-        never=tuple(data.get("shared", {}).get("zensical_toml", {}).get("never", [])),
+        take=config_strings("take"),
+        never=config_strings("never"),
         excluded=strings("excluded", "paths"),
         renames=dict(renames),
     )
@@ -1650,8 +1663,32 @@ def write_stamp(
             f"revision = {json.dumps(revision)}\n"
             f"applied_release = {json.dumps(applied_release.strip())}\n"
         )
-    path.write_text(text, encoding="utf-8")
+    atomic_write(path, text.encode("utf-8"))
     return path
+
+
+def atomic_write(path: pathlib.Path, contents: bytes) -> None:
+    """Replace one record without exposing a partially written TOML file."""
+    descriptor, temporary = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
+    try:
+        with os.fdopen(descriptor, "wb") as handle:
+            handle.write(contents)
+        os.replace(temporary, path)
+    finally:
+        if os.path.exists(temporary):
+            os.unlink(temporary)
+
+
+def restore_template_records(
+    project_root: pathlib.Path, originals: Mapping[str, bytes | None]
+) -> None:
+    """Restore the exact pre-apply audit files after a failed finalization."""
+    for name, contents in originals.items():
+        path = project_root / name
+        if contents is None:
+            path.unlink(missing_ok=True)
+        else:
+            atomic_write(path, contents)
 
 
 def read_template_stamp(project_root: pathlib.Path) -> TemplateStamp | None:
