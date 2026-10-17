@@ -19,6 +19,10 @@ only when it adds or changes behaviour that matters to a user, or requires an
 upgrade action. Defect-by-defect history belongs in GitHub issues and pull
 requests rather than here.
 
+## 0.74.4 (2026-10-17)
+
+- Handled non-UTF-8 Windows PDF diagnostic output without reader-thread tracebacks, while preserving genuine renderer failures.
+
 ## 0.74.3 (2026-10-09)
 
 - Reported inaccessible macOS SSH-agent directory permissions before Bootstrap waits for the agent.
