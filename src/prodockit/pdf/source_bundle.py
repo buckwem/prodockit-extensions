@@ -490,7 +490,11 @@ def build_source_bundle(
             f.write("</body></html>")
 
         cmd = [weasyprint_executable, html_path, resolved_output_path]
-        result = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8")
+        # Match the document PDF path: tolerate legacy diagnostic bytes while
+        # retaining the renderer's exit status and readable error details.
+        result = subprocess.run(
+            cmd, capture_output=True, text=True, encoding="utf-8", errors="replace"
+        )
         if result.returncode != 0:
             raise SourceBundleError(
                 f"weasyprint exited with status {result.returncode} "

@@ -607,6 +607,10 @@ def build_pdf(
                     capture_output=True,
                     text=True,
                     encoding="utf-8",
+                    # Windows tools can emit legacy-code-page diagnostics.
+                    # Replace undecodable log bytes, not the exit status:
+                    # renderer failures must still raise PdfBuildError below.
+                    errors="replace",
                     timeout=pandoc_timeout,
                 )
             except subprocess.TimeoutExpired as exc:
