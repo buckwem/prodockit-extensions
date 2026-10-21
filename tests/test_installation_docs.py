@@ -37,7 +37,7 @@ def test_python_alias_repair_follows_environment_checks() -> None:
         "//// step | Verify the active environment", 1
     )[1].split("////", 1)[0]
     surrey = preparation.split('=== ":stag-stag_icon_32: Surrey RemoteLabs"', 1)[1]
-    assert "python --version" in surrey
+    assert "python3 --version" in surrey
     assert "unalias python" not in preparation
     optional = installation.split(
         "//// step | Fix the Python alias when needed **Optional**", 1

@@ -188,20 +188,32 @@ def test_remotelabs_tabs_and_privilege_badges_are_surrey_specific() -> None:
     assert 'fill="currentColor"' in icon.read_text(encoding="utf-8")
     for public in (public_install, public_adopt, public_bootstrap):
         assert "Surrey RemoteLabs" not in public
-    assert "python -m venv .venv" in surrey_install
-    assert "python -m venv .venv" in surrey_adopt
+    assert "python3 -m venv .venv" in surrey_install
+    assert "python3 -m venv .venv" in surrey_adopt
     assert "<module ID>-report" in surrey_adopt
     assert "**Privileged**{: .install-privileged}" in surrey_install
     assert "**Optional**{: .bg-green}" in surrey_install
     alias_step = "//// step | Fix the Python alias when needed **Optional**{: .bg-green}"
     assert alias_step in surrey_install
     assert alias_step in public_install
-    assert "This is normally needed on Surrey RemoteLabs" in surrey_install
-    assert "This is normally needed on Surrey RemoteLabs" not in public_install
+    assert "The Surrey tabs above use `python3`" in surrey_install
+    assert "The Surrey tabs above use `python3`" not in public_install
     assert "cannot be generated\n    there" in surrey_bootstrap
     assert "These packages go into the active setup `.venv`; no `sudo` is needed" in surrey_bootstrap
     assert '!!! note "Surrey RemoteLabs: use GitLab for PDFs"' in surrey_bootstrap
     assert '!!! note "Surrey RemoteLabs: use GitLab for PDFs"' not in public_bootstrap
+
+
+def test_remotelabs_python_commands_use_python3() -> None:
+    for page, expected in ((INSTALLATION, 3), (GETTING_STARTED, 2)):
+        source = page.read_text(encoding="utf-8")
+        tabs = re.findall(
+            r'=== ":stag-stag_icon_32: Surrey RemoteLabs"\n(.*?)(?=\n{% endif %})',
+            source,
+            flags=re.DOTALL,
+        )
+        assert sum("python3" in tab for tab in tabs) == expected
+        assert all(re.search(r"(?m)^\s*python(?:\s|$)", tab) is None for tab in tabs)
 
 
 def test_no_node_pdf_recovery_keeps_host_guidance_scoped() -> None:

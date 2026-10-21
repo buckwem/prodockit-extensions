@@ -25,7 +25,7 @@ def test_alias_fix_is_only_in_step_five() -> None:
     assert "unalias python" not in verify
     assert "python --version" in verify
     assert "command -v python" in verify
-    assert "python -c 'import sys; print(sys.prefix)'" in verify
+    assert "python3 -c 'import sys; print(sys.prefix)'" in verify
     assert "follow Step 5, then repeat this check" in verify
     assert "//// step | Fix the Python alias when needed **Optional**{: .bg-green}" in source
     assert "unalias python 2>/dev/null || true" in repair
@@ -56,7 +56,7 @@ def test_both_variants_render_distinct_check_and_repair_steps(is_surrey: bool) -
     ]
     assert "unalias python" not in steps[0].get_text(" ", strip=True)
     assert "unalias python 2>/dev/null || true" in steps[1].get_text(" ", strip=True)
-    assert ("This is normally needed on Surrey RemoteLabs" in steps[1].get_text(" ", strip=True)) == is_surrey
+    assert ("The Surrey tabs above use python3" in steps[1].get_text(" ", strip=True)) == is_surrey
 
 
 @pytest.mark.skipif(shutil.which("bash") is None, reason="Bash is not installed")
