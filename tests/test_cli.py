@@ -419,6 +419,7 @@ paths = [".prodockit-template.toml"]
     ).stdout.strip()
 
     (project / "managed.txt").write_text("current\n", encoding="utf-8")
+    (project / ".prodockit-template.toml").write_text(manifest, encoding="utf-8")
     (project / ".prodockit-template").write_text(f"{version}\n", encoding="utf-8")
     (project / ".gitignore").write_text(".prodockit-template.log\n", encoding="utf-8")
     subprocess.run(["git", "-C", str(project), "init", "-q"], check=True)
@@ -704,6 +705,16 @@ paths = []
         text=True,
         check=True,
     ).stdout.strip()
+    new_manifest = manifest.replace(
+        'owns = ["managed.txt", ".github/workflows/**"]',
+        'owns = ["managed.txt", ".github/workflows/**", '
+        '".prodockit-template.toml", "docs/javascripts/glightbox.js"]',
+    )
+    (template / ".prodockit-template.toml").write_text(new_manifest, encoding="utf-8")
+    (template / "docs" / "javascripts").mkdir(parents=True)
+    (template / "docs" / "javascripts" / "glightbox.js").write_text(
+        "// GLightbox is now template-owned\n", encoding="utf-8"
+    )
     (template / "managed.txt").write_text("new\n", encoding="utf-8")
     (template / "requirements.txt").write_text(
         f"prodockit>={cli.__version__}\nzensical>=0.0.57\n", encoding="utf-8"
@@ -712,6 +723,7 @@ paths = []
         f"run: pip install prodockit=={cli.__version__} zensical==0.0.57\n",
         encoding="utf-8",
     )
+    subprocess.run(["git", "-C", str(template), "add", "."], check=True)
     subprocess.run(
         [
             "git",
@@ -743,6 +755,7 @@ paths = []
     ):
         subprocess.run(["git", "-C", str(project), "config", key, value], check=True)
     (project / "managed.txt").write_text("old\n", encoding="utf-8")
+    (project / ".prodockit-template.toml").write_text(manifest, encoding="utf-8")
     (project / "requirements.txt").write_text(
         "prodockit[index]>=0.39.0\nzensical>=0.0.53\n", encoding="utf-8"
     )
@@ -766,6 +779,7 @@ paths = []
     (project / "docs" / "stylesheets" / "pdk.css").write_text(
         "outdated\n", encoding="utf-8"
     )
+    (project / ".prodockit-template.toml").write_text(manifest, encoding="utf-8")
     (project / ".prodockit-template").write_text(f"{old}\n", encoding="utf-8")
     (project / ".gitignore").write_text(
         ".prodockit-template.log\n/adopt-runtime.js\n", encoding="utf-8"
@@ -836,6 +850,38 @@ paths = []
         ),
     )
     monkeypatch.setattr("prodockit.template_sync.review_url", lambda *_args: None)
+    locally_edited = manifest + "# local ownership override\n"
+    (project / ".prodockit-template.toml").write_text(
+        locally_edited, encoding="utf-8"
+    )
+    blocked = CliRunner().invoke(
+        cli.main, ["template-sync", "--template-path", str(template), "--apply"]
+    )
+    assert blocked.exit_code != 0
+    assert "will not overwrite it" in blocked.output
+    assert (project / ".prodockit-template.toml").read_text(encoding="utf-8") == locally_edited
+    assert read_stamp(project) == old
+    (project / ".prodockit-template.toml").write_text(manifest, encoding="utf-8")
+    current_revision = subprocess.run(
+        ["git", "-C", str(template), "rev-parse", "HEAD"],
+        capture_output=True, text=True, check=True,
+    ).stdout.strip()
+    (project / ".prodockit-template").write_text(
+        f"{current_revision}\n", encoding="utf-8"
+    )
+    stale_copy = CliRunner().invoke(
+        cli.main, ["template-sync", "--template-path", str(template)]
+    )
+    assert stale_copy.exit_code == 0, stale_copy.output
+    assert "Template ownership audit copy to refresh" in stale_copy.output
+    (project / ".prodockit-template").write_text(f"{old}\n", encoding="utf-8")
+    preview = CliRunner().invoke(
+        cli.main, ["template-sync", "--template-path", str(template)]
+    )
+    assert preview.exit_code == 0, preview.output
+    assert (project / ".prodockit-template.toml").read_text(encoding="utf-8") == manifest
+    assert read_stamp(project) == old
+
     result = CliRunner().invoke(
         cli.main,
         [
@@ -853,6 +899,8 @@ paths = []
     assert "Shared files: refreshed 1 managed file" in result.output
     assert "Adopt applied and verified" in result.output
     assert config_plans == [
+        (["project.extra_css", "project.extra_javascript"], []),
+        (["project.extra_css", "project.extra_javascript"], []),
         (["project.extra_css", "project.extra_javascript"], []),
         (["project.extra_javascript"], []),
     ]
@@ -874,6 +922,8 @@ paths = []
         project / ".github" / "workflows" / "docs.yml"
     ).read_text()
     assert (project / "docs" / "stylesheets" / "pdk.css").read_text() != "outdated\n"
+    assert (project / ".prodockit-template.toml").read_text(encoding="utf-8") == new_manifest
+    assert (project / "docs" / "javascripts" / "glightbox.js").is_file()
     assert read_applied_release(project) == "template-v2.0.0"
     assert read_stamp(project) == subprocess.run(
         ["git", "-C", str(template), "rev-parse", "HEAD"],
