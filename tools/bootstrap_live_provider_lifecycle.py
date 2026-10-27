@@ -20,7 +20,7 @@ import time
 import uuid
 from collections.abc import Callable, Collection, Iterator, Mapping, Sequence
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any, NoReturn
 from urllib.error import HTTPError, URLError
@@ -811,7 +811,7 @@ def create_exact_project(
         observed_creation = datetime.fromisoformat(created_at.replace("Z", "+00:00"))
     except ValueError as error:
         raise LifecycleError("GitLab returned an invalid project creation timestamp") from error
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     if (
         observed_creation.tzinfo is None
         or observed_creation < created_after - timedelta(minutes=5)
@@ -1039,7 +1039,7 @@ def reset_project(args: argparse.Namespace, client: GitLabClient) -> None:
         except StateError as error:
             raise LifecycleError(str(error)) from error
         enable_destination_key(client, fixture, project_id, public_key, journal)
-        completed = datetime.now(timezone.utc).replace(microsecond=0)
+        completed = datetime.now(UTC).replace(microsecond=0)
         handoff = ResetHandoff(
             schema=2 if canonical_identity is not None else 1,
             run_id=str(uuid.uuid4()),

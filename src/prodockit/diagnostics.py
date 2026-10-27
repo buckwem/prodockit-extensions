@@ -20,7 +20,7 @@ import uuid
 from collections.abc import Callable
 from contextlib import suppress
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal
 
@@ -561,7 +561,7 @@ class RepairTransaction:
         self.action_id = action_id
         self.check_id = check_id
         self.choice_id = choice_id
-        self.created = timestamp or datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S.%fZ")
+        self.created = timestamp or datetime.now(UTC).strftime("%Y%m%dT%H%M%S.%fZ")
         if not re.fullmatch(r"[A-Za-z0-9._-]+", self.created):
             raise RepairTransactionError("invalid diagnostic transaction timestamp")
         self.quarantine = self.boundary / ".prodockit-quarantine" / "diagnostics" / self.created

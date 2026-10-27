@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import asdict, dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any, cast
 from urllib.parse import urlparse
@@ -304,7 +304,7 @@ class ProviderGateResult:
         finished = _utc(self.finished_at_utc, label="finished_at_utc")
         if finished < started or finished - started > MAX_RUN_DURATION:
             raise StateError("provider run duration is invalid or exceeds two hours")
-        observed_now = now or datetime.now(timezone.utc)
+        observed_now = now or datetime.now(UTC)
         if finished > observed_now + timedelta(minutes=5):
             raise StateError("provider result is dated in the future")
         if observed_now - finished > MAX_RESULT_AGE:

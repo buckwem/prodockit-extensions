@@ -15,7 +15,7 @@ import re
 import shutil
 import subprocess
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from html import escape
 from pathlib import Path
 from typing import Any
@@ -169,7 +169,7 @@ def _date_part(timestamp: str, source: Path) -> str:
         parsed = datetime.fromisoformat(normalized)
         if parsed.tzinfo is None:
             raise ValueError("timestamp has no UTC offset")
-        return parsed.astimezone(timezone.utc).date().isoformat()
+        return parsed.astimezone(UTC).date().isoformat()
     except ValueError as error:
         raise RevisionDateError(
             f"git returned an invalid author timestamp for {source}: {timestamp!r}"
@@ -183,7 +183,7 @@ def _mtime_date(source: Path) -> str:
         raise RevisionDateError(
             f"could not read the modification time of {source}: {error}"
         ) from error
-    return datetime.fromtimestamp(modified, tz=timezone.utc).date().isoformat()
+    return datetime.fromtimestamp(modified, tz=UTC).date().isoformat()
 
 
 def resolve_revision_dates(

@@ -18,7 +18,7 @@ import urllib.request
 from collections.abc import Mapping
 from contextlib import suppress
 from dataclasses import dataclass, replace
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from email.utils import parsedate_to_datetime
 from pathlib import Path
 from typing import Any
@@ -155,7 +155,7 @@ def _github_rate_limit(error: urllib.error.HTTPError) -> tuple[float, str] | Non
             delays.append(max(0.0, seconds(reset) - now))
     delay = max(delays) if delays else 60.0
     try:
-        when = datetime.fromtimestamp(now + delay, timezone.utc).isoformat(timespec="seconds")
+        when = datetime.fromtimestamp(now + delay, UTC).isoformat(timespec="seconds")
     except (ValueError, OverflowError, OSError):
         when = "the GitHub rate-limit reset time"
     return delay, (
