@@ -7,8 +7,8 @@ from __future__ import annotations
 
 import os
 import re
-import sys
 import tempfile
+import tomllib
 from pathlib import Path
 from typing import Any
 
@@ -25,11 +25,6 @@ from prodockit.pdf.runtime_config import (
     load_pdf_runtime_config,
 )
 from prodockit.shared_files import resource_bytes
-
-if sys.version_info >= (3, 11):
-    import tomllib
-else:  # pragma: no cover - Python 3.10
-    import tomli as tomllib
 
 
 class PdfProjectFilesError(ValueError):

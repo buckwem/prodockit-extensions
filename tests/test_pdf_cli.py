@@ -96,8 +96,58 @@ def test_pdf_warns_about_live_legacy_macro_calls(
     result = CliRunner().invoke(main, ["pdf"])
 
     assert result.exit_code == 0, result.output
-    assert "reference_style() -> pdk_reference_style()" in result.output
-    assert "glossary_style() ->" not in result.output
+    for name in (
+        "heading_counter_reset",
+        "reference_style",
+        "acronym_style",
+        "glossary_style",
+    ):
+        assert f"{name}() -> pdk_{name}()" in result.output
+    assert "found reference_style() in index.md" in result.output
+    assert "found glossary_style()" not in result.output
+
+
+def test_pdf_reports_simultaneous_legacy_calls_in_markdown_includes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _write_project(tmp_path)
+    includes = tmp_path / "docs/includes"
+    includes.mkdir()
+    project_includes = tmp_path / "includes"
+    project_includes.mkdir()
+    (project_includes / "global.md").write_text(
+        "{{ reference_style() }}\n{% raw %}{{ glossary_style() }}{% endraw %}\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "zensical.toml").write_text(
+        _ZENSICAL_TOML
+        + '\n[project.markdown_extensions.zensical.extensions.macros]\ninclude_dir = "includes"\n',
+        encoding="utf-8",
+    )
+    (includes / "terms.md").write_text(
+        "{{ heading_counter_reset(page) }}\n"
+        "{{ reference_style() }}\n"
+        "{{ acronym_style() }}\n"
+        "{{ glossary_style() }}\n"
+        "```jinja\n{{ reference_style() }}\n```\n"
+        "{% raw %}{{ reference_style() }}{% endraw %}\n",
+        encoding="utf-8",
+    )
+    _install_fake_pandoc(tmp_path, monkeypatch, 'echo "%PDF-1.4 stub" > "$3"')
+
+    result = CliRunner().invoke(main, ["pdf"])
+
+    assert result.exit_code == 0, result.output
+    for name in (
+        "heading_counter_reset",
+        "reference_style",
+        "acronym_style",
+        "glossary_style",
+    ):
+        assert f"{name}() -> pdk_{name}()" in result.output
+        assert result.output.count(f"found {name}() in includes/terms.md") == 1
+    assert "found reference_style() in includes/global.md" in result.output
+    assert "found glossary_style() in includes/global.md" not in result.output
 
 
 def test_pdf_command_accepts_a_config_file_option(

@@ -162,9 +162,8 @@ def _git_history(root: Path) -> _GitHistory | None:
 
 
 def _date_part(timestamp: str, source: Path) -> str:
-    # Python 3.10 does not accept the ISO 8601 UTC designator even though
-    # newer Git versions can emit it for %aI. An explicit offset has the same
-    # meaning and is accepted by every supported Python version.
+    # Normalize Git's UTC designator to an explicit offset for stable parsing
+    # across the supported Python versions.
     normalized = f"{timestamp[:-1]}+00:00" if timestamp.endswith("Z") else timestamp
     try:
         parsed = datetime.fromisoformat(normalized)

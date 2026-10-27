@@ -18,6 +18,7 @@ import subprocess
 import sys
 import threading
 import time
+import tomllib
 from collections.abc import Iterable, Iterator, Mapping
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -25,11 +26,6 @@ from pathlib import Path
 from typing import Any, cast
 
 from PIL import Image, ImageChops, ImageDraw
-
-if sys.version_info >= (3, 11):
-    import tomllib
-else:  # pragma: no cover - exercised by the Python 3.10 CI job
-    import tomli as tomllib
 
 
 @dataclass(frozen=True)

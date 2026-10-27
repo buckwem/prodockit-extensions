@@ -23,7 +23,7 @@ including projects that have nothing to do with it. So:
 
 from __future__ import annotations
 
-import sys
+import tomllib
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -32,25 +32,7 @@ import pytest
 
 
 def _load_toml(path: Path) -> dict[str, Any]:
-    """Parses a TOML file, using the standard library where it exists.
-
-    `tomllib` is 3.11+, and this package supports 3.10. The fallback import
-    is deliberately *inside* this function rather than at module scope:
-    pytest loads this plugin into every test run in any environment where
-    prodockit is installed, so an ImportError up there would take down
-    unrelated projects' test suites on 3.10 rather than just failing the
-    fixtures that actually need it.
-    """
-    if sys.version_info >= (3, 11):
-        import tomllib
-    else:  # pragma: no cover - exercised only on 3.10
-        try:
-            import tomli as tomllib
-        except ModuleNotFoundError:
-            pytest.skip(
-                "reading the Zensical config on Python 3.10 needs tomli - "
-                "`pip install prodockit[testing]`"
-            )
+    """Parse TOML with the standard-library parser available on Python 3.11+."""
     with open(path, "rb") as f:
         data: dict[str, Any] = tomllib.load(f)
     return data

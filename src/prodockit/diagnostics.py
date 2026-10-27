@@ -15,6 +15,7 @@ import shutil
 import subprocess
 import sys
 import sysconfig
+import tomllib
 import uuid
 from collections.abc import Callable
 from contextlib import suppress
@@ -63,11 +64,6 @@ from prodockit.shared_files import inspect as inspect_shared_files
 from prodockit.table_jinja import untrimmed_table_controls
 from prodockit.text_encoding import inspect_project_text_encoding, project_text_files
 from prodockit.weasyprint_probe import ProbeResult, pango_install_guidance, run_probe
-
-if sys.version_info >= (3, 11):
-    import tomllib
-else:  # pragma: no cover - exercised by Python 3.10 CI
-    import tomli as tomllib
 
 Status = Literal["pass", "warn", "fail"]
 RepairDisposition = Literal[
@@ -3996,7 +3992,7 @@ def _adopt_readiness_checks(
                 "warn",
                 f"Python {active_python} is supported for use; Adopt needs Python {tested_python}",
                 (
-                    f"Compatibility tests cover Python 3.10–{tested_python}; full Adopt "
+                    f"Compatibility tests cover Python 3.11–{tested_python}; full Adopt "
                     f"toolchain integration is qualified on Python {tested_python}.",
                     f"Adopt will not change packages or project files under Python "
                     f"{active_python}; activate Python {tested_python} before using Adopt.",

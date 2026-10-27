@@ -100,6 +100,14 @@ async function captureFailure(page, label, errors) {
 
 async function closedShadowMermaidIndices(client, needed) {
   if (!needed.length) return [];
+  const findSvg = node => {
+    if (node.localName === 'svg') return node;
+    for (const child of [...(node.children || []), ...(node.shadowRoots || [])]) {
+      const svg = findSvg(child);
+      if (svg) return svg;
+    }
+    return null;
+  };
   const { root } = await client.send('DOM.getDocument', { depth: 0 });
   const { nodeIds } = await client.send('DOM.querySelectorAll', {
     nodeId: root.nodeId,
@@ -108,11 +116,17 @@ async function closedShadowMermaidIndices(client, needed) {
   const rendered = [];
   for (const index of needed) {
     if (index >= nodeIds.length) continue;
-    const { node } = await client.send('DOM.describeNode', {
-      nodeId: nodeIds[index], depth: 1, pierce: true,
-    });
-    const svg = node.shadowRoots?.flatMap(root => root.children || [])
-      .find(child => child.localName === 'svg');
+    let node;
+    try {
+      ({ node } = await client.send('DOM.describeNode', {
+        nodeId: nodeIds[index], depth: -1, pierce: true,
+      }));
+    } catch (_) {
+      // The site's rendering can replace a host between querying its node ID
+      // and describing it. The next observation will query the current node.
+      continue;
+    }
+    const svg = (node.shadowRoots || []).map(findSvg).find(Boolean);
     if (!svg?.backendNodeId) continue;
     const { object } = await client.send('DOM.resolveNode', {
       backendNodeId: svg.backendNodeId,

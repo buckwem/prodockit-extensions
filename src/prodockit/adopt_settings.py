@@ -10,8 +10,8 @@ import json
 import math
 import os
 import re
-import sys
 import time
+import tomllib
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -31,11 +31,6 @@ from prodockit.adopt_toml import inline
 from prodockit.pdf.runtime_config import PDF_SETTING_PATHS
 from prodockit.project_config import _markdown_extensions
 from prodockit.renderer_resilience import RetryNotice, RetryReporter, run_with_retries
-
-if sys.version_info >= (3, 11):
-    import tomllib
-else:  # pragma: no cover
-    import tomli as tomllib
 
 LEDGER = ".prodockit-adopt.toml"
 MAX_BYTES = 2 * 1024 * 1024

@@ -541,7 +541,7 @@ def test_diagnostics_reports_the_same_pending_adopt_stages(
     assert "Component choices" in check.details[2]
 
 
-@pytest.mark.parametrize("version", ("3.10", "3.11", "3.12", "3.13"))
+@pytest.mark.parametrize("version", ("3.11", "3.12", "3.13"))
 def test_diagnostics_warns_for_compatibility_tested_python(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, version: str
 ) -> None:
