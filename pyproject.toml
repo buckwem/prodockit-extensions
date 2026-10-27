@@ -126,7 +126,7 @@ dev = [
   "Pillow>=10",
   "pytest",
   "pytest-cov",
-  "pymupdf>=1.24",
+  "pymupdf>=1.24,<2",
   "pypdf>=4.0",
 ]
 # Only needed for prodockit.pdf.index's own back-of-book index -
@@ -134,7 +134,7 @@ dev = [
 # sizeable one, so it's kept optional rather than a hard dependency every
 # prodockit install pays for regardless of whether this feature is ever used.
 index = [
-  "pymupdf>=1.24",
+  "pymupdf>=1.24,<2",
 ]
 # Only needed to use prodockit.testing - the pytest fixtures and checks a
 # consuming project can point at its own built site/PDF. The plugin itself
@@ -143,7 +143,7 @@ index = [
 # discovers the plugin.
 testing = [
   "pytest>=7.0",
-  "pymupdf>=1.24",
+  "pymupdf>=1.24,<2",
 ]
 
 # Makes the prodockit_* fixtures available without any conftest.py wiring.
