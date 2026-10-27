@@ -295,7 +295,8 @@ def test_real_browser_checks_both_renderers_and_navigation(
         input=json.dumps(payload),
         capture_output=True,
         text=True,
-        timeout=25,
+        # GitHub's first Chrome launch can exceed 25 seconds on a cold runner.
+        timeout=60,
         check=False,
     )
     if missing is None:
@@ -368,7 +369,7 @@ def test_real_browser_visits_inactive_content_tabs(
         capture_output=True,
         text=True,
         encoding="utf-8",
-        timeout=25,
+        timeout=60,
         check=False,
     )
     if second_math_renders:
