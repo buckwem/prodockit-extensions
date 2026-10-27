@@ -6,7 +6,7 @@ from __future__ import annotations
 import os
 import shutil
 import subprocess
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -159,7 +159,7 @@ def test_full_git_history_updates_built_html_and_leaves_sources_unchanged(
 def test_non_git_project_uses_controlled_file_modification_time(tmp_path: Path) -> None:
     config = _write_project(tmp_path)
     page = tmp_path / "docs" / "index.md"
-    timestamp = datetime(2022, 7, 8, 12, 0, tzinfo=timezone.utc).timestamp()
+    timestamp = datetime(2022, 7, 8, 12, 0, tzinfo=UTC).timestamp()
     os.utime(page, (timestamp, timestamp))
     output = _write_built_page(tmp_path)
 
@@ -181,7 +181,7 @@ def test_modification_dates_option_overrides_git_author_date(tmp_path: Path) -> 
         committer="2021-02-04T00:00:00+00:00",
     )
     page = tmp_path / "docs" / "index.md"
-    timestamp = datetime(2026, 8, 27, tzinfo=timezone.utc).timestamp()
+    timestamp = datetime(2026, 8, 27, tzinfo=UTC).timestamp()
     os.utime(page, (timestamp, timestamp))
     output = _write_built_page(tmp_path)
 
@@ -224,7 +224,7 @@ def test_existing_theme_update_fact_is_not_duplicated(tmp_path: Path) -> None:
 def test_repeated_update_replaces_its_marker_without_duplication(tmp_path: Path) -> None:
     config = _write_project(tmp_path)
     page = tmp_path / "docs" / "index.md"
-    timestamp = datetime(2022, 7, 8, tzinfo=timezone.utc).timestamp()
+    timestamp = datetime(2022, 7, 8, tzinfo=UTC).timestamp()
     os.utime(page, (timestamp, timestamp))
     output = _write_built_page(tmp_path)
     update_built_site_revision_dates(config)
@@ -239,7 +239,7 @@ def test_repeated_update_replaces_its_marker_without_duplication(tmp_path: Path)
 def test_author_places_an_inline_date_after_their_own_text(tmp_path: Path) -> None:
     config = _write_project(tmp_path)
     page = tmp_path / "docs" / "index.md"
-    timestamp = datetime(2022, 7, 8, tzinfo=timezone.utc).timestamp()
+    timestamp = datetime(2022, 7, 8, tzinfo=UTC).timestamp()
     os.utime(page, (timestamp, timestamp))
     output = _write_built_page(
         tmp_path,
@@ -273,7 +273,7 @@ def test_untracked_file_uses_mtime_without_weakening_tracked_dates(tmp_path: Pat
     )
     untracked = tmp_path / "docs" / "new.md"
     untracked.write_text("# New\n", encoding="utf-8")
-    timestamp = datetime(2025, 6, 7, tzinfo=timezone.utc).timestamp()
+    timestamp = datetime(2025, 6, 7, tzinfo=UTC).timestamp()
     os.utime(untracked, (timestamp, timestamp))
     _write_built_page(tmp_path)
     new_output = _write_built_page(tmp_path, "new/index.html")

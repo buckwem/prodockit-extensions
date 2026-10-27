@@ -12,15 +12,10 @@ from __future__ import annotations
 
 import argparse
 import shutil
-import sys
+import tomllib
 from html.parser import HTMLParser
 from pathlib import Path, PurePosixPath
 from urllib.parse import unquote, urljoin, urlsplit
-
-if sys.version_info >= (3, 11):
-    import tomllib
-else:
-    import tomli as tomllib
 
 ROOT = Path(__file__).resolve().parents[1]
 PARTIAL = "overrides/partials/page-pdf.html"

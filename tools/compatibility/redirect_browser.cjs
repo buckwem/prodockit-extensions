@@ -5,7 +5,7 @@ const fs = require("node:fs");
 const http = require("node:http");
 const path = require("node:path");
 const puppeteer = require(process.env.PDK_COMPAT_PUPPETEER ||
-  path.resolve(__dirname, "../mermaid/node_modules/puppeteer"));
+  path.resolve(__dirname, "../browser-test/node_modules/puppeteer-core"));
 const [directory, start, expected] = process.argv.slice(2);
 const root = path.resolve(directory);
 const server = http.createServer((request, response) => {

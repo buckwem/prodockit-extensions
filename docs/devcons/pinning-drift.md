@@ -685,7 +685,7 @@ upgrades several dependencies together and cannot attribute a change to
 Zensical alone.
 
 The compatibility workflow accepts exact baseline and candidate releases.
-Its configuration matrix covers Python 3.10–3.14 on Ubuntu, macOS and Windows.
+Its configuration matrix covers Python 3.11–3.14 on Ubuntu, macOS and Windows.
 The Windows macro fixture uses an extended-length include path. A manual run
 with `full` enabled additionally builds both complete extensions documents,
 both complete template documents and both template source bundles on Ubuntu.
@@ -697,11 +697,11 @@ Run the same gate locally from a checkout with the normal PDF prerequisites:
 
 ```bash
 python tools/zensical_compatibility.py pair \
-  --baseline 0.0.63 --candidate 0.0.64 \
+  --baseline 0.0.64 --candidate 0.0.73 \
   --output /tmp/zensical-config-review
 
 python tools/zensical_compatibility.py pair \
-  --baseline 0.0.63 --candidate 0.0.64 --full \
+  --baseline 0.0.64 --candidate 0.0.73 --full \
   --template ../prodockit-template \
   --browser-script tools/compatibility/redirect_browser.cjs \
   --output /tmp/zensical-full-review

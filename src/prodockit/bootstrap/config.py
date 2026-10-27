@@ -15,10 +15,8 @@ did. If a later phase wants API access, the token belongs in the OS
 keychain and this file holds at most a reference to it.
 
 The file format is deliberately a flat ``key = "value"`` subset of TOML,
-parsed here rather than with ``tomllib``. Two reasons: ``tomllib`` is
-3.11+ while this package supports 3.10, and adding ``tomli`` as a runtime
-dependency for one small file this tool writes itself is a poor trade. A
-line that doesn't parse is an error naming the file and line number, not
+parsed here rather than with ``tomllib`` so a line that doesn't parse is an
+error naming the file and line number, not
 a silently ignored setting - a mistyped config that quietly reverts to
 defaults is exactly the kind of silent failure this project keeps
 finding.

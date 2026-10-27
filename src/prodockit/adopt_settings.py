@@ -10,15 +10,15 @@ import json
 import math
 import os
 import re
-import sys
 import time
+import tomllib
 import urllib.error
 import urllib.parse
 import urllib.request
 from collections.abc import Mapping
 from contextlib import suppress
 from dataclasses import dataclass, replace
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from email.utils import parsedate_to_datetime
 from pathlib import Path
 from typing import Any
@@ -31,11 +31,6 @@ from prodockit.adopt_toml import inline
 from prodockit.pdf.runtime_config import PDF_SETTING_PATHS
 from prodockit.project_config import _markdown_extensions
 from prodockit.renderer_resilience import RetryNotice, RetryReporter, run_with_retries
-
-if sys.version_info >= (3, 11):
-    import tomllib
-else:  # pragma: no cover
-    import tomli as tomllib
 
 LEDGER = ".prodockit-adopt.toml"
 MAX_BYTES = 2 * 1024 * 1024
@@ -160,7 +155,7 @@ def _github_rate_limit(error: urllib.error.HTTPError) -> tuple[float, str] | Non
             delays.append(max(0.0, seconds(reset) - now))
     delay = max(delays) if delays else 60.0
     try:
-        when = datetime.fromtimestamp(now + delay, timezone.utc).isoformat(timespec="seconds")
+        when = datetime.fromtimestamp(now + delay, UTC).isoformat(timespec="seconds")
     except (ValueError, OverflowError, OSError):
         when = "the GitHub rate-limit reset time"
     return delay, (

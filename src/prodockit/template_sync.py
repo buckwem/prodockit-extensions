@@ -33,17 +33,13 @@ import pathlib
 import re
 import subprocess
 import sys
+import tomllib
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
 
 from prodockit.tools import find
-
-if sys.version_info >= (3, 11):  # pragma: no cover - one branch per interpreter
-    import tomllib
-else:  # pragma: no cover - `tomllib` is 3.11+, and this package supports 3.10
-    import tomli as tomllib
 
 #: Where each host's template lives. A project on Surrey's GitLab tracks
 #: Surrey's mirror, because a student there may have no GitHub access at
@@ -995,9 +991,7 @@ def _taken(key: str, patterns: Sequence[str]) -> bool:
 def read_config(text: str) -> dict[str, Any]:
     """Parses a project's or template's `zensical.toml`.
 
-    Here rather than in the caller so the 3.10 shim above is the only one
-    - `tomllib` arrived in 3.11, and a second conditional import is a
-    second place to get it wrong.
+    This keeps project configuration parsing in one place.
     """
     try:
         return tomllib.loads(text)

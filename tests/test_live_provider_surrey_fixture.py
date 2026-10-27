@@ -9,7 +9,7 @@ import importlib
 import subprocess
 import sys
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -32,7 +32,7 @@ def git(checkout: Path, *arguments: str) -> str:
 
 
 def handoff(*, source_commit: str) -> state.ResetHandoff:
-    now = datetime.now(timezone.utc).replace(microsecond=0)
+    now = datetime.now(UTC).replace(microsecond=0)
     return state.ResetHandoff(
         schema=2,
         run_id=str(uuid.uuid4()),

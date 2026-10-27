@@ -171,9 +171,9 @@ def _progress_label(command: Sequence[str]) -> str:
     return "Preparing required project tools"
 
 
-# Python 3.10 has no Popen(process_group=...). Start a minimal interpreter
-# which sets its own group and then replaces itself, retaining the PID and
-# terminal session. Avoid preexec_fn: it can deadlock a threaded caller.
+# Start a minimal interpreter which sets its own group and then replaces
+# itself, retaining the PID and terminal session. Avoid preexec_fn: it can
+# deadlock a threaded caller. Reset inherited signal handlers before exec.
 _POSIX_GROUP_EXEC = """
 import os
 import signal

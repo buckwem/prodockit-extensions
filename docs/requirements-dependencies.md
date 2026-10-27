@@ -13,8 +13,8 @@ use `prodockit pins` whenever a project must be returned to the supported,
 tested combination.
 
 The supported preparation route uses Python 3.14. The package's technical
-floor remains Python 3.10, and installation is tested on 3.10, 3.11, 3.12,
-3.13 and 3.14; `pip` refuses older versions before import.
+floor is Python 3.11, and installation is tested on 3.11, 3.12, 3.13 and
+3.14; `pip` refuses older versions before import.
 
 ## Installed with Prodockit
 
@@ -27,14 +27,13 @@ with Prodockit and explains why each one is needed.
 | Requirement {: width="36%" } | Needed for |
 | --- | --- |
 | [`Markdown`](https://python-markdown.github.io/) (>= 3.10.3) | every extension |
-| [`zensical`](https://zensical.org/) (>= 0.0.64) | Zensical integration and `prodockit.zensical_macros` |
+| [`zensical`](https://zensical.org/) (>= 0.0.73) | Zensical integration and `prodockit.zensical_macros` |
 | [PyMdown Extensions](https://facelessuser.github.io/pymdown-extensions/) (>= 12.0.1) | `prodockit.steps` and `prodockit.tree` are built directly on the PyMdown Blocks API; `prodockit.pdf` also preserves the output of PyMdown features |
 | [`beautifulsoup4`](https://www.crummy.com/software/BeautifulSoup/) (>= 4.12) | `prodockit.pdf` |
 | \index{dependencies!`click`} (>= 8.0) | the `prodockit` command-line tool |
 | [`PyYAML`](https://pyyaml.org/) (>= 6.0) | `prodockit adopt` support for Zensical projects that retain a compatible `mkdocs.yml` or `mkdocs.yaml` configuration filename |
 | [`packaging`](https://packaging.pypa.io/) (>= 24.0) | comparing an adopted project's recorded Prodockit version floor with the installed release |
 | \index{dependencies!`pypdf`} (>= 4.0) | `prodockit.pdf` |
-| \index{dependencies!`tomli`} (>= 2.0) | reading a template manifest on Python 3.10, where `tomllib` does not exist yet |
 | [`tomlkit`](https://tomlkit.readthedocs.io/) (>= 0.13.2) | editing Adopt's TOML configuration and review ledger while preserving existing comments and formatting |
 | `pathspec` (>= 0.12) | respecting `.gitignore` when collecting documentation sources outside a Git repository |
 /// table-caption | <

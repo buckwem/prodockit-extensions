@@ -11,18 +11,13 @@ instead, beneath the derived ``.prodockit/cache/pdf`` directory.
 from __future__ import annotations
 
 import re
-import sys
+import tomllib
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 from prodockit.settings import PDF_EXTRA_SETTINGS, SettingError
-
-if sys.version_info >= (3, 11):
-    import tomllib
-else:  # pragma: no cover - Python 3.10 only
-    import tomli as tomllib
 
 CONFIG_NAME = "pdk-pdf.toml"
 SCHEMA_VERSION = 1

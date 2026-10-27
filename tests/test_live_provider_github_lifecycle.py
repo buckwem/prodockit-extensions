@@ -14,7 +14,7 @@ import os
 import subprocess
 import sys
 import urllib.error
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, ClassVar
@@ -248,7 +248,7 @@ def perform_reset(
         wheel_contents_sha256=CONTENTS,
         release_commit=COMMIT,
         controller_commit=COMMIT,
-        now=datetime(2026, 9, 1, 12, tzinfo=timezone.utc),
+        now=datetime(2026, 9, 1, 12, tzinfo=UTC),
         sleep=lambda _seconds: None,
     )
 
@@ -316,7 +316,7 @@ def test_absent_reset_creates_only_the_exact_private_empty_fixture() -> None:
     assert client.actions_enabled is False
     assert len(client.keys) == 1
     assert client.keys[0]["read_only"] is False
-    handoff.validate(now=datetime(2026, 9, 1, 12, 1, tzinfo=timezone.utc))
+    handoff.validate(now=datetime(2026, 9, 1, 12, 1, tzinfo=UTC))
 
 
 def test_reset_refuses_a_pre_existing_fixed_repository() -> None:
@@ -687,7 +687,7 @@ def test_seal_revokes_key_then_produces_closed_provider_result(tmp_path: Path) -
         candidate_report=report,
         workflow_run_id=42,
         workflow_url=("https://github.com/buckwem/prodockit-extensions/actions/runs/42"),
-        now=datetime(2026, 9, 1, 12, 15, tzinfo=timezone.utc),
+        now=datetime(2026, 9, 1, 12, 15, tzinfo=UTC),
     )
 
     assert client.keys == []
@@ -709,7 +709,7 @@ def test_seal_command_removes_fixture_when_main_advances(
     handoff = perform_reset(client)
     handoff_path = tmp_path / "reset-handoff.json"
     handoff_value = handoff.document()
-    current = datetime.now(timezone.utc).replace(microsecond=0)
+    current = datetime.now(UTC).replace(microsecond=0)
     handoff_value["completed_at_utc"] = current.isoformat()
     handoff_value["expires_at_utc"] = (current + lifecycle.HANDOFF_LIFETIME).isoformat()
     handoff_path.write_text(json.dumps(handoff_value), encoding="utf-8")
@@ -765,7 +765,7 @@ def test_seal_revokes_key_before_rejecting_bad_candidate(tmp_path: Path) -> None
             candidate_report=report,
             workflow_run_id=42,
             workflow_url=("https://github.com/buckwem/prodockit-extensions/actions/runs/42"),
-            now=datetime(2026, 9, 1, 12, 15, tzinfo=timezone.utc),
+            now=datetime(2026, 9, 1, 12, 15, tzinfo=UTC),
         )
 
     assert client.keys == []
@@ -813,7 +813,7 @@ def test_seal_preserves_a_closed_candidate_failure_reason_after_cleanup(
             workflow_url=(
                 "https://github.com/buckwem/prodockit-extensions/actions/runs/42"
             ),
-            now=datetime(2026, 9, 1, 12, 15, tzinfo=timezone.utc),
+            now=datetime(2026, 9, 1, 12, 15, tzinfo=UTC),
         )
 
     assert client.keys == []
@@ -836,7 +836,7 @@ def test_seal_revokes_key_before_rejecting_invalid_candidate_time(tmp_path: Path
             candidate_report=report,
             workflow_run_id=42,
             workflow_url=("https://github.com/buckwem/prodockit-extensions/actions/runs/42"),
-            now=datetime(2026, 9, 1, 12, 15, tzinfo=timezone.utc),
+            now=datetime(2026, 9, 1, 12, 15, tzinfo=UTC),
         )
 
     assert client.keys == []
@@ -856,7 +856,7 @@ def test_seal_rejects_destination_drift_after_key_removal(tmp_path: Path) -> Non
             candidate_report=report,
             workflow_run_id=42,
             workflow_url=("https://github.com/buckwem/prodockit-extensions/actions/runs/42"),
-            now=datetime(2026, 9, 1, 12, 15, tzinfo=timezone.utc),
+            now=datetime(2026, 9, 1, 12, 15, tzinfo=UTC),
         )
 
     assert client.keys == []
@@ -877,7 +877,7 @@ def test_seal_rejects_source_drift_after_key_removal(tmp_path: Path) -> None:
             candidate_report=report,
             workflow_run_id=42,
             workflow_url=("https://github.com/buckwem/prodockit-extensions/actions/runs/42"),
-            now=datetime(2026, 9, 1, 12, 15, tzinfo=timezone.utc),
+            now=datetime(2026, 9, 1, 12, 15, tzinfo=UTC),
         )
 
     assert client.keys == []

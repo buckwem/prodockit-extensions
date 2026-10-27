@@ -16,7 +16,7 @@ wrong thing.
 from __future__ import annotations
 
 import re
-import sys
+import tomllib
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
@@ -107,12 +107,6 @@ def test_adoption_routes_prepare_project_local_pandoc_before_diagnostics():
         assert "Winget" in text[prepare:diagnose]
         assert "apt" in text[prepare:diagnose]
         assert "Windows ARM64" in text[prepare:diagnose]
-
-
-if sys.version_info >= (3, 11):  # pragma: no cover - version-gated import
-    import tomllib
-else:  # pragma: no cover
-    import tomli as tomllib
 
 
 def _declared() -> dict[str, str]:

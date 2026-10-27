@@ -179,7 +179,7 @@ def test_workflow_matrix_covers_supported_python_and_os():
     )
     jobs = workflow["jobs"]
     matrix = jobs["configurations"]["strategy"]["matrix"]
-    assert set(matrix["python-version"]) == {"3.10", "3.11", "3.12", "3.13", "3.14"}
+    assert set(matrix["python-version"]) == {"3.11", "3.12", "3.13", "3.14"}
     assert len(matrix["os"]) == 3
     assert "inputs.full" in jobs["complete-documents"]["if"]
     for job in jobs.values():

@@ -35,9 +35,9 @@ def test_support_page_centralises_public_compatibility_information() -> None:
 
     for phrase in (
         "Alpha",
-        "Python 3.10",
+        "Python 3.11",
         "Python 3.14",
-        "Zensical 0.0.64",
+        "Zensical 0.0.73",
         "pymdown-extensions 12.0.1",
         "PyMdown Blocks",
         "Linux",

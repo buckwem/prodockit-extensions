@@ -15,7 +15,7 @@ import re
 import shutil
 import subprocess
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from html import escape
 from pathlib import Path
 from typing import Any
@@ -162,15 +162,14 @@ def _git_history(root: Path) -> _GitHistory | None:
 
 
 def _date_part(timestamp: str, source: Path) -> str:
-    # Python 3.10 does not accept the ISO 8601 UTC designator even though
-    # newer Git versions can emit it for %aI. An explicit offset has the same
-    # meaning and is accepted by every supported Python version.
+    # Normalize Git's UTC designator to an explicit offset for stable parsing
+    # across the supported Python versions.
     normalized = f"{timestamp[:-1]}+00:00" if timestamp.endswith("Z") else timestamp
     try:
         parsed = datetime.fromisoformat(normalized)
         if parsed.tzinfo is None:
             raise ValueError("timestamp has no UTC offset")
-        return parsed.astimezone(timezone.utc).date().isoformat()
+        return parsed.astimezone(UTC).date().isoformat()
     except ValueError as error:
         raise RevisionDateError(
             f"git returned an invalid author timestamp for {source}: {timestamp!r}"
@@ -184,7 +183,7 @@ def _mtime_date(source: Path) -> str:
         raise RevisionDateError(
             f"could not read the modification time of {source}: {error}"
         ) from error
-    return datetime.fromtimestamp(modified, tz=timezone.utc).date().isoformat()
+    return datetime.fromtimestamp(modified, tz=UTC).date().isoformat()
 
 
 def resolve_revision_dates(

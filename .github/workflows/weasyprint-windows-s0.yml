@@ -50,7 +50,7 @@ jobs:
           --work-dir weasyprint-s0-work
           --report weasyprint-windows-s0.json
       - name: Install the candidate
-        run: python -m pip install -e ".[testing]" "zensical==0.0.64"
+        run: python -m pip install -e ".[testing]" "zensical==0.0.73"
       - name: Check diagnostic decoding and genuine renderer failures
         run: python -m pytest tests/test_pdf_subprocess_encoding.py -q
       - name: Build the completed website

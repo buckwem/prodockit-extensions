@@ -14,7 +14,7 @@ import json
 import subprocess
 import sys
 import zipfile
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -30,7 +30,7 @@ SOURCE = "b" * 40
 TREE = "c" * 40
 CONTENTS = "d" * 64
 RAW = "e" * 64
-NOW = datetime(2026, 9, 1, 12, tzinfo=timezone.utc)
+NOW = datetime(2026, 9, 1, 12, tzinfo=UTC)
 
 
 def record_hash(data: bytes) -> str:
