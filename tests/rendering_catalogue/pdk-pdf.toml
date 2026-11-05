@@ -1,0 +1,8 @@
+schema_version = 1
+
+[document]
+output = "build/rendering-catalogue.pdf"
+extra_css = [
+    "stylesheets/pdk-pdf.css",
+    "stylesheets/print.css",
+]
