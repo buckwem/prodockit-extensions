@@ -89,7 +89,9 @@ def probes(
         "mike": {"plugins": {"mike": {"version_selector": False}}},
         "search": {"plugins": {"search": {"lang": ["en"], "indexing": "full"}}},
         "autorefs": {"plugins": {"autorefs": {"resolve_closest": True}}},
-        "invalid-mapping": {"markdown_extensions": {"admonition": False}},
+        # Zensical 0.1.0 treats false as a disabled extension. An integer is
+        # malformed in both releases and still exercises strict validation.
+        "invalid-mapping": {"markdown_extensions": {"admonition": 42}},
         "page-redirect": {"plugins": {"redirects": {"redirect_maps": {"old.md": "index.md"}}}},
         "anchor-redirect": {
             "plugins": {"redirects": {"redirect_maps": {"index.md#old": "index.md#new"}}}

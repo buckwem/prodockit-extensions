@@ -21,6 +21,9 @@ requests rather than here.
 
 ## Unreleased
 
+- Rebaselined website and PDF builds on Zensical 0.1.0 and updated the supported version floor.
+- Stopped diagnostics treating Zensical UI metadata as a duplicate Zensical installation.
+
 ## 0.75.0 (2026-10-27)
 
 - Qualified Zensical 0.0.73 for website and PDF builds, with theme and accessibility markup changes and the corrected literal link example on PDF page 272; `pdk pdf` now lists all legacy macro replacements.
