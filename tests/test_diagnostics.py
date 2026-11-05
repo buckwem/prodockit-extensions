@@ -732,6 +732,25 @@ def _dist_info(
     return path
 
 
+@pytest.mark.parametrize("ui_name", ["zensical-ui", None])
+def test_zensical_ui_metadata_is_not_a_duplicate_zensical_distribution(
+    tmp_path: Path, ui_name: str | None
+) -> None:
+    site_packages = tmp_path / "site-packages"
+    _dist_info(site_packages, "zensical-0.1.0.dist-info", name="zensical", version="0.1.0")
+    _dist_info(
+        site_packages,
+        "zensical_ui-0.0.41.dist-info",
+        name=ui_name,
+        version="0.0.41" if ui_name else None,
+    )
+
+    entries = diagnostics._repair_metadata_entries((site_packages,))
+    assert [(entry.distribution, entry.version) for entry in entries] == [
+        ("zensical", "0.1.0")
+    ]
+
+
 @pytest.mark.parametrize(
     "library_path",
     ("lib/python3.14/site-packages", "Lib/site-packages"),

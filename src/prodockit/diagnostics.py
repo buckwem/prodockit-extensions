@@ -1442,9 +1442,13 @@ def _metadata_filename(path: Path) -> tuple[str | None, str | None, bool]:
         ordinary = f"{distribution}-"
         remnant = f"~{distribution[1:]}-"
         if stem.startswith(ordinary):
-            return distribution, stem[len(ordinary) :] or None, False
+            version = stem[len(ordinary) :]
+            if _known_distribution_version(version) is not None:
+                return distribution, version, False
         if stem.startswith(remnant):
-            return distribution, stem[len(remnant) :] or None, True
+            version = stem[len(remnant) :]
+            if _known_distribution_version(version) is not None:
+                return distribution, version, True
     return None, None, False
 
 
@@ -1495,8 +1499,10 @@ def _repair_metadata_entries(site_packages: tuple[Path, ...]) -> list[Distributi
             normalized = (
                 _normalise_distribution_name(metadata_name) if metadata_name is not None else None
             )
-            distribution = normalized if normalized in REPAIRABLE_DISTRIBUTIONS else filename_name
-            if distribution is None:
+            # A readable Name header is authoritative: zensical_ui is a
+            # separate distribution, not an ambiguous copy of zensical.
+            distribution = normalized if metadata_name is not None else filename_name
+            if distribution not in REPAIRABLE_DISTRIBUTIONS:
                 continue
             try:
                 identity = path.resolve()
