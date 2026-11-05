@@ -166,6 +166,34 @@ def test_mathjax_adapter_emits_xml_safe_svg(tmp_path) -> None:
     )
 
 
+@pytest.mark.skipif(shutil.which("node") is None, reason="Node.js is required")
+def test_mathjax_adapter_disables_fragmented_inline_svg(tmp_path) -> None:
+    runtime = tmp_path / "MathJax"
+    runtime.mkdir()
+    (runtime / "tex-svg.js").write_text(
+        "MathJax.startup.promise = Promise.resolve();\n"
+        "MathJax.startup.adaptor = {outerHTML: () => "
+        "MathJax.output.linebreaks.inline === false ? "
+        '\'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"></svg>\' : '
+        '\'<svg xmlns="http://www.w3.org/2000/svg"></svg>'
+        '<svg xmlns="http://www.w3.org/2000/svg"></svg>\'};\n'
+        "MathJax.tex2svgPromise = async () => ({});\n"
+        "MathJax.done = () => {};\n",
+        encoding="utf-8",
+    )
+    adapter = Path(__file__).parents[1] / "src/prodockit/pdf/tex2svg.cjs"
+    completed = subprocess.run(
+        ["node", str(adapter), str(runtime), "inline"],
+        input="x + y",
+        capture_output=True,
+        check=True,
+        text=True,
+        encoding="utf-8",
+    )
+
+    ET.fromstring(completed.stdout)
+
+
 @pytest.mark.skipif(shutil.which("pandoc") is None, reason="Pandoc is required")
 def test_failed_math_render_is_not_silent(tmp_path) -> None:
     adapter = tmp_path / "broken.cjs"
@@ -271,3 +299,53 @@ def test_pdf_build_renders_template_display_equation(tmp_path) -> None:
         assert any(
             heading_bottom < drawing["rect"].y0 < paragraph_top for drawing in page.get_drawings()
         ), "display equation is absent from the rendered PDF"
+
+
+@pytest.mark.skipif(
+    any(shutil.which(tool) is None for tool in ("pandoc", "node", "weasyprint")),
+    reason="Pandoc, Node.js and WeasyPrint are required",
+)
+def test_pdf_build_renders_generic_inline_equation(tmp_path) -> None:
+    """Inline generic-mode maths must remain visible between surrounding prose."""
+    pymupdf = pytest.importorskip("pymupdf")
+    fake_runtime = tmp_path / "MathJax"
+    fake_runtime.mkdir()
+    (fake_runtime / "tex-svg.js").write_text(
+        "MathJax.startup.promise = Promise.resolve();\n"
+        "MathJax.startup.adaptor = {outerHTML: () => "
+        '\'<svg xmlns="http://www.w3.org/2000/svg" '
+        'width="30" height="12" viewBox="0 0 30 12">\' + '
+        '\'<path d="M0 6L30 6" stroke="black"/>\' + \'</svg>\'};\n'
+        "MathJax.tex2svgPromise = async () => ({});\n"
+        "MathJax.done = () => {};\n",
+        encoding="utf-8",
+    )
+    adapter = Path(__file__).parents[1] / "src/prodockit/pdf/tex2svg.cjs"
+    source = (
+        '<h1>Examples</h1><p>Before '
+        '<span class="arithmatex">\\(x^2\\)</span> after.</p>'
+    )
+    output = tmp_path / "out.pdf"
+    build_pdf(
+        [Page(docs_rel_path="examples.md", html=source)],
+        str(output),
+        mathjax_available=True,
+        tex2svg_script=str(adapter),
+        mathjax_runtime=str(fake_runtime),
+        work_dir=str(tmp_path / "work"),
+        keep_work_dir=True,
+        include_table_of_contents=False,
+        weasyprint_executable=shutil.which("weasyprint") or "weasyprint",
+    )
+
+    assert output.is_file()
+    svg_files = list((tmp_path / "work").glob("formula_*.svg"))
+    assert len(svg_files) == 1
+    with pymupdf.open(output) as pdf:
+        page = pdf[0]
+        words = page.get_text("words")
+        before = next(word for word in words if word[4] == "Before")
+        after = next(word for word in words if word[4] == "after.")
+        assert any(
+            before[2] <= drawing["rect"].x0 < after[0] for drawing in page.get_drawings()
+        ), "inline equation is absent from the rendered PDF"

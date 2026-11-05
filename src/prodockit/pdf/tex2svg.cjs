@@ -30,6 +30,10 @@ global.MathJax = {
     require,
   },
   startup: {typeset: false},
+  // MathJax 4 enables browser-managed inline line breaking by default. Its
+  // SVG output then contains several sibling <svg> elements, which cannot be
+  // saved as one valid external SVG image for the PDF renderer.
+  output: {linebreaks: {inline: false}},
   svg: {fontCache: 'none'},
 };
 
@@ -48,8 +52,11 @@ process.stdin.on('end', async () => {
     await MathJax.startup.promise;
     const container = await MathJax.tex2svgPromise(source, {display: mode === 'display'});
     const html = MathJax.startup.adaptor.outerHTML(container);
-    const svg = html.match(/<svg[\s\S]*<\/svg>/)?.[0];
-    if (!svg) throw new Error('no SVG was produced');
+    const svgFragments = html.match(/<svg[\s\S]*?<\/svg>/g) || [];
+    if (svgFragments.length !== 1) {
+      throw new Error(`expected one SVG, received ${svgFragments.length}`);
+    }
+    const svg = svgFragments[0];
     // MathJax's HTML serializer leaves SSML tags inside accessibility
     // attributes. An external SVG image must be well-formed XML for WeasyPrint.
     const xmlSvg = svg.replace(/="[^"]*"/g, (attribute) =>
