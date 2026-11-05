@@ -19,7 +19,7 @@ only when it adds or changes behaviour that matters to a user, or requires an
 upgrade action. Defect-by-defect history belongs in GitHub issues and pull
 requests rather than here.
 
-## Unreleased
+## 0.76.0 (2026-11-05)
 
 - Rebaselined website and PDF builds on Zensical 0.1.0 and updated the supported version floor.
 - Stopped diagnostics treating Zensical UI metadata as a duplicate Zensical installation.
