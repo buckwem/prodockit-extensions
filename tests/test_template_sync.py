@@ -33,6 +33,7 @@ from prodockit.template_sync import (
     apply_dependency_updates,
     apply_file_actions,
     apply_seeds,
+    atomic_write,
     author_asset_seeds,
     baseline_report,
     blocking_changes,
@@ -65,6 +66,7 @@ from prodockit.template_sync import (
     read_config,
     read_stamp,
     resolve_template,
+    restore_template_records,
     review_push_command,
     review_url,
     set_config_value,
@@ -120,6 +122,32 @@ def test_every_group_is_read_back() -> None:
     assert manifest.owner("docs/section1.md") == "project"
     assert manifest.owner("zensical.toml") == "shared"
     assert manifest.owner("CHANGELOG.md") == "excluded"
+
+
+@pytest.mark.parametrize(
+    ("text", "message"),
+    [
+        ('template = "bad"\n', "template must be a table"),
+        ('[shared.zensical_toml]\ntake = "bad"\n',
+         "shared.zensical_toml.take must be a list of strings"),
+    ],
+)
+def test_incoming_manifest_validates_all_used_sections(text: str, message: str) -> None:
+    with pytest.raises(TemplateSyncError, match=re.escape(message)):
+        load_manifest(text)
+
+
+def test_audit_records_restore_exact_bytes_after_failed_finalization(tmp_path: pathlib.Path) -> None:
+    originals = {
+        ".prodockit-template.toml": b"[excluded]\npaths = []\n",
+        ".prodockit-template": b"old-revision\n",
+    }
+    for name, contents in originals.items():
+        atomic_write(tmp_path / name, contents)
+    atomic_write(tmp_path / ".prodockit-template.toml", b"[template]\n")
+    atomic_write(tmp_path / ".prodockit-template", b"new-revision\n")
+    restore_template_records(tmp_path, originals)
+    assert {name: (tmp_path / name).read_bytes() for name in originals} == originals
 
 
 def test_template_prodockit_floor_is_read_from_requirements() -> None:
