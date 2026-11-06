@@ -33,6 +33,9 @@ authoring_extensions = [
   "extensions/index-terms.md",
 ]
 
+# Website enhancements must retain complete static PDF output.
+website_extensions = ["extensions/carousel.md"]
+
 # Materially different shapes outside the overview and extension families:
 # setup instructions, the PDF reference, macro examples, stylesheet diagrams,
 # a very long page, and a page assembled from an external snippet.

@@ -746,6 +746,14 @@ div.grid.cards > ul > li {
        same reason. */
     page-break-inside: auto !important; break-inside: auto !important; list-style: none !important;
 }
+/* Compact carousel photos in print; ordinary long cards retain auto breaks.
+   Authors opt short photo tiles into keeping picture, title and credit together. */
+div.grid.cards.pdk-carousel img.pdk-carousel-image {
+    width: 240px !important; max-width: 100% !important; height: auto !important;
+}
+div.grid.cards.pdk-carousel-tiles > ul > li {
+    page-break-inside: avoid !important; break-inside: avoid-page !important;
+}
 div.grid.cards > ul > li > p:first-child {
     font-weight: bold !important; font-size: 13pt !important; margin-bottom: 12px !important;
     color: #111111 !important; page-break-after: avoid !important; break-after: avoid !important;
