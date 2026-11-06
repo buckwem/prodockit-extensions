@@ -1,0 +1,58 @@
+/* Deterministic Phase 5 PDF specimens; these classes are not public styles. */
+.catalogue-break-before {
+  break-before: page !important;
+  page-break-before: always !important;
+}
+
+.catalogue-break-after {
+  break-after: page !important;
+  page-break-after: always !important;
+}
+
+.complex-steps-paginated .grid.cards > ul > li {
+  break-inside: avoid-page !important;
+  page-break-inside: avoid !important;
+}
+
+.catalogue-keep-together {
+  break-inside: avoid-page !important;
+  page-break-inside: avoid !important;
+}
+
+/* Long, reviewable Markdown specimens must not disappear when they are taller
+   than one PDF page. Ordinary command examples retain the normal keep rules. */
+.language-markdown.highlight,
+.language-markdown.highlight pre {
+  break-inside: auto !important;
+  page-break-inside: auto !important;
+}
+
+.catalogue-boundary-spacer {
+  box-sizing: border-box;
+  color: #555555;
+  font-size: 9pt;
+  height: 19cm;
+  padding-top: 0.2cm;
+}
+
+.catalogue-boundary-spacer--large {
+  height: 21cm;
+}
+
+.catalogue-keep-box {
+  background: #f4f8ff;
+  border-left: 4px solid #448aff;
+  min-height: 4cm;
+  padding: 0.5cm;
+}
+
+.catalogue-natural-block {
+  box-sizing: border-box;
+  height: 10.5cm;
+  padding: 0.3cm;
+}
+
+.catalogue-long-token {
+  overflow-wrap: anywhere;
+  word-break: break-all;
+}

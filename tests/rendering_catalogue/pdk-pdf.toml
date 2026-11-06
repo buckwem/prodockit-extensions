@@ -1,8 +1,15 @@
 schema_version = 1
 
 [document]
-output = "build/rendering-catalogue.pdf"
+page_size = "A4"
 extra_css = [
     "stylesheets/pdk-pdf.css",
     "stylesheets/print.css",
+    "stylesheets/page-breaks.css",
 ]
+
+[margins]
+top = "2cm"
+right = "2cm"
+bottom = "2.5cm"
+left = "2cm"

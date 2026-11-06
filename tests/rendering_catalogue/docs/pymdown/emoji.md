@@ -2,6 +2,8 @@
 
 Reference: [Zensical's supported Python Markdown Extensions](https://zensical.org/docs/compatibility/markdown/python-markdown-extensions/)
 
+Authoring reference: [Zensical icons and emojis](https://zensical.org/docs/authoring/icons-emojis/)
+
 ## Configuration source
 
 ```toml

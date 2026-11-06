@@ -2,6 +2,8 @@
 
 Reference: [Zensical Markdown authoring](https://zensical.org/docs/authoring/markdown/)
 
+Related authoring reference: [Zensical lists](https://zensical.org/docs/authoring/lists/).
+
 This page is the baseline for Markdown that does not require an optional
 extension. It deliberately combines inline and block content so the website
 and PDF can be reviewed together.

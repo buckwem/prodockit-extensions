@@ -134,6 +134,8 @@ _CI_ONLY_FILES = {
     "tools/docs_page_pdfs.py",
     "tools/canonical_site_config.py",
     "tools/render_documentation_diagrams.py",
+    "tools/rendering_catalogue.py",
+    "tools/rendering_catalogue_drift.py",
 }
 
 _COMPONENT_FILES: dict[str, frozenset[str]] = {

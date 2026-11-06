@@ -2,6 +2,8 @@
 
 Reference: [Zensical's supported Python Markdown Extensions](https://zensical.org/docs/compatibility/markdown/python-markdown-extensions/)
 
+Authoring reference: [Zensical code blocks](https://zensical.org/docs/authoring/code-blocks/)
+
 ## Highlight { #highlight }
 
 ### Configuration source

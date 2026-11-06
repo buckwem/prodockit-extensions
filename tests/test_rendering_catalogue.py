@@ -17,6 +17,8 @@ from typing import Any
 
 from packaging.requirements import Requirement
 
+from tools import rendering_catalogue as review_bundle
+
 ROOT = Path(__file__).resolve().parents[1]
 CATALOGUE_ROOT = ROOT / "tests" / "rendering_catalogue"
 LEDGER = CATALOGUE_ROOT / "catalogue.toml"
@@ -125,6 +127,8 @@ def test_catalogue_navigation_is_isolated_and_all_pages_exist() -> None:
 
     assert project["docs_dir"] == "docs"
     assert project["site_dir"] == "site"
+    assert project["plugins"] == [{"search": {"enabled": False}}]
+    assert project["theme"]["custom_dir"] == "overrides"
     assert project["site_url"].endswith(ledger["route"])
     assert all((DOCS / page).is_file() for page in _nav_paths(project["nav"]))
 
@@ -132,7 +136,76 @@ def test_catalogue_navigation_is_isolated_and_all_pages_exist() -> None:
     assert "tests/rendering_catalogue" not in public_nav
 
 
-def test_review_index_exposes_the_inventory_and_future_review_sections() -> None:
+def test_phase_seven_test_layers_classify_every_catalogue_assertion_once() -> None:
+    layers = review_bundle.test_layers()
+    assert sum(len(layer["tests"]) for layer in layers) == len(
+        review_bundle.catalogue_test_functions()
+    )
+    assert all(layer["tests"] for layer in layers)
+
+
+def test_phase_seven_ci_and_release_qualification_contract() -> None:
+    workflow = (ROOT / ".github" / "workflows" / "docs.yml").read_text(encoding="utf-8")
+    release_gate = (ROOT / "tools" / "release_gate_provider_status.py").read_text(
+        encoding="utf-8"
+    )
+    project = _load(CONFIG)["project"]
+
+    assert "pull_request:" in workflow
+    assert 'tests/rendering_catalogue/**' in workflow
+    assert "python tools/rendering_catalogue.py build" in workflow
+    assert "if: always()" in workflow
+    assert "github.event_name != 'pull_request'" in workflow
+    assert '".github/workflows/docs.yml"' in release_gate
+    assert project["extra_css"] == ["stylesheets/pdk.css", "stylesheets/page-breaks.css"]
+    assert project["extra_javascript"] == [
+        "javascripts/mathjax.js",
+        "https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js",
+    ]
+
+
+def test_phase_six_review_bundle_and_crawler_controls_are_declared() -> None:
+    sources = _nav_paths(_load(CONFIG)["project"]["nav"])
+    assert review_bundle.catalogue_sources() == sources
+    assert review_bundle.page_url("index.md") == ""
+    assert review_bundle.page_url("pymdown/index.md") == "pymdown/"
+    assert review_bundle.page_url("pymdown/tabs.md") == "pymdown/tabs/"
+    assert review_bundle.page_pdf("nested-content/index.md").as_posix() == (
+        "page-pdfs/nested-content/index.pdf"
+    )
+
+    override = (CATALOGUE_ROOT / "overrides" / "main.html").read_text(encoding="utf-8")
+    for directive in ("noindex", "nofollow", "noarchive", "nosnippet", "noimageindex"):
+        assert directive in override
+
+    robots = (ROOT / "docs" / "robots.txt").read_text(encoding="utf-8")
+    assert "User-agent: *" in robots
+    assert "Disallow: /rendering-review/" in robots
+    for agent in ("GPTBot", "OAI-SearchBot", "ClaudeBot", "CCBot", "PerplexityBot"):
+        assert f"User-agent: {agent}" in robots
+
+    public_markdown = "\n".join(
+        path.read_text(encoding="utf-8") for path in (ROOT / "docs").rglob("*.md")
+    )
+    assert "/rendering-review/" not in public_markdown
+
+    workflow = (ROOT / ".github" / "workflows" / "docs.yml").read_text(encoding="utf-8")
+    for command in (
+        "tools/rendering_catalogue.py build",
+        "tools/rendering_catalogue.py verify",
+        "tools/rendering_catalogue.py publish",
+        "tools/rendering_catalogue.py verify-publication",
+    ):
+        assert command in workflow
+    assert "rendering-review-bundle" in workflow
+    assert "if: always()" in workflow
+
+    readme = _prose(CATALOGUE_ROOT / "README.md")
+    assert "X-Robots-Tag" in readme
+    assert "crawler can ignore" in readme
+
+
+def test_review_index_exposes_the_inventory_and_review_sections() -> None:
     capabilities = _load(LEDGER)["capability"]
     status_counts = Counter(item["status"] for item in capabilities)
     index = _prose(DOCS / "index.md")
@@ -145,7 +218,7 @@ def test_review_index_exposes_the_inventory_and_future_review_sections() -> None
     assert f"**{status_counts['implemented']}**" in index
     assert f"**{status_counts['planned']}**" in index
     assert "Every capability must also make a nested-content decision" in index
-    assert "grow whenever a new capability is brought into scope" in nested
+    assert "grows whenever a new capability is brought into scope" in nested
     assert "explicitly forced page breaks" in page_breaks
     assert "same page or different" in page_breaks
 
@@ -213,12 +286,171 @@ def test_phase_three_configuration_and_supporting_inputs_are_complete() -> None:
             "name": "catalogue",
             "class": "catalogue-fence",
             "format": "pymdownx.superfences.fence_code_format",
-        }
+        },
+        {
+            "name": "mermaid",
+            "class": "mermaid",
+            "format": "pymdownx.superfences.fence_code_format",
+        },
     ]
 
     assert (CATALOGUE_ROOT / "docs" / "javascripts" / "mathjax.js").is_file()
     assert (CATALOGUE_ROOT / "overrides" / ".icons" / "catalogue" / "phase.svg").is_file()
     assert (CATALOGUE_ROOT / "snippets" / "phase-three.md").is_file()
+
+
+def test_phase_four_configuration_and_coverage_are_complete() -> None:
+    ledger = _load(LEDGER)["capability"]
+    project = _load(CONFIG)["project"]
+    extensions = project["markdown_extensions"]
+
+    assert Counter(item["status"] for item in ledger) == {
+        "implemented": 72,
+        "waived": 1,
+    }
+    assert not any(item["status"] == "planned" for item in ledger)
+
+    assert {"betterem", "magiclink"} <= extensions["pymdownx"].keys()
+    assert extensions["zensical"]["extensions"]["glightbox"] == {
+        "auto": True,
+        "auto_themed": True,
+        "auto_caption": False,
+    }
+    assert extensions["zensical"]["extensions"]["macros"] == {
+        "module_name": "catalogue_macros",
+        "on_error_fail": True,
+    }
+    assert project["extra_css"] == [
+        "stylesheets/pdk.css",
+        "stylesheets/page-breaks.css",
+    ]
+    for name in (
+        "headings",
+        "refs",
+        "citations",
+        "glossary",
+        "tables",
+        "tree",
+        "steps",
+        "bibliography",
+        "index",
+    ):
+        assert f"prodockit.{name}" in extensions
+
+    directives = next(item for item in ledger if item["id"] == "zensical.authoring.directives")
+    assert directives["status"] == "waived"
+    assert "Zensical Spark" in directives["rationale"]
+    assert "Zensical Spark" in _prose(DOCS / "zensical-authoring" / "index.md")
+    assert (CATALOGUE_ROOT / "catalogue_macros.py").is_file()
+    assert (CATALOGUE_ROOT / "references.bib").is_file()
+    assert (DOCS / "stylesheets" / "pdk.css").read_bytes() == (
+        ROOT / "docs" / "stylesheets" / "pdk.css"
+    ).read_bytes()
+
+
+def test_phase_five_nested_and_page_boundary_contract_is_complete() -> None:
+    project = _load(CONFIG)["project"]
+    nav = _nav_paths(project["nav"])
+    pdf = _load(CATALOGUE_ROOT / "pdk-pdf.toml")
+    document = pdf["document"]
+
+    assert "page-breaks/forced-and-kept.md" in nav
+    assert "page-breaks/flow-and-overflow.md" in nav
+    assert document["page_size"] == "A4"
+    assert document["extra_css"][-1] == "stylesheets/page-breaks.css"
+    assert pdf["margins"] == {
+        "top": "2cm",
+        "right": "2cm",
+        "bottom": "2.5cm",
+        "left": "2cm",
+    }
+
+    matrix = _prose(DOCS / "nested-content" / "index.md")
+    for case in (
+        "Blockquotes",
+        "Ordered, unordered, nested and task lists",
+        "Admonitions",
+        "Details and content tabs",
+        "Grids and images",
+        "Markdown in HTML",
+        "Tables and cells",
+        "Captions and figures",
+        "Footnotes",
+        "Directives",
+    ):
+        assert case in matrix
+    assert "record why nesting has no independent meaning" in matrix
+    assert "Directives" in matrix and "Waiver" in matrix
+
+    complex_cases = _prose(DOCS / "nested-content" / "complex-combinations.md")
+    for marker in (
+        "List-owned call-out",
+        "Content tabs containing a grid",
+        "Grid containing lists and admonitions",
+        "Numbered steps containing tabs and a grid",
+        "Final nested result",
+    ):
+        assert marker in complex_cases
+    assert complex_cases.count("**Markdown used**") == 4
+
+    deep_admonitions = _prose(DOCS / "nested-content" / "deep-admonitions.md")
+    for marker in (
+        "Four-level warning",
+        "Deep procedure card",
+        "Card-owned procedure",
+        "Stable sibling card",
+    ):
+        assert marker in deep_admonitions
+    assert deep_admonitions.count("**Markdown used**") == 2
+
+    specimens = "\n".join(
+        (DOCS / "page-breaks" / name).read_text(encoding="utf-8")
+        for name in ("forced-and-kept.md", "flow-and-overflow.md")
+    )
+    markers = set(re.findall(r"PB-[A-Z][A-Z0-9-]*", specimens))
+    expected_markers = {
+        "PB-FORCED-AFTER-START",
+        "PB-FORCED-AFTER-END",
+        "PB-FORCED-BEFORE-START",
+        "PB-FORCED-BEFORE-END",
+        "PB-KEEP-LEAD",
+        "PB-KEEP-START",
+        "PB-KEEP-END",
+        "PB-HEADING-LEAD",
+        "PB-HEADING-TITLE",
+        "PB-HEADING-FOLLOWING-CONTENT",
+        "PB-FIGURE-LEAD",
+        "PB-FIGURE-CAPTION",
+        "PB-CODE-FIRST",
+        "PB-CODE-LAST",
+        "PB-TABLE-HEADER",
+        "PB-TABLE-ROW-01",
+        "PB-TABLE-ROW-52",
+        "PB-NATURAL-FIRST",
+        "PB-NATURAL-LAST",
+        "PB-ADMONITION-TITLE",
+        "PB-ADMONITION-END",
+        "PB-TAB-FIRST",
+        "PB-TAB-SECOND",
+        "PB-GRID-FIRST",
+        "PB-GRID-SECOND",
+        "PB-FOOTNOTE-REFERENCE",
+        "PB-FOOTNOTE-CONTENT",
+        "PB-MERMAID-START",
+        "PB-MERMAID-END",
+        "PB-MATH-VECTOR",
+        "PB-LONG-TOKEN-START-CATALOGUECATALOGUECATALOGUECATALOGUECATALOGUECATALOGUECATALOGUECATALOGUECATALOGUECATALOGUECATALOGUECATALOGUECATALOGUECATALOGUECATALOGUECATALOGUECATALOGUECATALOGUECATALOGUECATALOGUECATALOGUECATALOGUECATALOGUECATALOGUECATALOGUECATALOGUECATALOGUECATALOGUECATALOGUECATALOGUECATALOGUECATALOGUECATALOGUECATALOGUECATALOGUECATALOGUECATALOGUECATALOGUECATALOGUECATALOGUECATALOGUECATALOGUECATALOGUECATALOGUECATALOGUECATALOGUECATALOGUECATALOGUE-PB-LONG-TOKEN-END",
+    }
+    assert expected_markers <= markers
+
+    stylesheet = (DOCS / "stylesheets" / "page-breaks.css").read_text(encoding="utf-8")
+    for rule in (
+        "break-before: page",
+        "break-after: page",
+        "break-inside: avoid",
+        "overflow-wrap: anywhere",
+    ):
+        assert rule in stylesheet
 
 
 def test_catalogue_builds_cleanly(tmp_path: Path) -> None:
