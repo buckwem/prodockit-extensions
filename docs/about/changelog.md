@@ -19,9 +19,12 @@ only when it adds or changes behaviour that matters to a user, or requires an
 upgrade action. Defect-by-defect history belongs in GitHub issues and pull
 requests rather than here.
 
-## Unreleased
+## 0.77.0 (2026-11-06)
 
-- Added opt-in infinite carousels for any number of grid cards, with responsive layouts, optional automatic rotation, accessible controls, and complete static print/PDF output.
+- Added opt-in grid-card carousels with responsive controls, optional rotation, and complete static print/PDF output.
+- Added a rendering review catalogue for website/PDF comparisons and upstream drift checks.
+- Kept template ownership audit copies aligned with verified sync results and rollback.
+- Changed Surrey RemoteLabs examples to use `python3` so shell aliases do not select system Python.
 
 ## 0.76.0 (2026-11-05)
 
