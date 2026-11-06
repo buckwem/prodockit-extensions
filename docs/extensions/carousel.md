@@ -178,6 +178,56 @@ their displayed dimensions consistent. The `pdk-carousel-tiles` class keeps
 these short picture cards together on a printed page. The picture and country-name links
 remain usable, while dragging a picture or the card body moves the carousel.
 
+### Live example: automatic rotation
+
+This separate seven-card example shows half-card previews on both edges and
+slides smoothly to the next card every four seconds. Hovering over it,
+focusing any of its content, or hiding the browser tab pauses rotation. Use
+**P** while a carousel arrow has focus to keep it paused after leaving. The
+pause button is hidden in this example with `data-carousel-pause="false"`;
+omit that option to show the pause/resume button.
+Reduced-motion preferences disable automatic rotation and transitions.
+
+<div class="grid cards pdk-carousel" markdown data-carousel-label="Weekly ideas" data-carousel-visible="2" data-carousel-peek="true" data-carousel-position="false" data-carousel-pause="false" data-carousel-autoplay="true" data-carousel-interval="4000">
+
+-   __Monday__
+
+    Choose a topic.
+
+-   __Tuesday__
+
+    Gather evidence.
+
+-   __Wednesday__
+
+    Make an outline.
+
+-   __Thursday__
+
+    Write a first draft.
+
+-   __Friday__
+
+    Review the argument.
+
+-   __Saturday__
+
+    Check the references.
+
+-   __Sunday__
+
+    Publish and share.
+
+</div>
+
+Keyboard arrows apply only to the carousel region and its controls, so links,
+text inputs and other card content keep their normal keyboard behaviour.
+Offscreen cards and decorative previews are hidden from the accessibility tree
+and keyboard focus.
+Manual navigation announces the visible card numbers; autoplay does not
+repeatedly interrupt screen-reader users. The visible count and list of card
+numbers appear below the cards unless `data-carousel-position="false"`.
+
 ### Live example: numbered cards without wrapping
 
 This five-card photo carousel shows a badge from `1/5` to `5/5` in each
@@ -286,56 +336,6 @@ current width, so the carousel stays steady as it moves. The smooth sliding
 transition also works at the loop boundary. Decorative edge copies are inert,
 hidden from assistive technology and excluded from print; their IDs and local
 references are remapped to avoid duplicates. Original card DOM order stays unchanged.
-
-### Live example: automatic rotation
-
-This separate seven-card example shows half-card previews on both edges and
-slides smoothly to the next card every four seconds. Hovering over it,
-focusing any of its content, or hiding the browser tab pauses rotation. Use
-**P** while a carousel arrow has focus to keep it paused after leaving. The
-pause button is hidden in this example with `data-carousel-pause="false"`;
-omit that option to show the pause/resume button.
-Reduced-motion preferences disable automatic rotation and transitions.
-
-<div class="grid cards pdk-carousel" markdown data-carousel-label="Weekly ideas" data-carousel-visible="2" data-carousel-peek="true" data-carousel-position="false" data-carousel-pause="false" data-carousel-autoplay="true" data-carousel-interval="4000">
-
--   __Monday__
-
-    Choose a topic.
-
--   __Tuesday__
-
-    Gather evidence.
-
--   __Wednesday__
-
-    Make an outline.
-
--   __Thursday__
-
-    Write a first draft.
-
--   __Friday__
-
-    Review the argument.
-
--   __Saturday__
-
-    Check the references.
-
--   __Sunday__
-
-    Publish and share.
-
-</div>
-
-Keyboard arrows apply only to the carousel region and its controls, so links,
-text inputs and other card content keep their normal keyboard behaviour.
-Offscreen cards and decorative previews are hidden from the accessibility tree
-and keyboard focus.
-Manual navigation announces the visible card numbers; autoplay does not
-repeatedly interrupt screen-reader users. The visible count and list of card
-numbers appear below the cards unless `data-carousel-position="false"`.
 
 ## Print and PDF
 
