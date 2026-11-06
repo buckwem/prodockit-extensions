@@ -33,7 +33,8 @@ def test_real_browser_carousel() -> None:
     not shutil.which("pandoc") or not shutil.which("weasyprint"),
     reason="Real Pandoc and WeasyPrint are needed to verify static card output",
 )
-def test_pdf_keeps_all_cards_and_long_card_continuation(tmp_path: Path) -> None:
+@pytest.mark.parametrize("columns", [2, 3])
+def test_pdf_keeps_all_cards_and_long_card_continuation(tmp_path: Path, columns: int) -> None:
     from pypdf import PdfReader
 
     from prodockit.pdf.build import Page, build_pdf
@@ -47,7 +48,7 @@ def test_pdf_keeps_all_cards_and_long_card_continuation(tmp_path: Path) -> None:
     html = (
         '<h1>Static carousel output</h1>'
         '<div class="grid cards pdk-carousel" data-carousel-autoplay="true" '
-        'data-carousel-loop="false" data-carousel-badges="true"><ul>'
+        f'data-carousel-loop="false" data-carousel-badges="true" data-carousel-visible="{columns}"><ul>'
         f"{cards}<li><p><strong>Long resource</strong></p>{continuation}"
         "<p>End of long resource</p></li></ul></div>"
     )
@@ -58,7 +59,7 @@ def test_pdf_keeps_all_cards_and_long_card_continuation(tmp_path: Path) -> None:
         include_table_of_contents=False,
     )
     reader = PdfReader(output)
-    text = "\n".join(page.extract_text() for page in reader.pages)
+    text = " ".join(" ".join(page.extract_text().split()) for page in reader.pages)
     for index in range(25):
         assert text.count(f"Unique resource {index:02}") == 1
     assert text.count("Long card paragraph") == 100
@@ -71,6 +72,14 @@ def test_pdf_keeps_all_cards_and_long_card_continuation(tmp_path: Path) -> None:
         for annotation in page.get("/Annots", [])
     ]
     assert links.count("https://example.org/") == 25
+
+    import pymupdf
+
+    with pymupdf.open(output) as rendered:
+        row = [rendered[0].search_for(f"Unique resource {index:02}")[0] for index in range(columns)]
+        assert max(rect.y0 for rect in row) - min(rect.y0 for rect in row) < 1
+        assert [rect.x0 for rect in row] == sorted(rect.x0 for rect in row)
+        assert rendered[0].search_for(f"Unique resource {columns:02}")[0].y0 > row[0].y0
 
 
 def test_country_example_uses_sized_local_photos_and_wikipedia_links() -> None:
@@ -148,6 +157,8 @@ def test_numbered_construction_example_keeps_all_eighteen_stages() -> None:
     )
     assert carousel is not None
     assert carousel["data-carousel-badges"] == "true"
+    assert carousel["data-carousel-visible"] == "6"
+    assert carousel["data-carousel-gap"] == "8"
     assert carousel["data-carousel-loop"] == "false"
     cards = carousel.select(":scope > ul > li")
     assert len(cards) == 18
@@ -189,7 +200,7 @@ def test_pdf_photo_tiles_keep_image_title_and_credit_together(tmp_path: Path) ->
         include_table_of_contents=False,
     )
     reader = PdfReader(output)
-    pages = [page.extract_text() for page in reader.pages]
+    pages = [" ".join(page.extract_text().split()) for page in reader.pages]
     assert len(reader.pages) <= 3, "short picture cards should fit several on a page"
     for index in range(len(photos)):
         containing = [text for text in pages if f"Unique photo resource {index}" in text]
@@ -235,7 +246,7 @@ def test_pdf_construction_sequence_keeps_all_dated_cards(tmp_path: Path) -> None
         include_table_of_contents=False,
     )
     reader = PdfReader(output)
-    text = "\n".join(page.extract_text() for page in reader.pages)
+    text = " ".join(" ".join(page.extract_text().split()) for page in reader.pages)
     assert all(text.count(date) == 1 for date in dates)
     assert [text.index(date) for date in dates] == sorted(text.index(date) for date in dates)
     draws = sum(
@@ -244,3 +255,13 @@ def test_pdf_construction_sequence_keeps_all_dated_cards(tmp_path: Path) -> None
         for _operands, operator in page.get_contents().operations
     )
     assert draws == 18
+
+    import pymupdf
+
+    with pymupdf.open(output) as rendered:
+        for date in dates:
+            matches = [rect for page in rendered for rect in page.search_for(date)]
+            assert len(matches) == 1, f"date should remain on one line: {date}"
+        first_row = [rendered[0].search_for(date)[0] for date in dates[:6]]
+        assert max(rect.y0 for rect in first_row) - min(rect.y0 for rect in first_row) < 1
+        assert [rect.x0 for rect in first_row] == sorted(rect.x0 for rect in first_row)

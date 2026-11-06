@@ -954,3 +954,19 @@ def test_outside_project_file_links_keep_only_the_label(tmp_path, symlink):
     assert BeautifulSoup(html, "html.parser").a is None
     assert "Private" in html
     assert str(tmp_path) not in html
+
+
+@pytest.mark.parametrize(
+    ("value", "count", "expected"), [("2", 5, 2), ("3", 5, 3), ("9", 2, 2), ("0", 5, 3), ("bad", 5, 3), ("3", 0, 1)]
+)
+def test_carousel_print_width_is_preserved_on_the_container(value, count, expected):
+    html = _fix(
+        f'<div class="grid cards pdk-carousel" data-carousel-visible="{value}" '
+        'data-carousel-gap="8" style="color: red"><ul>'
+        + "<li>Card</li>" * count
+        + "</ul></div>"
+    )
+    carousel = BeautifulSoup(html, "html.parser").select_one(".pdk-carousel")
+    assert f"--pdk-carousel-print-columns: {expected};" in carousel["style"]
+    assert "--pdk-carousel-gap: 8px;" in carousel["style"]
+    assert "color: red" in carousel["style"]

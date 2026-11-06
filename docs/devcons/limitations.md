@@ -331,7 +331,9 @@ via CSS `float: footnote` instead (see
 
 **WeasyPrint's CSS Grid support is too limited to trust for an actual
 side-by-side multi-column layout** → a Zensical grid-cards block renders
-as one full-width stacked box per row instead of a real grid.
+as one full-width stacked box per row instead of a real grid. Carousels are
+an exception: their simple equal-column layout is tested in the supported
+WeasyPrint runtime and preserves the authored visible-card count.
 
 **`<figcaption>` neither centres nor sizes its sibling `<img>`**:
 WeasyPrint's UA stylesheet centres the caption text by default, but that does

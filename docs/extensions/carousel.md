@@ -45,7 +45,7 @@ accessible name. Its direct list items become the carousel sequence in source
 order, regardless of how many grid rows they originally occupied.
 
 ```html
-<div class="grid cards pdk-carousel" markdown data-carousel-label="Featured resources">
+<div class="grid cards pdk-carousel pdk-carousel-tiles" markdown data-carousel-label="Featured resources">
 
 -   __Explore__
 
@@ -92,7 +92,7 @@ or focus an arrow button and press the left or right arrow key. The sequence wra
 swipe horizontally over the card body; links and form controls retain their
 normal interaction.
 
-<div class="grid cards pdk-carousel" markdown data-carousel-label="Featured resources">
+<div class="grid cards pdk-carousel pdk-carousel-tiles" markdown data-carousel-label="Featured resources">
 
 -   __Explore__
 
@@ -194,7 +194,7 @@ Reduced-motion preferences disable automatic rotation and transitions.
 The cards progress from white to dark grey; the four darkest cards use white
 text to maintain readable contrast.
 
-<div class="grid cards pdk-carousel weekly-contrast" markdown data-carousel-label="Weekly ideas" data-carousel-visible="2" data-carousel-peek="true" data-carousel-position="false" data-carousel-pause="false" data-carousel-autoplay="true" data-carousel-interval="4000">
+<div class="grid cards pdk-carousel pdk-carousel-tiles weekly-contrast" markdown data-carousel-label="Weekly ideas" data-carousel-visible="2" data-carousel-peek="true" data-carousel-position="false" data-carousel-pause="false" data-carousel-autoplay="true" data-carousel-interval="4000">
 
 <ul>
 <li style="--weekly-card-bg: #ffffff; --weekly-card-text: #000000;"><p><strong>Monday</strong></p><p>Choose a topic.</p></li>
@@ -221,10 +221,10 @@ numbers appear below the cards unless `data-carousel-position="false"`.
 Follow the Eiffel Tower construction through 18 dated photographs, from
 10 August 1887 to 12 March 1889. Each card has a top-right badge from `1/18`
 to `18/18`. Use the arrows or drag to move through the sequence; navigation
-stops at the first and last window. Three equal-height cards appear on wide
-screens, with fewer on narrow screens.
+stops at the first and last window. Six equal-height cards appear on wide
+screens, with an 8-pixel gap and fewer cards on narrow screens.
 
-<div class="grid cards pdk-carousel pdk-carousel-tiles eiffel-construction" markdown data-carousel-label="Eiffel Tower construction" data-carousel-badges="true" data-carousel-badge-corner="top-right" data-carousel-loop="false" style="--pdk-carousel-badge-color: #fff; --pdk-carousel-badge-bg: rgba(0, 0, 0, 0.75);" data-carousel-visible="3" data-carousel-min-width="160" data-carousel-gap="8" data-carousel-image-fill="true" data-carousel-position="false">
+<div class="grid cards pdk-carousel pdk-carousel-tiles eiffel-construction" markdown data-carousel-label="Eiffel Tower construction" data-carousel-badges="true" data-carousel-badge-corner="top-right" data-carousel-loop="false" style="--pdk-carousel-badge-color: #fff; --pdk-carousel-badge-bg: rgba(0, 0, 0, 0.75);" data-carousel-visible="6" data-carousel-min-width="80" data-carousel-gap="8" data-carousel-image-fill="true" data-carousel-position="false">
 
 -   <span class="eiffel-construction-stage"><img src="../assets/carousel/eiffel-construction.jpg" alt="Eiffel Tower under construction, 10 August 1887, stage 1 of 18" style="left: -0%; top: -0%;" loading="lazy"></span>
 
@@ -348,7 +348,7 @@ card count and optional automatic rotation.
 | `data-carousel-visible` | `3` | Maximum visible cards, a positive integer. Narrow containers show fewer cards, aiming for at least 224 pixels per card. The total number of cards has no fixed limit. |
 | `data-carousel-gap` | `16` | Space between cards in pixels, from 0 to 64. Use `8` for a small gap between picture tiles. |
 | `data-carousel-image-fill` | `false` | Set to `true` for photos that fill each card edge to edge; titles and credits retain their own inset. |
-| `data-carousel-min-width` | `224` | Preferred minimum card width in pixels, at least 120. Use `160` for compact three-wide picture tiles. Narrower viewports can still shrink the final single card. |
+| `data-carousel-min-width` | `224` | Preferred minimum card width in pixels, at least 80. Use `160` for compact three-wide picture tiles. Narrower viewports can still shrink the final single card. |
 | `data-carousel-badges` | `false` | Set to `true` for an `index/total` badge on each card. |
 | `data-carousel-badge-corner` | `top-right` | Badge placement: `top-left`, `top-right`, `bottom-left` or `bottom-right`. |
 | `data-carousel-loop` | `true` | Set to `false` to stop at each end. Finite autoplay stops at the final window. |
@@ -379,9 +379,12 @@ card once in source order and removes carousel controls, clipping and animation,
 even after the carousel has advanced.
 
 `pdk pdf` consumes the static card HTML without running JavaScript. It prints
-all original cards using Prodockit's existing full-width stacked-card layout.
-Long cards may continue onto another page. This extension does not change the
-PDF grid-layout limitation.
+all original cards in rows matching the authored visible-card count:
+`data-carousel-visible="2"` prints two across, and `"3"` prints three across
+(the default). Partial final rows retain their column widths. Browser print
+uses the number of full cards currently visible on screen; decorative half-card
+previews do not add columns. Long cards may continue onto another page.
+Ordinary grid cards keep their existing PDF layout.
 
 ## Style the arrow buttons
 

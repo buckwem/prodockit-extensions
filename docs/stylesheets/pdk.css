@@ -952,6 +952,12 @@ img.documentation-diagram {
     max-height: none !important;
     transform: none !important;
   }
+  .grid.cards.pdk-carousel > ul {
+    display: grid !important;
+    grid-template-columns: repeat(var(--pdk-carousel-print-columns, 3), minmax(0, 1fr)) !important;
+    gap: var(--pdk-carousel-gap, 16px) !important;
+    align-items: stretch !important;
+  }
   .grid.cards.pdk-carousel-ready > ul > li {
     display: block !important;
     order: 0 !important;
@@ -963,11 +969,12 @@ img.documentation-diagram {
     overflow: visible !important;
     transform: none !important;
     opacity: 1 !important;
-    margin-bottom: 1rem !important;
+    margin-bottom: 0 !important;
+    break-inside: avoid !important;
   }
   .grid.cards.pdk-carousel-ready > ul > li[data-pdk-carousel-clone] { display: none !important; }
   .grid.cards.pdk-carousel img.pdk-carousel-image {
-    width: 240px !important;
+    width: 100% !important;
     max-width: 100% !important;
     height: auto !important;
   }

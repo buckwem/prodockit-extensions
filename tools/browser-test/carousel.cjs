@@ -131,6 +131,8 @@ const fixture = (count, extra = '', prefix = 'card') => `<div class="grid cards 
     assert.equal((await state()).visible[0],'card-3','finite touch swipe advances');
     await next();
     assert.ok((await finitePreviews()).length===1 && (await finitePreviews()).every(r=>Math.abs(r-.5)<.05),'only previous half-card at final finite window');
+    await load(fixture(18, 'data-carousel-visible="6" data-carousel-min-width="80" data-carousel-gap="8" data-carousel-duration="0"'));
+    assert.equal((await state()).visible.length,6,'compact desktop cards can show six across');
     // Badges keep source identities through repeated wrapping and do not
     // duplicate the slide's accessible position announcement.
     for (const corner of ['top-left','top-right','bottom-left','bottom-right','invalid']) {
@@ -151,7 +153,8 @@ const fixture = (count, extra = '', prefix = 'card') => `<div class="grid cards 
       await page.emulateMediaType('print');
       assert.equal(await page.$eval('.pdk-carousel-badge',el=>getComputedStyle(el).display),'none');
       const printed = await page.$$eval('li:not([data-pdk-carousel-clone])', els=>els.map(el=>el.getBoundingClientRect().top));
-      assert.ok(printed.every((top,i)=>i===0||top>printed[i-1]),'badged cards print in source order');
+      assert.ok(printed.every((top,i)=>i<3||top>printed[i-3]),'badged print rows follow source order');
+      assert.ok(Math.abs(printed[0]-printed[1])<1 && Math.abs(printed[1]-printed[2])<1,'badged cards print three across');
       await page.emulateMediaType('screen');
       await page.evaluate(()=>{window.removed=document.querySelector('.pdk-carousel');window.removed.remove();window.navigate();});
       assert.equal(await page.evaluate(()=>window.removed.querySelectorAll('.pdk-carousel-badge').length),0,'teardown removes generated badges');
@@ -249,6 +252,9 @@ const fixture = (count, extra = '', prefix = 'card') => `<div class="grid cards 
     if (evidence) await page.screenshot({path:path.join(evidence, 'carousel-peek.png'), fullPage:true});
     await page.emulateMediaType('print');
     assert.equal(await page.evaluate(() => Array.from(document.querySelectorAll('[data-pdk-carousel-clone]')).every(card => getComputedStyle(card).display === 'none')), true, 'print excludes decorative buffers');
+    const twoWidePrint = await page.$$eval('li:not([data-pdk-carousel-clone])', els=>els.map(el=>el.getBoundingClientRect().top));
+    assert.ok(Math.abs(twoWidePrint[0]-twoWidePrint[1])<1 && twoWidePrint[2]>twoWidePrint[0], 'print retains two full cards per row without counting peek cards');
+
     await page.emulateMediaType('screen');
     await load(fixture(2, 'data-carousel-peek="true" data-carousel-visible="1"'));
     await next();
@@ -322,7 +328,8 @@ const fixture = (count, extra = '', prefix = 'card') => `<div class="grid cards 
     assert.equal(printCards.length, 5);
     printCards.forEach((card, i) => {
       assert.ok(card.height > 0 && card.display !== 'none');
-      if (i) assert.ok(card.top > printCards[i - 1].top, 'print uses original source order');
+      if (i>=3) assert.ok(card.top > printCards[i-3].top, 'print rows follow original source order');
+      if (i%3) assert.ok(Math.abs(card.top-printCards[i-1].top)<1, 'print retains three cards per row');
     });
     assert.equal(await page.evaluate(() => getComputedStyle(document.querySelector('.pdk-carousel-controls')).display), 'none');
     if (evidence) {

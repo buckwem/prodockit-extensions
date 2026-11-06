@@ -63,7 +63,7 @@ document.addEventListener("DOMContentLoaded", function() {
     const maxVisible = /^[1-9]\d*$/.test(root.dataset.carouselVisible || "")
       ? Number(root.dataset.carouselVisible) : 3;
     const minWidth = /^[1-9]\d*$/.test(root.dataset.carouselMinWidth || "")
-      ? Math.max(120, Number(root.dataset.carouselMinWidth)) : 224;
+      ? Math.max(80, Number(root.dataset.carouselMinWidth)) : 224;
     const durationValue = root.dataset.carouselDuration;
     const duration = /^\d+$/.test(durationValue || "") ? Math.min(2000, Number(durationValue)) : 600;
     const previous = makeButton("Previous cards", "‹", "pdk-carousel-arrow pdk-carousel-previous", () => move(-1, true));
@@ -137,6 +137,7 @@ document.addEventListener("DOMContentLoaded", function() {
       const navigable = cards.length > visible;
       const looping = loop && navigable;
       const preview = peek && navigable;
+      if (!printing) root.style.setProperty("--pdk-carousel-print-columns", visible);
       root.classList.toggle("pdk-carousel-peek", preview);
       root.style.setProperty("--pdk-carousel-visible", visible + (preview ? 1 : 0));
       cards.forEach((card, index) => {
