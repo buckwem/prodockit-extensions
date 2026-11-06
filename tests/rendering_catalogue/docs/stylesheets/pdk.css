@@ -802,3 +802,146 @@ img.documentation-diagram {
     max-height: 12.5cm;
   }
 }
+
+/* Opt-in card carousel. Override these variables in stylesheets/extra.css. */
+.pdk-carousel {
+  --pdk-carousel-button-bg: rgba(238, 238, 238, 0.75);
+  --pdk-carousel-button-color: #000000;
+  --pdk-carousel-button-hover-bg: rgba(221, 221, 221, 0.9);
+  --pdk-carousel-button-border: #cccccc;
+  --pdk-carousel-button-size: 1.6rem;
+  --pdk-carousel-button-radius: 0.2rem;
+}
+.md-typeset .grid.cards.pdk-carousel-ready {
+  position: relative;
+  display: block;
+  overflow: hidden;
+}
+.md-typeset .grid.cards.pdk-carousel-ready > ul {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: var(--pdk-carousel-gap, 16px);
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  touch-action: pan-y;
+  cursor: grab;
+}
+.md-typeset .grid.cards.pdk-carousel-ready > ul > li {
+  flex: 0 0 calc((100% - (var(--pdk-carousel-visible) - 1) * var(--pdk-carousel-gap, 16px)) / var(--pdk-carousel-visible));
+  min-width: 0;
+  min-height: var(--pdk-carousel-height, 0px);
+  padding-bottom: calc(var(--pdk-carousel-button-size) + 0.75rem);
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.md-typeset .grid.cards.pdk-carousel-peek > ul > li {
+  flex-basis: calc((100% - var(--pdk-carousel-visible) * var(--pdk-carousel-gap, 16px)) / var(--pdk-carousel-visible));
+}
+.md-typeset .pdk-carousel-dragging > ul { cursor: grabbing; user-select: none; }
+.pdk-carousel-controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  padding: 0.75rem 0.2rem;
+}
+.md-typeset .pdk-carousel-controls button {
+  border: 1px solid var(--pdk-carousel-button-border);
+  border-radius: var(--pdk-carousel-button-radius);
+  color: var(--pdk-carousel-button-color);
+  background: var(--pdk-carousel-button-bg);
+  cursor: pointer;
+  padding: 0.35rem 0.6rem;
+  font: inherit;
+}
+.md-typeset .pdk-carousel-controls button:hover:not(:disabled) {
+  background: var(--pdk-carousel-button-hover-bg);
+}
+.md-typeset .pdk-carousel-controls .pdk-carousel-arrow {
+  position: absolute;
+  top: calc(var(--pdk-carousel-height, 0px) - var(--pdk-carousel-button-size));
+  z-index: 1;
+  width: var(--pdk-carousel-button-size);
+  height: var(--pdk-carousel-button-size);
+  padding: 0;
+  font-size: 1.35rem;
+  line-height: 1;
+  display: grid;
+  place-items: center;
+}
+.pdk-carousel .pdk-carousel-image {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 3 / 2;
+  object-fit: cover;
+  border-radius: 0.15rem;
+  margin-bottom: 0.5rem;
+}
+.md-typeset .grid.cards.pdk-carousel-image-fill > ul > li {
+  padding: 0 0 calc(var(--pdk-carousel-button-size) + 0.75rem);
+  overflow: hidden;
+}
+.md-typeset .grid.cards.pdk-carousel-image-fill > ul > li > p:first-child {
+  margin: 0;
+}
+.md-typeset .grid.cards.pdk-carousel-image-fill > ul > li > p:not(:first-child) {
+  padding-inline: 0.65rem;
+}
+.pdk-carousel-image-fill .pdk-carousel-image {
+  margin: 0;
+  border-radius: 0;
+}
+.pdk-carousel-previous { left: 4px; }
+.pdk-carousel-next { right: 4px; }
+.pdk-carousel-static .pdk-carousel-arrow { visibility: hidden; }
+.md-typeset .pdk-carousel-controls button:disabled { opacity: 0.5; cursor: default; }
+.pdk-carousel-ready :focus-visible { outline: 2px solid var(--md-accent-fg-color); outline-offset: 2px; }
+.pdk-carousel-position { font-size: 0.8em; }
+.pdk-carousel-announcement {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+@media print {
+  .pdk-carousel-controls { display: none !important; }
+  .pdk-carousel-ready, .pdk-carousel-ready * { outline: none !important; }
+  .grid.cards.pdk-carousel-ready,
+  .grid.cards.pdk-carousel-ready > ul {
+    display: block !important;
+    overflow: visible !important;
+    height: auto !important;
+    max-height: none !important;
+    transform: none !important;
+  }
+  .grid.cards.pdk-carousel-ready > ul > li {
+    display: block !important;
+    order: 0 !important;
+    width: auto !important;
+    min-height: 0 !important;
+    padding: 16px !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+    transform: none !important;
+    opacity: 1 !important;
+    margin-bottom: 1rem !important;
+  }
+  .grid.cards.pdk-carousel-ready > ul > li[data-pdk-carousel-clone] { display: none !important; }
+  .grid.cards.pdk-carousel img.pdk-carousel-image {
+    width: 240px !important;
+    max-width: 100% !important;
+    height: auto !important;
+  }
+  .grid.cards.pdk-carousel-tiles > ul > li {
+    page-break-inside: avoid !important;
+    break-inside: avoid-page !important;
+  }
+}
