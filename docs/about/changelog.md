@@ -19,6 +19,11 @@ only when it adds or changes behaviour that matters to a user, or requires an
 upgrade action. Defect-by-defect history belongs in GitHub issues and pull
 requests rather than here.
 
+## 0.78.0 (2026-11-06)
+
+- Added configurable carousel card badges and finite navigation for arrows, keyboard and dragging.
+- Preserved authored carousel columns in PDFs and browser print, including partial rows and long cards.
+
 ## 0.77.0 (2026-11-06)
 
 - Added opt-in grid-card carousels with responsive controls, optional rotation, and complete static print/PDF output.
