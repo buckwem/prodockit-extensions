@@ -811,6 +811,12 @@ img.documentation-diagram {
   --pdk-carousel-button-border: #cccccc;
   --pdk-carousel-button-size: 1.6rem;
   --pdk-carousel-button-radius: 0.2rem;
+  --pdk-carousel-badge-color: #ffffff;
+  --pdk-carousel-badge-bg: rgba(0, 0, 0, 0.75);
+  --pdk-carousel-badge-inset: 0.5rem;
+  --pdk-carousel-badge-padding: 0.15rem 0.45rem;
+  --pdk-carousel-badge-font-size: 0.75rem;
+  --pdk-carousel-badge-radius: 1rem;
 }
 .md-typeset .grid.cards.pdk-carousel-ready {
   position: relative;
@@ -837,6 +843,31 @@ img.documentation-diagram {
 }
 .md-typeset .grid.cards.pdk-carousel-peek > ul > li {
   flex-basis: calc((100% - var(--pdk-carousel-visible) * var(--pdk-carousel-gap, 16px)) / var(--pdk-carousel-visible));
+}
+.md-typeset .grid.cards.pdk-carousel-badges > ul > li { position: relative; }
+.pdk-carousel-badge {
+  position: absolute;
+  top: var(--pdk-carousel-badge-inset);
+  right: var(--pdk-carousel-badge-inset);
+  z-index: 1;
+  padding: var(--pdk-carousel-badge-padding);
+  border-radius: var(--pdk-carousel-badge-radius);
+  background: var(--pdk-carousel-badge-bg);
+  color: var(--pdk-carousel-badge-color);
+  font-size: var(--pdk-carousel-badge-font-size);
+  line-height: 1.5;
+  white-space: nowrap;
+  pointer-events: none;
+  user-select: none;
+}
+.pdk-carousel[data-carousel-badge-corner$="left"] .pdk-carousel-badge {
+  right: auto;
+  left: var(--pdk-carousel-badge-inset);
+}
+.pdk-carousel[data-carousel-badge-corner^="bottom"] .pdk-carousel-badge {
+  top: auto;
+  /* Keep bottom badges above the reserved arrow-control row. */
+  bottom: calc(var(--pdk-carousel-badge-inset) + var(--pdk-carousel-button-size));
 }
 .md-typeset .pdk-carousel-dragging > ul { cursor: grabbing; user-select: none; }
 .pdk-carousel-controls {
@@ -911,7 +942,7 @@ img.documentation-diagram {
 }
 
 @media print {
-  .pdk-carousel-controls { display: none !important; }
+  .pdk-carousel-controls, .pdk-carousel-badge { display: none !important; }
   .pdk-carousel-ready, .pdk-carousel-ready * { outline: none !important; }
   .grid.cards.pdk-carousel-ready,
   .grid.cards.pdk-carousel-ready > ul {

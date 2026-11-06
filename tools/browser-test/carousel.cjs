@@ -68,6 +68,115 @@ const fixture = (count, extra = '', prefix = 'card') => `<div class="grid cards 
       await page.waitForFunction(() => window.resized && document.querySelectorAll('.pdk-carousel > ul > li:not([aria-hidden="true"]):not([data-pdk-carousel-clone])').length === 1);
       assert.equal((await state()).visible.length, 1);
     }
+    for (const count of [1, 2, 3, 5, 10, 25]) {
+      for (const peek of [false, true]) {
+        await load(fixture(count, `data-carousel-loop="false" data-carousel-peek="${peek}" data-carousel-badges="true" data-carousel-duration="0"`));
+        const visible = (await state()).visible.length;
+        const last = Math.max(0, count - visible);
+        assert.equal(await page.$eval('.pdk-carousel-previous', el => el.disabled), true);
+        assert.equal(await page.$$eval('[data-pdk-carousel-clone]', els => els.length), 0, 'finite mode has no wrapped copies');
+        for (let i = 0; i < count + 2; i++) {
+          await next();
+          const start = Math.min(i + 1, last);
+          assert.deepEqual((await state()).visible, Array.from({length:visible}, (_, k) => `card-${start+k+1}`));
+        }
+        assert.equal(await page.$eval('.pdk-carousel-next', el => el.disabled), true);
+        const box = await page.$eval('.pdk-carousel > ul > li:not([aria-hidden="true"]) p', el => {const r=el.getBoundingClientRect(); return {x:r.x+r.width/2,y:r.y+r.height/2};});
+        await page.mouse.move(box.x, box.y); await page.mouse.down();
+        await page.mouse.move(box.x-100, box.y, {steps:8}); await page.mouse.up();
+        assert.equal((await state()).visible[0], `card-${last+1}`, 'drag cannot pass last window');
+        await page.$eval('.pdk-carousel', el => el.focus());
+        await page.keyboard.press('ArrowRight');
+        assert.equal((await state()).visible[0], `card-${last+1}`, 'keyboard cannot pass last window');
+        for (let i=0;i<count+2;i++) await next(-1);
+        assert.equal((await state()).visible[0], 'card-1');
+        await page.$eval('.pdk-carousel', el => el.focus());
+        await page.keyboard.press('ArrowLeft');
+        assert.equal((await state()).visible[0], 'card-1', 'keyboard cannot pass first window');
+        assert.deepEqual(await page.$$eval('li:not([data-pdk-carousel-clone]) > .pdk-carousel-badge', els=>els.map(el=>el.textContent)), Array.from({length:count},(_,i)=>`${i+1}/${count}`));
+      }
+    }
+    await load(fixture(5, 'data-carousel-loop="false" data-carousel-visible="2" data-carousel-peek="true" data-carousel-badges="true" data-carousel-duration="120"'));
+    async function finitePreviews() {
+      return page.$eval('.pdk-carousel', root=>{
+        const viewport=root.getBoundingClientRect();
+        return Array.from(root.querySelectorAll('li[aria-hidden="true"]'), card=>{
+          const r=card.getBoundingClientRect();
+          return Math.max(0,Math.min(r.right,viewport.right)-Math.max(r.left,viewport.left))/r.width;
+        }).filter(ratio=>ratio>0);
+      });
+    }
+    assert.ok((await finitePreviews()).length===1 && (await finitePreviews()).every(r=>Math.abs(r-.5)<.05),'only next half-card at first finite window');
+    const firstBox=await page.$eval('#card-1 p',el=>{const r=el.getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2};});
+    await page.mouse.move(firstBox.x,firstBox.y);await page.mouse.down();await page.mouse.move(firstBox.x+70,firstBox.y,{steps:8});
+    const blockedTransform=await page.$eval('.pdk-carousel > ul',el=>new DOMMatrix(getComputedStyle(el).transform).m41);
+    await page.mouse.up();
+    assert.equal((await state()).visible[0],'card-1','drag cannot pass first finite window');
+    assert.equal(await page.$eval('.pdk-carousel > ul',el=>new DOMMatrix(getComputedStyle(el).transform).m41),blockedTransform,'no overshoot at first boundary');
+    const slide=await page.evaluate(async()=>{
+      const root=document.querySelector('.pdk-carousel'),card=document.querySelector('#card-2');
+      const initial=card.getBoundingClientRect().x;root.querySelector('.pdk-carousel-next').click();
+      const animation=root.querySelector('ul').getAnimations()[0];animation.pause();animation.currentTime=60;
+      const halfway=card.getBoundingClientRect().x;animation.currentTime=119;const end=card.getBoundingClientRect().x;
+      animation.play();await animation.finished.catch(()=>{});await new Promise(r=>requestAnimationFrame(r));
+      return {initial,halfway,end,committed:card.getBoundingClientRect().x};
+    });
+    assert.ok(slide.initial>slide.halfway && slide.halfway>slide.end && Math.abs(slide.end-slide.committed)<1,'finite animation commits without a jump');
+    assert.equal((await finitePreviews()).length,2,'interior finite window shows both neighbours');
+    const touch=await page.$eval('#card-2 p',el=>{const r=el.getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2};});
+    await page.touchscreen.touchStart(touch.x,touch.y);await page.touchscreen.touchMove(touch.x-40,touch.y);
+    await page.evaluate(()=>new Promise(r=>requestAnimationFrame(r)));
+    await page.touchscreen.touchMove(touch.x-100,touch.y);await page.touchscreen.touchEnd();
+    await page.waitForFunction(()=>!document.querySelector('.pdk-carousel').dataset.carouselMoving);
+    assert.equal((await state()).visible[0],'card-3','finite touch swipe advances');
+    await next();
+    assert.ok((await finitePreviews()).length===1 && (await finitePreviews()).every(r=>Math.abs(r-.5)<.05),'only previous half-card at final finite window');
+    // Badges keep source identities through repeated wrapping and do not
+    // duplicate the slide's accessible position announcement.
+    for (const corner of ['top-left','top-right','bottom-left','bottom-right','invalid']) {
+      await load(fixture(5, `data-carousel-badges="true" data-carousel-badge-corner="${corner}" data-carousel-duration="0" style="--pdk-carousel-badge-color:rgb(255,255,0);--pdk-carousel-badge-bg:rgba(10,20,30,0.8)"`));
+      for(let i=0;i<7;i++) await next();
+      const badge = await page.$eval('#card-3 > .pdk-carousel-badge', el=>{
+        const r=el.getBoundingClientRect(), c=el.parentElement.getBoundingClientRect(), s=getComputedStyle(el);
+        return {text:el.textContent, hidden:el.getAttribute('aria-hidden'), pointer:s.pointerEvents, color:s.color, bg:s.backgroundColor, left:r.left-c.left, right:c.right-r.right, top:r.top-c.top, bottom:c.bottom-r.bottom};
+      });
+      assert.equal(badge.text, '3/5'); assert.equal(badge.hidden,'true'); assert.equal(badge.pointer,'none');
+      assert.equal(badge.color,'rgb(255, 255, 0)'); assert.equal(badge.bg,'rgba(10, 20, 30, 0.8)');
+      assert.ok(badge[corner.endsWith('left')?'left':'right'] < 15);
+      assert.ok(corner.startsWith('bottom') ? badge.bottom > 30 && badge.bottom < 50 : badge.top < 15, 'bottom badges clear the arrow row');
+      const link = await page.$eval('#card-3 a', el=>{const r=el.getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2};});
+      await page.evaluate(()=>{window.linkClicks=0;document.querySelector('#card-3 a').addEventListener('click',e=>{e.preventDefault();window.linkClicks++;});});
+      await page.mouse.click(link.x,link.y);
+      assert.equal(await page.evaluate(()=>window.linkClicks),1,'badge preserves links');
+      await page.emulateMediaType('print');
+      assert.equal(await page.$eval('.pdk-carousel-badge',el=>getComputedStyle(el).display),'none');
+      const printed = await page.$$eval('li:not([data-pdk-carousel-clone])', els=>els.map(el=>el.getBoundingClientRect().top));
+      assert.ok(printed.every((top,i)=>i===0||top>printed[i-1]),'badged cards print in source order');
+      await page.emulateMediaType('screen');
+      await page.evaluate(()=>{window.removed=document.querySelector('.pdk-carousel');window.removed.remove();window.navigate();});
+      assert.equal(await page.evaluate(()=>window.removed.querySelectorAll('.pdk-carousel-badge').length),0,'teardown removes generated badges');
+      await page.evaluate(()=>{document.querySelector('main').append(window.removed);window.navigate();});
+      assert.equal(await page.$$eval('li:not([data-pdk-carousel-clone]) > .pdk-carousel-badge', els=>els.length),5,'restore does not duplicate badges');
+    }
+    await load(fixture(5, 'data-carousel-loop="false" data-carousel-badges="true" data-carousel-autoplay="true" data-carousel-duration="0"'));
+    await page.mouse.move(0,0);
+    for(let i=0;i<4;i++) await page.evaluate(()=>Array.from(window.timers.values()).forEach(callback=>callback()));
+    assert.deepEqual((await state()).visible,['card-3','card-4','card-5']);
+    assert.equal((await state()).timers,0,'finite autoplay stops at end');
+    assert.equal(await page.$eval('.pdk-carousel-toggle',el=>el.disabled),true);
+    await next(-1);
+    assert.equal((await state()).timers,1,'finite autoplay can run again after navigating back');
+    await next();
+    await page.$eval('.pdk-carousel',el=>el.style.width='260px');
+    await page.waitForFunction(()=>document.querySelectorAll('.pdk-carousel li:not([aria-hidden="true"])').length===1);
+    assert.equal((await state()).visible[0],'card-3');
+    await next(); await next();
+    assert.equal((await state()).visible[0],'card-5');
+    await page.$eval('.pdk-carousel',el=>el.style.width='900px');
+    await page.waitForFunction(()=>document.querySelectorAll('.pdk-carousel li:not([aria-hidden="true"])').length===3);
+    assert.deepEqual((await state()).visible,['card-3','card-4','card-5'],'resize clamps finite window');
+    assert.equal((await state()).timers,0);
+    if(evidence) await page.screenshot({path:path.join(evidence,'carousel-finite-badges.png'),fullPage:true});
     const countries = ['united-kingdom', 'france', 'italy', 'japan', 'germany', 'australia'];
     const countryCards = countries.map((name, index) => {
       const image = fs.readFileSync(path.join(root, 'docs/assets/carousel', `${name}.jpg`)).toString('base64');
@@ -149,11 +258,12 @@ const fixture = (count, extra = '', prefix = 'card') => `<div class="grid cards 
     await page.addScriptTag({content: script});
     assert.equal((await state()).controls, 0, 'unsupported browser retains grid');
     assert.equal((await state()).visible.length, 5);
-    await load(fixture(5), false);
+    await load(fixture(5, 'data-carousel-badges="true"'), false);
     await page.evaluate(() => { window.ResizeObserver = class { observe() { throw Error('fixture failure'); } disconnect() {} }; });
     await page.addScriptTag({content: script});
     assert.equal((await state()).controls, 0, 'failed initialization rolls back enhancement');
     assert.equal((await state()).visible.length, 5);
+    assert.equal(await page.$$eval('.pdk-carousel-badge', els=>els.length), 0, 'failed enhancement rolls back badges');
     assert.equal(await page.evaluate(() => document.querySelectorAll('[inert], [role="region"]').length), 0);
     await load(fixture(5).replace('<p><strong>Resource 1</strong></p>', '<p id="input-label">Resource 1</p><input id="choice" name="choice" aria-labelledby="input-label" type="checkbox" checked><svg width="20" height="20"><defs><linearGradient id="shade"><stop stop-color="blue"/></linearGradient></defs><rect width="20" height="20" fill="url(#shade)"/></svg>'));
     assert.equal(await page.evaluate(() => Array.from(document.querySelectorAll('[data-pdk-carousel-clone] input')).every(input => input.disabled && !input.name)), true, 'buffer forms cannot submit duplicate values');
@@ -267,7 +377,7 @@ const fixture = (count, extra = '', prefix = 'card') => `<div class="grid cards 
     await page.evaluate(() => { document.querySelector('main').append(window.oldCarousel); window.navigate(); });
     assert.equal((await state()).timers, 1, 'back navigation initializes restored markup');
     assert.deepEqual(errors, []);
-    console.log('Carousel browser checks passed: counts, wrap, resize, focus, swipe, print, autoplay, reduced motion and navigation.');
+    console.log('Carousel browser checks passed: counts, badges, finite boundaries, wrap, resize, focus, swipe, print, autoplay, reduced motion and navigation.');
   } finally {
     await browser.close();
   }

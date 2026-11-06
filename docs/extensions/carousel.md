@@ -178,6 +178,81 @@ their displayed dimensions consistent. The `pdk-carousel-tiles` class keeps
 these short picture cards together on a printed page. The picture and country-name links
 remain usable, while dragging a picture or the card body moves the carousel.
 
+### Live example: numbered cards without wrapping
+
+This five-card photo carousel shows a badge from `1/5` to `5/5` in each
+card's top-right corner. Move with the arrows or drag: navigation stops at the
+first and last window, with three cards visible on wide screens. The disabled
+arrow marks each end. The colours are set on this example's container.
+
+<div class="grid cards pdk-carousel pdk-carousel-tiles" markdown data-carousel-label="Five numbered countries" data-carousel-badges="true" data-carousel-badge-corner="top-right" data-carousel-loop="false" style="--pdk-carousel-badge-color: #fff; --pdk-carousel-badge-bg: rgba(0, 0, 0, 0.75);" data-carousel-visible="3" data-carousel-min-width="160" data-carousel-gap="8" data-carousel-image-fill="true" data-carousel-position="false">
+
+-   [![The clock face and Gothic tower of Big Ben in London](../assets/carousel/united-kingdom.jpg){ .pdk-carousel-image width="640" height="426" loading="lazy" }](https://en.wikipedia.org/wiki/United_Kingdom)
+
+    [__United Kingdom__](https://en.wikipedia.org/wiki/United_Kingdom)
+
+    <small>Photo: [enrico bet](https://unsplash.com/photos/big-ben-london-MdJq0zFUwrw) / Unsplash</small>
+
+-   [![The Eiffel Tower above the River Seine in Paris](../assets/carousel/france.jpg){ .pdk-carousel-image width="640" height="426" loading="lazy" }](https://en.wikipedia.org/wiki/France)
+
+    [__France__](https://en.wikipedia.org/wiki/France)
+
+    <small>Photo: [Chris Karidis](https://unsplash.com/photos/eiffel-tower-paris-france-nnzkZNYWHaU) / Unsplash</small>
+
+-   [![The Colosseum in Rome](../assets/carousel/italy.jpg){ .pdk-carousel-image width="640" height="426" loading="lazy" }](https://en.wikipedia.org/wiki/Italy)
+
+    [__Italy__](https://en.wikipedia.org/wiki/Italy)
+
+    <small>Photo: [Sarah Doffman](https://unsplash.com/photos/colosseum-rome-TC73XlNiDeM) / Unsplash</small>
+
+-   [![Snow-capped Mount Fuji above a lake and town](../assets/carousel/japan.jpg){ .pdk-carousel-image width="640" height="426" loading="lazy" }](https://en.wikipedia.org/wiki/Japan)
+
+    [__Japan__](https://en.wikipedia.org/wiki/Japan)
+
+    <small>Photo: [Bryan Heng](https://unsplash.com/photos/mount-fuji-above-lake-in-japan-J8HzbBdqdV0) / Unsplash</small>
+
+-   [![The Brandenburg Gate in Berlin](../assets/carousel/germany.jpg){ .pdk-carousel-image width="640" height="426" loading="lazy" }](https://en.wikipedia.org/wiki/Germany)
+
+    [__Germany__](https://en.wikipedia.org/wiki/Germany)
+
+    <small>Photo: [Claudio Schwarz](https://unsplash.com/photos/brandenburg-gate-berlin-cQ41AMy31Zw) / Unsplash</small>
+
+</div>
+
+Enable badges with `data-carousel-badges="true"`. Choose any of
+`top-left`, `top-right`, `bottom-left` or `bottom-right` with
+`data-carousel-badge-corner`; an omitted or invalid corner uses `top-right`.
+Each badge keeps its original card number as the carousel moves. Badges are
+independent of the optional position label below the carousel.
+
+Set `data-carousel-loop="false"` to stop wrapping. This differs from
+`data-carousel-autoplay="false"`, which turns off automatic advancement.
+You can combine finite navigation with autoplay; rotation stops at the final
+window. Navigating back allows automatic advancement again unless paused.
+With half-card previews enabled, the first and last windows leave the missing
+neighbour's side empty instead of repeating a card.
+
+Override the badge styles in `stylesheets/extra.css`, or set them on an
+individual carousel as above:
+
+```css
+.pdk-carousel {
+  --pdk-carousel-badge-color: #ffffff;
+  --pdk-carousel-badge-bg: rgba(0, 0, 0, 0.75);
+  --pdk-carousel-badge-inset: 0.5rem;
+  --pdk-carousel-badge-padding: 0.15rem 0.45rem;
+  --pdk-carousel-badge-font-size: 0.75rem;
+  --pdk-carousel-badge-radius: 1rem;
+}
+```
+
+Bottom badges sit above the arrow-control row. Choose text and background
+colours that remain legible over your pictures.
+Badges do not receive focus or intercept clicks and dragging; assistive
+technology uses each slide's existing position label. Badges are hidden in
+browser print and absent from generated PDFs, which retain every original
+card once in source order. Without JavaScript, cards remain a static grid.
+
 ## Configure only when needed
 
 Use \ref{tab-carousel-options} to set a carousel's accessible name, visible
@@ -190,6 +265,9 @@ card count and optional automatic rotation.
 | `data-carousel-gap` | `16` | Space between cards in pixels, from 0 to 64. Use `8` for a small gap between picture tiles. |
 | `data-carousel-image-fill` | `false` | Set to `true` for photos that fill each card edge to edge; titles and credits retain their own inset. |
 | `data-carousel-min-width` | `224` | Preferred minimum card width in pixels, at least 120. Use `160` for compact three-wide picture tiles. Narrower viewports can still shrink the final single card. |
+| `data-carousel-badges` | `false` | Set to `true` for an `index/total` badge on each card. |
+| `data-carousel-badge-corner` | `top-right` | Badge placement: `top-left`, `top-right`, `bottom-left` or `bottom-right`. |
+| `data-carousel-loop` | `true` | Set to `false` to stop at each end. Finite autoplay stops at the final window. |
 | `data-carousel-position` | `true` | Set to `false` to hide the visible “Cards 1, 2 of 5” label. Accessible position announcements for manual navigation remain available. |
 | `data-carousel-peek` | `false` | Set to `true` to show half of the neighbouring card on each edge. Preview cards are decorative; use an arrow or drag to bring them into view. |
 | `data-carousel-duration` | `600` | Sliding duration in milliseconds, from 0 (instant) to 2000. Automatic rotation uses the same smooth transition across the loop boundary. |

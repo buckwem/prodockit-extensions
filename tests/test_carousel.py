@@ -46,7 +46,8 @@ def test_pdf_keeps_all_cards_and_long_card_continuation(tmp_path: Path) -> None:
     continuation = "".join(f"<p>Long card paragraph {index:03}</p>" for index in range(100))
     html = (
         '<h1>Static carousel output</h1>'
-        '<div class="grid cards pdk-carousel" data-carousel-autoplay="true"><ul>'
+        '<div class="grid cards pdk-carousel" data-carousel-autoplay="true" '
+        'data-carousel-loop="false" data-carousel-badges="true"><ul>'
         f"{cards}<li><p><strong>Long resource</strong></p>{continuation}"
         "<p>End of long resource</p></li></ul></div>"
     )
@@ -72,7 +73,12 @@ def test_pdf_keeps_all_cards_and_long_card_continuation(tmp_path: Path) -> None:
     assert links.count("https://example.org/") == 25
 
 
-def test_country_example_uses_sized_local_photos_and_wikipedia_links() -> None:
+@pytest.mark.parametrize(
+    ("label", "count"), [("Explore countries", 6), ("Five numbered countries", 5)]
+)
+def test_country_example_uses_sized_local_photos_and_wikipedia_links(
+    label: str, count: int
+) -> None:
     import markdown
     from bs4 import BeautifulSoup
     from PIL import Image
@@ -80,12 +86,15 @@ def test_country_example_uses_sized_local_photos_and_wikipedia_links() -> None:
     source = (ROOT / "docs/extensions/carousel.md").read_text(encoding="utf-8")
     html = markdown.markdown(source, extensions=["md_in_html", "attr_list", "fenced_code"])
     soup = BeautifulSoup(html, "html.parser")
-    carousel = soup.select_one('[data-carousel-label="Explore countries"]')
+    carousel = soup.select_one(f'[data-carousel-label="{label}"]')
     assert carousel is not None
     assert carousel["data-carousel-visible"] == "3"
     assert carousel["data-carousel-min-width"] == "160"
     cards = carousel.select(":scope > ul > li")
-    assert len(cards) == 6
+    assert len(cards) == count
+    if label == "Five numbered countries":
+        assert carousel["data-carousel-badges"] == "true"
+        assert carousel["data-carousel-loop"] == "false"
     for card in cards:
         image = card.find("img")
         assert image is not None and image["alt"]
