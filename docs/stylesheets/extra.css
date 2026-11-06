@@ -95,8 +95,8 @@
 
 /* Compact counters leave the tower visible in the six-wide example. */
 .eiffel-construction {
-  --pdk-carousel-badge-font-size: 0.4rem;
-  --pdk-carousel-badge-padding: 0.05rem 0.2rem;
+  --pdk-carousel-badge-font-size: 0.575rem;
+  --pdk-carousel-badge-padding: 0.1rem 0.325rem;
   --pdk-carousel-badge-inset: 0.15rem;
 }
 
