@@ -74,6 +74,11 @@
   {% include ".icons/material/file-pdf-box.svg" %}
 </a>
 {% endif %}
+{% if page.url == "extensions/carousel/" %}
+<a href="{{ "page-pdfs/extensions/carousel.pdf" | url }}" title="Download this page as PDF" class="md-content__button md-icon">
+  {% include ".icons/material/file-pdf-box.svg" %}
+</a>
+{% endif %}
 {% if page.url == "installation/" %}
 <a href="{{ "page-pdfs/installation.pdf" | url }}" title="Download this page as PDF" class="md-content__button md-icon">
   {% include ".icons/material/file-pdf-box.svg" %}

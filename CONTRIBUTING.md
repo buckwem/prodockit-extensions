@@ -116,6 +116,12 @@ Preview documentation while editing:
 zensical serve
 ```
 
+Carousel interaction tests use the existing test-only Puppeteer/Chrome harness.
+Install it with `npm ci --prefix tools/browser-test`,
+then run `python -m pytest tests/test_carousel.py`. These self-contained fixtures
+cover looping, arbitrary card counts, focus, resizing, print, autoplay and
+instant-navigation cleanup.
+
 Generated output is evidence to inspect, not a substitute for reviewing the
 source diff. Preserve unrelated work in the checkout.
 

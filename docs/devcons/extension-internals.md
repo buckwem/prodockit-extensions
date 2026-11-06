@@ -200,3 +200,31 @@ The index is different: `data-index-term` and `data-index-code` remain in the
 rendered HTML because the PDF index stage consumes them after page layout.
 Treat those attributes as pipeline data rather than author styling hooks; the
 public styling hook is `.index`.
+
+## Card carousel website extension
+
+The [card carousel](../extensions/carousel.md) progressively enhances native
+Zensical grid cards using the managed `pdk.js` and `pdk.css` assets. A separate
+Python-Markdown entry point would add no parsing or validation needed by the
+static list contract, so the opt-in class and per-container data attributes
+configure the runtime directly. No external carousel dependency is required.
+
+The runtime retains original source/DOM order. CSS order and inert states
+select the current window of cards. Four inert edge copies allow continuous
+sliding, dragging and optional half-card previews across loop boundaries.
+Copied IDs and fragment references are remapped, and copies are excluded from
+print and assistive technology. The tallest original card sets the common
+height, recalculated on resize, image loading and font readiness. ResizeObserver recalculates
+the visible count; Zensical's `document$` subscription disposes disconnected
+instances and initializes new ones without duplicate controls or timers.
+AbortController owns each instance's event listeners.
+
+The wheel already packages both assets through `pyproject.toml`; Adopt and
+shared-file/template synchronization already install them. Consumers upgrade
+the package and run `pdk shared-files --apply`. A future template release can
+carry the updated bytes after this package is released; no downstream version
+pins are advanced by this development change.
+
+Print CSS restores every original list item in source order and hides runtime
+controls. The generated PDF reads static source HTML, retaining the existing
+stacked-card rendering without a new PDF transform.

@@ -44,7 +44,8 @@ Every extension guide starts with the same learning path:
 
 //// step | Enable the extension
 
-Add the extension's table to `zensical.toml`. Each prodockit extension is
+For a Markdown extension, add its table to `zensical.toml`. The card carousel
+uses the managed website assets instead. Each prodockit extension is
 independent, so enabling headings does not silently enable citations, tables,
 or another feature.
 
@@ -81,6 +82,7 @@ Match the document outcome you need to its authoring feature in
 | Control column widths, merged cells, and dense layouts | [Tables](extensions/tables.md) |
 | Show a folder and file hierarchy | [Directory trees](extensions/tree.md) |
 | Present a procedure with connected numbered stages | [Numbered steps](extensions/steps.md) |
+| Present any number of grid cards in an infinite carousel | [Card carousel](extensions/carousel.md) |
 | Cite a BibTeX library in a selected CSL style | [Bibliography](extensions/bibliography.md) |
 | Mark terms for a PDF back-of-book index | [Index](extensions/index-terms.md) |
 /// table-caption | <

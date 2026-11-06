@@ -1,0 +1,17 @@
+# Country carousel photographs
+
+These example assets are photographs by their respective creators, licensed
+under the [Unsplash License](https://unsplash.com/license), rather than this
+repository's MIT software licence. Each source page identified the image as
+free under that licence when checked on 2026-11-06.
+
+Downloaded from the source page's Unsplash image URL and resized/cropped by
+Unsplash's image service to 640 × 426 JPEG at quality 80. No images are hotlinked
+by the example; all six local files total about 311 KiB.
+
+- `united-kingdom.jpg`: enrico bet, [United Kingdom](https://unsplash.com/photos/big-ben-london-MdJq0zFUwrw).
+- `france.jpg`: Chris Karidis, [France](https://unsplash.com/photos/eiffel-tower-paris-france-nnzkZNYWHaU).
+- `italy.jpg`: Sarah Doffman, [Italy](https://unsplash.com/photos/colosseum-rome-TC73XlNiDeM).
+- `japan.jpg`: Bryan Heng, [Japan](https://unsplash.com/photos/mount-fuji-above-lake-in-japan-J8HzbBdqdV0).
+- `germany.jpg`: Claudio Schwarz, [Germany](https://unsplash.com/photos/brandenburg-gate-berlin-cQ41AMy31Zw).
+- `australia.jpg`: Johnny Bhalla, [Australia](https://unsplash.com/photos/sydney-opera-house-DLbCETd599Y).
