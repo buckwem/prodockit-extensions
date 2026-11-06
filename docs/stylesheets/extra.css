@@ -93,6 +93,13 @@
   padding-top: 0.8rem;
 }
 
+/* Compact counters leave the tower visible in the six-wide example. */
+.eiffel-construction {
+  --pdk-carousel-badge-font-size: 0.4rem;
+  --pdk-carousel-badge-padding: 0.05rem 0.2rem;
+  --pdk-carousel-badge-inset: 0.15rem;
+}
+
 /* Show the supplied historical montage as 18 consecutive card viewports.
    Keep the original JPEG intact; every stage shares the same cached asset. */
 .eiffel-construction-stage {
