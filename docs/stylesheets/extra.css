@@ -132,3 +132,15 @@
 .grid.cards.weekly-contrast > ul > li strong {
   color: var(--weekly-card-text) !important;
 }
+
+/* Pandoc does not preserve custom properties on list items. Supply the
+   original weekly tones by source order for the static PDF list. */
+@media print {
+  .weekly-contrast > ul > li:nth-child(1) { --weekly-card-bg: #ffffff; --weekly-card-text: #000000; }
+  .weekly-contrast > ul > li:nth-child(2) { --weekly-card-bg: #dddddd; --weekly-card-text: #000000; }
+  .weekly-contrast > ul > li:nth-child(3) { --weekly-card-bg: #bbbbbb; --weekly-card-text: #000000; }
+  .weekly-contrast > ul > li:nth-child(4) { --weekly-card-bg: #747474; --weekly-card-text: #ffffff; }
+  .weekly-contrast > ul > li:nth-child(5) { --weekly-card-bg: #626262; --weekly-card-text: #ffffff; }
+  .weekly-contrast > ul > li:nth-child(6) { --weekly-card-bg: #4a4a4a; --weekly-card-text: #ffffff; }
+  .weekly-contrast > ul > li:nth-child(7) { --weekly-card-bg: #333333; --weekly-card-text: #ffffff; }
+}
