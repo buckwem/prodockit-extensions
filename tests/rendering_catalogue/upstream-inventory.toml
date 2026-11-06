@@ -1,0 +1,198 @@
+# Copyright (c) 2026 Mark Buckwell and contributors
+# SPDX-License-Identifier: MIT
+
+[inventory]
+reviewed_on = "2026-11-06"
+reviewed_zensical = "0.1.0"
+
+[[source]]
+name = "Python-Markdown extensions"
+url = "https://zensical.org/docs/compatibility/markdown/python-markdown/"
+extractor = "supported-extension-headings"
+
+[[source.item]]
+key = "abbreviations"
+capabilities = ["python-markdown.abbr"]
+[[source.item]]
+key = "admonition"
+capabilities = ["python-markdown.admonition"]
+[[source.item]]
+key = "attribute-lists"
+capabilities = ["python-markdown.attr-list"]
+[[source.item]]
+key = "definition-lists"
+capabilities = ["python-markdown.def-list"]
+[[source.item]]
+key = "footnotes"
+capabilities = ["python-markdown.footnotes"]
+[[source.item]]
+key = "markdown-in-html"
+capabilities = ["python-markdown.md-in-html"]
+[[source.item]]
+key = "table-of-contents"
+capabilities = ["python-markdown.toc"]
+[[source.item]]
+key = "toctitle"
+capabilities = ["python-markdown.toc.title"]
+[[source.item]]
+key = "tocpermalink"
+capabilities = ["python-markdown.toc.permalink"]
+[[source.item]]
+key = "tocpermalink_title"
+capabilities = ["python-markdown.toc.permalink-title"]
+[[source.item]]
+key = "tocslugify"
+capabilities = ["python-markdown.toc.slugify"]
+[[source.item]]
+key = "toctoc_depth"
+capabilities = ["python-markdown.toc.depth"]
+[[source.item]]
+key = "tables"
+capabilities = ["python-markdown.tables"]
+
+[[source]]
+name = "PyMdown Extensions"
+url = "https://zensical.org/docs/compatibility/markdown/python-markdown-extensions/"
+extractor = "supported-extension-headings"
+
+[[source.item]]
+key = "arithmatex"
+capabilities = ["pymdown.arithmatex"]
+[[source.item]]
+key = "caption"
+capabilities = ["pymdown.blocks-caption"]
+[[source.item]]
+key = "caret-mark-tilde"
+capabilities = ["pymdown.caret", "pymdown.mark", "pymdown.tilde"]
+[[source.item]]
+key = "details"
+capabilities = ["pymdown.details"]
+[[source.item]]
+key = "emoji"
+capabilities = ["pymdown.emoji"]
+[[source.item]]
+key = "emoji_index"
+capabilities = ["pymdown.emoji.index"]
+[[source.item]]
+key = "emoji_generator"
+capabilities = ["pymdown.emoji.generator"]
+[[source.item]]
+key = "custom_icons"
+capabilities = ["pymdown.emoji.custom-icons"]
+[[source.item]]
+key = "highlight"
+capabilities = ["pymdown.highlight"]
+[[source.item]]
+key = "pygments_lang_class"
+capabilities = ["pymdown.highlight.language-class"]
+[[source.item]]
+key = "auto_title"
+capabilities = ["pymdown.highlight.auto-title"]
+[[source.item]]
+key = "linenums"
+capabilities = ["pymdown.highlight.line-numbers"]
+[[source.item]]
+key = "linenums_style"
+capabilities = ["pymdown.highlight.line-number-style"]
+[[source.item]]
+key = "anchor_linenums"
+capabilities = ["pymdown.highlight.anchor-line-numbers"]
+[[source.item]]
+key = "line_spans"
+capabilities = ["pymdown.highlight.line-spans"]
+[[source.item]]
+key = "inlinehilite"
+capabilities = ["pymdown.inlinehilite"]
+[[source.item]]
+key = "keys"
+capabilities = ["pymdown.keys"]
+[[source.item]]
+key = "smartsymbols"
+capabilities = ["pymdown.smartsymbols"]
+[[source.item]]
+key = "snippets"
+capabilities = ["pymdown.snippets"]
+[[source.item]]
+key = "superfences"
+capabilities = ["pymdown.superfences"]
+[[source.item]]
+key = "custom_fences"
+capabilities = ["pymdown.superfences.custom-fences"]
+[[source.item]]
+key = "tabbed"
+capabilities = ["pymdown.tabbed"]
+[[source.item]]
+key = "alternate_style"
+capabilities = ["pymdown.tabbed.alternate-style"]
+[[source.item]]
+key = "combine_header_slug"
+capabilities = ["pymdown.tabbed.combined-header-slug"]
+[[source.item]]
+key = "slugify"
+capabilities = ["pymdown.tabbed.slugify"]
+[[source.item]]
+key = "tasklist"
+capabilities = ["pymdown.tasklist"]
+[[source.item]]
+key = "checkbox"
+capabilities = ["pymdown.tasklist.checkbox"]
+[[source.item]]
+key = "clickable_checkbox"
+capabilities = ["pymdown.tasklist.clickable-checkbox"]
+
+[[source]]
+name = "Zensical authoring"
+url = "https://zensical.org/docs/authoring/markdown/"
+extractor = "authoring-pages"
+
+[[source.item]]
+key = "markdown"
+capabilities = ["zensical.authoring.markdown"]
+[[source.item]]
+key = "frontmatter"
+capabilities = ["zensical.authoring.frontmatter"]
+[[source.item]]
+key = "admonitions"
+capabilities = ["zensical.authoring.admonitions"]
+[[source.item]]
+key = "buttons"
+capabilities = ["zensical.authoring.buttons"]
+[[source.item]]
+key = "code-blocks"
+capabilities = ["zensical.authoring.code-blocks"]
+[[source.item]]
+key = "content-tabs"
+capabilities = ["zensical.authoring.content-tabs"]
+[[source.item]]
+key = "data-tables"
+capabilities = ["zensical.authoring.data-tables"]
+[[source.item]]
+key = "diagrams"
+capabilities = ["zensical.authoring.diagrams"]
+[[source.item]]
+key = "directives"
+capabilities = ["zensical.authoring.directives"]
+[[source.item]]
+key = "footnotes"
+capabilities = ["zensical.authoring.footnotes"]
+[[source.item]]
+key = "formatting"
+capabilities = ["zensical.authoring.formatting"]
+[[source.item]]
+key = "grids"
+capabilities = ["zensical.authoring.grids"]
+[[source.item]]
+key = "icons-emojis"
+capabilities = ["zensical.authoring.icons-emojis"]
+[[source.item]]
+key = "images"
+capabilities = ["zensical.authoring.images"]
+[[source.item]]
+key = "lists"
+capabilities = ["zensical.authoring.lists"]
+[[source.item]]
+key = "math"
+capabilities = ["zensical.authoring.math"]
+[[source.item]]
+key = "tooltips"
+capabilities = ["zensical.authoring.tooltips"]

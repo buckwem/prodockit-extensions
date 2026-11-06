@@ -2,6 +2,8 @@
 
 Reference: [Zensical's supported Python Markdown Extensions](https://zensical.org/docs/compatibility/markdown/python-markdown-extensions/)
 
+Authoring reference: [Zensical content tabs](https://zensical.org/docs/authoring/content-tabs/)
+
 ## Configuration source
 
 ```toml

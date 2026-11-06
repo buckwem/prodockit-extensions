@@ -2,6 +2,8 @@
 
 Reference: [Zensical's supported Python Markdown Extensions](https://zensical.org/docs/compatibility/markdown/python-markdown-extensions/)
 
+Authoring reference: [Zensical math](https://zensical.org/docs/authoring/math/)
+
 ## Arithmatex { #arithmatex }
 
 ### Source

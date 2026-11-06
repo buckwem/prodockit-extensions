@@ -4,10 +4,12 @@ site_description = "Maintainer review specimens for Zensical and Prodockit websi
 site_url = "https://prodockit.org/rendering-review/"
 docs_dir = "docs"
 site_dir = "site"
+plugins = [{ search = { enabled = false } }]
 extra_javascript = [
   "javascripts/mathjax.js",
   "https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js",
 ]
+extra_css = ["stylesheets/pdk.css", "stylesheets/page-breaks.css"]
 
 nav = [
   { "Review catalogue" = "index.md" },
@@ -35,20 +37,37 @@ nav = [
     { "Content tabs" = "pymdown/tabs.md" },
     { "Task lists" = "pymdown/task-lists.md" },
   ] },
+  { "Zensical authoring" = [
+    { "Overview" = "zensical-authoring/index.md" },
+    { "Layout and integrations" = "zensical-authoring/layout-and-integrations.md" },
+    { "Diagrams" = "zensical-authoring/diagrams.md" },
+  ] },
+  { "Prodockit" = "prodockit/index.md" },
   { "Nested content" = [
     { "Coverage approach" = "nested-content/index.md" },
     { "Core and Python-Markdown" = "nested-content/python-markdown.md" },
     { "PyMdown" = "nested-content/pymdown.md" },
+    { "Zensical authoring" = "nested-content/zensical-authoring.md" },
+    { "Prodockit" = "nested-content/prodockit.md" },
+    { "Complex combinations" = "nested-content/complex-combinations.md" },
+    { "Deep admonitions" = "nested-content/deep-admonitions.md" },
   ] },
-  { "Page breaks" = "page-breaks/index.md" },
+  { "Page breaks" = [
+    { "Coverage approach" = "page-breaks/index.md" },
+    { "Forced and kept content" = "page-breaks/forced-and-kept.md" },
+    { "Flow and overflow" = "page-breaks/flow-and-overflow.md" },
+  ] },
 ]
 
-[project.extra]
+[project.extra.status]
+new = "Added for Phase 4 review"
 
 [project.theme]
 language = "en"
+custom_dir = "overrides"
 features = [
   "content.code.copy",
+  "content.tooltips",
   "navigation.indexes",
   "navigation.sections",
 ]
@@ -72,6 +91,7 @@ case = "lower"
 [project.markdown_extensions.pymdownx.superfences]
 custom_fences = [
   { name = "catalogue", class = "catalogue-fence", format = "pymdownx.superfences.fence_code_format" },
+  { name = "mermaid", class = "mermaid", format = "pymdownx.superfences.fence_code_format" },
 ]
 [project.markdown_extensions.pymdownx.tabbed]
 alternate_style = true
@@ -83,6 +103,12 @@ case = "lower"
 [project.markdown_extensions.pymdownx.arithmatex]
 generic = true
 [project.markdown_extensions."pymdownx.blocks.caption"]
+types = [
+  { name = "caption" },
+  { name = "figure-caption", prefix = "{}.", classes = "prodockit-figure-caption" },
+  { name = "table-caption", prefix = "{}.", classes = "prodockit-table-caption" },
+]
+[project.markdown_extensions.pymdownx.betterem]
 [project.markdown_extensions.pymdownx.caret]
 [project.markdown_extensions.pymdownx.details]
 [project.markdown_extensions.pymdownx.emoji]
@@ -98,6 +124,7 @@ anchor_linenums = true
 line_spans = "__span"
 [project.markdown_extensions.pymdownx.inlinehilite]
 [project.markdown_extensions.pymdownx.keys]
+[project.markdown_extensions.pymdownx.magiclink]
 [project.markdown_extensions.pymdownx.mark]
 [project.markdown_extensions.pymdownx.smartsymbols]
 [project.markdown_extensions.pymdownx.snippets]
@@ -106,3 +133,23 @@ base_path = ["."]
 custom_checkbox = true
 clickable_checkbox = true
 [project.markdown_extensions.pymdownx.tilde]
+[project.markdown_extensions.zensical.extensions.glightbox]
+auto = true
+auto_themed = true
+auto_caption = false
+[project.markdown_extensions.zensical.extensions.macros]
+module_name = "catalogue_macros"
+on_error_fail = true
+[project.markdown_extensions."prodockit.headings"]
+numbering = "continuous"
+[project.markdown_extensions."prodockit.refs"]
+[project.markdown_extensions."prodockit.citations"]
+[project.markdown_extensions."prodockit.glossary"]
+[project.markdown_extensions."prodockit.tables"]
+[project.markdown_extensions."prodockit.tree"]
+[project.markdown_extensions."prodockit.steps"]
+[project.markdown_extensions."prodockit.bibliography"]
+bib_file = "references.bib"
+[project.markdown_extensions."prodockit.index"]
+include = true
+title = "Catalogue index"
