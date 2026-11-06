@@ -133,6 +133,30 @@ const fixture = (count, extra = '', prefix = 'card') => `<div class="grid cards 
     assert.ok((await finitePreviews()).length===1 && (await finitePreviews()).every(r=>Math.abs(r-.5)<.05),'only previous half-card at final finite window');
     await load(fixture(18, 'data-carousel-visible="6" data-carousel-min-width="80" data-carousel-gap="8" data-carousel-duration="0"'));
     assert.equal((await state()).visible.length,6,'compact desktop cards can show six across');
+    for (const loop of [false,true]) {
+      await load(fixture(18, `data-carousel-visible="6" data-carousel-min-width="80" data-carousel-gap="8" data-carousel-loop="${loop}" data-carousel-duration="0"`));
+      if(loop) {await next(-1);await next(-1);}
+      const drag = await page.$eval('.pdk-carousel', root=>{
+        const r=root.getBoundingClientRect(),card=root.querySelector('li:not([aria-hidden="true"])');
+        return {x:r.x+r.width*.9,y:r.y+80,stride:card.getBoundingClientRect().width+8};
+      });
+      const origin=loop?16:0;
+      await page.mouse.move(drag.x,drag.y);await page.mouse.down();
+      await page.mouse.move(drag.x-drag.stride*.95,drag.y,{steps:8});
+      const landmark=await page.$eval(`#card-${(origin+1)%18+1}`,el=>el.getBoundingClientRect().x);
+      await page.mouse.move(drag.x-drag.stride*1.05,drag.y,{steps:3});
+      const after=await page.$eval(`#card-${(origin+1)%18+1}`,el=>el.getBoundingClientRect().x);
+      assert.ok(Math.abs((landmark-after)-drag.stride*.1)<2,'drag rebase has no visible jump');
+      await page.mouse.move(drag.x-drag.stride*3.6,drag.y,{steps:18});
+      assert.equal((await state()).visible[0],`card-${(origin+3)%18+1}`,'held drag continues beyond one card');
+      await page.mouse.up();
+      assert.equal((await state()).visible[0],`card-${(origin+4)%18+1}`,'release settles remaining drag distance');
+      const reverse={x:drag.x-drag.stride*3.6,y:drag.y};
+      await page.mouse.down();await page.mouse.move(reverse.x+drag.stride*2.6,reverse.y,{steps:18});
+      assert.equal((await state()).visible[0],`card-${(origin+2)%18+1}`,'held reverse drag moves multiple cards');
+      await page.mouse.up();
+      assert.equal((await state()).visible[0],`card-${(origin+1)%18+1}`,'reverse release settles');
+    }
     // Badges keep source identities through repeated wrapping and do not
     // duplicate the slide's accessible position announcement.
     for (const corner of ['top-left','top-right','bottom-left','bottom-right','invalid']) {

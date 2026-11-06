@@ -276,17 +276,32 @@ document.addEventListener("DOMContentLoaded", function() {
       on(root, "pointerdown", event => {
         if (cards.length <= visible || event.button !== 0 || !list.contains(event.target) || event.target.closest("button, input, textarea, select, [contenteditable]")) return;
         settle();
-        pointer = {id: event.pointerId, x: event.clientX, y: event.clientY, drag: 0};
+        pointer = {id: event.pointerId, x: event.clientX, y: event.clientY, drag: 0, active: false, advanced: false};
         suppressClick = false;
         schedule();
       });
       on(root, "pointermove", event => {
         if (!pointer || pointer.id !== event.pointerId) return;
-        const dx = event.clientX - pointer.x;
+        let dx = event.clientX - pointer.x;
         const dy = event.clientY - pointer.y;
-        if (Math.abs(dx) <= Math.abs(dy) || Math.abs(dx) < 8) return;
+        if (!pointer.active && (Math.abs(dx) <= Math.abs(dy) || Math.abs(dx) < 8)) return;
+        pointer.active = true;
         if (!root.hasPointerCapture(event.pointerId)) root.setPointerCapture(event.pointerId);
+        // Rebase after each full card so dragging keeps following the pointer
+        // through any number of cards, without exhausting the loop buffers.
+        let advanced = false;
+        while (stride > 0 && Math.abs(dx) >= stride) {
+          const direction = dx < 0 ? 1 : -1;
+          if (!loop && (direction < 0 ? start === 0 : atEnd())) break;
+          if (cards.some(card => card.contains(document.activeElement))) root.focus({preventScroll: true});
+          start = loop ? modulo(start + direction) : start + direction;
+          pointer.x -= direction * stride;
+          dx += direction * stride;
+          advanced = pointer.advanced = true;
+        }
+        if (advanced) render();
         pointer.drag = Math.max(!loop && atEnd() ? 0 : -stride, Math.min(!loop && start === 0 ? 0 : stride, dx));
+        if (pointer.drag !== dx) pointer.x = event.clientX - pointer.drag;
         suppressClick = true;
         root.classList.add("pdk-carousel-dragging");
         list.style.transform = `translateX(${offset + pointer.drag}px)`;
@@ -295,11 +310,16 @@ document.addEventListener("DOMContentLoaded", function() {
       function release(event, cancelled = false) {
         if (!pointer || pointer.id !== event.pointerId) return;
         const drag = pointer.drag;
+        const advanced = pointer.advanced;
         pointer = null;
         root.classList.remove("pdk-carousel-dragging");
         if (root.hasPointerCapture(event.pointerId)) root.releasePointerCapture(event.pointerId);
         if (!cancelled && Math.abs(drag) > Math.min(50, stride / 4)) move(drag < 0 ? 1 : -1, true, drag);
-        else { list.style.transform = `translateX(${offset}px)`; schedule(); }
+        else {
+          list.style.transform = `translateX(${offset}px)`;
+          if (advanced && !cancelled) announcement.textContent = position.textContent;
+          schedule();
+        }
       }
       on(root, "pointerup", event => release(event));
       on(root, "pointercancel", event => release(event, true));

@@ -86,7 +86,7 @@ order, regardless of how many grid rows they originally occupied.
 Use the small **left and right arrow buttons** at the bottom of the cards, drag a card body with the mouse,
 or focus an arrow button and press the left or right arrow key. The sequence wraps in both directions. On touchscreens,
 swipe horizontally over the card body; links and form controls retain their
-normal interaction.
+normal interaction. Drag farther to move through several cards in one gesture.
 
 !!! tip "View the Markdown"
     To view the Markdown for this page, click the :material-eye: **eye icon**
