@@ -45,7 +45,7 @@ accessible name. Its direct list items become the carousel sequence in source
 order, regardless of how many grid rows they originally occupied.
 
 ```html
-<div class="grid cards pdk-carousel" markdown data-carousel-label="Featured resources">
+<div class="grid cards pdk-carousel pdk-carousel-tiles" markdown data-carousel-label="Featured resources">
 
 -   __Explore__
 
@@ -86,9 +86,13 @@ order, regardless of how many grid rows they originally occupied.
 Use the small **left and right arrow buttons** at the bottom of the cards, drag a card body with the mouse,
 or focus an arrow button and press the left or right arrow key. The sequence wraps in both directions. On touchscreens,
 swipe horizontally over the card body; links and form controls retain their
-normal interaction.
+normal interaction. Drag farther to move through several cards in one gesture.
 
-<div class="grid cards pdk-carousel" markdown data-carousel-label="Featured resources">
+!!! tip "View the Markdown"
+    To view the Markdown for this page, click the :material-eye: **eye icon**
+    at the top right of the page.
+
+<div class="grid cards pdk-carousel pdk-carousel-tiles" markdown data-carousel-label="Featured resources">
 
 -   __Explore__
 
@@ -178,6 +182,161 @@ their displayed dimensions consistent. The `pdk-carousel-tiles` class keeps
 these short picture cards together on a printed page. The picture and country-name links
 remain usable, while dragging a picture or the card body moves the carousel.
 
+### Live example: automatic rotation
+
+This separate seven-card example shows half-card previews on both edges and
+slides smoothly to the next card every four seconds. Hovering over it,
+focusing any of its content, or hiding the browser tab pauses rotation. Use
+**P** while a carousel arrow has focus to keep it paused after leaving. The
+pause button is hidden in this example with `data-carousel-pause="false"`;
+omit that option to show the pause/resume button.
+Reduced-motion preferences disable automatic rotation and transitions.
+The cards progress from white to dark grey; the four darkest cards use white
+text to maintain readable contrast.
+
+<div class="grid cards pdk-carousel pdk-carousel-tiles weekly-contrast" markdown data-carousel-label="Weekly ideas" data-carousel-visible="2" data-carousel-peek="true" data-carousel-position="false" data-carousel-pause="false" data-carousel-autoplay="true" data-carousel-interval="4000">
+
+<ul>
+<li style="--weekly-card-bg: #ffffff; --weekly-card-text: #000000;"><p><strong>Monday</strong></p><p>Choose a topic.</p></li>
+<li style="--weekly-card-bg: #dddddd; --weekly-card-text: #000000;"><p><strong>Tuesday</strong></p><p>Gather evidence.</p></li>
+<li style="--weekly-card-bg: #bbbbbb; --weekly-card-text: #000000;"><p><strong>Wednesday</strong></p><p>Make an outline.</p></li>
+<li style="--weekly-card-bg: #747474; --weekly-card-text: #ffffff;"><p><strong>Thursday</strong></p><p>Write a first draft.</p></li>
+<li style="--weekly-card-bg: #626262; --weekly-card-text: #ffffff;"><p><strong>Friday</strong></p><p>Review the argument.</p></li>
+<li style="--weekly-card-bg: #4a4a4a; --weekly-card-text: #ffffff;"><p><strong>Saturday</strong></p><p>Check the references.</p></li>
+<li style="--weekly-card-bg: #333333; --weekly-card-text: #ffffff;"><p><strong>Sunday</strong></p><p>Publish and share.</p></li>
+</ul>
+
+</div>
+
+Keyboard arrows apply only to the carousel region and its controls, so links,
+text inputs and other card content keep their normal keyboard behaviour.
+Offscreen cards and decorative previews are hidden from the accessibility tree
+and keyboard focus.
+Manual navigation announces the visible card numbers; autoplay does not
+repeatedly interrupt screen-reader users. The visible count and list of card
+numbers appear below the cards unless `data-carousel-position="false"`.
+
+### Live example: numbered cards without wrapping
+
+Follow the Eiffel Tower construction through 18 dated photographs, from
+10 August 1887 to 12 March 1889. Each card has a top-right badge from `1/18`
+to `18/18`. Use the arrows or drag to move through the sequence; navigation
+stops at the first and last window. Six equal-height cards appear on wide
+screens, with an 8-pixel gap and fewer cards on narrow screens.
+
+<div class="grid cards pdk-carousel pdk-carousel-tiles eiffel-construction" markdown data-carousel-label="Eiffel Tower construction" data-carousel-badges="true" data-carousel-badge-corner="top-right" data-carousel-loop="false" style="--pdk-carousel-badge-color: #fff; --pdk-carousel-badge-bg: rgba(0, 0, 0, 0.75);" data-carousel-visible="6" data-carousel-min-width="80" data-carousel-gap="8" data-carousel-image-fill="true" data-carousel-position="false">
+
+-   <span class="eiffel-construction-stage"><img src="../assets/carousel/eiffel-construction.jpg" alt="Eiffel Tower under construction, 10 August 1887, stage 1 of 18" style="left: -0%; top: -0%;" loading="lazy"></span>
+
+    __10 August 1887__
+
+-   <span class="eiffel-construction-stage"><img src="../assets/carousel/eiffel-construction.jpg" alt="Eiffel Tower under construction, 9 September 1887, stage 2 of 18" style="left: -100%; top: -0%;" loading="lazy"></span>
+
+    __9 September 1887__
+
+-   <span class="eiffel-construction-stage"><img src="../assets/carousel/eiffel-construction.jpg" alt="Eiffel Tower under construction, 8 October 1887, stage 3 of 18" style="left: -200%; top: -0%;" loading="lazy"></span>
+
+    __8 October 1887__
+
+-   <span class="eiffel-construction-stage"><img src="../assets/carousel/eiffel-construction.jpg" alt="Eiffel Tower under construction, 10 November 1887, stage 4 of 18" style="left: -300%; top: -0%;" loading="lazy"></span>
+
+    __10 November 1887__
+
+-   <span class="eiffel-construction-stage"><img src="../assets/carousel/eiffel-construction.jpg" alt="Eiffel Tower under construction, 14 December 1887, stage 5 of 18" style="left: -400%; top: -0%;" loading="lazy"></span>
+
+    __14 December 1887__
+
+-   <span class="eiffel-construction-stage"><img src="../assets/carousel/eiffel-construction.jpg" alt="Eiffel Tower under construction, 15 March 1888, stage 6 of 18" style="left: -500%; top: -0%;" loading="lazy"></span>
+
+    __15 March 1888__
+
+-   <span class="eiffel-construction-stage"><img src="../assets/carousel/eiffel-construction.jpg" alt="Eiffel Tower under construction, 10 April 1888, stage 7 of 18" style="left: -600%; top: -0%;" loading="lazy"></span>
+
+    __10 April 1888__
+
+-   <span class="eiffel-construction-stage"><img src="../assets/carousel/eiffel-construction.jpg" alt="Eiffel Tower under construction, 10 May 1888, stage 8 of 18" style="left: -700%; top: -0%;" loading="lazy"></span>
+
+    __10 May 1888__
+
+-   <span class="eiffel-construction-stage"><img src="../assets/carousel/eiffel-construction.jpg" alt="Eiffel Tower under construction, June 1888, stage 9 of 18" style="left: -800%; top: -0%;" loading="lazy"></span>
+
+    __June 1888__
+
+-   <span class="eiffel-construction-stage"><img src="../assets/carousel/eiffel-construction.jpg" alt="Eiffel Tower under construction, July 1888, stage 10 of 18" style="left: -0%; top: -100%;" loading="lazy"></span>
+
+    __July 1888__
+
+-   <span class="eiffel-construction-stage"><img src="../assets/carousel/eiffel-construction.jpg" alt="Eiffel Tower under construction, 14 August 1888, stage 11 of 18" style="left: -100%; top: -100%;" loading="lazy"></span>
+
+    __14 August 1888__
+
+-   <span class="eiffel-construction-stage"><img src="../assets/carousel/eiffel-construction.jpg" alt="Eiffel Tower under construction, 14 September 1888, stage 12 of 18" style="left: -200%; top: -100%;" loading="lazy"></span>
+
+    __14 September 1888__
+
+-   <span class="eiffel-construction-stage"><img src="../assets/carousel/eiffel-construction.jpg" alt="Eiffel Tower under construction, 14 October 1888, stage 13 of 18" style="left: -300%; top: -100%;" loading="lazy"></span>
+
+    __14 October 1888__
+
+-   <span class="eiffel-construction-stage"><img src="../assets/carousel/eiffel-construction.jpg" alt="Eiffel Tower under construction, 14 November 1888, stage 14 of 18" style="left: -400%; top: -100%;" loading="lazy"></span>
+
+    __14 November 1888__
+
+-   <span class="eiffel-construction-stage"><img src="../assets/carousel/eiffel-construction.jpg" alt="Eiffel Tower under construction, 26 December 1888, stage 15 of 18" style="left: -500%; top: -100%;" loading="lazy"></span>
+
+    __26 December 1888__
+
+-   <span class="eiffel-construction-stage"><img src="../assets/carousel/eiffel-construction.jpg" alt="Eiffel Tower under construction, 20 January 1889, stage 16 of 18" style="left: -600%; top: -100%;" loading="lazy"></span>
+
+    __20 January 1889__
+
+-   <span class="eiffel-construction-stage"><img src="../assets/carousel/eiffel-construction.jpg" alt="Eiffel Tower under construction, 12 February 1889, stage 17 of 18" style="left: -700%; top: -100%;" loading="lazy"></span>
+
+    __12 February 1889__
+
+-   <span class="eiffel-construction-stage"><img src="../assets/carousel/eiffel-construction.jpg" alt="Eiffel Tower under construction, 12 March 1889, stage 18 of 18" style="left: -800%; top: -100%;" loading="lazy"></span>
+
+    __12 March 1889__
+
+</div>
+
+Source: supplied PublicDomainArchive montage; dates follow the original
+captions. [View the complete construction sequence](../assets/carousel/eiffel-construction.jpg).
+
+Enable badges with `data-carousel-badges="true"`. Choose any of
+`top-left`, `top-right`, `bottom-left` or `bottom-right` with
+`data-carousel-badge-corner`; an omitted or invalid corner uses `top-right`.
+Each badge keeps its original card number as the carousel moves. Badges are
+independent of the optional position label below the carousel.
+
+Set `data-carousel-loop="false"` to stop wrapping. This differs from
+`data-carousel-autoplay="false"`, which turns off automatic advancement.
+You can combine finite navigation with autoplay; rotation stops at the final
+window. Navigating back allows automatic advancement again unless paused.
+With half-card previews enabled, the first and last windows leave the missing
+neighbour's side empty instead of repeating a card.
+
+Override the badge styles in `stylesheets/extra.css`, or set them on an
+individual carousel as above:
+
+```css
+.pdk-carousel {
+  --pdk-carousel-badge-color: #ffffff;
+  --pdk-carousel-badge-bg: rgba(0, 0, 0, 0.75);
+  --pdk-carousel-badge-inset: 0.5rem;
+  --pdk-carousel-badge-padding: 0.15rem 0.45rem;
+  --pdk-carousel-badge-font-size: 0.75rem;
+  --pdk-carousel-badge-radius: 1rem;
+}
+```
+
+Bottom badges sit above the arrow-control row. Choose text and background
+colours that remain legible over your pictures.
+Badges do not receive focus or intercept clicks and dragging; assistive
+technology uses each slide's existing position label. Badges are hidden in
+browser print and absent from generated PDFs, which retain every original
+card once in source order. Without JavaScript, cards remain a static grid.
+
 ## Configure only when needed
 
 Use \ref{tab-carousel-options} to set a carousel's accessible name, visible
@@ -189,7 +348,10 @@ card count and optional automatic rotation.
 | `data-carousel-visible` | `3` | Maximum visible cards, a positive integer. Narrow containers show fewer cards, aiming for at least 224 pixels per card. The total number of cards has no fixed limit. |
 | `data-carousel-gap` | `16` | Space between cards in pixels, from 0 to 64. Use `8` for a small gap between picture tiles. |
 | `data-carousel-image-fill` | `false` | Set to `true` for photos that fill each card edge to edge; titles and credits retain their own inset. |
-| `data-carousel-min-width` | `224` | Preferred minimum card width in pixels, at least 120. Use `160` for compact three-wide picture tiles. Narrower viewports can still shrink the final single card. |
+| `data-carousel-min-width` | `224` | Preferred minimum card width in pixels, at least 80. Use `160` for compact three-wide picture tiles. Narrower viewports can still shrink the final single card. |
+| `data-carousel-badges` | `false` | Set to `true` for an `index/total` badge on each card. |
+| `data-carousel-badge-corner` | `top-right` | Badge placement: `top-left`, `top-right`, `bottom-left` or `bottom-right`. |
+| `data-carousel-loop` | `true` | Set to `false` to stop at each end. Finite autoplay stops at the final window. |
 | `data-carousel-position` | `true` | Set to `false` to hide the visible “Cards 1, 2 of 5” label. Accessible position announcements for manual navigation remain available. |
 | `data-carousel-peek` | `false` | Set to `true` to show half of the neighbouring card on each edge. Preview cards are decorative; use an arrow or drag to bring them into view. |
 | `data-carousel-duration` | `600` | Sliding duration in milliseconds, from 0 (instant) to 2000. Automatic rotation uses the same smooth transition across the loop boundary. |
@@ -209,56 +371,6 @@ transition also works at the loop boundary. Decorative edge copies are inert,
 hidden from assistive technology and excluded from print; their IDs and local
 references are remapped to avoid duplicates. Original card DOM order stays unchanged.
 
-### Live example: automatic rotation
-
-This separate seven-card example shows half-card previews on both edges and
-slides smoothly to the next card every four seconds. Hovering over it,
-focusing any of its content, or hiding the browser tab pauses rotation. Use
-**P** while a carousel arrow has focus to keep it paused after leaving. The
-pause button is hidden in this example with `data-carousel-pause="false"`;
-omit that option to show the pause/resume button.
-Reduced-motion preferences disable automatic rotation and transitions.
-
-<div class="grid cards pdk-carousel" markdown data-carousel-label="Weekly ideas" data-carousel-visible="2" data-carousel-peek="true" data-carousel-position="false" data-carousel-pause="false" data-carousel-autoplay="true" data-carousel-interval="4000">
-
--   __Monday__
-
-    Choose a topic.
-
--   __Tuesday__
-
-    Gather evidence.
-
--   __Wednesday__
-
-    Make an outline.
-
--   __Thursday__
-
-    Write a first draft.
-
--   __Friday__
-
-    Review the argument.
-
--   __Saturday__
-
-    Check the references.
-
--   __Sunday__
-
-    Publish and share.
-
-</div>
-
-Keyboard arrows apply only to the carousel region and its controls, so links,
-text inputs and other card content keep their normal keyboard behaviour.
-Offscreen cards and decorative previews are hidden from the accessibility tree
-and keyboard focus.
-Manual navigation announces the visible card numbers; autoplay does not
-repeatedly interrupt screen-reader users. The visible count and list of card
-numbers appear below the cards unless `data-carousel-position="false"`.
-
 ## Print and PDF
 
 Without JavaScript, or in browsers lacking the required enhancement APIs, the
@@ -267,9 +379,12 @@ card once in source order and removes carousel controls, clipping and animation,
 even after the carousel has advanced.
 
 `pdk pdf` consumes the static card HTML without running JavaScript. It prints
-all original cards using Prodockit's existing full-width stacked-card layout.
-Long cards may continue onto another page. This extension does not change the
-PDF grid-layout limitation.
+all original cards in rows matching the authored visible-card count:
+`data-carousel-visible="2"` prints two across, and `"3"` prints three across
+(the default). Partial final rows retain their column widths. Browser print
+uses the number of full cards currently visible on screen; decorative half-card
+previews do not add columns. Long cards may continue onto another page.
+Ordinary grid cards keep their existing PDF layout.
 
 ## Style the arrow buttons
 

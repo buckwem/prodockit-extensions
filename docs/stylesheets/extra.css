@@ -92,3 +92,83 @@
   margin-top: auto;
   padding-top: 0.8rem;
 }
+
+/* Compact counters leave the tower visible in the six-wide example. */
+.eiffel-construction {
+  --pdk-carousel-badge-font-size: 0.575rem;
+  --pdk-carousel-badge-padding: 0.1rem 0.325rem;
+  --pdk-carousel-badge-inset: 0.15rem;
+}
+
+/* Show the supplied historical montage as 18 consecutive card viewports.
+   Keep the original JPEG intact; every stage shares the same cached asset. */
+.eiffel-construction-stage {
+  position: relative;
+  display: block;
+  height: 0;
+  padding-top: 215%;
+  overflow: hidden;
+}
+.eiffel-construction-stage img {
+  position: absolute;
+  display: block;
+  width: 900%;
+  max-width: none;
+  height: 200%;
+}
+@media print {
+  .eiffel-construction-stage {
+    width: 100%;
+    height: 0;
+    padding-top: 215%;
+  }
+  .eiffel-construction-stage img {
+    max-width: none !important;
+    max-height: none !important;
+    height: auto;
+    margin: 0 !important;
+    object-fit: fill !important;
+  }
+}
+
+/* The weekly rotation example retains its authored tones in edge copies. */
+.grid.cards.weekly-contrast > ul > li {
+  background-color: var(--weekly-card-bg) !important;
+  color: var(--weekly-card-text) !important;
+}
+.grid.cards.weekly-contrast > ul > li p,
+.grid.cards.weekly-contrast > ul > li strong {
+  color: var(--weekly-card-text) !important;
+}
+
+/* Pandoc does not preserve custom properties on list items. Supply the
+   original weekly tones by source order for the static PDF list. */
+@media print {
+  .weekly-contrast > ul > li:nth-child(1) { --weekly-card-bg: #ffffff; --weekly-card-text: #000000; }
+  .weekly-contrast > ul > li:nth-child(2) { --weekly-card-bg: #dddddd; --weekly-card-text: #000000; }
+  .weekly-contrast > ul > li:nth-child(3) { --weekly-card-bg: #bbbbbb; --weekly-card-text: #000000; }
+  .weekly-contrast > ul > li:nth-child(4) { --weekly-card-bg: #747474; --weekly-card-text: #ffffff; }
+  .weekly-contrast > ul > li:nth-child(5) { --weekly-card-bg: #626262; --weekly-card-text: #ffffff; }
+  .weekly-contrast > ul > li:nth-child(6) { --weekly-card-bg: #4a4a4a; --weekly-card-text: #ffffff; }
+  .weekly-contrast > ul > li:nth-child(7) { --weekly-card-bg: #333333; --weekly-card-text: #ffffff; }
+}
+
+@media print {
+  .grid.cards.eiffel-construction > ul { gap: 8px !important; }
+  .grid.cards.eiffel-construction > ul > li { padding: 4px !important; }
+  .grid.cards.eiffel-construction > ul > li > p { margin: 0 0 4px !important; }
+}
+
+.md-typeset .grid.cards.eiffel-construction > ul > li > p:not(:first-child) {
+  padding-inline: 0.2rem;
+  font-size: 0.45rem;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+@media print {
+  .grid.cards.eiffel-construction > ul > li > p:not(:first-child) {
+    font-size: 6.5pt !important;
+    line-height: 1.3;
+    white-space: nowrap;
+  }
+}

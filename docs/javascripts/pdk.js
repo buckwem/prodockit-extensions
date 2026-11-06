@@ -52,6 +52,8 @@ document.addEventListener("DOMContentLoaded", function() {
     let animation = null;
     let pointer = null;
     let suppressClick = false;
+    const loop = root.dataset.carouselLoop !== "false";
+    const badges = [];
     const peek = root.dataset.carouselPeek === "true";
     const gap = /^\d+$/.test(root.dataset.carouselGap || "")
       ? Math.min(64, Number(root.dataset.carouselGap)) : 16;
@@ -61,7 +63,7 @@ document.addEventListener("DOMContentLoaded", function() {
     const maxVisible = /^[1-9]\d*$/.test(root.dataset.carouselVisible || "")
       ? Number(root.dataset.carouselVisible) : 3;
     const minWidth = /^[1-9]\d*$/.test(root.dataset.carouselMinWidth || "")
-      ? Math.max(120, Number(root.dataset.carouselMinWidth)) : 224;
+      ? Math.max(80, Number(root.dataset.carouselMinWidth)) : 224;
     const durationValue = root.dataset.carouselDuration;
     const duration = /^\d+$/.test(durationValue || "") ? Math.min(2000, Number(durationValue)) : 600;
     const previous = makeButton("Previous cards", "‹", "pdk-carousel-arrow pdk-carousel-previous", () => move(-1, true));
@@ -109,47 +111,56 @@ document.addEventListener("DOMContentLoaded", function() {
       copy.style.order = order;
       return copy;
     }
+    const lastStart = () => Math.max(0, cards.length - visible);
+    const atEnd = () => !loop && start >= lastStart();
     function schedule() {
       window.clearInterval(timer);
       timer = null;
       const running = autoplay && !paused && !hovered && !focused && !pointer &&
-        !document.hidden && !motion.matches && !printing && cards.length > visible;
+        !document.hidden && !motion.matches && !printing && cards.length > visible && !atEnd();
       if (running) timer = window.setInterval(() => move(1, false), Math.max(interval, duration + 100));
       if (toggle) {
-        const label = paused ? "Resume automatic rotation" : "Pause automatic rotation";
+        const label = atEnd() ? "Automatic rotation finished" : paused ? "Resume automatic rotation" : "Pause automatic rotation";
         toggle.textContent = label;
         toggle.setAttribute("aria-label", label);
-        toggle.disabled = cards.length <= visible || motion.matches;
+        toggle.disabled = cards.length <= visible || motion.matches || atEnd();
         toggle.title = motion.matches ? "Automatic rotation is disabled by reduced motion" : label;
       }
     }
     function buffers() {
       list.querySelectorAll(":scope > [data-pdk-carousel-clone]").forEach(el => el.remove());
-      if (cards.length <= visible) return;
+      if (!loop || cards.length <= visible) return;
       list.append(clone(cards[modulo(start - 2)], 0), clone(cards[modulo(start - 1)], 1),
         clone(cards[start], cards.length + 2), clone(cards[modulo(start + 1)], cards.length + 3));
     }
     function render() {
-      const looping = cards.length > visible;
-      const preview = peek && looping;
+      const navigable = cards.length > visible;
+      const looping = loop && navigable;
+      const preview = peek && navigable;
+      if (!printing) root.style.setProperty("--pdk-carousel-print-columns", visible);
       root.classList.toggle("pdk-carousel-peek", preview);
       root.style.setProperty("--pdk-carousel-visible", visible + (preview ? 1 : 0));
       cards.forEach((card, index) => {
-        const order = modulo(index - start);
-        card.style.order = order + (looping ? 2 : 0);
-        card.inert = order >= visible;
-        if (order < visible) card.removeAttribute("aria-hidden");
+        const order = loop ? modulo(index - start) : index - start;
+        card.style.order = loop ? order + (looping ? 2 : 0) : index;
+        card.inert = order < 0 || order >= visible;
+        if (order >= 0 && order < visible) card.removeAttribute("aria-hidden");
         else card.setAttribute("aria-hidden", "true");
       });
       buffers();
       const width = cards[0].getBoundingClientRect().width;
       stride = width + gap;
-      offset = looping ? -(preview ? stride + width / 2 : 2 * stride) : 0;
+      // Finite previews reserve half a card on each edge, leaving the
+      // missing neighbour blank at an endpoint instead of cloning a card.
+      offset = looping ? -(preview ? stride + width / 2 : 2 * stride)
+        : (preview ? stride - width / 2 : 0) - start * stride;
       list.style.transform = `translateX(${offset}px)`;
       const numbers = Array.from({length: visible}, (_, i) => modulo(start + i) + 1);
       position.textContent = `Cards ${numbers.join(", ")} of ${cards.length}`;
-      previous.disabled = next.disabled = !looping;
-      root.classList.toggle("pdk-carousel-static", !looping);
+      previous.disabled = !navigable || (!loop && start === 0);
+      next.disabled = !navigable || atEnd();
+      if ([previous, next].some(button => button.disabled && button === document.activeElement)) root.focus({preventScroll: true});
+      root.classList.toggle("pdk-carousel-static", !navigable);
       delete root.dataset.carouselMoving;
       schedule();
     }
@@ -159,9 +170,11 @@ document.addEventListener("DOMContentLoaded", function() {
     function move(direction, manual, drag = 0) {
       if (cards.length <= visible) return;
       settle();
+      const target = loop ? modulo(start + direction) : Math.max(0, Math.min(lastStart(), start + direction));
+      if (target === start) { list.style.transform = `translateX(${offset}px)`; schedule(); return; }
       if (cards.some(card => card.contains(document.activeElement))) root.focus({preventScroll: true});
       const finish = () => {
-        start = modulo(start + direction);
+        start = target;
         render();
         if (manual) announcement.textContent = position.textContent;
       };
@@ -180,7 +193,8 @@ document.addEventListener("DOMContentLoaded", function() {
       visible = Math.min(cards.length, maxVisible, Math.max(1, available - (peek ? 1 : 0)));
       if (visible === cards.length) start = 0;
       const index = cards.findIndex(card => card.contains(document.activeElement));
-      if (index >= 0 && modulo(index - start) >= visible) start = index;
+      if (index >= 0 && (loop ? modulo(index - start) >= visible : index < start || index >= start + visible)) start = index;
+      if (!loop) start = Math.max(0, Math.min(lastStart(), start));
       root.style.setProperty("--pdk-carousel-visible", visible + (peek && cards.length > visible ? 1 : 0));
       // Measure all original cards at the current width, not just the current
       // window. Every card keeps the same height throughout the entire loop.
@@ -197,6 +211,7 @@ document.addEventListener("DOMContentLoaded", function() {
       listeners.abort();
       observer.disconnect();
       controls.remove();
+      badges.forEach(badge => badge.remove());
       list.querySelectorAll(":scope > [data-pdk-carousel-clone]").forEach(el => el.remove());
       saved.forEach(([el, attributes]) => {
         Array.from(el.attributes).forEach(a => el.removeAttribute(a.name));
@@ -218,7 +233,18 @@ document.addEventListener("DOMContentLoaded", function() {
         root.setAttribute("aria-describedby", [root.getAttribute("aria-describedby"), hint.id].filter(Boolean).join(" "));
       }
       list.setAttribute("role", "presentation");
+      const showBadges = root.dataset.carouselBadges === "true";
+      root.classList.toggle("pdk-carousel-badges", showBadges);
+      if (showBadges && !["top-left", "top-right", "bottom-left", "bottom-right"].includes(root.dataset.carouselBadgeCorner)) root.dataset.carouselBadgeCorner = "top-right";
       cards.forEach((card, index) => {
+        if (showBadges) {
+          const badge = document.createElement("span");
+          badge.className = "pdk-carousel-badge";
+          badge.textContent = `${index + 1}/${cards.length}`;
+          badge.setAttribute("aria-hidden", "true");
+          card.append(badge);
+          badges.push(badge);
+        }
         card.setAttribute("role", "group");
         card.setAttribute("aria-roledescription", "slide");
         if (!card.hasAttribute("aria-label") && !card.hasAttribute("aria-labelledby")) card.setAttribute("aria-label", `${index + 1} of ${cards.length}`);
@@ -235,6 +261,7 @@ document.addEventListener("DOMContentLoaded", function() {
         if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
         if (event.target !== root && !controls.contains(event.target)) return;
         if (autoplay && event.key.toLowerCase() === "p") {
+          if (atEnd()) return;
           event.preventDefault();
           paused = !paused;
           announcement.textContent = paused ? "Automatic rotation paused" : "Automatic rotation resumed";
@@ -249,17 +276,32 @@ document.addEventListener("DOMContentLoaded", function() {
       on(root, "pointerdown", event => {
         if (cards.length <= visible || event.button !== 0 || !list.contains(event.target) || event.target.closest("button, input, textarea, select, [contenteditable]")) return;
         settle();
-        pointer = {id: event.pointerId, x: event.clientX, y: event.clientY, drag: 0};
+        pointer = {id: event.pointerId, x: event.clientX, y: event.clientY, drag: 0, active: false, advanced: false};
         suppressClick = false;
         schedule();
       });
       on(root, "pointermove", event => {
         if (!pointer || pointer.id !== event.pointerId) return;
-        const dx = event.clientX - pointer.x;
+        let dx = event.clientX - pointer.x;
         const dy = event.clientY - pointer.y;
-        if (Math.abs(dx) <= Math.abs(dy) || Math.abs(dx) < 8) return;
+        if (!pointer.active && (Math.abs(dx) <= Math.abs(dy) || Math.abs(dx) < 8)) return;
+        pointer.active = true;
         if (!root.hasPointerCapture(event.pointerId)) root.setPointerCapture(event.pointerId);
-        pointer.drag = Math.max(-stride, Math.min(stride, dx));
+        // Rebase after each full card so dragging keeps following the pointer
+        // through any number of cards, without exhausting the loop buffers.
+        let advanced = false;
+        while (stride > 0 && Math.abs(dx) >= stride) {
+          const direction = dx < 0 ? 1 : -1;
+          if (!loop && (direction < 0 ? start === 0 : atEnd())) break;
+          if (cards.some(card => card.contains(document.activeElement))) root.focus({preventScroll: true});
+          start = loop ? modulo(start + direction) : start + direction;
+          pointer.x -= direction * stride;
+          dx += direction * stride;
+          advanced = pointer.advanced = true;
+        }
+        if (advanced) render();
+        pointer.drag = Math.max(!loop && atEnd() ? 0 : -stride, Math.min(!loop && start === 0 ? 0 : stride, dx));
+        if (pointer.drag !== dx) pointer.x = event.clientX - pointer.drag;
         suppressClick = true;
         root.classList.add("pdk-carousel-dragging");
         list.style.transform = `translateX(${offset + pointer.drag}px)`;
@@ -268,11 +310,16 @@ document.addEventListener("DOMContentLoaded", function() {
       function release(event, cancelled = false) {
         if (!pointer || pointer.id !== event.pointerId) return;
         const drag = pointer.drag;
+        const advanced = pointer.advanced;
         pointer = null;
         root.classList.remove("pdk-carousel-dragging");
         if (root.hasPointerCapture(event.pointerId)) root.releasePointerCapture(event.pointerId);
         if (!cancelled && Math.abs(drag) > Math.min(50, stride / 4)) move(drag < 0 ? 1 : -1, true, drag);
-        else { list.style.transform = `translateX(${offset}px)`; schedule(); }
+        else {
+          list.style.transform = `translateX(${offset}px)`;
+          if (advanced && !cancelled) announcement.textContent = position.textContent;
+          schedule();
+        }
       }
       on(root, "pointerup", event => release(event));
       on(root, "pointercancel", event => release(event, true));

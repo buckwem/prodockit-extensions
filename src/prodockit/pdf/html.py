@@ -324,6 +324,23 @@ def fix_up_page_html(
     soup = BeautifulSoup(html, "html.parser")
     _group_table_rowspans(soup)
 
+    # Pandoc preserves attributes on Divs but not on list items. Carry the
+    # authored carousel width on its container for the static print grid.
+    for carousel in soup.select("div.grid.cards.pdk-carousel"):
+        listing = carousel.find("ul", recursive=False)
+        if not isinstance(listing, Tag):
+            continue
+        count = len(listing.find_all("li", recursive=False))
+        value = str(carousel.get("data-carousel-visible", "3"))
+        columns = min(count, int(value)) if re.fullmatch(r"[1-9]\d*", value) else min(count, 3)
+        gap_value = str(carousel.get("data-carousel-gap", "16"))
+        gap = min(64, int(gap_value)) if re.fullmatch(r"\d+", gap_value) else 16
+        style = str(carousel.get("style", "")).rstrip().rstrip(";")
+        carousel["style"] = (
+            f"{style}; --pdk-carousel-print-columns: {max(1, columns)}; "
+            f"--pdk-carousel-gap: {gap}px;"
+        ).lstrip("; ")
+
     # Website-only presentational output with no PDF equivalent - a caller's
     # own heading-numbering/reference-style <style> injection (if any), and
     # a table of contents' hover-to-copy permalink links, are meaningless in

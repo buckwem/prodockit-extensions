@@ -746,10 +746,21 @@ div.grid.cards > ul > li {
        same reason. */
     page-break-inside: auto !important; break-inside: auto !important; list-style: none !important;
 }
+/* Carousels use a simple, tested equal-column grid in the supported
+   WeasyPrint runtime; ordinary complex grid cards keep their stacked layout. */
+div.grid.cards.pdk-carousel > ul {
+    display: grid !important;
+    grid-template-columns: repeat(var(--pdk-carousel-print-columns, 3), minmax(0, 1fr)) !important;
+    gap: var(--pdk-carousel-gap, 16px) !important;
+    align-items: stretch !important;
+}
+div.grid.cards.pdk-carousel > ul > li {
+    min-width: 0 !important; margin-bottom: 0 !important;
+}
 /* Compact carousel photos in print; ordinary long cards retain auto breaks.
    Authors opt short photo tiles into keeping picture, title and credit together. */
 div.grid.cards.pdk-carousel img.pdk-carousel-image {
-    width: 240px !important; max-width: 100% !important; height: auto !important;
+    width: 100% !important; max-width: 100% !important; height: auto !important;
 }
 div.grid.cards.pdk-carousel-tiles > ul > li {
     page-break-inside: avoid !important; break-inside: avoid-page !important;
