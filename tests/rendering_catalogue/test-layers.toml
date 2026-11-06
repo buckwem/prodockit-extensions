@@ -1,0 +1,80 @@
+# Copyright (c) 2026 Mark Buckwell and contributors
+# SPDX-License-Identifier: MIT
+
+# Every test in the two rendering-catalogue modules belongs to exactly one
+# layer. tools/rendering_catalogue.py validates this file so a new assertion
+# cannot arrive without an explicit place in the review model.
+
+[[layer]]
+name = "inventory"
+purpose = "The reviewed capability ledger is complete, current and internally consistent."
+tests = [
+  "tests/test_rendering_catalogue.py::test_catalogue_metadata_is_versioned_and_matches_the_supported_zensical",
+  "tests/test_rendering_catalogue.py::test_reviewed_inventory_has_the_expected_category_boundary",
+  "tests/test_rendering_catalogue.py::test_every_capability_has_a_unique_well_formed_coverage_decision",
+  "tests/test_rendering_catalogue.py::test_review_index_exposes_the_inventory_and_review_sections",
+]
+
+[[layer]]
+name = "source/config"
+purpose = "Checked-in source, configuration, navigation and supporting inputs declare the intended coverage."
+tests = [
+  "tests/test_rendering_catalogue.py::test_catalogue_navigation_is_isolated_and_all_pages_exist",
+  "tests/test_rendering_catalogue.py::test_phase_seven_test_layers_classify_every_catalogue_assertion_once",
+  "tests/test_rendering_catalogue.py::test_phase_seven_ci_and_release_qualification_contract",
+  "tests/test_rendering_catalogue.py::test_phase_six_review_bundle_and_crawler_controls_are_declared",
+  "tests/test_rendering_catalogue.py::test_interactive_phase_three_capabilities_define_static_transformations",
+  "tests/test_rendering_catalogue.py::test_phase_three_configuration_and_supporting_inputs_are_complete",
+  "tests/test_rendering_catalogue.py::test_phase_four_configuration_and_coverage_are_complete",
+  "tests/test_rendering_catalogue.py::test_phase_five_nested_and_page_boundary_contract_is_complete",
+]
+
+[[layer]]
+name = "strict build"
+purpose = "Zensical accepts the isolated catalogue as a clean strict build."
+tests = [
+  "tests/test_rendering_catalogue.py::test_catalogue_builds_cleanly",
+]
+
+[[layer]]
+name = "website semantics"
+purpose = "Built HTML contains the expected accessible and semantic structures, including nested cases."
+tests = [
+  "tests/test_rendering_catalogue_built.py::test_phase_six_hidden_website_has_crawler_metadata_without_discovery_files",
+  "tests/test_rendering_catalogue_built.py::test_every_implemented_capability_and_required_nested_case_has_a_built_anchor",
+  "tests/test_rendering_catalogue_built.py::test_core_markdown_has_representative_inline_and_block_output",
+  "tests/test_rendering_catalogue_built.py::test_python_markdown_extensions_have_their_expected_html_shapes",
+  "tests/test_rendering_catalogue_built.py::test_table_of_contents_settings_change_the_built_page",
+  "tests/test_rendering_catalogue_built.py::test_nested_core_and_python_markdown_shapes_are_real",
+  "tests/test_rendering_catalogue_built.py::test_pymdown_maths_captions_formatting_and_details_render_semantically",
+  "tests/test_rendering_catalogue_built.py::test_pymdown_emoji_highlighting_keys_and_symbols_render_semantically",
+  "tests/test_rendering_catalogue_built.py::test_pymdown_snippets_superfences_tabs_and_tasks_render_semantically",
+  "tests/test_rendering_catalogue_built.py::test_nested_pymdown_shapes_cover_every_required_phase_three_case",
+  "tests/test_rendering_catalogue_built.py::test_phase_four_zensical_authoring_and_configured_integrations_render",
+  "tests/test_rendering_catalogue_built.py::test_phase_four_prodockit_extensions_render_semantically",
+  "tests/test_rendering_catalogue_built.py::test_phase_four_nested_authoring_and_prodockit_cases_render",
+  "tests/test_rendering_catalogue_built.py::test_phase_five_nested_matrix_and_added_combinations_render_semantically",
+  "tests/test_rendering_catalogue_built.py::test_complex_indentation_combinations_retain_their_container_hierarchy",
+  "tests/test_rendering_catalogue_built.py::test_deep_admonition_examples_retain_all_container_levels",
+  "tests/test_rendering_catalogue_built.py::test_phase_five_page_boundary_website_specimens_remain_reviewable",
+]
+
+[[layer]]
+name = "PDF semantics"
+purpose = "Generated PDF content, page relationships and geometry preserve the declared static evidence."
+tests = [
+  "tests/test_rendering_catalogue_built.py::test_phase_five_pdf_page_relationships_are_stable",
+  "tests/test_rendering_catalogue_built.py::test_phase_five_pdf_figure_vectors_and_long_token_stay_inside_the_page",
+  "tests/test_rendering_catalogue_built.py::test_complex_indentation_combinations_flatten_cleanly_in_the_page_pdf",
+  "tests/test_rendering_catalogue_built.py::test_deep_admonition_examples_flatten_cleanly_in_the_page_pdf",
+  "tests/test_rendering_catalogue_built.py::test_phase_two_specimens_are_present_in_the_catalogue_pdf",
+  "tests/test_rendering_catalogue_built.py::test_phase_three_specimens_and_static_fallbacks_are_present_in_the_catalogue_pdf",
+  "tests/test_rendering_catalogue_built.py::test_phase_four_specimens_and_static_fallbacks_are_present_in_the_catalogue_pdf",
+]
+
+[[layer]]
+name = "visual review"
+purpose = "The retained review bundle exposes complete, per-page and contact-sheet evidence for human inspection."
+tests = [
+  "tests/test_rendering_catalogue_built.py::test_phase_six_review_bundle_is_complete_and_self_consistent",
+]

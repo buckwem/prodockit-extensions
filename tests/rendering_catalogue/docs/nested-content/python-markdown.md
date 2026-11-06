@@ -33,6 +33,14 @@ Cartesian product.
 
     </div>
 
+## Ordered, unordered and nested lists { #nested-list-combinations }
+
+- Unordered outer item
+    1. Ordered nested item with `inline code`
+    2. Ordered sibling with a [relative link](../zensical-authoring/)
+        - Deeper unordered item with **strong text**
+- Stable outer sibling for visual comparison
+
 ## Footnote reference in a list { #nested-footnote }
 
 - This list item contains a nested footnote reference.[^nested-review]

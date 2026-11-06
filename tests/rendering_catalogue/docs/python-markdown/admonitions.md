@@ -2,6 +2,8 @@
 
 Reference: [Zensical's built-in Python-Markdown extensions](https://zensical.org/docs/compatibility/markdown/python-markdown/)
 
+Authoring reference: [Zensical admonitions](https://zensical.org/docs/authoring/admonitions/)
+
 ## Source
 
 ```text

@@ -1240,6 +1240,7 @@ def test_index_title_heading_carries_the_running_header_class(
 
     compiled = (work_dir / "_prodockit_pdf_compiled.html").read_text(encoding="utf-8")
     assert f'<h1 class="unnumbered {INDEX_TITLE_CLASS}">Index</h1>' in compiled
+    assert '<div class="page-break"></div><div class="prodockit-revision-date"></div>' not in compiled
 
 
 @real_pandoc_and_weasyprint_required
