@@ -19,6 +19,21 @@ only when it adds or changes behaviour that matters to a user, or requires an
 upgrade action. Defect-by-defect history belongs in GitHub issues and pull
 requests rather than here.
 
+## 0.76.0 (2026-11-05)
+
+- Rebaselined website and PDF builds on Zensical 0.1.0 and updated the supported version floor.
+- Stopped diagnostics treating Zensical UI metadata as a duplicate Zensical installation.
+
+## 0.75.0 (2026-10-27)
+
+- Qualified Zensical 0.0.73 for website and PDF builds, with theme and accessibility markup changes and the corrected literal link example on PDF page 272; `pdk pdf` now lists all legacy macro replacements.
+- Raised the Python floor to 3.11 and removed the Python 3.10 test lane and `tomli` dependency.
+- Capped optional PyMuPDF below 2 while its macOS Intel wheel is unavailable, avoiding a lengthy source build.
+
+## 0.74.4 (2026-10-17)
+
+- Handled non-UTF-8 Windows PDF diagnostic output without reader-thread tracebacks, while preserving genuine renderer failures.
+
 ## 0.74.3 (2026-10-09)
 
 - Reported inaccessible macOS SSH-agent directory permissions before Bootstrap waits for the agent.

@@ -11,7 +11,7 @@ import json
 import sys
 import uuid
 from argparse import Namespace
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -68,7 +68,7 @@ def write_fixture(path: Path, **updates: object) -> Path:
 
 
 def reset_handoff(**updates: object) -> state.ResetHandoff:
-    completed = datetime.now(timezone.utc).replace(microsecond=0)
+    completed = datetime.now(UTC).replace(microsecond=0)
     values: dict[str, object] = {
         "schema": 1,
         "run_id": str(uuid.uuid4()),
@@ -146,7 +146,7 @@ class FakeGitLab:
             "path": state.SURREY_PROJECT,
             "path_with_namespace": state.SURREY_PATH,
             "visibility": "private",
-            "created_at": datetime.now(timezone.utc).isoformat(),
+            "created_at": datetime.now(UTC).isoformat(),
             "namespace": {"id": self.fixture.group.id},
             "shared_with_groups": [],
             **lifecycle.PROJECT_DISABLE_SETTINGS,
@@ -509,9 +509,9 @@ def test_handoff_is_short_lived_and_rejects_another_project() -> None:
         expires_at_utc="2026-08-31T17:30:00+00:00",
     )
     with pytest.raises(state.StateError, match="expired"):
-        expired.validate(now=datetime(2026, 8, 31, 18, tzinfo=timezone.utc))
+        expired.validate(now=datetime(2026, 8, 31, 18, tzinfo=UTC))
     expired.validate(
-        now=datetime(2026, 8, 31, 18, tzinfo=timezone.utc),
+        now=datetime(2026, 8, 31, 18, tzinfo=UTC),
         allow_expired=True,
     )
     with pytest.raises(state.StateError, match="another project"):
@@ -909,7 +909,7 @@ def test_protected_surrey_release_emits_canonical_provider_evidence(
     client.refs = {"refs/heads/main": COMMIT}
     report_path = candidate_report(tmp_path / "candidate.json")
     report = json.loads(report_path.read_text(encoding="utf-8"))
-    now = datetime.now(timezone.utc).replace(microsecond=0)
+    now = datetime.now(UTC).replace(microsecond=0)
     report["started_at_utc"] = (now - timedelta(minutes=10)).isoformat()
     report["finished_at_utc"] = (now - timedelta(minutes=5)).isoformat()
     report["wheel_sha256"] = candidate_raw_sha

@@ -16,6 +16,7 @@ on:
       - src/prodockit/pdf/source_bundle.py
       - src/prodockit/pdf/weasyprint_runtime.py
       - tests/test_pdf_weasyprint_runtime.py
+      - tests/test_pdf_subprocess_encoding.py
       - tools/weasyprint_windows_s0.py
       - tests/test_weasyprint_windows_s0.py
   workflow_dispatch:
@@ -49,7 +50,9 @@ jobs:
           --work-dir weasyprint-s0-work
           --report weasyprint-windows-s0.json
       - name: Install the candidate
-        run: python -m pip install -e ".[testing]" "zensical==0.0.64"
+        run: python -m pip install -e ".[testing]" "zensical==0.1.0"
+      - name: Check diagnostic decoding and genuine renderer failures
+        run: python -m pytest tests/test_pdf_subprocess_encoding.py -q
       - name: Build the completed website
         run: zensical build --clean --strict
       - name: Exercise cold and warm production preparation

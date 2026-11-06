@@ -1,27 +1,10 @@
 # Copyright (c) 2026 Mark Buckwell and contributors
 # SPDX-License-Identifier: MIT
 
-"""Modules newer than `requires-python` are imported behind a gate, or not at all.
+"""Guard imports of standard modules newer than the declared Python floor.
 
-`tomllib` arrived in 3.11 and this package supports 3.10, so a bare
-`import tomllib` is a `ModuleNotFoundError` on the oldest interpreter the
-project claims to run on - and on no other. Nothing local catches it: the
-developer's interpreter is newer, the four other CI legs are newer, and the
-single 3.10 leg is the only place it shows up. It has cost a red CI run
-once already, from two test modules that reached for `tomllib` directly
-instead of going through the shim `prodockit.template_sync` already had.
-
-Checked by reading the source rather than by importing on 3.10, because on
-every interpreter this suite normally runs on the bad import succeeds. The
-property is asserted directly, on every platform, and covers imports added
-in future rather than only the two that were wrong.
-
-The gate itself is fine - `if sys.version_info >= (3, 11): import tomllib`
-- and so is importing the backport. What this refuses is the ungated form.
-
-This module reads `pyproject.toml` through `prodockit.template_sync`'s
-shim for exactly that reason: the first draft imported `tomllib` at the
-top and would have failed on the one interpreter it exists to protect.
+Read the source rather than relying on the running interpreter: a newer
+developer Python could otherwise hide a missing import on the oldest CI leg.
 """
 
 from __future__ import annotations
@@ -33,8 +16,7 @@ from prodockit.template_sync import read_config
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 
-#: Stdlib modules newer than the floor in `requires-python`, and the
-#: version each arrived in. `tomllib` is the only one in use so far.
+#: Standard modules whose introduction version matters to the supported floor.
 TOO_NEW = {"tomllib": (3, 11)}
 
 
@@ -69,21 +51,14 @@ def _ungated_imports() -> list[str]:
             elif isinstance(node, ast.ImportFrom) and node.module:
                 names = [node.module.split(".")[0]]
             for name in names:
-                if name in TOO_NEW:
+                if name in TOO_NEW and TOO_NEW[name] > _requires_python_floor():
                     offenders.append(f"{path.relative_to(ROOT)}:{node.lineno} ({name})")
     return offenders
 
 
 def test_the_version_floor_is_the_one_these_gates_are_written_for() -> None:
-    """If the floor rises to 3.11, `tomllib` stops needing a gate at all.
-
-    Asserted so this module is corrected rather than quietly enforcing a
-    rule that no longer applies.
-    """
-    assert _requires_python_floor() == (3, 10), (
-        "requires-python has moved - revisit TOO_NEW, and drop any entry the "
-        "new floor already provides"
-    )
+    """The support floor is explicit so a future change revisits the gate."""
+    assert _requires_python_floor() == (3, 11)
 
 
 def test_no_module_newer_than_requires_python_is_imported_ungated() -> None:

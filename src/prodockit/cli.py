@@ -2774,12 +2774,33 @@ def _run_pdf_command(
         except (OSError, ValueError):
             pass  # The PDF renderer reports invalid configuration below.
         else:
-            old_names = sorted({name for _, name in find_legacy_macro_calls(project.docs_dir)})
-            if old_names:
-                replacements = ", ".join(f"{name}() -> pdk_{name}()" for name in old_names)
-                click.echo(
-                    f"Warning: legacy Prodockit macros in Markdown: {replacements}", err=True
-                )
+            include_dirs = []
+            macros = project.markdown_extensions.get("zensical.extensions.macros", {})
+            configured_include = macros.get("include_dir")
+            if isinstance(configured_include, str) and configured_include:
+                include_dir = (project.root / configured_include).resolve()
+                if include_dir.is_relative_to(project.root):
+                    include_dirs.append(include_dir)
+            old_calls = find_legacy_macro_calls(project.docs_dir, include_dirs)
+            if old_calls:
+                click.echo("Warning: legacy Prodockit macros in Markdown:", err=True)
+                for name in (
+                    "heading_counter_reset",
+                    "reference_style",
+                    "acronym_style",
+                    "glossary_style",
+                ):
+                    click.echo(f"  {name}() -> pdk_{name}()", err=True)
+                for path, name in sorted(set(old_calls)):
+                    relative = (
+                        path.relative_to(project.docs_dir)
+                        if path.is_relative_to(project.docs_dir)
+                        else path.relative_to(project.root)
+                    )
+                    click.echo(
+                        f"  found {name}() in {relative}",
+                        err=True,
+                    )
     try:
         built_site = load_project_config(config_file).site_dir
         try:

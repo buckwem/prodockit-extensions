@@ -23,6 +23,7 @@ import re
 import shutil
 import sys
 import tempfile
+import tomllib
 from collections.abc import Callable, Mapping
 from contextlib import suppress
 from dataclasses import dataclass, field
@@ -52,12 +53,6 @@ from prodockit.pins import TESTED_VERSIONS
 from prodockit.renderer_resilience import RetryReporter
 from prodockit.settings import EXTRA_SETTINGS
 from prodockit.shared_files import resource_bytes, same_text_content
-
-if sys.version_info >= (3, 11):
-    import tomllib
-else:  # pragma: no cover - exercised by the Python 3.10 CI job
-    import tomli as tomllib
-
 
 MANIFEST = ".prodockit-components.toml"
 STYLESHEET = Path("docs/stylesheets/pdk.css")

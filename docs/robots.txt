@@ -1,0 +1,22 @@
+# The rendering catalogue is published for maintainer review, not discovery.
+User-agent: *
+Disallow: /rendering-review/
+
+# Repeat the rule for common AI crawlers because a specific group takes
+# precedence over the wildcard group in many robots.txt implementations.
+User-agent: GPTBot
+User-agent: ChatGPT-User
+User-agent: OAI-SearchBot
+User-agent: Google-Extended
+User-agent: ClaudeBot
+User-agent: Claude-SearchBot
+User-agent: Claude-User
+User-agent: anthropic-ai
+User-agent: CCBot
+User-agent: Bytespider
+User-agent: cohere-ai
+User-agent: PerplexityBot
+User-agent: Applebot-Extended
+User-agent: Meta-ExternalAgent
+User-agent: Amazonbot
+Disallow: /rendering-review/

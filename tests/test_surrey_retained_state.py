@@ -8,7 +8,7 @@ from __future__ import annotations
 import importlib
 import json
 import sys
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -19,7 +19,7 @@ helper = importlib.import_module("surrey_retained_state")
 state = importlib.import_module("live_provider_state")
 
 COMMIT = "a" * 40
-NOW = datetime(2026, 9, 2, 12, tzinfo=timezone.utc)
+NOW = datetime(2026, 9, 2, 12, tzinfo=UTC)
 
 
 def run(identifier: int, **updates: object) -> dict[str, object]:

@@ -487,8 +487,11 @@ def build_pdf(
                 # chapter-title string, so without a hook of its own the
                 # previous chapter's title would stand in the header across
                 # every index page (see prodockit.pdf.css's own rule).
+                # The index title is an h1, so the renderer's h1 rule already
+                # starts it on a new page (or a recto page in double-sided
+                # output). An additional .page-break here creates an empty
+                # page immediately before the index.
                 body_html += (
-                    '<div class="page-break"></div>'
                     '<div class="prodockit-revision-date"></div>'
                     f'<h1 class="unnumbered {INDEX_TITLE_CLASS}">{index_title}</h1>'
                     f'<div id="{INDEX_CONTENT_ID}"></div>'
@@ -607,6 +610,10 @@ def build_pdf(
                     capture_output=True,
                     text=True,
                     encoding="utf-8",
+                    # Windows tools can emit legacy-code-page diagnostics.
+                    # Replace undecodable log bytes, not the exit status:
+                    # renderer failures must still raise PdfBuildError below.
+                    errors="replace",
                     timeout=pandoc_timeout,
                 )
             except subprocess.TimeoutExpired as exc:

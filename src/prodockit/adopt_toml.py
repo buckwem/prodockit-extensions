@@ -3,7 +3,7 @@
 
 """Comment-preserving Adopt configuration editing through TOML Kit."""
 
-import sys
+import tomllib
 from collections.abc import Mapping, MutableMapping
 from typing import TYPE_CHECKING, Any, cast
 
@@ -12,12 +12,6 @@ from tomlkit.items import Item
 
 if TYPE_CHECKING:
     from prodockit.adopt import AdoptOptions
-
-if sys.version_info >= (3, 11):
-    import tomllib
-else:  # pragma: no cover
-    import tomli as tomllib
-
 
 def inline(value: Any) -> Item:
     if isinstance(value, Mapping):

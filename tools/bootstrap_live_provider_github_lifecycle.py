@@ -20,7 +20,7 @@ import urllib.request
 import uuid
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import asdict, dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any, NoReturn, Protocol
 
@@ -649,7 +649,7 @@ def reset(
     except (LifecycleError, StateError, OSError, ValueError):
         remove_repository(client, expected_id=repository_id, sleep=sleep)
         raise
-    completed = now.astimezone(timezone.utc).replace(microsecond=0)
+    completed = now.astimezone(UTC).replace(microsecond=0)
     return ResetHandoff(
         schema=2,
         run_id=str(uuid.uuid4()),
@@ -856,7 +856,7 @@ def seal(
         expected_refs = {"refs/heads/main": candidate.path_one.commit}
         if destination_refs != expected_refs:
             raise LifecycleError("GitHub destination refs differ from the candidate result")
-        sealed_at = now.astimezone(timezone.utc).replace(microsecond=0)
+        sealed_at = now.astimezone(UTC).replace(microsecond=0)
         retained = GitHubRetainedState(
             schema=1,
             provider="github",
@@ -981,7 +981,7 @@ def reset_command(args: argparse.Namespace, client: Client, *, source_client: Cl
     if identity.wheel_contents_sha256 != args.expected_wheel_contents_sha256:
         raise LifecycleError("candidate wheel contents differ from the approved value")
     record, fingerprint = public_key(args.deploy_public_key)
-    started = datetime.now(timezone.utc)
+    started = datetime.now(UTC)
     print("Provider:       github.com")
     print(f"Repository:     {GITHUB_PATH}")
     print(f"Release commit: {release_commit}")
@@ -1021,7 +1021,7 @@ def reset_command(args: argparse.Namespace, client: Client, *, source_client: Cl
             "deploy_key_fingerprint": fingerprint,
             "handoff_sha256": canonical_sha256(handoff.document()),
             "started_at_utc": started.isoformat(),
-            "finished_at_utc": datetime.now(timezone.utc).isoformat(),
+            "finished_at_utc": datetime.now(UTC).isoformat(),
         },
     )
     print(f"GitHub reset ready: {GITHUB_PATH}")
@@ -1043,7 +1043,7 @@ def seal_command(args: argparse.Namespace, client: Client, *, source_client: Cli
     if existing:
         raise LifecycleError("seal output already exists: " + ", ".join(existing))
     handoff = ResetHandoff.read(args.handoff)
-    started = datetime.now(timezone.utc)
+    started = datetime.now(UTC)
     try:
         validate_controller_checkout(
             Path(__file__).resolve().parents[1],
@@ -1089,7 +1089,7 @@ def seal_command(args: argparse.Namespace, client: Client, *, source_client: Cli
                 "repository_removed": cleanup_error is None,
                 "failure": failure,
                 "started_at_utc": started.isoformat(),
-                "finished_at_utc": datetime.now(timezone.utc).isoformat(),
+                "finished_at_utc": datetime.now(UTC).isoformat(),
             },
         )
         if cleanup_error is not None:
@@ -1116,7 +1116,7 @@ def seal_command(args: argparse.Namespace, client: Client, *, source_client: Cli
             "workflow_run_id": args.workflow_run_id,
             "workflow_url": args.workflow_url,
             "started_at_utc": started.isoformat(),
-            "finished_at_utc": datetime.now(timezone.utc).isoformat(),
+            "finished_at_utc": datetime.now(UTC).isoformat(),
         },
     )
     print(f"GitHub provider verified and sealed: {GITHUB_PATH}")

@@ -181,7 +181,7 @@ def installed_python_version() -> str:
 def is_limited_test_python(version: str) -> bool:
     """Whether package compatibility is tested but Adopt alignment is not."""
     try:
-        return Version("3.10") <= Version(version) < Version(TESTED_VERSIONS["python"])
+        return Version("3.11") <= Version(version) < Version(TESTED_VERSIONS["python"])
     except InvalidVersion:
         return False
 

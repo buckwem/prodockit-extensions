@@ -685,7 +685,7 @@ upgrades several dependencies together and cannot attribute a change to
 Zensical alone.
 
 The compatibility workflow accepts exact baseline and candidate releases.
-Its configuration matrix covers Python 3.10–3.14 on Ubuntu, macOS and Windows.
+Its configuration matrix covers Python 3.11–3.14 on Ubuntu, macOS and Windows.
 The Windows macro fixture uses an extended-length include path. A manual run
 with `full` enabled additionally builds both complete extensions documents,
 both complete template documents and both template source bundles on Ubuntu.
@@ -693,15 +693,18 @@ It tests browser redirect navigation and feature PDFs separately. Choose an
 explicit template commit for repeatable qualification; the resolved commit
 and working-tree state are recorded in the evidence.
 
-Run the same gate locally from a checkout with the normal PDF prerequisites:
+Run the same gate locally from a checkout with the normal PDF prerequisites.
+For `--full`, install the browser-test-only packages with
+`npm ci --prefix tools/browser-test` and point `PUPPETEER_EXECUTABLE_PATH` at
+Chrome before running the commands below; production PDF use needs no npm packages.
 
 ```bash
 python tools/zensical_compatibility.py pair \
-  --baseline 0.0.63 --candidate 0.0.64 \
+  --baseline 0.0.73 --candidate 0.1.0 \
   --output /tmp/zensical-config-review
 
 python tools/zensical_compatibility.py pair \
-  --baseline 0.0.63 --candidate 0.0.64 --full \
+  --baseline 0.0.73 --candidate 0.1.0 --full \
   --template ../prodockit-template \
   --browser-script tools/compatibility/redirect_browser.cjs \
   --output /tmp/zensical-full-review
@@ -711,12 +714,15 @@ Use a fresh output directory. The runner creates two private virtual environment
 freezes the candidate dependencies, and changes only Zensical in the historical baseline.
 The baseline installs the same local Prodockit build without dependency resolution
 so the new supported floor does not prevent testing the previous release. All
-other dependencies retain their frozen versions; the report rejects any other
-dependency difference. The baseline may record only the exact Prodockit/Zensical
+other dependencies retain their frozen versions; any dependency removed by the
+new Zensical release is installed without dependencies in the candidate to keep
+both environments equal. The report rejects any other dependency difference.
+The baseline may record only the exact Prodockit/Zensical
 metadata-floor conflict as an expected diagnostic failure; any other diagnostic
 failure still blocks qualification. Candidate diagnostics receive no exemption.
-Only Zensical declarations in disposable baseline projects are aligned to the
-historical version under test; runtime source and documentation stay unchanged.
+Only Zensical declarations in disposable projects are aligned to the version
+under test; runtime source and documentation stay unchanged. An older template
+pin is excluded from the pair's installation requirements for the same reason.
 It never installs into the invoking environment. Complete builds use disposable
 Git copies and the same template citation-style bytes; supply
 `harvard-cite-them-right.csl` in the template checkout as its publishing workflow

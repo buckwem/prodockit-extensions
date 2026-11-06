@@ -12,7 +12,7 @@ import re
 import tempfile
 import uuid
 from dataclasses import asdict, dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, cast
 from urllib.parse import urlparse
@@ -85,7 +85,7 @@ def _utc(value: Any, *, label: str) -> datetime:
         parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
     except ValueError as error:
         raise StateError(f"{label} must be an ISO-8601 timestamp") from error
-    if parsed.tzinfo is None or parsed.utcoffset() != timezone.utc.utcoffset(parsed):
+    if parsed.tzinfo is None or parsed.utcoffset() != UTC.utcoffset(parsed):
         raise StateError(f"{label} must use UTC")
     return parsed
 
@@ -469,7 +469,7 @@ class ResetHandoff:
         expires = _utc(self.expires_at_utc, label="expires_at_utc")
         if expires <= completed or (expires - completed).total_seconds() > 30 * 60:
             raise StateError("the reset handoff validity window must be at most 30 minutes")
-        observed_now = now or datetime.now(timezone.utc)
+        observed_now = now or datetime.now(UTC)
         if not allow_expired and observed_now >= expires:
             raise StateError("the reset handoff has expired")
 

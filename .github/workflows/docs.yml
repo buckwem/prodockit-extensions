@@ -6,6 +6,20 @@ on:
   push:
     branches:
       - main
+  pull_request:
+    paths:
+      - ".github/workflows/docs.yml"
+      - ".python-version"
+      - "docs/javascripts/**"
+      - "docs/stylesheets/**"
+      - "pdk-pdf.toml"
+      - "pyproject.toml"
+      - "requirements*.txt"
+      - "src/prodockit/**"
+      - "tests/rendering_catalogue/**"
+      - "tests/test_rendering_catalogue*.py"
+      - "tools/rendering_catalogue*.py"
+      - "zensical.toml"
   # Deliberately *no* `release: [published]` trigger, though the cover
   # page's "Release: <tag>" line does need a rebuild once the tag exists.
   # That rebuild now comes from release-redeploy.yml, which re-triggers
@@ -31,7 +45,7 @@ on:
 # and then supersede, not be thrown away. GitHub's own Pages starter
 # workflow uses this same pairing.
 concurrency:
-  group: pages
+  group: documentation-${{ github.event_name }}-${{ github.event.pull_request.number || 'main' }}
   cancel-in-progress: false
 
 permissions:
@@ -59,10 +73,7 @@ env:
   PANDOC_VERSION: "3.10.1"
 
 jobs:
-  deploy:
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+  build:
     # Pinned rather than ubuntu-latest, for the same reason zensical and
     # weasyprint are pinned below: this job publishes an artifact, and its
     # inputs should move when someone decides they should.
@@ -88,15 +99,15 @@ jobs:
     # this job sat 35 minutes on `apt-get` once, and would have held
     # the runner for six hours (#478).
     timeout-minutes: 30
-    # Consumed by the verify job below.
+    # Consumed by the verify job after the separate Pages deployment.
     outputs:
-      page_url: ${{ steps.deployment.outputs.page_url }}
       index_sha: ${{ steps.fingerprint.outputs.index_sha }}
     env:
       # MathJax website verification uses Puppeteer Core with system Chrome.
       PUPPETEER_EXECUTABLE_PATH: /usr/bin/google-chrome-stable
     steps:
       - uses: actions/configure-pages@v5
+        if: github.event_name != 'pull_request'
       - uses: actions/checkout@v5
         with:
           # actions/checkout's default shallow clone (fetch-depth: 1) fetches
@@ -244,16 +255,20 @@ jobs:
       # arithmatex's `<div|span class="arithmatex">` - so the renderer is an
       # input to the PDF's own correctness, not just to the website's
       # appearance.
-      - run: pip install -e ".[testing]" "zensical==0.0.64" "weasyprint==70.0" "Markdown==3.10.3" "pymdown-extensions==12.0.1"
+      - run: pip install -e ".[testing]" "zensical==0.1.0" "weasyprint==70.0" "Markdown==3.10.3" "pymdown-extensions==12.0.1"
       - run: pytest tests/test_pdf_web_render.py -k real_browser -q
       # The PDF renderer consumes this completed site; it never invokes
       # Zensical itself or cleans the generated output.
       - run: python tools/docs_page_pdfs.py check
+        if: github.event_name != 'pull_request'
       - run: zensical build --clean --strict
+        if: github.event_name != 'pull_request'
       # The complete PDF builds its back-of-book index in a second pass.
       # Single-page downloads omit that index, even for index-terms.md.
       - run: prodockit pdf
+        if: github.event_name != 'pull_request'
       - name: Build reviewed single-page PDF matrix
+        if: github.event_name != 'pull_request'
         run: |
           python - <<'PY'
           import subprocess
@@ -271,19 +286,21 @@ jobs:
                   print("::endgroup::", flush=True)
           PY
       - run: prodockit update-dates
+        if: github.event_name != 'pull_request'
       # Checks what the builds above actually produced, using this project's
       # own pytest plugin - deselected from the normal unit run, which needs
       # no build. Catches a Mermaid diagram or formula reaching the PDF as
       # raw source, and a nav page missing from the site, before either is
       # published (see tests/test_built_docs.py).
       - run: python -m pytest tests/test_built_docs.py -m built -v
+        if: github.event_name != 'pull_request'
       # Everything above validates the reusable, analytics-free document.
       # Only the canonical prodockit.org deployment gets the measurement ID:
       # it arrives through Actions' secret store and is written into an
       # ignored temporary config, never into the repository or a build run
       # from a fork.
       - name: Prepare canonical website analytics
-        if: github.repository == 'buckwem/prodockit-extensions'
+        if: github.event_name != 'pull_request' && github.repository == 'buckwem/prodockit-extensions'
         env:
           GOOGLE_ANALYTICS_ID: ${{ secrets.GOOGLE_ANALYTICS_ID }}
         run: |
@@ -293,28 +310,70 @@ jobs:
           fi
           python tools/canonical_site_config.py zensical.toml .zensical-canonical.toml "$GOOGLE_ANALYTICS_ID"
       - name: Build the canonical prodockit.org website
-        if: github.repository == 'buckwem/prodockit-extensions'
+        if: github.event_name != 'pull_request' && github.repository == 'buckwem/prodockit-extensions'
         run: |
           zensical build --config-file .zensical-canonical.toml --clean --strict
           prodockit update-dates --config-file .zensical-canonical.toml
       - name: Check the canonical website has consent-gated analytics
-        if: github.repository == 'buckwem/prodockit-extensions'
+        if: github.event_name != 'pull_request' && github.repository == 'buckwem/prodockit-extensions'
         env:
           GOOGLE_ANALYTICS_ID: ${{ secrets.GOOGLE_ANALYTICS_ID }}
         run: |
           grep -RFlq --include='*.html' "$GOOGLE_ANALYTICS_ID" site
           grep -RFlq --include='*.html' 'href="#__consent"' site
+      - name: Build the hidden rendering-review bundle
+        if: github.repository == 'buckwem/prodockit-extensions'
+        run: |
+          python -m pytest tests/test_rendering_catalogue.py -q
+          python tools/rendering_catalogue.py build
+      # Upload before the semantic and publication assertions. If one of those
+      # later checks fails, maintainers still get the exact website, PDFs,
+      # thumbnails and reports that need reviewing.
+      - name: Retain the rendering-review bundle
+        if: always() && github.repository == 'buckwem/prodockit-extensions'
+        uses: actions/upload-artifact@v4
+        with:
+          name: rendering-review-bundle
+          path: tests/rendering_catalogue/build/review-bundle
+          if-no-files-found: warn
+      - name: Check the rendering-review website and PDFs
+        if: github.repository == 'buckwem/prodockit-extensions'
+        run: |
+          python tools/rendering_catalogue.py verify
+          python -m pytest tests/test_rendering_catalogue_built.py -m built -q
+      - name: Add the hidden rendering-review route to the Pages artifact
+        if: github.event_name != 'pull_request' && github.repository == 'buckwem/prodockit-extensions'
+        run: |
+          python tools/rendering_catalogue.py publish --public-site site
+          python tools/rendering_catalogue.py verify-publication --public-site site
       - name: Check every PDF action before publication
+        if: github.event_name != 'pull_request'
         run: python tools/docs_page_pdfs.py verify
       # Fingerprint what we are about to publish, so the verify job below can
       # tell whether the live site is actually serving *this* build. Taken
       # from the same directory upload-pages-artifact packs, immediately
       # before it packs it.
       - id: fingerprint
+        if: github.event_name != 'pull_request'
         run: echo "index_sha=$(sha256sum site/index.html | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
       - uses: actions/upload-pages-artifact@v4
+        if: github.event_name != 'pull_request'
         with:
           path: site
+
+  # Pull requests build and retain the rendering-review bundle above, but
+  # must not enter the protected Pages environment. Only an accepted main
+  # build reaches this small deployment job.
+  deploy:
+    if: github.event_name != 'pull_request'
+    needs: build
+    runs-on: ubuntu-24.04
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    outputs:
+      page_url: ${{ steps.deployment.outputs.page_url }}
+    steps:
       - uses: actions/deploy-pages@v4
         id: deployment
 
@@ -331,7 +390,8 @@ jobs:
   # gated on delivery - the artifact is published either way, and this only
   # decides whether the run reports success.
   verify:
-    needs: deploy
+    if: github.event_name != 'pull_request'
+    needs: [build, deploy]
     runs-on: ubuntu-24.04
     # Deliberately above the polling window below: this job waits
     # out Pages' 10-minute cache for up to 15 minutes, so a timeout
@@ -347,7 +407,7 @@ jobs:
       - name: Verify the live site serves this build
         env:
           PAGE_URL: ${{ needs.deploy.outputs.page_url }}
-          WANT: ${{ needs.deploy.outputs.index_sha }}
+          WANT: ${{ needs.build.outputs.index_sha }}
         run: |
           set -u
           for attempt in $(seq 1 30); do

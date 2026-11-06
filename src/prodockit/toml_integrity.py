@@ -3,14 +3,9 @@
 from __future__ import annotations
 
 import re
-import sys
+import tomllib
 from collections.abc import Callable
 from pathlib import Path
-
-if sys.version_info >= (3, 11):
-    import tomllib
-else:  # Python 3.10
-    import tomli as tomllib
 
 
 def validate(source: str, path: Path, error_type: Callable[[str], Exception] = ValueError) -> None:

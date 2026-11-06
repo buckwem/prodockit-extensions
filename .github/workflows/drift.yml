@@ -160,7 +160,7 @@ jobs:
       # exists to catch would be the one it could not see.
       - name: Build with the pinned versions
         run: |
-          pip install -e ".[testing]" "zensical==0.0.64" "weasyprint==70.0" "Markdown==3.10.3" "pymdown-extensions==12.0.1"
+          pip install -e ".[testing]" "zensical==0.1.0" "weasyprint==70.0" "Markdown==3.10.3" "pymdown-extensions==12.0.1"
           zensical build --clean --strict
           prodockit pdf
           prodockit update-dates
@@ -268,4 +268,47 @@ jobs:
             gh issue create \
               --title "Dependency drift: newer zensical/weasyprint than the docs build pins" \
               --body-file /tmp/drift-issue.md
+          fi
+
+  rendering-capability-drift:
+    name: Upstream rendering capability drift
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v5
+        with:
+          python-version-file: .python-version
+      - run: pip install beautifulsoup4
+      - name: Compare official Zensical capability pages with the reviewed baseline
+        id: inventory
+        continue-on-error: true
+        run: >-
+          python tools/rendering_catalogue_drift.py
+          --report tests/rendering_catalogue/build/upstream-drift.md
+      - name: Add the drift report to the run summary
+        if: always()
+        run: cat tests/rendering_catalogue/build/upstream-drift.md >> "$GITHUB_STEP_SUMMARY"
+      - name: Retain the upstream inventory report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: upstream-inventory-drift
+          path: tests/rendering_catalogue/build/upstream-drift.md
+          if-no-files-found: error
+      - name: Open or update the review issue
+        if: steps.inventory.outcome == 'failure'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          existing=$(gh issue list --state open \
+            --search 'in:title Upstream rendering capability drift' \
+            --json number --jq '.[0].number // empty')
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" \
+              --body-file tests/rendering_catalogue/build/upstream-drift.md
+          else
+            gh issue create \
+              --title "Upstream rendering capability drift needs review" \
+              --body-file tests/rendering_catalogue/build/upstream-drift.md
           fi

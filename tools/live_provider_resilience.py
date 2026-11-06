@@ -12,7 +12,7 @@ idempotent commands only.
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from email.utils import parsedate_to_datetime
 from typing import Any
 
@@ -107,8 +107,8 @@ def retry_after_seconds(
     except (TypeError, ValueError, OverflowError):
         return None
     if target.tzinfo is None:
-        target = target.replace(tzinfo=timezone.utc)
-    current = now or datetime.now(timezone.utc)
+        target = target.replace(tzinfo=UTC)
+    current = now or datetime.now(UTC)
     return min(max(0.0, (target - current).total_seconds()), MAX_RETRY_AFTER_SECONDS)
 
 

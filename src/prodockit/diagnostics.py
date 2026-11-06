@@ -15,11 +15,12 @@ import shutil
 import subprocess
 import sys
 import sysconfig
+import tomllib
 import uuid
 from collections.abc import Callable
 from contextlib import suppress
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal
 
@@ -63,11 +64,6 @@ from prodockit.shared_files import inspect as inspect_shared_files
 from prodockit.table_jinja import untrimmed_table_controls
 from prodockit.text_encoding import inspect_project_text_encoding, project_text_files
 from prodockit.weasyprint_probe import ProbeResult, pango_install_guidance, run_probe
-
-if sys.version_info >= (3, 11):
-    import tomllib
-else:  # pragma: no cover - exercised by Python 3.10 CI
-    import tomli as tomllib
 
 Status = Literal["pass", "warn", "fail"]
 RepairDisposition = Literal[
@@ -565,7 +561,7 @@ class RepairTransaction:
         self.action_id = action_id
         self.check_id = check_id
         self.choice_id = choice_id
-        self.created = timestamp or datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S.%fZ")
+        self.created = timestamp or datetime.now(UTC).strftime("%Y%m%dT%H%M%S.%fZ")
         if not re.fullmatch(r"[A-Za-z0-9._-]+", self.created):
             raise RepairTransactionError("invalid diagnostic transaction timestamp")
         self.quarantine = self.boundary / ".prodockit-quarantine" / "diagnostics" / self.created
@@ -1446,9 +1442,13 @@ def _metadata_filename(path: Path) -> tuple[str | None, str | None, bool]:
         ordinary = f"{distribution}-"
         remnant = f"~{distribution[1:]}-"
         if stem.startswith(ordinary):
-            return distribution, stem[len(ordinary) :] or None, False
+            version = stem[len(ordinary) :]
+            if _known_distribution_version(version) is not None:
+                return distribution, version, False
         if stem.startswith(remnant):
-            return distribution, stem[len(remnant) :] or None, True
+            version = stem[len(remnant) :]
+            if _known_distribution_version(version) is not None:
+                return distribution, version, True
     return None, None, False
 
 
@@ -1499,8 +1499,10 @@ def _repair_metadata_entries(site_packages: tuple[Path, ...]) -> list[Distributi
             normalized = (
                 _normalise_distribution_name(metadata_name) if metadata_name is not None else None
             )
-            distribution = normalized if normalized in REPAIRABLE_DISTRIBUTIONS else filename_name
-            if distribution is None:
+            # A readable Name header is authoritative: zensical_ui is a
+            # separate distribution, not an ambiguous copy of zensical.
+            distribution = normalized if metadata_name is not None else filename_name
+            if distribution not in REPAIRABLE_DISTRIBUTIONS:
                 continue
             try:
                 identity = path.resolve()
@@ -3996,7 +3998,7 @@ def _adopt_readiness_checks(
                 "warn",
                 f"Python {active_python} is supported for use; Adopt needs Python {tested_python}",
                 (
-                    f"Compatibility tests cover Python 3.10–{tested_python}; full Adopt "
+                    f"Compatibility tests cover Python 3.11–{tested_python}; full Adopt "
                     f"toolchain integration is qualified on Python {tested_python}.",
                     f"Adopt will not change packages or project files under Python "
                     f"{active_python}; activate Python {tested_python} before using Adopt.",

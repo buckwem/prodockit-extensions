@@ -12,7 +12,7 @@ import ``zensical.config`` or depend on its normalized private data structures.
 from __future__ import annotations
 
 import os
-import sys
+import tomllib
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
@@ -22,11 +22,6 @@ import yaml  # type: ignore[import-untyped, unused-ignore]
 
 from prodockit.text_encoding import CONFIG_FILENAMES as CONFIG_FILENAMES
 from prodockit.text_encoding import inspect_utf8_file
-
-if sys.version_info >= (3, 11):
-    import tomllib
-else:  # pragma: no cover - exercised by Python 3.10 CI
-    import tomli as tomllib
 
 
 class ProjectConfigError(ValueError):

@@ -541,7 +541,7 @@ def test_diagnostics_reports_the_same_pending_adopt_stages(
     assert "Component choices" in check.details[2]
 
 
-@pytest.mark.parametrize("version", ("3.10", "3.11", "3.12", "3.13"))
+@pytest.mark.parametrize("version", ("3.11", "3.12", "3.13"))
 def test_diagnostics_warns_for_compatibility_tested_python(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, version: str
 ) -> None:
@@ -730,6 +730,25 @@ def _dist_info(
     if fields:
         (path / "METADATA").write_text("\n".join(fields) + "\n", encoding="utf-8")
     return path
+
+
+@pytest.mark.parametrize("ui_name", ["zensical-ui", None])
+def test_zensical_ui_metadata_is_not_a_duplicate_zensical_distribution(
+    tmp_path: Path, ui_name: str | None
+) -> None:
+    site_packages = tmp_path / "site-packages"
+    _dist_info(site_packages, "zensical-0.1.0.dist-info", name="zensical", version="0.1.0")
+    _dist_info(
+        site_packages,
+        "zensical_ui-0.0.41.dist-info",
+        name=ui_name,
+        version="0.0.41" if ui_name else None,
+    )
+
+    entries = diagnostics._repair_metadata_entries((site_packages,))
+    assert [(entry.distribution, entry.version) for entry in entries] == [
+        ("zensical", "0.1.0")
+    ]
 
 
 @pytest.mark.parametrize(

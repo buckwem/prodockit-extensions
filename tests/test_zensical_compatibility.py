@@ -179,7 +179,7 @@ def test_workflow_matrix_covers_supported_python_and_os():
     )
     jobs = workflow["jobs"]
     matrix = jobs["configurations"]["strategy"]["matrix"]
-    assert set(matrix["python-version"]) == {"3.10", "3.11", "3.12", "3.13", "3.14"}
+    assert set(matrix["python-version"]) == {"3.11", "3.12", "3.13", "3.14"}
     assert len(matrix["os"]) == 3
     assert "inputs.full" in jobs["complete-documents"]["if"]
     for job in jobs.values():
@@ -255,6 +255,19 @@ def test_historical_baseline_changes_only_zensical_and_separates_local_project()
         "zensical==0.0.59\nMarkdown==3.10.3\npytest==8.4.0\n"
     )
     assert _GATE.baseline_requirements("prodockit==0.65.2\nzensical==0.0.61\n", "0.0.59") == "zensical==0.0.59\n"
+
+
+def test_removed_upstream_dependency_is_kept_in_both_gate_environments():
+    baseline = "zensical==0.0.73\ndeepmerge==4.0.0\nMarkdown==3.10.3\n"
+    candidate = "zensical==0.1.0\nMarkdown==3.10.3\n"
+    assert _GATE.baseline_only_packages(baseline, candidate) == ["deepmerge==4.0.0"]
+
+
+def test_template_install_does_not_override_the_version_under_qualification():
+    original = "# managed\nzensical==0.0.73\nprodockit>=0.75.0\n"
+    assert _GATE.template_requirements_for_pair(original) == (
+        "# managed\nprodockit>=0.75.0\n"
+    )
 
 
 @pytest.mark.parametrize("extra_failure", [False, True])

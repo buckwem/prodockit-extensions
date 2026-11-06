@@ -1,0 +1,155 @@
+[project]
+site_name = "Zensical rendering review catalogue"
+site_description = "Maintainer review specimens for Zensical and Prodockit website and PDF rendering."
+site_url = "https://prodockit.org/rendering-review/"
+docs_dir = "docs"
+site_dir = "site"
+plugins = [{ search = { enabled = false } }]
+extra_javascript = [
+  "javascripts/mathjax.js",
+  "https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js",
+]
+extra_css = ["stylesheets/pdk.css", "stylesheets/page-breaks.css"]
+
+nav = [
+  { "Review catalogue" = "index.md" },
+  { "Core Markdown" = "markdown/index.md" },
+  { "Python-Markdown" = [
+    { "Overview" = "python-markdown/index.md" },
+    { "Abbreviations" = "python-markdown/abbreviations.md" },
+    { "Admonitions" = "python-markdown/admonitions.md" },
+    { "Attribute lists" = "python-markdown/attribute-lists.md" },
+    { "Definition lists" = "python-markdown/definition-lists.md" },
+    { "Footnotes" = "python-markdown/footnotes.md" },
+    { "Markdown in HTML" = "python-markdown/markdown-in-html.md" },
+    { "Table of contents" = "python-markdown/table-of-contents.md" },
+    { "Tables" = "python-markdown/tables.md" },
+  ] },
+  { "PyMdown" = [
+    { "Overview" = "pymdown/index.md" },
+    { "Maths and captions" = "pymdown/maths-and-captions.md" },
+    { "Formatting and details" = "pymdown/formatting-and-details.md" },
+    { "Emoji and icons" = "pymdown/emoji.md" },
+    { "Code highlighting" = "pymdown/code-highlighting.md" },
+    { "Keys and symbols" = "pymdown/keys-and-symbols.md" },
+    { "Snippets" = "pymdown/snippets.md" },
+    { "SuperFences" = "pymdown/superfences.md" },
+    { "Content tabs" = "pymdown/tabs.md" },
+    { "Task lists" = "pymdown/task-lists.md" },
+  ] },
+  { "Zensical authoring" = [
+    { "Overview" = "zensical-authoring/index.md" },
+    { "Layout and integrations" = "zensical-authoring/layout-and-integrations.md" },
+    { "Diagrams" = "zensical-authoring/diagrams.md" },
+  ] },
+  { "Prodockit" = "prodockit/index.md" },
+  { "Nested content" = [
+    { "Coverage approach" = "nested-content/index.md" },
+    { "Core and Python-Markdown" = "nested-content/python-markdown.md" },
+    { "PyMdown" = "nested-content/pymdown.md" },
+    { "Zensical authoring" = "nested-content/zensical-authoring.md" },
+    { "Prodockit" = "nested-content/prodockit.md" },
+    { "Complex combinations" = "nested-content/complex-combinations.md" },
+    { "Deep admonitions" = "nested-content/deep-admonitions.md" },
+  ] },
+  { "Page breaks" = [
+    { "Coverage approach" = "page-breaks/index.md" },
+    { "Forced and kept content" = "page-breaks/forced-and-kept.md" },
+    { "Flow and overflow" = "page-breaks/flow-and-overflow.md" },
+  ] },
+]
+
+[project.extra.status]
+new = "Added for Phase 4 review"
+
+[project.theme]
+language = "en"
+custom_dir = "overrides"
+features = [
+  "content.code.copy",
+  "content.tooltips",
+  "navigation.indexes",
+  "navigation.sections",
+]
+
+[project.markdown_extensions.toc]
+title = "Catalogue contents"
+permalink = "¶"
+permalink_title = "Permanent link to this catalogue section"
+toc_depth = 3
+[project.markdown_extensions.toc.slugify]
+object = "pymdownx.slugs.slugify"
+[project.markdown_extensions.toc.slugify.kwds]
+case = "lower"
+[project.markdown_extensions.abbr]
+[project.markdown_extensions.admonition]
+[project.markdown_extensions.attr_list]
+[project.markdown_extensions.def_list]
+[project.markdown_extensions.footnotes]
+[project.markdown_extensions.md_in_html]
+[project.markdown_extensions.tables]
+[project.markdown_extensions.pymdownx.superfences]
+custom_fences = [
+  { name = "catalogue", class = "catalogue-fence", format = "pymdownx.superfences.fence_code_format" },
+  { name = "mermaid", class = "mermaid", format = "pymdownx.superfences.fence_code_format" },
+]
+[project.markdown_extensions.pymdownx.tabbed]
+alternate_style = true
+combine_header_slug = true
+[project.markdown_extensions.pymdownx.tabbed.slugify]
+object = "pymdownx.slugs.slugify"
+[project.markdown_extensions.pymdownx.tabbed.slugify.kwds]
+case = "lower"
+[project.markdown_extensions.pymdownx.arithmatex]
+generic = true
+[project.markdown_extensions."pymdownx.blocks.caption"]
+types = [
+  { name = "caption" },
+  { name = "figure-caption", prefix = "{}.", classes = "prodockit-figure-caption" },
+  { name = "table-caption", prefix = "{}.", classes = "prodockit-table-caption" },
+]
+[project.markdown_extensions.pymdownx.betterem]
+[project.markdown_extensions.pymdownx.caret]
+[project.markdown_extensions.pymdownx.details]
+[project.markdown_extensions.pymdownx.emoji]
+emoji_index = "zensical.extensions.emoji.twemoji"
+emoji_generator = "zensical.extensions.emoji.to_svg"
+options.custom_icons = ["overrides/.icons"]
+[project.markdown_extensions.pymdownx.highlight]
+pygments_lang_class = true
+auto_title = true
+linenums = true
+linenums_style = "pymdownx-inline"
+anchor_linenums = true
+line_spans = "__span"
+[project.markdown_extensions.pymdownx.inlinehilite]
+[project.markdown_extensions.pymdownx.keys]
+[project.markdown_extensions.pymdownx.magiclink]
+[project.markdown_extensions.pymdownx.mark]
+[project.markdown_extensions.pymdownx.smartsymbols]
+[project.markdown_extensions.pymdownx.snippets]
+base_path = ["."]
+[project.markdown_extensions.pymdownx.tasklist]
+custom_checkbox = true
+clickable_checkbox = true
+[project.markdown_extensions.pymdownx.tilde]
+[project.markdown_extensions.zensical.extensions.glightbox]
+auto = true
+auto_themed = true
+auto_caption = false
+[project.markdown_extensions.zensical.extensions.macros]
+module_name = "catalogue_macros"
+on_error_fail = true
+[project.markdown_extensions."prodockit.headings"]
+numbering = "continuous"
+[project.markdown_extensions."prodockit.refs"]
+[project.markdown_extensions."prodockit.citations"]
+[project.markdown_extensions."prodockit.glossary"]
+[project.markdown_extensions."prodockit.tables"]
+[project.markdown_extensions."prodockit.tree"]
+[project.markdown_extensions."prodockit.steps"]
+[project.markdown_extensions."prodockit.bibliography"]
+bib_file = "references.bib"
+[project.markdown_extensions."prodockit.index"]
+include = true
+title = "Catalogue index"

@@ -38,7 +38,7 @@ import zipfile
 from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
 from dataclasses import asdict, dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from email.parser import Parser
 from pathlib import Path
 from typing import Any, NoReturn
@@ -189,7 +189,7 @@ class StageResult:
 
 
 def utc_now() -> str:
-    return datetime.now(timezone.utc).isoformat(timespec="seconds")
+    return datetime.now(UTC).isoformat(timespec="seconds")
 
 
 def sha256_file(path: Path) -> str:

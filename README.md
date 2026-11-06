@@ -73,7 +73,7 @@ for the precise test depth, supported versions, and known constraints.
 
 ## Installation
 
-prodockit requires **Python 3.10 or later** and is tested on Python 3.10–3.14:
+prodockit requires **Python 3.11 or later** and is tested on Python 3.11–3.14:
 
 ```bash
 python -m pip install prodockit

@@ -21,17 +21,13 @@ import json
 import os
 import subprocess
 import sys
+import tomllib
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import PurePosixPath
 from typing import Any
 
-if sys.version_info >= (3, 11):
-    import tomllib
-else:  # pragma: no cover - exercised by Python 3.10 CI
-    import tomli as tomllib
-
-PYTHON_VERSIONS = ("3.10", "3.11", "3.12", "3.13", "3.14")
+PYTHON_VERSIONS = ("3.11", "3.12", "3.13", "3.14")
 
 
 @dataclass(frozen=True)
@@ -138,6 +134,8 @@ _CI_ONLY_FILES = {
     "tools/docs_page_pdfs.py",
     "tools/canonical_site_config.py",
     "tools/render_documentation_diagrams.py",
+    "tools/rendering_catalogue.py",
+    "tools/rendering_catalogue_drift.py",
 }
 
 _COMPONENT_FILES: dict[str, frozenset[str]] = {

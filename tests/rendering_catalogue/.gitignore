@@ -1,0 +1,6 @@
+/.cache/
+/.prodockit/
+/build/
+/site/
+/*.pdf
+/docs/*.pdf

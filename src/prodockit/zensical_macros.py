@@ -33,7 +33,7 @@ import pathlib
 import re
 import subprocess
 import warnings
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from typing import Any
 from urllib.parse import urlparse, urlunparse
 
@@ -54,10 +54,13 @@ _LEGACY_MACRO_CALL = re.compile(
 _warned_legacy_macros: set[str] = set()
 
 
-def find_legacy_macro_calls(docs_dir: pathlib.Path) -> list[tuple[pathlib.Path, str]]:
-    """Find live legacy Jinja calls without treating literal examples as calls."""
+def find_legacy_macro_calls(
+    docs_dir: pathlib.Path, include_dirs: Iterable[pathlib.Path] = ()
+) -> list[tuple[pathlib.Path, str]]:
+    """Find live legacy Jinja calls in Markdown and configured include directories."""
     found: list[tuple[pathlib.Path, str]] = []
-    for path in docs_dir.rglob("*.md"):
+    paths = {path for root in (docs_dir, *include_dirs) if root.is_dir() for path in root.rglob("*.md")}
+    for path in sorted(paths):
         try:
             source = path.read_text(encoding="utf-8")
         except OSError:

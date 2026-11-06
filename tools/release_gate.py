@@ -11,7 +11,7 @@ import subprocess
 import sys
 from collections.abc import Sequence
 from dataclasses import asdict, dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import NoReturn
 
@@ -109,7 +109,7 @@ def assemble(
     if identity.wheel_contents_sha256 != github.wheel_contents_sha256:
         raise ReleaseGateError("publication wheel contents differ from provider-tested contents")
 
-    now = assembled_at or datetime.now(timezone.utc)
+    now = assembled_at or datetime.now(UTC)
     return ReleaseEvidence(
         schema=1,
         passed=True,

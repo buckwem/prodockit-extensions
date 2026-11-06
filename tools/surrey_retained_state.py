@@ -11,7 +11,7 @@ import re
 import sys
 from collections.abc import Sequence
 from dataclasses import asdict, dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any, NoReturn, cast
 
@@ -314,7 +314,7 @@ def validate_retained_artifact(
     if envelope.sealed_at_utc != retained.sealed_at_utc:
         raise RetainedStateError("retained-state envelope and document have different seal times")
     sealed = _utc(retained.sealed_at_utc, label="sealed_at_utc")
-    observed_now = now or datetime.now(timezone.utc)
+    observed_now = now or datetime.now(UTC)
     if sealed > observed_now + timedelta(minutes=5):
         raise RetainedStateError("retained state is dated in the future")
     if observed_now - sealed > MAX_STATE_AGE:

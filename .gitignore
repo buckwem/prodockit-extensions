@@ -21,6 +21,7 @@ site/
 docs/*.pdf
 docs/page-pdfs/
 docs/.prodockit-pdf-mermaid/
+tests/rendering_catalogue/docs/.prodockit-pdf-mermaid/
 /source_bundle.pdf
 # Puppeteer is a test-only dependency and is never installed by `pdk pdf`.
 tools/browser-test/node_modules/

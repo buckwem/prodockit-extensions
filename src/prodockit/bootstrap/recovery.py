@@ -11,7 +11,7 @@ import tempfile
 from collections.abc import Sequence
 from contextlib import suppress
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -314,7 +314,7 @@ def bootstrap_report_path(config_path: Path) -> Path:
 
 
 def _now() -> str:
-    return datetime.now(timezone.utc).isoformat(timespec="seconds")
+    return datetime.now(UTC).isoformat(timespec="seconds")
 
 
 class BootstrapRunJournal:

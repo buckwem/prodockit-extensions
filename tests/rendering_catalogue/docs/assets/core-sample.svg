@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="480" height="160" viewBox="0 0 480 160" role="img" aria-labelledby="title description">
+  <title id="title">Website and PDF review sample</title>
+  <desc id="description">Two labelled panels connected by an arrow.</desc>
+  <rect width="480" height="160" rx="16" fill="#f5f7ff"/>
+  <rect x="28" y="44" width="150" height="72" rx="10" fill="#4051b5"/>
+  <rect x="302" y="44" width="150" height="72" rx="10" fill="#00897b"/>
+  <path d="M190 80h96" stroke="#263238" stroke-width="6"/>
+  <path d="m270 64 20 16-20 16" fill="none" stroke="#263238" stroke-width="6"/>
+  <text x="103" y="86" text-anchor="middle" fill="white" font-family="sans-serif" font-size="20">Website</text>
+  <text x="377" y="86" text-anchor="middle" fill="white" font-family="sans-serif" font-size="20">PDF</text>
+</svg>

@@ -65,7 +65,7 @@ def test_unit_test_only_change_does_not_start_a_native_matrix() -> None:
     scope = classify(["tests/test_adopt.py", "tests/test_pdf_site.py"])
 
     assert scope == Scope(True, False, False, False)
-    assert scope.python_matrix == ("3.10", "3.14")
+    assert scope.python_matrix == ("3.11", "3.14")
 
 
 def test_component_runtime_changes_select_only_their_native_matrix() -> None:
@@ -240,7 +240,7 @@ def test_manual_schedule_and_full_ci_label_select_the_comprehensive_backstop() -
 
 def test_all_scope_emits_every_supported_python_and_acceptance_suite() -> None:
     assert output_lines(all_scope()) == (
-        'python-matrix=["3.10","3.11","3.12","3.13","3.14"]',
+        'python-matrix=["3.11","3.12","3.13","3.14"]',
         "adopt=true",
         "pdf=true",
         "bootstrap=true",

@@ -14,18 +14,12 @@ from __future__ import annotations
 import hashlib
 import os
 import re
-import sys
+import tomllib
 import uuid
 from contextlib import suppress
 from dataclasses import dataclass
 from importlib import resources
 from pathlib import Path, PurePosixPath
-
-if sys.version_info >= (3, 11):
-    import tomllib
-else:  # pragma: no cover - Python 3.10
-    import tomli as tomllib
-
 
 MANIFEST = ".prodockit-shared-files.toml"
 MANIFEST_VERSION = 1

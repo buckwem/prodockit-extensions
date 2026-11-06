@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import importlib
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -21,7 +21,7 @@ def test_retry_after_respects_provider_delay_with_a_finite_cap() -> None:
     assert resilience.retry_delay(2, {"Retry-After": "600"}) == 60
     assert resilience.retry_after_seconds(
         {"Retry-After": "Thu, 01 Jan 2026 00:00:09 GMT"},
-        now=datetime(2026, 1, 1, tzinfo=timezone.utc),
+        now=datetime(2026, 1, 1, tzinfo=UTC),
     ) == 9
 
 

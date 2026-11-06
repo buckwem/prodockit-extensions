@@ -6,10 +6,12 @@ from __future__ import annotations
 import hashlib
 import io
 import json
+import os
 import stat
 import tarfile
 import zipfile
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -51,6 +53,57 @@ def _copy_from(source: Path, calls: list[Path]):
         destination.write_bytes(source.read_bytes())
 
     return acquire
+
+
+def test_windows_activation_retries_a_transient_executable_lock(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    staging = tmp_path / "staging"
+    target = tmp_path / "target"
+    staging.mkdir()
+    attempts = 0
+    waits: list[float] = []
+
+    def replace(source: Path, destination: Path) -> None:
+        nonlocal attempts
+        attempts += 1
+        if attempts < 3:
+            error = PermissionError("executable still locked")
+            error.winerror = 5
+            raise error
+        os.replace(source, destination)
+
+    monkeypatch.setattr(runtime_store_module, "os", SimpleNamespace(name="nt", replace=replace))
+    monkeypatch.setattr(runtime_store_module, "time", SimpleNamespace(sleep=waits.append))
+
+    runtime_store_module._replace_runtime_directory(staging, target)
+
+    assert attempts == 3
+    assert waits == [0.1, 0.2]
+    assert target.is_dir() and not staging.exists()
+
+
+def test_windows_activation_does_not_retry_other_permission_errors(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    staging = tmp_path / "staging"
+    target = tmp_path / "target"
+    staging.mkdir()
+    waits: list[float] = []
+
+    def replace(_source: Path, _destination: Path) -> None:
+        error = PermissionError("permanent denial")
+        error.winerror = 13
+        raise error
+
+    monkeypatch.setattr(runtime_store_module, "os", SimpleNamespace(name="nt", replace=replace))
+    monkeypatch.setattr(runtime_store_module, "time", SimpleNamespace(sleep=waits.append))
+
+    with pytest.raises(PermissionError, match="permanent denial"):
+        runtime_store_module._replace_runtime_directory(staging, target)
+
+    assert waits == []
+    assert staging.is_dir() and not target.exists()
 
 
 def test_prepare_activates_metadata_then_warm_reuse_does_no_acquisition(tmp_path: Path) -> None:

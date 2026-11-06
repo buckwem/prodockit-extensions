@@ -13,12 +13,8 @@ from __future__ import annotations
 
 import re
 import sys
+import tomllib
 from pathlib import Path
-
-if sys.version_info >= (3, 11):
-    import tomllib
-else:  # pragma: no cover - exercised by the Python 3.10 CI job
-    import tomli as tomllib
 
 MEASUREMENT_ID = re.compile(r"G-[A-Z0-9]+")
 ANALYTICS_CONFIG = '''

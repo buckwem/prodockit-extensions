@@ -223,17 +223,16 @@ def worker(args: argparse.Namespace) -> int:
             for name, source in [("extensions", ROOT), ("template", args.template)]:
                 target = output / name
                 copy_project(source, target)
-                if args.historical_baseline:
-                    # Project environment guards must see the version under test.
-                    # Change only Zensical declarations in the disposable copy;
-                    # runtime code and documentation content remain identical.
-                    from prodockit.pins import apply_version, discover
+                # Project environment guards must see the version under test.
+                # Change only Zensical declarations in each disposable copy;
+                # runtime code and documentation content remain identical.
+                from prodockit.pins import apply_version, discover
 
-                    state = discover(str(target))["zensical"]
-                    changed = apply_version(str(target), state, version)
-                    result.setdefault("baseline_declarations", {})[name] = [
-                        site.path for site in changed
-                    ]
+                state = discover(str(target))["zensical"]
+                changed = apply_version(str(target), state, version)
+                result.setdefault("aligned_declarations", {})[name] = [
+                    site.path for site in changed
+                ]
                 result["projects"][name] = full_project(
                     target, output / (name + "-results"), template=name == "template",
                     historical_baseline=args.historical_baseline
@@ -263,7 +262,7 @@ def report(output: Path) -> int:
         "the new supported floor. Its exact Prodockit/Zensical metadata mismatch may be "
         "recorded as an expected diagnostic failure; other diagnostic failures still fail "
         "qualification, and candidate diagnostics receive no exemption. Zensical declarations "
-        "in disposable baseline projects are aligned to the historical version so project "
+        "in disposable projects are aligned to the tested version so project "
         "environment guards validate the version actually under test; runtime source and "
         "documentation content are unchanged.",
         "",
@@ -377,6 +376,33 @@ def baseline_requirements(frozen: str, version: str) -> str:
     ) + "\n"
 
 
+def baseline_only_packages(baseline: str, candidate: str) -> list[str]:
+    """Return old Zensical dependencies absent from the candidate environment."""
+
+    def pinned(lines: str) -> dict[str, str]:
+        return {
+            line.partition("==")[0].lower().replace("_", "-"): line
+            for line in lines.splitlines()
+            if "==" in line and not line.startswith("#")
+        }
+
+    newer = pinned(candidate)
+    return [
+        line
+        for name, line in pinned(baseline).items()
+        if name not in newer and name not in {"zensical", "prodockit"}
+    ]
+
+
+def template_requirements_for_pair(requirements: str) -> str:
+    """Keep template dependencies while letting the pair choose Zensical."""
+
+    return "\n".join(
+        line for line in requirements.splitlines()
+        if not line.lstrip().lower().startswith("zensical==")
+    ) + "\n"
+
+
 def pair(args: argparse.Namespace) -> int:
     output = args.output.resolve()
     if output.exists():
@@ -395,13 +421,19 @@ def pair(args: argparse.Namespace) -> int:
             "mkdocs-table-reader-plugin",
         ]
         if args.template:
-            requirements += ["-r", str(args.template / "requirements.txt")]
+            template_lock = output / "template-qualification-requirements.txt"
+            template_lock.write_text(
+                template_requirements_for_pair(
+                    (args.template / "requirements.txt").read_text(encoding="utf-8")
+                ),
+                encoding="utf-8",
+            )
+            requirements += ["-r", str(template_lock)]
         checked(
             [candidate_py, "-m", "pip", "install", *requirements],
             ROOT, output / "install-candidate.log",
         )
         frozen = subprocess.check_output([candidate_py, "-m", "pip", "freeze"], text=True)
-        (output / "candidate-requirements.txt").write_text(frozen, encoding="utf-8")
         baseline = output / "venv-baseline"
         venv.EnvBuilder(with_pip=True).create(baseline)
         baseline_py = str(python_in(baseline))
@@ -419,6 +451,16 @@ def pair(args: argparse.Namespace) -> int:
         )
         baseline_frozen = subprocess.check_output([baseline_py, "-m", "pip", "freeze"], text=True)
         (output / "baseline-requirements.txt").write_text(baseline_frozen, encoding="utf-8")
+        # A release may remove a transitive dependency. Keep that old package
+        # in both environments so only Zensical itself varies in the probes.
+        old_only = baseline_only_packages(baseline_frozen, frozen)
+        if old_only:
+            checked(
+                [candidate_py, "-m", "pip", "install", "--no-deps", *old_only],
+                ROOT, output / "install-legacy-dependencies.log",
+            )
+            frozen = subprocess.check_output([candidate_py, "-m", "pip", "freeze"], text=True)
+        (output / "candidate-requirements.txt").write_text(frozen, encoding="utf-8")
         for side, env in [("baseline", baseline), ("candidate", candidate)]:
             cmd = [
                 str(python_in(env)),

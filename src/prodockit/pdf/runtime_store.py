@@ -39,6 +39,8 @@ _CACHE_KEY = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._+-]{0,127}$")
 _DOWNLOADS_DIRECTORY = "d"
 _RUNTIMES_DIRECTORY = "r"
 _STAGING_DIRECTORY = "s"
+_WINDOWS_REPLACE_DELAYS = (0.1, 0.2, 0.4, 0.8, 1.6)
+_WINDOWS_TRANSIENT_REPLACE_ERRORS = frozenset({5, 32})
 _WINDOWS_RESERVED = frozenset(
     {
         "con",
@@ -61,6 +63,23 @@ class RuntimePreparationError(RuntimeStoreError):
     def __init__(self, message: str, *, fallback: Path | None = None) -> None:
         super().__init__(message)
         self.fallback = fallback
+
+
+def _replace_runtime_directory(source: Path, destination: Path) -> None:
+    """Allow Windows to release a recently probed executable before activation."""
+
+    for delay in (*_WINDOWS_REPLACE_DELAYS, None):
+        try:
+            os.replace(source, destination)
+            return
+        except OSError as error:
+            if (
+                delay is None
+                or os.name != "nt"
+                or getattr(error, "winerror", None) not in _WINDOWS_TRANSIENT_REPLACE_ERRORS
+            ):
+                raise
+            time.sleep(delay)
 
 
 @dataclass(frozen=True)
@@ -692,12 +711,12 @@ class RuntimeStore:
             / f"displaced-{descriptor.component}-{uuid.uuid4().hex[:8]}"
         )
         if target.exists():
-            os.replace(target, displaced)
+            _replace_runtime_directory(target, displaced)
         try:
-            os.replace(staging, target)
+            _replace_runtime_directory(staging, target)
         except BaseException:
             if displaced.exists() and not target.exists():
-                os.replace(displaced, target)
+                _replace_runtime_directory(displaced, target)
             raise
         finally:
             if displaced.exists():
