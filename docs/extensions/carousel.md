@@ -187,36 +187,20 @@ focusing any of its content, or hiding the browser tab pauses rotation. Use
 pause button is hidden in this example with `data-carousel-pause="false"`;
 omit that option to show the pause/resume button.
 Reduced-motion preferences disable automatic rotation and transitions.
+The cards progress from white to dark grey; the four darkest cards use white
+text to maintain readable contrast.
 
-<div class="grid cards pdk-carousel" markdown data-carousel-label="Weekly ideas" data-carousel-visible="2" data-carousel-peek="true" data-carousel-position="false" data-carousel-pause="false" data-carousel-autoplay="true" data-carousel-interval="4000">
+<div class="grid cards pdk-carousel weekly-contrast" markdown data-carousel-label="Weekly ideas" data-carousel-visible="2" data-carousel-peek="true" data-carousel-position="false" data-carousel-pause="false" data-carousel-autoplay="true" data-carousel-interval="4000">
 
--   __Monday__
-
-    Choose a topic.
-
--   __Tuesday__
-
-    Gather evidence.
-
--   __Wednesday__
-
-    Make an outline.
-
--   __Thursday__
-
-    Write a first draft.
-
--   __Friday__
-
-    Review the argument.
-
--   __Saturday__
-
-    Check the references.
-
--   __Sunday__
-
-    Publish and share.
+<ul>
+<li style="--weekly-card-bg: #ffffff; --weekly-card-text: #000000;"><p><strong>Monday</strong></p><p>Choose a topic.</p></li>
+<li style="--weekly-card-bg: #dddddd; --weekly-card-text: #000000;"><p><strong>Tuesday</strong></p><p>Gather evidence.</p></li>
+<li style="--weekly-card-bg: #bbbbbb; --weekly-card-text: #000000;"><p><strong>Wednesday</strong></p><p>Make an outline.</p></li>
+<li style="--weekly-card-bg: #747474; --weekly-card-text: #ffffff;"><p><strong>Thursday</strong></p><p>Write a first draft.</p></li>
+<li style="--weekly-card-bg: #626262; --weekly-card-text: #ffffff;"><p><strong>Friday</strong></p><p>Review the argument.</p></li>
+<li style="--weekly-card-bg: #4a4a4a; --weekly-card-text: #ffffff;"><p><strong>Saturday</strong></p><p>Check the references.</p></li>
+<li style="--weekly-card-bg: #333333; --weekly-card-text: #ffffff;"><p><strong>Sunday</strong></p><p>Publish and share.</p></li>
+</ul>
 
 </div>
 
@@ -230,44 +214,90 @@ numbers appear below the cards unless `data-carousel-position="false"`.
 
 ### Live example: numbered cards without wrapping
 
-This five-card photo carousel shows a badge from `1/5` to `5/5` in each
-card's top-right corner. Move with the arrows or drag: navigation stops at the
-first and last window, with three cards visible on wide screens. The disabled
-arrow marks each end. The colours are set on this example's container.
+Follow the Eiffel Tower construction through 18 dated photographs, from
+10 August 1887 to 12 March 1889. Each card has a top-right badge from `1/18`
+to `18/18`. Use the arrows or drag to move through the sequence; navigation
+stops at the first and last window. Three equal-height cards appear on wide
+screens, with fewer on narrow screens.
 
-<div class="grid cards pdk-carousel pdk-carousel-tiles" markdown data-carousel-label="Five numbered countries" data-carousel-badges="true" data-carousel-badge-corner="top-right" data-carousel-loop="false" style="--pdk-carousel-badge-color: #fff; --pdk-carousel-badge-bg: rgba(0, 0, 0, 0.75);" data-carousel-visible="3" data-carousel-min-width="160" data-carousel-gap="8" data-carousel-image-fill="true" data-carousel-position="false">
+<div class="grid cards pdk-carousel pdk-carousel-tiles eiffel-construction" markdown data-carousel-label="Eiffel Tower construction" data-carousel-badges="true" data-carousel-badge-corner="top-right" data-carousel-loop="false" style="--pdk-carousel-badge-color: #fff; --pdk-carousel-badge-bg: rgba(0, 0, 0, 0.75);" data-carousel-visible="3" data-carousel-min-width="160" data-carousel-gap="8" data-carousel-image-fill="true" data-carousel-position="false">
 
--   [![The clock face and Gothic tower of Big Ben in London](../assets/carousel/united-kingdom.jpg){ .pdk-carousel-image width="640" height="426" loading="lazy" }](https://en.wikipedia.org/wiki/United_Kingdom)
+-   <span class="eiffel-construction-stage"><img src="../assets/carousel/eiffel-construction.jpg" alt="Eiffel Tower under construction, 10 August 1887, stage 1 of 18" style="left: -0%; top: -0%;" loading="lazy"></span>
 
-    [__United Kingdom__](https://en.wikipedia.org/wiki/United_Kingdom)
+    __10 August 1887__
 
-    <small>Photo: [enrico bet](https://unsplash.com/photos/big-ben-london-MdJq0zFUwrw) / Unsplash</small>
+-   <span class="eiffel-construction-stage"><img src="../assets/carousel/eiffel-construction.jpg" alt="Eiffel Tower under construction, 9 September 1887, stage 2 of 18" style="left: -100%; top: -0%;" loading="lazy"></span>
 
--   [![The Eiffel Tower above the River Seine in Paris](../assets/carousel/france.jpg){ .pdk-carousel-image width="640" height="426" loading="lazy" }](https://en.wikipedia.org/wiki/France)
+    __9 September 1887__
 
-    [__France__](https://en.wikipedia.org/wiki/France)
+-   <span class="eiffel-construction-stage"><img src="../assets/carousel/eiffel-construction.jpg" alt="Eiffel Tower under construction, 8 October 1887, stage 3 of 18" style="left: -200%; top: -0%;" loading="lazy"></span>
 
-    <small>Photo: [Chris Karidis](https://unsplash.com/photos/eiffel-tower-paris-france-nnzkZNYWHaU) / Unsplash</small>
+    __8 October 1887__
 
--   [![The Colosseum in Rome](../assets/carousel/italy.jpg){ .pdk-carousel-image width="640" height="426" loading="lazy" }](https://en.wikipedia.org/wiki/Italy)
+-   <span class="eiffel-construction-stage"><img src="../assets/carousel/eiffel-construction.jpg" alt="Eiffel Tower under construction, 10 November 1887, stage 4 of 18" style="left: -300%; top: -0%;" loading="lazy"></span>
 
-    [__Italy__](https://en.wikipedia.org/wiki/Italy)
+    __10 November 1887__
 
-    <small>Photo: [Sarah Doffman](https://unsplash.com/photos/colosseum-rome-TC73XlNiDeM) / Unsplash</small>
+-   <span class="eiffel-construction-stage"><img src="../assets/carousel/eiffel-construction.jpg" alt="Eiffel Tower under construction, 14 December 1887, stage 5 of 18" style="left: -400%; top: -0%;" loading="lazy"></span>
 
--   [![Snow-capped Mount Fuji above a lake and town](../assets/carousel/japan.jpg){ .pdk-carousel-image width="640" height="426" loading="lazy" }](https://en.wikipedia.org/wiki/Japan)
+    __14 December 1887__
 
-    [__Japan__](https://en.wikipedia.org/wiki/Japan)
+-   <span class="eiffel-construction-stage"><img src="../assets/carousel/eiffel-construction.jpg" alt="Eiffel Tower under construction, 15 March 1888, stage 6 of 18" style="left: -500%; top: -0%;" loading="lazy"></span>
 
-    <small>Photo: [Bryan Heng](https://unsplash.com/photos/mount-fuji-above-lake-in-japan-J8HzbBdqdV0) / Unsplash</small>
+    __15 March 1888__
 
--   [![The Brandenburg Gate in Berlin](../assets/carousel/germany.jpg){ .pdk-carousel-image width="640" height="426" loading="lazy" }](https://en.wikipedia.org/wiki/Germany)
+-   <span class="eiffel-construction-stage"><img src="../assets/carousel/eiffel-construction.jpg" alt="Eiffel Tower under construction, 10 April 1888, stage 7 of 18" style="left: -600%; top: -0%;" loading="lazy"></span>
 
-    [__Germany__](https://en.wikipedia.org/wiki/Germany)
+    __10 April 1888__
 
-    <small>Photo: [Claudio Schwarz](https://unsplash.com/photos/brandenburg-gate-berlin-cQ41AMy31Zw) / Unsplash</small>
+-   <span class="eiffel-construction-stage"><img src="../assets/carousel/eiffel-construction.jpg" alt="Eiffel Tower under construction, 10 May 1888, stage 8 of 18" style="left: -700%; top: -0%;" loading="lazy"></span>
+
+    __10 May 1888__
+
+-   <span class="eiffel-construction-stage"><img src="../assets/carousel/eiffel-construction.jpg" alt="Eiffel Tower under construction, June 1888, stage 9 of 18" style="left: -800%; top: -0%;" loading="lazy"></span>
+
+    __June 1888__
+
+-   <span class="eiffel-construction-stage"><img src="../assets/carousel/eiffel-construction.jpg" alt="Eiffel Tower under construction, July 1888, stage 10 of 18" style="left: -0%; top: -100%;" loading="lazy"></span>
+
+    __July 1888__
+
+-   <span class="eiffel-construction-stage"><img src="../assets/carousel/eiffel-construction.jpg" alt="Eiffel Tower under construction, 14 August 1888, stage 11 of 18" style="left: -100%; top: -100%;" loading="lazy"></span>
+
+    __14 August 1888__
+
+-   <span class="eiffel-construction-stage"><img src="../assets/carousel/eiffel-construction.jpg" alt="Eiffel Tower under construction, 14 September 1888, stage 12 of 18" style="left: -200%; top: -100%;" loading="lazy"></span>
+
+    __14 September 1888__
+
+-   <span class="eiffel-construction-stage"><img src="../assets/carousel/eiffel-construction.jpg" alt="Eiffel Tower under construction, 14 October 1888, stage 13 of 18" style="left: -300%; top: -100%;" loading="lazy"></span>
+
+    __14 October 1888__
+
+-   <span class="eiffel-construction-stage"><img src="../assets/carousel/eiffel-construction.jpg" alt="Eiffel Tower under construction, 14 November 1888, stage 14 of 18" style="left: -400%; top: -100%;" loading="lazy"></span>
+
+    __14 November 1888__
+
+-   <span class="eiffel-construction-stage"><img src="../assets/carousel/eiffel-construction.jpg" alt="Eiffel Tower under construction, 26 December 1888, stage 15 of 18" style="left: -500%; top: -100%;" loading="lazy"></span>
+
+    __26 December 1888__
+
+-   <span class="eiffel-construction-stage"><img src="../assets/carousel/eiffel-construction.jpg" alt="Eiffel Tower under construction, 20 January 1889, stage 16 of 18" style="left: -600%; top: -100%;" loading="lazy"></span>
+
+    __20 January 1889__
+
+-   <span class="eiffel-construction-stage"><img src="../assets/carousel/eiffel-construction.jpg" alt="Eiffel Tower under construction, 12 February 1889, stage 17 of 18" style="left: -700%; top: -100%;" loading="lazy"></span>
+
+    __12 February 1889__
+
+-   <span class="eiffel-construction-stage"><img src="../assets/carousel/eiffel-construction.jpg" alt="Eiffel Tower under construction, 12 March 1889, stage 18 of 18" style="left: -800%; top: -100%;" loading="lazy"></span>
+
+    __12 March 1889__
 
 </div>
+
+Source: supplied PublicDomainArchive montage; dates follow the original
+captions. [View the complete construction sequence](../assets/carousel/eiffel-construction.jpg).
 
 Enable badges with `data-carousel-badges="true"`. Choose any of
 `top-left`, `top-right`, `bottom-left` or `bottom-right` with

@@ -92,3 +92,43 @@
   margin-top: auto;
   padding-top: 0.8rem;
 }
+
+/* Show the supplied historical montage as 18 consecutive card viewports.
+   Keep the original JPEG intact; every stage shares the same cached asset. */
+.eiffel-construction-stage {
+  position: relative;
+  display: block;
+  height: 0;
+  padding-top: 215%;
+  overflow: hidden;
+}
+.eiffel-construction-stage img {
+  position: absolute;
+  display: block;
+  width: 900%;
+  max-width: none;
+  height: 200%;
+}
+@media print {
+  .eiffel-construction-stage {
+    width: 140px;
+    height: 301px;
+    padding-top: 0;
+  }
+  .eiffel-construction-stage img {
+    max-width: none !important;
+    max-height: none !important;
+    margin: 0 !important;
+    object-fit: fill !important;
+  }
+}
+
+/* The weekly rotation example retains its authored tones in edge copies. */
+.grid.cards.weekly-contrast > ul > li {
+  background-color: var(--weekly-card-bg) !important;
+  color: var(--weekly-card-text) !important;
+}
+.grid.cards.weekly-contrast > ul > li p,
+.grid.cards.weekly-contrast > ul > li strong {
+  color: var(--weekly-card-text) !important;
+}
