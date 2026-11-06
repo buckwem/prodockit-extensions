@@ -73,10 +73,7 @@ env:
   PANDOC_VERSION: "3.10.1"
 
 jobs:
-  deploy:
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+  build:
     # Pinned rather than ubuntu-latest, for the same reason zensical and
     # weasyprint are pinned below: this job publishes an artifact, and its
     # inputs should move when someone decides they should.
@@ -102,9 +99,8 @@ jobs:
     # this job sat 35 minutes on `apt-get` once, and would have held
     # the runner for six hours (#478).
     timeout-minutes: 30
-    # Consumed by the verify job below.
+    # Consumed by the verify job after the separate Pages deployment.
     outputs:
-      page_url: ${{ steps.deployment.outputs.page_url }}
       index_sha: ${{ steps.fingerprint.outputs.index_sha }}
     env:
       # MathJax website verification uses Puppeteer Core with system Chrome.
@@ -364,8 +360,21 @@ jobs:
         if: github.event_name != 'pull_request'
         with:
           path: site
+
+  # Pull requests build and retain the rendering-review bundle above, but
+  # must not enter the protected Pages environment. Only an accepted main
+  # build reaches this small deployment job.
+  deploy:
+    if: github.event_name != 'pull_request'
+    needs: build
+    runs-on: ubuntu-24.04
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    outputs:
+      page_url: ${{ steps.deployment.outputs.page_url }}
+    steps:
       - uses: actions/deploy-pages@v4
-        if: github.event_name != 'pull_request'
         id: deployment
 
   # A successful deploy does not mean the site serves it. Three of the four
@@ -382,7 +391,7 @@ jobs:
   # decides whether the run reports success.
   verify:
     if: github.event_name != 'pull_request'
-    needs: deploy
+    needs: [build, deploy]
     runs-on: ubuntu-24.04
     # Deliberately above the polling window below: this job waits
     # out Pages' 10-minute cache for up to 15 minutes, so a timeout
@@ -398,7 +407,7 @@ jobs:
       - name: Verify the live site serves this build
         env:
           PAGE_URL: ${{ needs.deploy.outputs.page_url }}
-          WANT: ${{ needs.deploy.outputs.index_sha }}
+          WANT: ${{ needs.build.outputs.index_sha }}
         run: |
           set -u
           for attempt in $(seq 1 30); do

@@ -156,6 +156,14 @@ def test_phase_seven_ci_and_release_qualification_contract() -> None:
     assert "python tools/rendering_catalogue.py build" in workflow
     assert "if: always()" in workflow
     assert "github.event_name != 'pull_request'" in workflow
+    build_job = workflow.split("\n  build:\n", 1)[1].split("\n  deploy:\n", 1)[0]
+    deploy_job = workflow.split("\n  deploy:\n", 1)[1].split("\n  verify:\n", 1)[0]
+    assert "environment:" not in build_job
+    assert "actions/deploy-pages@v4" not in build_job
+    assert "if: github.event_name != 'pull_request'" in deploy_job
+    assert "environment:\n      name: github-pages" in deploy_job
+    assert "actions/deploy-pages@v4" in deploy_job
+    assert "needs: [build, deploy]" in workflow
     assert '".github/workflows/docs.yml"' in release_gate
     assert project["extra_css"] == ["stylesheets/pdk.css", "stylesheets/page-breaks.css"]
     assert project["extra_javascript"] == [
