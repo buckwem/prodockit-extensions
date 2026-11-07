@@ -17,6 +17,12 @@ PDF output.
 | Long code and tables | [Flow across boundaries](flow-and-overflow.md#long-code-block) | First and last markers occur on different pages; table headers repeat |
 | Natural flow | [Fixed-height paragraphs](flow-and-overflow.md#natural-paragraph-flow) | Content crosses a boundary without an authored break |
 | Nested containers | [Lists, admonitions, tabs and grids](flow-and-overflow.md#boundary-containers) | All static content remains present |
+| Consecutive notes | [Multiple long notes](multiple-long-notes.md#multiple-long-notes) | Every note remains intact while the sequence flows across pages |
+| Consecutive footnotes | [Multiple long footnotes](multiple-long-footnotes.md#multiple-long-footnotes) | Each multi-line footnote remains complete and associated with its reference |
+| Footnote edge cases | [Footnote edge cases](footnote-edge-cases.md#footnote-edge-cases) | Oversized, shared-paragraph, multi-paragraph, repeated, nested and long-token notes remain reviewable |
+| Admonitions | [Admonition pagination](admonition-pagination.md#admonition-pagination) | Oversized and richly nested call-outs split without losing ownership or content |
+| Interactive containers and lists | [Container pagination](container-pagination.md#container-pagination) | Expanded tabs, grid cards, steps, definitions and task states remain complete |
+| Tables and figures | [Rich block pagination](rich-block-pagination.md#rich-block-pagination) | Captions remain associated and complex table rows do not split |
 | Footnotes and vectors | [Boundary footnote](flow-and-overflow.md#boundary-footnote) and [Mermaid and maths](flow-and-overflow.md#boundary-vectors) | Text and vector evidence remain available |
 | Overflow | [Long token](flow-and-overflow.md#long-unbreakable-token) | Text wraps inside the page content box |
 

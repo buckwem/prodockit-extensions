@@ -494,18 +494,57 @@ def fix_up_page_html(
     footnote_div = soup.find("div", class_="footnote")
     if isinstance(footnote_div, Tag):
         for li in footnote_div.select('li[id^="fn:"]'):
-            ref = soup.find("sup", id=f"fnref:{li['id'][3:]}")
-            if ref is None:
+            li_id = li.get("id")
+            if not isinstance(li_id, str):
                 continue
-            backref = li.find("a", class_="footnote-backref")
-            if isinstance(backref, Tag):
+            key = li_id[3:]
+            refs: list[Tag] = []
+            for candidate in soup.find_all("sup"):
+                ref_id = candidate.get("id")
+                if isinstance(ref_id, str) and re.fullmatch(
+                    rf"fnref\d*:{re.escape(key)}", ref_id
+                ):
+                    refs.append(candidate)
+            if not refs:
+                continue
+            for backref in li.find_all("a", class_="footnote-backref"):
                 backref.decompose()
+            paragraphs = li.find_all("p", recursive=False)
+            oversized = len(paragraphs) >= 8 or len(li.get_text(" ", strip=True)) >= 3000
+            if oversized:
+                call = soup.new_tag(
+                    "span", **{"class": "pdf-footnote pdf-footnote--counter-only"}
+                )
+                source_number = refs[0].get_text(strip=True)
+                host = refs[0].find_parent(("p", "li", "div"))
+                refs[0].replace_with(call)
+                block = soup.new_tag("div", **{"class": "pdf-oversized-footnote"})
+                number = soup.new_tag("span", **{"class": "pdf-oversized-footnote-number"})
+                number.string = f"{source_number}. "
+                block.append(number)
+                for paragraph in list(paragraphs):
+                    block.append(paragraph.extract())
+                if isinstance(host, Tag):
+                    host.insert_after(block)
+                for ref in refs[1:]:
+                    repeated = soup.new_tag("sup", **{"class": "pdf-footnote-repeat"})
+                    repeated.string = ref.get_text(strip=True)
+                    ref.replace_with(repeated)
+                continue
+
             span = soup.new_tag("span", **{"class": "pdf-footnote"})
-            for p in li.find_all("p", recursive=False):
-                p.unwrap()
+            for paragraph_number, paragraph in enumerate(paragraphs):
+                if paragraph_number:
+                    paragraph.insert_before(soup.new_tag("br"))
+                    paragraph.insert_before(soup.new_tag("br"))
+                paragraph.unwrap()
             for child in list(li.contents):
                 span.append(child)
-            ref.replace_with(span)
+            refs[0].replace_with(span)
+            for ref in refs[1:]:
+                repeated = soup.new_tag("sup", **{"class": "pdf-footnote-repeat"})
+                repeated.string = ref.get_text(strip=True)
+                ref.replace_with(repeated)
         footnote_div.decompose()
 
     # Mermaid diagrams: WeasyPrint has no JS engine to run Mermaid.js
