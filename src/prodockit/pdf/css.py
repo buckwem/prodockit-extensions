@@ -593,7 +593,6 @@ blockquote {
     footnote-policy: block !important;
     font-size: 9pt !important;
     overflow-wrap: anywhere !important;
-    word-break: break-all !important;
     /* Deliberately sets no width: WeasyPrint sizes the footnote area to the
        page's content width on its own, and a width override is silently
        ignored for floated footnote content anyway.
@@ -615,7 +614,6 @@ blockquote {
     margin-top: 8px !important;
     overflow-wrap: anywhere !important;
     padding-top: 6px !important;
-    word-break: break-all !important;
 }
 .pdf-footnote--counter-only::footnote-marker {
     content: "" !important;
