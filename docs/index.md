@@ -18,7 +18,7 @@ A docs-as-code workflow for professional and academic documentation, built on Ze
 <p class="cover-hero-release">Release: {{ git.short_tag }}</p>
 {% endif %}
 
-[:material-file-pdf-box: Download PDF](site_documentation.pdf){ .md-button .md-button--primary target="_blank" .web-only } [Getting Started :material-arrow-right:](getting-started.md){ .md-button .web-only }
+[:material-file-pdf-box: Download PDF](site_documentation.pdf){ .md-button .md-button--primary target="_blank" .web-only } [Getting Started :material-arrow-right:](https://prodockit.org/gettingstarted/){ .md-button .web-only }
 
 </div>
 <div class="cover-hero-graphic" markdown="1">
