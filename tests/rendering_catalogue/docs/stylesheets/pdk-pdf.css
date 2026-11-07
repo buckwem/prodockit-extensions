@@ -67,3 +67,21 @@
   line-height: 1.1 !important;
   margin-block: 0 !important;
 }
+
+/* Keep each page-local reference intact and its return links compact. */
+.csl-entry.reference {
+  break-inside: avoid-page !important;
+  page-break-inside: avoid !important;
+}
+
+.prodockit-bib-backlinks {
+  display: inline !important;
+  margin-left: 0.35em !important;
+  white-space: nowrap !important;
+}
+
+.prodockit-bib-backlink {
+  color: inherit !important;
+  font-size: 8pt !important;
+  text-decoration: none !important;
+}

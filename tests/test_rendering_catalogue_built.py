@@ -783,6 +783,23 @@ def test_rich_block_pagination_specimens_retain_captions_and_rows() -> None:
     assert "FIGURE-FOLLOWING-CONTENT" in article.get_text(" ", strip=True)
 
 
+def test_page_bibliography_pagination_retains_local_links_and_backlinks() -> None:
+    page = _soup("page-breaks/page-bibliography-pagination.md")
+    article = page.select_one("article.md-content__inner")
+    assert article is not None
+
+    citations = article.select("span.prodockit-bib-cite[id]")
+    entries = article.select("#refs .csl-entry.reference")
+    backlinks = article.select("#refs a.prodockit-bib-backlink")
+    assert len(citations) == 32
+    assert len(entries) == 30
+    assert len(backlinks) == 32
+    citation_ids = {citation["id"] for citation in citations}
+    assert {link.get("href", "").removeprefix("#") for link in backlinks} == citation_ids
+    assert len(article.select("#ref-pagination01 a.prodockit-bib-backlink")) == 2
+    assert len(article.select("#ref-pagination02 a.prodockit-bib-backlink")) == 2
+
+
 def test_oversized_footnote_splits_complete_and_in_order() -> None:
     path = BUNDLE / "page-pdfs" / "page-breaks" / "footnote-edge-cases.pdf"
     with pymupdf.open(path) as document:
@@ -967,6 +984,23 @@ def test_figure_and_long_caption_remain_on_one_page() -> None:
         assert caption_pages == _compact_marker_pages(pages, "FIGURE-FOLLOWING-CONTENT")
         figure_page = document[next(iter(caption_pages)) - 1]
         assert len(figure_page.get_drawings()) >= 4
+
+
+def test_page_local_bibliography_entries_paginate_without_splitting() -> None:
+    path = BUNDLE / "page-pdfs" / "page-breaks" / "page-bibliography-pagination.pdf"
+    with pymupdf.open(path) as document:
+        pages = [page.get_text() for page in document]
+
+    first_pages = _compact_marker_pages(pages, "PAGINATION-REFERENCE-01")
+    # Pandoc's default CSL sorts by author, so Zulu's entry is the final one.
+    last_pages = _compact_marker_pages(pages, "PAGINATION-REFERENCE-26")
+    assert len(first_pages) == len(last_pages) == 1
+    assert first_pages != last_pages
+    for number in range(1, 31):
+        assert len(_compact_marker_pages(pages, f"PAGINATION-REFERENCE-{number:02d}")) == 1
+    following_pages = _compact_marker_pages(pages, "PAGE-BIBLIOGRAPHY-FOLLOWING")
+    assert len(following_pages) == 1
+    assert next(iter(following_pages)) >= next(iter(last_pages))
 
 
 def test_phase_five_pdf_page_relationships_are_stable() -> None:

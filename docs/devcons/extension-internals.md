@@ -94,9 +94,11 @@ and appendix letters while a Zensical build is active.
 ## Delegate bibliography formatting
 
 `prodockit.bibliography` does not implement CSL sorting, localisation, or
-disambiguation. It passes each distinct citation or reference-list request to
-`pandoc --citeproc` with the configured `.bib` and `.csl` files, then memoizes
-the formatted HTML for the rest of the build.
+disambiguation. It first collects citations and bibliography markers for the
+whole page, then passes each distinct citation or reference-list request to
+`pandoc --citeproc` with the configured `.bib` and `.csl` files. The collection
+pass makes `\pagebibliography` independent of whether its marker appears before
+or after the citations. Formatted HTML is memoized for the rest of the build.
 
 \ref{fig-bibliography-pipeline} follows one formatting request from the
 Markdown, BibTeX, and CSL inputs through `prodockit.bibliography` to Pandoc.
@@ -110,8 +112,11 @@ which keeps their citation presentation consistent.
 Bibliography formatting pipeline
 ///
 
-Pandoc formats only the requested citation or list. Zensical still renders the
-surrounding page.
+Pandoc formats only the requested citation or list. The request scope is
+explicit: all entries, all entries cited across the site, or entries cited on
+the current page. Zensical still renders the surrounding page. Combined PDFs
+namespace citation and reference fragments by source page so repeated keys on
+different pages remain valid link targets.
 
 ## Generate an index after layout
 

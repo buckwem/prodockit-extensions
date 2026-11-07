@@ -835,23 +835,28 @@ def find_page_with_marker(marker: str) -> str | None:
 
 
 def prescan_bibliography(
-    cite_re: str, marker_re: str, default_bib_file: str
-) -> tuple[set[str], dict[str, str]] | None:
-    """Returns ``(all_cited_keys, first_page_for_file)``, by pre-scanning
+    cite_re: str,
+    marker_re: str,
+    page_marker_re: str,
+    default_bib_file: str,
+) -> tuple[set[str], set[str], dict[str, str]] | None:
+    """Returns ``(all_cited_keys, all_bib_files, first_page_for_file)``, by pre-scanning
     every page in the current Zensical build's nav before any page has
     actually been converted - the same ordering problem
     find_page_with_marker() solves, generalized to also collect *which*
-    citation keys were used and *which* distinct ``.bib`` file each
-    ``\\bibliography{...}`` marker references (falling back to
-    `default_bib_file` for a marker that omits its own file argument).
+    citation keys were used and *which* distinct ``.bib`` file each global
+    ``\\bibliography{...}`` or local ``\\pagebibliography{...}`` marker
+    references (falling back to `default_bib_file` when omitted).
 
     ``all_cited_keys`` is every distinct key ever passed to a citation
     pattern (`cite_re`) anywhere in nav - used to filter a
     ``cited_only=True`` marker down to just what's actually cited.
 
-    ``first_page_for_file`` maps each distinct ``.bib`` file path
-    referenced by any marker anywhere in nav to the first nav-order page
-    with a marker for that specific file - used to cross-link a
+    ``all_bib_files`` includes files from both marker forms, allowing an
+    inline citation to resolve against a page-local file override.
+
+    ``first_page_for_file`` maps each distinct ``.bib`` file path referenced
+    by a *global* marker to the first nav-order page with that marker - used to cross-link a
     ``\\cite{id}`` citation to whichever page's marker actually lists
     that entry, rather than assuming a single global bibliography page.
     In the common single-file case this map has exactly one entry, so
@@ -865,9 +870,11 @@ def prescan_bibliography(
         return None
     docs_dir, pages = located
     all_cited_keys: set[str] = set()
+    all_bib_files: set[str] = {default_bib_file}
     first_page_for_file: dict[str, str] = {}
     cite_pattern = re.compile(cite_re)
     marker_pattern = re.compile(marker_re)
+    page_marker_pattern = re.compile(page_marker_re)
     for rel_path in pages:
         try:
             text = (Path(docs_dir) / rel_path).read_text(encoding="utf-8")
@@ -878,5 +885,9 @@ def prescan_bibliography(
             all_cited_keys.add(match.group(1))
         for match in marker_pattern.finditer(text):
             file = (match.group(1) or "").strip() or default_bib_file
+            all_bib_files.add(file)
             first_page_for_file.setdefault(file, rel_path)
-    return all_cited_keys, first_page_for_file
+        for match in page_marker_pattern.finditer(text):
+            file = (match.group(1) or "").strip() or default_bib_file
+            all_bib_files.add(file)
+    return all_cited_keys, all_bib_files, first_page_for_file

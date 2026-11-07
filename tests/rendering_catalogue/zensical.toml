@@ -62,6 +62,7 @@ nav = [
     { "Admonition pagination" = "page-breaks/admonition-pagination.md" },
     { "Container pagination" = "page-breaks/container-pagination.md" },
     { "Rich block pagination" = "page-breaks/rich-block-pagination.md" },
+    { "Page bibliography pagination" = "page-breaks/page-bibliography-pagination.md" },
   ] },
 ]
 

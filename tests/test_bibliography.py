@@ -6,6 +6,7 @@ from pathlib import Path
 
 import markdown
 import pytest
+from bs4 import BeautifulSoup
 
 import prodockit.bibliography as prodockit_bibliography
 from prodockit.bibliography import BibliographyError, BibliographyExtension
@@ -299,3 +300,98 @@ def test_no_bibliography_marker_means_citations_are_unlinked(bib_file: str) -> N
     html = _convert("See \\cite{chacon2014}.", bib_file)
     assert "Chacon" in html
     assert "<a href" not in html
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "\\pagebibliography\n\nSee \\cite{chacon2014}.\n",
+        "See \\cite{chacon2014}.\n\n\\pagebibliography\n",
+    ],
+)
+@pandoc_required
+def test_page_bibliography_is_order_independent_and_page_scoped(
+    bib_file: str, source: str
+) -> None:
+    html = _convert(source, bib_file)
+    assert "Chacon" in html
+    assert "Skoulikari" not in html
+    assert 'href="#ref-chacon2014"' in html
+    assert 'id="ref-chacon2014"' in html
+    assert "prodockit-bib-backlink" in html
+
+
+@pandoc_required
+def test_repeated_page_citations_make_one_entry_and_multiple_backlinks(
+    bib_file: str,
+) -> None:
+    html = _convert(
+        "First \\cite{chacon2014}; second \\cite{chacon2014}.\n\n"
+        "\\pagebibliography\n",
+        bib_file,
+    )
+    soup = BeautifulSoup(html, "html.parser")
+    assert len(soup.select("#ref-chacon2014")) == 1
+    citations = soup.select("span.prodockit-bib-cite[id]")
+    backlinks = soup.select("#ref-chacon2014 a.prodockit-bib-backlink")
+    assert len(citations) == len(backlinks) == 2
+    assert [link.get("href") for link in backlinks] == [
+        f"#{citation['id']}" for citation in citations
+    ]
+    assert [link.get("aria-label") for link in backlinks] == [
+        "Back to citation 1 for chacon2014",
+        "Back to citation 2 for chacon2014",
+    ]
+
+
+@pandoc_required
+def test_page_bibliography_can_disable_backlinks(bib_file: str) -> None:
+    html = _convert(
+        "See \\cite{chacon2014}.\n\n\\pagebibliography\n",
+        bib_file,
+        page_backlinks=False,
+    )
+    soup = BeautifulSoup(html, "html.parser")
+    assert soup.select_one("#ref-chacon2014") is not None
+    assert soup.select_one(".prodockit-bib-backlink") is None
+    assert soup.select_one("span.prodockit-bib-cite[id]") is None
+
+
+@pandoc_required
+def test_empty_and_unresolved_page_bibliographies_are_removed_cleanly(
+    bib_file: str,
+) -> None:
+    empty = _convert("Before.\n\n\\pagebibliography\n\nAfter.\n", bib_file)
+    assert "Before" in empty and "After" in empty
+    assert 'id="refs"' not in empty
+
+    unresolved = _convert(
+        "See \\cite{missing}.\n\n\\pagebibliography\n",
+        bib_file,
+    )
+    assert "prodockit-bib-cite-unresolved" in unresolved
+    assert 'id="refs"' not in unresolved
+
+
+@pandoc_required
+def test_page_bibliography_file_argument_restricts_its_entries(
+    tmp_path: Path, bib_file: str
+) -> None:
+    background = tmp_path / "background.bib"
+    background.write_text(
+        "@book{knuth1997,\n"
+        "  author = {Knuth, Donald},\n"
+        "  title = {The Art of Computer Programming},\n"
+        "  year = {1997},\n"
+        "  publisher = {Addison-Wesley}\n"
+        "}\n",
+        encoding="utf-8",
+    )
+    html = _convert(
+        f"Default \\cite{{chacon2014}} and local \\cite{{knuth1997}}.\n\n"
+        f"\\pagebibliography{{{background}}}\n",
+        bib_file,
+    )
+    assert "Knuth" in html
+    assert 'id="ref-knuth1997"' in html
+    assert 'id="ref-chacon2014"' not in html

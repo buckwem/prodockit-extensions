@@ -93,6 +93,7 @@ These are the usual project settings:
 bib_file = "references.bib"
 csl_style = "harvard-cite-them-right.csl"
 unresolved = "?"
+page_backlinks = true
 ```
 
 The effect and default of each setting are listed in
@@ -103,6 +104,7 @@ The effect and default of each setting are listed in
 | \index{prodockit.bibliography!`bib_file`} | `"references.bib"` | Path to the `.bib` file, relative to the directory where you run `zensical build` or `zensical serve`. |
 | \index{prodockit.bibliography!`csl_style`} | `""` (Pandoc's default) | Path to the `.csl` file that controls citation and reference-list formatting. Leave it out to use Pandoc's default style. |
 | \index{prodockit.bibliography!`unresolved`} | `"?"` | Text shown for a citation key that cannot be found in the `.bib` file. |
+| \index{prodockit.bibliography!`page_backlinks`} | `true` | Add numbered links from each page-local reference back to every citation occurrence on that page. |
 | \index{prodockit.bibliography!`source`} | `""` (detected automatically) | Advanced: identifies the current page when using the extension outside Zensical. Leave it unset in `zensical.toml`. |
 /// table-caption | <
     attrs: {id: tab-extensions-bibliography-choose-the-bibliography-settings}
@@ -203,6 +205,35 @@ case (one bare `\bibliography`, as in
 one page, exactly as before. `csl_style` stays a single, extension-wide
 setting - only the file and cited-only flag are per-marker.
 
+### Add references to the current page {: #bibliography-page-local }
+
+Use `\pagebibliography` when a page needs its own short reference list rather
+than a link to the project-wide References page:
+
+```md
+This page cites one source \cite{chacon2014}.
+
+## References for this page
+
+\pagebibliography
+```
+
+The generated list contains only entries cited on that Markdown page. Each
+citation links down to its local entry, and the numbered return links beside
+the entry link back to every occurrence of that citation. The marker may appear
+before or after the citations because the complete page is collected before
+the references are generated.
+
+Use `\pagebibliography{background.bib}` to select another file for that local
+list. An unresolved key is still shown with the configured `unresolved` text
+but is excluded from the list. A page with no resolved citations produces no
+empty list or marker.
+
+Set `page_backlinks = false` to omit the return links while keeping citations
+linked to their local entries. Page-local markers never replace or become the
+target of a project-wide `\bibliography` marker, so both forms can be used in
+the same site.
+
 ### Choosing a citation style
 
 Point `csl_style` at any `.csl` file - your institution's own house style,
@@ -266,6 +297,8 @@ The inline forms and the part of a citation they produce are listed in
 | `\bibliography{<file>}` | Generate every entry from another `.bib` file |
 | `\bibliography{<file>}{true}` | Generate only entries cited in the build |
 | `\bibliography{<file>}{false}` | Generate every entry, cited or not |
+| `\pagebibliography` | Generate entries cited on the current page from `bib_file` |
+| `\pagebibliography{<file>}` | Generate entries cited on the current page from another `.bib` file |
 /// table-caption | <
     attrs: {id: tab-extensions-bibliography-syntax}
 
@@ -312,6 +345,7 @@ needs one.
 | External dependencies | None | Verified project-local Pandoc, prepared automatically even without a PDF build |
 | Editing a reference | Edit the prose by hand, on the references page | Edit the `.bib` entry once, everywhere it's cited updates |
 | Separate References/Bibliography sections | Not built in - would need two hand-authored lists kept in sync manually | Built in - `\bibliography{<file>}{<true\|false>}` generates a strict cited-only list and/or a broader everything-included list, see [Multiple sections](#bibliography-multiple-sections) |
+| References local to one page | Hand-write and maintain the list | `\pagebibliography` selects only that page's cited entries and provides two-way links |
 /// table-caption | <
     attrs: {id: tab-extensions-bibliography-comparing-the-two-approaches}
 
@@ -371,6 +405,8 @@ bibliography element to its stable CSS hook.
 | `<span>` wrapping a resolved `\cite{id}` | always | `class="prodockit-bib-cite"` |
 | `<span>` wrapping an unresolved `\cite{id}` | always | `class="prodockit-bib-cite prodockit-bib-cite-unresolved"` |
 | Each generated reference-list entry | always | `class="csl-entry reference"` |
+| Return-link group after a page-local entry | when `page_backlinks = true` | `class="prodockit-bib-backlinks"` |
+| Each return link to a page-local citation | when `page_backlinks = true` | `class="prodockit-bib-backlink"` |
 /// table-caption | <
     attrs: {id: tab-extensions-bibliography-customise-with-a-css-style-sheet}
 

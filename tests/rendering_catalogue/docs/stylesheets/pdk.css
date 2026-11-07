@@ -19,6 +19,23 @@
   }
 }
 
+/* Page-local bibliography return links. */
+.prodockit-bib-backlinks {
+  display: inline-flex;
+  gap: 0.3em;
+  margin-inline-start: 0.45em;
+  white-space: nowrap;
+}
+.prodockit-bib-backlink {
+  border-radius: 0.15em;
+  font-size: 0.8em;
+  text-decoration: none;
+}
+.prodockit-bib-backlink:focus-visible {
+  outline: 2px solid var(--md-accent-fg-color);
+  outline-offset: 2px;
+}
+
 /* Content tabs retain a visible outer boundary without relying on hover. The
    border encloses both the labels and body, uses the theme's table colour at
    half the table-rule width, and shares the 0.4rem fenced-code radius. The
