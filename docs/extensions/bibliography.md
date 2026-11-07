@@ -218,11 +218,18 @@ This page cites one source \cite{chacon2014}.
 \pagebibliography
 ```
 
-The generated list contains only entries cited on that Markdown page. Each
-citation links down to its local entry, and the numbered return links beside
-the entry link back to every occurrence of that citation. The marker may appear
-before or after the citations because the complete page is collected before
-the references are generated.
+Here, *page* means one Markdown source file, not one physical page in the PDF.
+A long source file may produce many PDF pages: one `\pagebibliography` collects
+the resolved citations from the complete source file, wherever those citations
+appear in the rendered PDF. Citations in another Markdown file are not included.
+
+Each citation links down to its local entry, and the numbered return links
+beside the entry link back to every occurrence of that citation. The marker may
+appear before or after the citations because the complete source file is
+collected before the references are generated. In a PDF, ordinary footnotes
+remain associated with their calls while the generated bibliography flows from
+the marker like other block content; both may therefore occupy the same physical
+page when space permits.
 
 Use `\pagebibliography{background.bib}` to select another file for that local
 list. An unresolved key is still shown with the configured `unresolved` text

@@ -23,7 +23,7 @@ PDF output.
 | Admonitions | [Admonition pagination](admonition-pagination.md#admonition-pagination) | Oversized and richly nested call-outs split without losing ownership or content |
 | Interactive containers and lists | [Container pagination](container-pagination.md#container-pagination) | Expanded tabs, grid cards, steps, definitions and task states remain complete |
 | Tables and figures | [Rich block pagination](rich-block-pagination.md#rich-block-pagination) | Captions remain associated and complex table rows do not split |
-| Page-local bibliography | [Bibliography pagination](page-bibliography-pagination.md#page-bibliography-pagination) | Reference entries span pages without splitting, while local links and backlinks remain correctly scoped |
+| Page-local bibliography | [Bibliography pagination](page-bibliography-pagination.md#page-bibliography-pagination) and [adjacent source isolation](page-bibliography-adjacent.md#page-bibliography-adjacent) | One Markdown source spans several PDF pages with footnotes and citations; reference entries remain unsplit and adjacent source files keep separate lists |
 | Footnotes and vectors | [Boundary footnote](flow-and-overflow.md#boundary-footnote) and [Mermaid and maths](flow-and-overflow.md#boundary-vectors) | Text and vector evidence remain available |
 | Overflow | [Long token](flow-and-overflow.md#long-unbreakable-token) | Text wraps inside the page content box |
 

@@ -798,6 +798,24 @@ def test_page_bibliography_pagination_retains_local_links_and_backlinks() -> Non
     assert {link.get("href", "").removeprefix("#") for link in backlinks} == citation_ids
     assert len(article.select("#ref-pagination01 a.prodockit-bib-backlink")) == 2
     assert len(article.select("#ref-pagination02 a.prodockit-bib-backlink")) == 2
+    assert len(article.select("a.footnote-ref")) == 3
+    assert len(article.select(".footnote > ol > li")) == 3
+    assert len(article.select(".footnote a.footnote-backref")) == 3
+
+
+def test_adjacent_page_bibliographies_keep_source_entries_separate() -> None:
+    paginated = _soup("page-breaks/page-bibliography-pagination.md")
+    adjacent = _soup("page-breaks/page-bibliography-adjacent.md")
+    paginated_article = paginated.select_one("article.md-content__inner")
+    adjacent_article = adjacent.select_one("article.md-content__inner")
+    assert paginated_article is not None
+    assert adjacent_article is not None
+
+    assert paginated_article.select_one("#ref-chacon2014") is None
+    assert len(paginated_article.select("#refs .csl-entry.reference")) == 30
+    assert adjacent_article.select_one("#ref-chacon2014") is not None
+    assert len(adjacent_article.select("#refs .csl-entry.reference")) == 1
+    assert adjacent_article.select_one("#ref-pagination01") is None
 
 
 def test_oversized_footnote_splits_complete_and_in_order() -> None:
@@ -1001,6 +1019,48 @@ def test_page_local_bibliography_entries_paginate_without_splitting() -> None:
     following_pages = _compact_marker_pages(pages, "PAGE-BIBLIOGRAPHY-FOLLOWING")
     assert len(following_pages) == 1
     assert next(iter(following_pages)) >= next(iter(last_pages))
+
+
+def test_page_local_bibliography_shares_one_source_with_physical_page_footnotes() -> None:
+    path = BUNDLE / "page-pdfs" / "page-breaks" / "page-bibliography-pagination.pdf"
+    with pymupdf.open(path) as document:
+        pages = [page.get_text() for page in document]
+
+    source_pages: list[int] = []
+    footnote_pages: set[int] = set()
+    for span in ("ONE", "TWO", "THREE"):
+        call_pages = _compact_marker_pages(pages, f"SOURCE-PAGE-{span}-CALL")
+        body_pages = _compact_marker_pages(pages, f"SOURCE-PAGE-{span}-FOOTNOTE")
+        assert len(call_pages) == len(body_pages) == 1
+        assert call_pages == body_pages
+        source_pages.append(next(iter(call_pages)))
+        footnote_pages.update(body_pages)
+
+    assert source_pages == sorted(source_pages)
+    assert len(set(source_pages)) == 3
+
+    bibliography_pages = set().union(
+        *(
+            _compact_marker_pages(pages, f"PAGINATION-REFERENCE-{number:02d}")
+            for number in range(1, 31)
+        )
+    )
+    assert len(bibliography_pages) >= 2
+    assert footnote_pages & bibliography_pages
+
+
+def test_adjacent_source_does_not_leak_into_page_local_bibliography_pdf() -> None:
+    paginated_path = BUNDLE / "page-pdfs" / "page-breaks" / "page-bibliography-pagination.pdf"
+    adjacent_path = BUNDLE / "page-pdfs" / "page-breaks" / "page-bibliography-adjacent.pdf"
+    with pymupdf.open(paginated_path) as document:
+        paginated_text = "\n".join(page.get_text() for page in document)
+    with pymupdf.open(adjacent_path) as document:
+        adjacent_text = "\n".join(page.get_text() for page in document)
+
+    assert "Pro Git" not in paginated_text
+    assert "PAGINATION-REFERENCE-01" not in adjacent_text
+    assert "Pro Git" in adjacent_text
+    assert "ADJACENT-SOURCE-FOLLOWING" in adjacent_text
 
 
 def test_phase_five_pdf_page_relationships_are_stable() -> None:
