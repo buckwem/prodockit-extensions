@@ -56,6 +56,12 @@ nav = [
     { "Coverage approach" = "page-breaks/index.md" },
     { "Forced and kept content" = "page-breaks/forced-and-kept.md" },
     { "Flow and overflow" = "page-breaks/flow-and-overflow.md" },
+    { "Multiple long notes" = "page-breaks/multiple-long-notes.md" },
+    { "Multiple long footnotes" = "page-breaks/multiple-long-footnotes.md" },
+    { "Footnote edge cases" = "page-breaks/footnote-edge-cases.md" },
+    { "Admonition pagination" = "page-breaks/admonition-pagination.md" },
+    { "Container pagination" = "page-breaks/container-pagination.md" },
+    { "Rich block pagination" = "page-breaks/rich-block-pagination.md" },
   ] },
 ]
 

@@ -17,7 +17,7 @@ fixture. The matrix is deliberately risk-based, not a Cartesian product.
 | Markdown in HTML | Strong text inside retained HTML containers | [Python-Markdown](python-markdown.md#nested-admonition-content) |
 | Tables and cells | Links, code, abbreviations, mathematics and icons | [Zensical authoring](zensical-authoring.md#nested-table-cells) |
 | Captions and figures | Images and tables inside blockquotes or admonitions | [PyMdown](pymdown.md#nested-caption), [Prodockit](prodockit.md#nested-prodockit-table) |
-| Footnotes | References originating inside list items | [Python-Markdown](python-markdown.md#nested-footnote) |
+| Footnotes | References originating inside list items, admonitions and numbered steps | [Python-Markdown](python-markdown.md#nested-footnote), [Footnote edge cases](../page-breaks/footnote-edge-cases.md#nested-footnote-boundaries) |
 | Directives | No public specimen | [Waiver](../zensical-authoring/index.md#directives-waiver) while the separate Zensical Spark wheel is not publicly supported |
 
 Every capability in `catalogue.toml` must require one of these appropriate

@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import json
+import re
 import tomllib
 from pathlib import Path
 from typing import Any
@@ -48,6 +49,15 @@ def _pdf_text_pages() -> list[str]:
 
 def _marker_pages(pages: list[str], marker: str) -> set[int]:
     return {number for number, text in enumerate(pages, start=1) if marker in text}
+
+
+def _compact_marker_pages(pages: list[str], marker: str) -> set[int]:
+    compact_marker = "".join(marker.split())
+    return {
+        number
+        for number, text in enumerate(pages, start=1)
+        if compact_marker in "".join(text.split())
+    }
 
 
 def test_phase_six_review_bundle_is_complete_and_self_consistent() -> None:
@@ -563,6 +573,402 @@ def test_phase_five_page_boundary_website_specimens_remain_reviewable() -> None:
     assert article.select_one("div.arithmatex") is not None
 
 
+def test_multiple_long_notes_retain_complete_website_structure() -> None:
+    page = _soup("page-breaks/multiple-long-notes.md")
+    notes = page.select("article .admonition.note")
+
+    assert len(notes) == 8
+    for number, note in enumerate(notes, start=1):
+        marker = f"MULTILINE-NOTE-{number:02d}"
+        assert note.select_one(".admonition-title").get_text(" ", strip=True) == marker
+        assert len(note.select(":scope > p:not(.admonition-title)")) == 2
+        text = note.get_text(" ", strip=True)
+        assert f"{marker}-START" in text
+        assert f"{marker}-END" in text
+
+
+def test_multiple_long_notes_remain_intact_across_pdf_pages() -> None:
+    path = BUNDLE / "page-pdfs" / "page-breaks" / "multiple-long-notes.pdf"
+    with pymupdf.open(path) as document:
+        pages = [page.get_text() for page in document]
+
+    assert len(pages) >= 2
+    occupied_pages: set[int] = set()
+    for number in range(1, 9):
+        marker = f"MULTILINE-NOTE-{number:02d}"
+        title_pages = {
+            page_number
+            for page_number, text in enumerate(pages, start=1)
+            if marker in {line.strip() for line in text.splitlines()}
+        }
+        start_pages = _marker_pages(pages, f"{marker}-START")
+        end_pages = _marker_pages(pages, f"{marker}-END")
+        assert len(title_pages) == 1
+        assert title_pages == start_pages == end_pages
+        occupied_pages.update(title_pages)
+
+    assert len(occupied_pages) >= 2
+    assert all(page.strip() for page in pages)
+
+
+def test_multiple_long_footnotes_retain_references_bodies_and_returns() -> None:
+    page = _soup("page-breaks/multiple-long-footnotes.md")
+    article = page.select_one("article.md-content__inner")
+    assert article is not None
+
+    references = article.select("a.footnote-ref")
+    footnotes = article.select(".footnote > ol > li")
+    assert len(references) == len(footnotes) == 12
+    for number, footnote in enumerate(footnotes, start=1):
+        text = footnote.get_text(" ", strip=True)
+        assert f"FOOTNOTE-BODY-{number:02d}-START" in text
+        assert f"FOOTNOTE-BODY-{number:02d}-END" in text
+        assert footnote.select_one("a.footnote-backref") is not None
+
+
+def test_multiple_long_footnotes_remain_complete_across_pages() -> None:
+    path = BUNDLE / "page-pdfs" / "page-breaks" / "multiple-long-footnotes.pdf"
+    with pymupdf.open(path) as document:
+        pages = [page.get_text() for page in document]
+
+    assert len(pages) > 2
+    bodies_per_page: dict[int, int] = {}
+    for number in range(1, 13):
+        reference_pages = _marker_pages(pages, f"FNREF{number:02d}")
+        start_marker = f"FOOTNOTE-BODY-{number:02d}-START"
+        end_marker = f"FOOTNOTE-BODY-{number:02d}-END"
+        start_pages = {
+            page_number
+            for page_number, text in enumerate(pages, start=1)
+            if start_marker in "".join(text.split())
+        }
+        end_pages = {
+            page_number
+            for page_number, text in enumerate(pages, start=1)
+            if end_marker in "".join(text.split())
+        }
+        assert len(reference_pages) == 1
+        assert len(start_pages) == 1
+        assert start_pages == end_pages
+        reference_page = next(iter(reference_pages))
+        page_number = next(iter(start_pages))
+        assert reference_page == page_number
+        bodies_per_page[page_number] = bodies_per_page.get(page_number, 0) + 1
+
+    assert len(bodies_per_page) >= 2
+    assert max(bodies_per_page.values()) >= 2
+    assert _marker_pages(pages, "FOOTNOTE-BODY-SEQUENCE-END")
+
+
+def test_multiple_long_footnotes_keep_numeric_order_when_the_area_overflows() -> None:
+    path = BUNDLE / "page-pdfs" / "page-breaks" / "multiple-long-footnotes.pdf"
+    with pymupdf.open(path) as document:
+        compact_text = "".join("".join(page.get_text().split()) for page in document)
+
+    rendered_order = [
+        int(number)
+        for number in re.findall(r"FOOTNOTE-BODY-(\d{2})-START", compact_text)
+    ]
+    assert rendered_order == list(range(1, 13))
+
+
+def test_footnote_edge_cases_retain_their_website_structures() -> None:
+    page = _soup("page-breaks/footnote-edge-cases.md")
+    article = page.select_one("article.md-content__inner")
+    assert article is not None
+
+    oversized = article.find(id="fn:oversized")
+    assert oversized is not None
+    assert len(oversized.find_all("p", recursive=False)) == 31
+    repeated_refs = article.select('a.footnote-ref[href="#fn:repeated"]')
+    assert len(repeated_refs) == 2
+    assert len(article.find_all(id="fn:repeated")) == 1
+    multi = article.find(id="fn:multi-paragraph")
+    assert multi is not None
+    assert len(multi.find_all("p", recursive=False)) == 2
+    assert article.select_one("li a.footnote-ref[href='#fn:nested-list']") is not None
+    assert article.select_one(".admonition a.footnote-ref[href='#fn:nested-admonition']") is not None
+    assert article.select_one(".prodockit-steps a.footnote-ref[href='#fn:nested-step']") is not None
+    assert "LONG-TOKEN-START" in article.get_text(" ", strip=True)
+
+
+def test_admonition_pagination_specimens_retain_nested_website_content() -> None:
+    page = _soup("page-breaks/admonition-pagination.md")
+    article = page.select_one("article.md-content__inner")
+    assert article is not None
+
+    notes = article.select(".admonition")
+    assert len(notes) == 2
+    assert notes[0].select_one(".admonition-title").get_text(" ", strip=True) == (
+        "ADMONITION-OVERSIZED-TITLE"
+    )
+    oversized_text = notes[0].get_text(" ", strip=True)
+    assert "ADMONITION-OVERSIZED-START" in oversized_text
+    assert "ADMONITION-OVERSIZED-END" in oversized_text
+    for number in range(1, 46):
+        assert f"Oversized line {number:02d}" in oversized_text
+
+    rich = notes[1]
+    assert rich.select_one("ul ol") is not None
+    assert len(rich.select("table tbody tr")) == 2
+    assert rich.select_one("pre code") is not None
+    rich_text = rich.get_text(" ", strip=True)
+    for marker in (
+        "RICH-ADMONITION-START",
+        "RICH-TABLE-HEADER",
+        "RICH-CODE-START",
+        "RICH-CODE-END",
+        "RICH-ADMONITION-END",
+    ):
+        assert marker in rich_text
+
+
+def test_container_pagination_specimens_retain_website_hierarchy() -> None:
+    page = _soup("page-breaks/container-pagination.md")
+    article = page.select_one("article.md-content__inner")
+    assert article is not None
+
+    tabs = article.select_one(".tabbed-set.tabbed-alternate")
+    assert tabs is not None
+    assert [label.get_text(" ", strip=True) for label in tabs.select(".tabbed-labels label")] == [
+        "TAB-OVERSIZED-TITLE",
+        "TAB-STABLE-SIBLING",
+    ]
+    assert len(tabs.select(".tabbed-block")) == 2
+    assert "TAB-OVERSIZED-END" in tabs.select(".tabbed-block")[0].get_text(" ", strip=True)
+    assert "TAB-SIBLING-BODY" in tabs.select(".tabbed-block")[1].get_text(" ", strip=True)
+
+    cards = article.select(".grid.cards > ul > li")
+    assert len(cards) == 2
+    first_card = cards[0]
+    assert first_card.select_one(".prodockit-steps") is not None
+    assert len(first_card.select(".prodockit-steps > li")) == 2
+    assert first_card.select_one("pre code") is not None
+    first_card_text = first_card.get_text(" ", strip=True)
+    assert "GRID-OVERSIZED-START" in first_card_text
+    assert "GRID-OVERSIZED-END" in first_card_text
+    for number in range(1, 46):
+        assert f"Grid continuation {number:02d}" in first_card_text
+
+    assert article.select_one("dl dt").get_text(" ", strip=True) == "DEFINITION-TERM"
+    assert "DEFINITION-BODY" in article.select_one("dl dd").get_text(" ", strip=True)
+    tasks = article.select("ul.task-list > li")
+    assert len(tasks) == 2
+    assert tasks[0].select_one('input[type="checkbox"][checked]') is not None
+    assert tasks[1].select_one('input[type="checkbox"]:not([checked])') is not None
+
+
+def test_rich_block_pagination_specimens_retain_captions_and_rows() -> None:
+    page = _soup("page-breaks/rich-block-pagination.md")
+    article = page.select_one("article.md-content__inner")
+    assert article is not None
+
+    table_figure = article.select_one("figure.prodockit-table-caption")
+    assert table_figure is not None
+    assert len(table_figure.select("table tbody tr")) == 20
+    assert "COMPLEX-TABLE-CAPTION" in table_figure.select_one("figcaption").get_text(
+        " ", strip=True
+    )
+    for number in range(1, 21):
+        row_text = table_figure.select("table tbody tr")[number - 1].get_text(" ", strip=True)
+        assert f"COMPLEX-ROW-{number:02d}-START" in row_text
+        assert f"COMPLEX-ROW-{number:02d}-END" in row_text
+
+    figure = article.select_one("figure.prodockit-figure-caption")
+    assert figure is not None
+    caption = figure.select_one("figcaption").get_text(" ", strip=True)
+    assert "FIGURE-LONG-CAPTION-START" in caption
+    assert "FIGURE-LONG-CAPTION-END" in caption
+    assert figure.select_one("img") is not None
+    assert "FIGURE-FOLLOWING-CONTENT" in article.get_text(" ", strip=True)
+
+
+def test_oversized_footnote_splits_complete_and_in_order() -> None:
+    path = BUNDLE / "page-pdfs" / "page-breaks" / "footnote-edge-cases.pdf"
+    with pymupdf.open(path) as document:
+        pages = [page.get_text() for page in document]
+
+    start_pages = _marker_pages(pages, "OVERSIZED-FOOTNOTE-START")
+    end_pages = _marker_pages(pages, "OVERSIZED-FOOTNOTE-END")
+    assert len(start_pages) == len(end_pages) == 1
+    assert next(iter(start_pages)) < next(iter(end_pages))
+    compact = "".join("".join(page.split()) for page in pages)
+    positions = [compact.index(f"OVERSIZED-PARAGRAPH-{number:02d}") for number in range(1, 31)]
+    assert positions == sorted(positions)
+
+
+def test_two_footnotes_in_one_paragraph_share_the_reference_page() -> None:
+    path = BUNDLE / "page-pdfs" / "page-breaks" / "footnote-edge-cases.pdf"
+    with pymupdf.open(path) as document:
+        pages = [page.get_text() for page in document]
+
+    paragraph_pages = _marker_pages(pages, "TWO-CALLS-PARAGRAPH")
+    assert len(paragraph_pages) == 1
+    assert paragraph_pages == _marker_pages(pages, "TWO-CALLS-FIRST-BODY")
+    assert paragraph_pages == _marker_pages(pages, "TWO-CALLS-SECOND-BODY")
+
+
+def test_multi_paragraph_footnote_preserves_visible_separation() -> None:
+    path = BUNDLE / "page-pdfs" / "page-breaks" / "footnote-edge-cases.pdf"
+    with pymupdf.open(path) as document:
+        pages = [page.get_text("words") for page in document]
+
+    first = [
+        (page_number, word)
+        for page_number, page in enumerate(pages, start=1)
+        for word in page
+        if "MULTI-PARAGRAPH-FIRST" in word[4]
+    ]
+    second = [
+        (page_number, word)
+        for page_number, page in enumerate(pages, start=1)
+        for word in page
+        if "MULTI-PARAGRAPH-SECOND" in word[4]
+    ]
+    assert len(first) == len(second) == 1
+    assert first[0][0] == second[0][0]
+    assert second[0][1][1] - first[0][1][3] > 5
+
+
+def test_repeated_reference_renders_one_body_for_both_calls() -> None:
+    path = BUNDLE / "page-pdfs" / "page-breaks" / "footnote-edge-cases.pdf"
+    with pymupdf.open(path) as document:
+        text = "\n".join(page.get_text() for page in document)
+
+    assert text.count("REPEATED-FIRST-CALL") == 1
+    assert text.count("REPEATED-SECOND-CALL") == 1
+    assert text.count("REPEATED-FOOTNOTE-BODY") == 1
+
+
+def test_nested_footnotes_stay_with_list_admonition_and_step_calls() -> None:
+    path = BUNDLE / "page-pdfs" / "page-breaks" / "footnote-edge-cases.pdf"
+    with pymupdf.open(path) as document:
+        pages = [page.get_text() for page in document]
+
+    for container in ("LIST", "ADMONITION", "STEP"):
+        assert _marker_pages(pages, f"NESTED-{container}-REFERENCE") == _marker_pages(
+            pages, f"NESTED-{container}-BODY"
+        )
+
+
+def test_long_footnote_url_and_token_stay_inside_the_page() -> None:
+    path = BUNDLE / "page-pdfs" / "page-breaks" / "footnote-edge-cases.pdf"
+    with pymupdf.open(path) as document:
+        matching = [page for page in document if "LONG-TOKEN-REFERENCE" in page.get_text()]
+        assert len(matching) == 1
+        page = matching[0]
+        text = page.get_text()
+        compact = "".join(text.split())
+        assert "LONG-URL-START" in text
+        assert "LONG-URL-END" in text
+        assert "LONG-TOKEN-START" in compact
+        assert "LONG-TOKEN-END" in compact
+        assert all(word[0] >= page.rect.x0 - 0.5 for word in page.get_text("words"))
+        assert all(word[2] <= page.rect.x1 + 0.5 for word in page.get_text("words"))
+
+
+def test_oversized_admonition_continues_without_losing_content() -> None:
+    path = BUNDLE / "page-pdfs" / "page-breaks" / "admonition-pagination.pdf"
+    with pymupdf.open(path) as document:
+        pages = [page.get_text() for page in document]
+
+    title_pages = _marker_pages(pages, "ADMONITION-OVERSIZED-TITLE")
+    start_pages = _marker_pages(pages, "ADMONITION-OVERSIZED-START")
+    end_pages = _marker_pages(pages, "ADMONITION-OVERSIZED-END")
+    assert len(title_pages) == len(start_pages) == len(end_pages) == 1
+    assert title_pages == start_pages
+    assert next(iter(start_pages)) < next(iter(end_pages))
+    compact = "".join("".join(page.split()) for page in pages)
+    positions = [compact.index(f"Oversizedline{number:02d}") for number in range(1, 46)]
+    assert positions == sorted(positions)
+
+
+def test_rich_admonition_keeps_its_nested_structures_together() -> None:
+    path = BUNDLE / "page-pdfs" / "page-breaks" / "admonition-pagination.pdf"
+    with pymupdf.open(path) as document:
+        pages = [page.get_text() for page in document]
+
+    expected_page = _marker_pages(pages, "RICH-ADMONITION-TITLE")
+    assert len(expected_page) == 1
+    for marker in (
+        "RICH-ADMONITION-START",
+        "RICH-TABLE-HEADER",
+        "RICH-TABLE-ROW-1",
+        "RICH-TABLE-ROW-2",
+        "RICH-CODE-START",
+        "RICH-CODE-END",
+        "RICH-ADMONITION-END",
+    ):
+        assert _marker_pages(pages, marker) == expected_page
+
+
+def test_oversized_tab_and_grid_continue_before_their_siblings() -> None:
+    path = BUNDLE / "page-pdfs" / "page-breaks" / "container-pagination.pdf"
+    with pymupdf.open(path) as document:
+        pages = [page.get_text() for page in document]
+
+    for prefix, sibling in (
+        ("TAB", "TAB-SIBLING-BODY"),
+        ("GRID", "GRID-SIBLING-BODY"),
+    ):
+        title_pages = _marker_pages(pages, f"{prefix}-OVERSIZED-TITLE")
+        start_pages = _marker_pages(pages, f"{prefix}-OVERSIZED-START")
+        end_pages = _marker_pages(pages, f"{prefix}-OVERSIZED-END")
+        sibling_pages = _marker_pages(pages, sibling)
+        assert len(title_pages) == len(start_pages) == len(end_pages) == len(sibling_pages) == 1
+        assert title_pages == start_pages
+        assert next(iter(start_pages)) < next(iter(end_pages))
+        assert next(iter(end_pages)) <= next(iter(sibling_pages))
+
+    compact = "".join("".join(page.split()) for page in pages)
+    tab_positions = [compact.index(f"Tabline{number:02d}") for number in range(1, 41)]
+    grid_positions = [compact.index(f"Gridcontinuation{number:02d}") for number in range(1, 46)]
+    assert tab_positions == sorted(tab_positions)
+    assert grid_positions == sorted(grid_positions)
+    for marker in ("GRID-STEP-ONE", "GRID-STEP-TWO", "GRID-CODE-START", "GRID-CODE-END"):
+        assert _marker_pages(pages, marker)
+
+
+def test_definition_and_task_list_labels_remain_with_their_content() -> None:
+    path = BUNDLE / "page-pdfs" / "page-breaks" / "container-pagination.pdf"
+    with pymupdf.open(path) as document:
+        pages = [page.get_text() for page in document]
+
+    assert _marker_pages(pages, "DEFINITION-TERM") == _marker_pages(pages, "DEFINITION-BODY")
+    task_pages = _marker_pages(pages, "TASK-COMPLETE") | _marker_pages(pages, "TASK-PENDING")
+    assert len(task_pages) == 1
+    assert task_pages == _marker_pages(pages, "LIST-BOUNDARY-END")
+
+
+def test_complex_table_repeats_its_header_without_splitting_rows() -> None:
+    path = BUNDLE / "page-pdfs" / "page-breaks" / "rich-block-pagination.pdf"
+    with pymupdf.open(path) as document:
+        pages = [page.get_text() for page in document]
+
+    assert len(_compact_marker_pages(pages, "COMPLEX-TABLE-HEADER")) >= 2
+    first_pages = _compact_marker_pages(pages, "COMPLEX-ROW-01-START")
+    last_pages = _compact_marker_pages(pages, "COMPLEX-ROW-20-START")
+    assert len(first_pages) == len(last_pages) == 1
+    assert first_pages != last_pages
+    for number in range(1, 21):
+        assert _compact_marker_pages(pages, f"COMPLEX-ROW-{number:02d}-START") == (
+            _compact_marker_pages(pages, f"COMPLEX-ROW-{number:02d}-END")
+        )
+    assert _compact_marker_pages(pages, "COMPLEX-TABLE-CAPTION") == last_pages
+
+
+def test_figure_and_long_caption_remain_on_one_page() -> None:
+    path = BUNDLE / "page-pdfs" / "page-breaks" / "rich-block-pagination.pdf"
+    with pymupdf.open(path) as document:
+        pages = [page.get_text() for page in document]
+        caption_pages = _compact_marker_pages(pages, "FIGURE-LONG-CAPTION-START")
+        assert len(caption_pages) == 1
+        assert caption_pages == _compact_marker_pages(pages, "FIGURE-LONG-CAPTION-END")
+        assert caption_pages == _compact_marker_pages(pages, "FIGURE-FOLLOWING-CONTENT")
+        figure_page = document[next(iter(caption_pages)) - 1]
+        assert len(figure_page.get_drawings()) >= 4
+
+
 def test_phase_five_pdf_page_relationships_are_stable() -> None:
     pages = _pdf_text_pages()
     assert len(pages) >= 70
@@ -585,7 +991,7 @@ def test_phase_five_pdf_page_relationships_are_stable() -> None:
     assert _marker_pages(pages, "PB-FOOTNOTE-REFERENCE") == _marker_pages(
         pages, "PB-FOOTNOTE-CONTENT"
     )
-    assert max(_marker_pages(pages, "PB-LONG-TOKEN-END")) + 1 == max(
+    assert max(_marker_pages(pages, "PB-LONG-TOKEN-END")) < max(
         _marker_pages(pages, "Catalogue index")
     )
 

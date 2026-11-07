@@ -587,7 +587,13 @@ blockquote {
    instead, so float: footnote can anchor it to the correct page. */
 .pdf-footnote {
     float: footnote !important;
+    /* Keep the paragraph containing the call with its complete footnote. If
+       the next note cannot fit, WeasyPrint moves that paragraph to the next
+       page instead of deferring or reordering the footnote text. */
+    footnote-policy: block !important;
     font-size: 9pt !important;
+    overflow-wrap: anywhere !important;
+    word-break: break-all !important;
     /* Deliberately sets no width: WeasyPrint sizes the footnote area to the
        page's content width on its own, and a width override is silently
        ignored for floated footnote content anyway.
@@ -601,6 +607,32 @@ blockquote {
        - collapsing the rendered text to ~304pt rather than the ~475pt
        content width. prodockit.pdf.build passes --wrap=none to fix that,
        so don't reintroduce a width here. */
+}
+.pdf-oversized-footnote {
+    border-top: 0.5pt solid #cbd5e1 !important;
+    break-inside: auto !important;
+    font-size: 9pt !important;
+    margin-top: 8px !important;
+    overflow-wrap: anywhere !important;
+    padding-top: 6px !important;
+    word-break: break-all !important;
+}
+.pdf-footnote--counter-only::footnote-marker {
+    content: "" !important;
+}
+.pdf-oversized-footnote-number {
+    float: left !important;
+    font-weight: 600 !important;
+    margin-right: 0.25em !important;
+}
+.pdf-oversized-footnote p {
+    break-inside: avoid-page !important;
+    margin: 0 0 0.7em !important;
+}
+.pdf-footnote-repeat {
+    font-size: 0.75em !important;
+    line-height: 0 !important;
+    vertical-align: super !important;
 }
 /* A caller's own ".pdf-only" convention (content meant to show only in the
    PDF, e.g. a cover page's word-count/repo-link markers) is commonly hidden

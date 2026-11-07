@@ -249,6 +249,44 @@ def test_footnote_without_a_matching_reference_is_dropped_not_left_visible() -> 
     assert html == ""
 
 
+def test_multi_paragraph_footnote_retains_a_visible_paragraph_break() -> None:
+    html = _fix(
+        '<p>Text.<sup id="fnref:multi"><a class="footnote-ref" '
+        'href="#fn:multi">1</a></sup></p><div class="footnote"><ol>'
+        '<li id="fn:multi"><p>First paragraph.</p><p>Second paragraph. '
+        '<a class="footnote-backref" href="#fnref:multi">&#8617;</a></p>'
+        "</li></ol></div>"
+    )
+    assert "First paragraph.<br/><br/>Second paragraph." in html
+
+
+def test_repeated_footnote_reference_keeps_a_numbered_repeat_call() -> None:
+    html = _fix(
+        '<p>First<sup id="fnref:same"><a class="footnote-ref" href="#fn:same">1</a>'
+        '</sup> and again<sup id="fnref2:same"><a class="footnote-ref" '
+        'href="#fn:same">1</a></sup>.</p><div class="footnote"><ol>'
+        '<li id="fn:same"><p>One note. <a class="footnote-backref" '
+        'href="#fnref:same">&#8617;</a><a class="footnote-backref" '
+        'href="#fnref2:same">&#8617;</a></p></li></ol></div>'
+    )
+    assert html.count('class="pdf-footnote"') == 1
+    assert '<sup class="pdf-footnote-repeat">1</sup>' in html
+    assert "footnote-backref" not in html
+
+
+def test_oversized_footnote_becomes_a_paginating_continuation_block() -> None:
+    paragraphs = "".join(f"<p>Long paragraph {number}.</p>" for number in range(1, 9))
+    html = _fix(
+        '<p>Text.<sup id="fnref:large"><a class="footnote-ref" '
+        'href="#fn:large">1</a></sup></p><div class="footnote"><ol>'
+        f'<li id="fn:large">{paragraphs}</li></ol></div>'
+    )
+    assert '<span class="pdf-footnote pdf-footnote--counter-only"></span>' in html
+    assert '<div class="pdf-oversized-footnote">' in html
+    assert '<span class="pdf-oversized-footnote-number">1. </span>' in html
+    assert html.count("Long paragraph") == 8
+
+
 # ---------------------------------------------------------------------------
 # Mermaid
 # ---------------------------------------------------------------------------

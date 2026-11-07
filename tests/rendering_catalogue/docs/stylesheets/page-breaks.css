@@ -19,6 +19,13 @@
   page-break-inside: avoid !important;
 }
 
+/* Each review note fits on one page and must retain its title and body as one
+   coloured box while a long sequence flows naturally onto later pages. */
+.catalogue-multiple-long-notes > .admonition {
+  break-inside: avoid-page !important;
+  page-break-inside: avoid !important;
+}
+
 /* Long, reviewable Markdown specimens must not disappear when they are taller
    than one PDF page. Ordinary command examples retain the normal keep rules. */
 .language-markdown.highlight,
@@ -37,6 +44,10 @@
 
 .catalogue-boundary-spacer--large {
   height: 21cm;
+}
+
+.catalogue-boundary-spacer--medium {
+  height: 15cm;
 }
 
 .catalogue-keep-box {
