@@ -494,13 +494,17 @@ def fix_up_page_html(
     footnote_div = soup.find("div", class_="footnote")
     if isinstance(footnote_div, Tag):
         for li in footnote_div.select('li[id^="fn:"]'):
-            key = li["id"][3:]
-            refs = [
-                ref
-                for ref in soup.find_all("sup")
-                if isinstance(ref.get("id"), str)
-                and re.fullmatch(rf"fnref\d*:{re.escape(key)}", ref["id"])
-            ]
+            li_id = li.get("id")
+            if not isinstance(li_id, str):
+                continue
+            key = li_id[3:]
+            refs: list[Tag] = []
+            for candidate in soup.find_all("sup"):
+                ref_id = candidate.get("id")
+                if isinstance(ref_id, str) and re.fullmatch(
+                    rf"fnref\d*:{re.escape(key)}", ref_id
+                ):
+                    refs.append(candidate)
             if not refs:
                 continue
             for backref in li.find_all("a", class_="footnote-backref"):
