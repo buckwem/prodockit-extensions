@@ -205,23 +205,28 @@ case (one bare `\bibliography`, as in
 one page, exactly as before. `csl_style` stays a single, extension-wide
 setting - only the file and cited-only flag are per-marker.
 
-### Add references to the current page {: #bibliography-page-local }
+### Add references to the current web page {: #bibliography-page-local }
 
-Use `\pagebibliography` when a page needs its own short reference list rather
-than a link to the project-wide References page:
+Use `\pagebibliography` when a web page needs its own short reference list
+rather than a link to the project-wide References page:
 
 ```md
 This page cites one source \cite{chacon2014}.
 
-## References for this page
-
 \pagebibliography
 ```
 
-Here, *page* means one Markdown source file, not one physical page in the PDF.
-A long source file may produce many PDF pages: one `\pagebibliography` collects
-the resolved citations from the complete source file, wherever those citations
-appear in the rendered PDF. Citations in another Markdown file are not included.
+The marker generates a **References** heading and places the heading and list
+at the bottom of the web page generated from that Markdown source file. Its
+position in the Markdown does not control where the list appears. This also
+keeps the list after all content from that source file when the site is
+assembled as a PDF.
+
+Here, *page* specifically means one web page generated from one Markdown source
+file; it does not mean one physical page in the PDF. A long web page may produce
+many PDF pages: one `\pagebibliography` collects the resolved citations from the
+complete source file, wherever those citations appear in the rendered PDF.
+Citations in another Markdown file are not included.
 
 Each citation links down to its local entry, and the numbered return links
 beside the entry link back to every occurrence of that citation. The marker may
@@ -232,9 +237,17 @@ the marker like other block content; both may therefore occupy the same physical
 page when space permits.
 
 Use `\pagebibliography{background.bib}` to select another file for that local
-list. An unresolved key is still shown with the configured `unresolved` text
-but is excluded from the list. A page with no resolved citations produces no
-empty list or marker.
+list. Use the second parameter to replace the default heading; leave the first
+parameter empty to keep the configured bibliography file:
+
+```md
+\pagebibliography{}{Sources used on this page}
+```
+
+An unresolved key is still shown with the configured `unresolved` text but is
+excluded from the list. A page with no resolved citations produces no empty
+heading, list or marker. Repeated markers for the same bibliography file
+produce one list.
 
 Set `page_backlinks = false` to omit the return links while keeping citations
 linked to their local entries. Page-local markers never replace or become the
@@ -304,8 +317,9 @@ The inline forms and the part of a citation they produce are listed in
 | `\bibliography{<file>}` | Generate every entry from another `.bib` file |
 | `\bibliography{<file>}{true}` | Generate only entries cited in the build |
 | `\bibliography{<file>}{false}` | Generate every entry, cited or not |
-| `\pagebibliography` | Generate entries cited on the current page from `bib_file` |
-| `\pagebibliography{<file>}` | Generate entries cited on the current page from another `.bib` file |
+| `\pagebibliography` | Generate entries cited on the current web page from `bib_file`, then append them under a **References** heading at the bottom of that web page |
+| `\pagebibliography{<file>}` | Generate entries cited on the current web page from another `.bib` file |
+| `\pagebibliography{<file>}{<heading>}` | Set the page-local heading as well as the bibliography file; use an empty first parameter to keep `bib_file` |
 /// table-caption | <
     attrs: {id: tab-extensions-bibliography-syntax}
 

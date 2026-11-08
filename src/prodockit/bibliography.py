@@ -67,7 +67,7 @@ from prodockit.util import cross_page_href
 
 CITE_RE = r"\\cite\{([^}\s,]+)\}"
 BIBLIOGRAPHY_RE = r"\\bibliography(?!\w)(?:\{([^{}]*)\})?(?:\{(true|false)\})?"
-PAGE_BIBLIOGRAPHY_RE = r"\\pagebibliography(?!\w)(?:\{([^{}]*)\})?"
+PAGE_BIBLIOGRAPHY_RE = r"\\pagebibliography(?!\w)(?:\{([^{}]*)\})?(?:\{([^{}]*)\})?"
 
 BibliographyScope = Literal["all", "site-cited", "page-cited"]
 
@@ -317,6 +317,11 @@ class BibliographyMarkerInlineProcessor(InlineProcessor):
         else:
             scope = self.scope
         el.set("data-prodockit-bibliography-scope", scope)
+        if scope == "page-cited":
+            el.set(
+                "data-prodockit-bibliography-heading",
+                (m.group(2) or "References").strip(),
+            )
         return el, m.start(0), m.end(0)
 
 
@@ -408,8 +413,25 @@ class BibliographyResolverTreeprocessor(Treeprocessor):
                 local_file_for_citation.get(citation),
                 occurrence_for_citation.get(citation),
             )
+        appended_page_files: set[str] = set()
         for marker in markers:
-            self._replace_bibliography_marker(parent_map, marker, page_keys, occurrences)
+            scope = marker.get("data-prodockit-bibliography-scope")
+            if scope != "page-cited":
+                self._replace_bibliography_marker(parent_map, marker, page_keys, occurrences)
+                continue
+
+            bib_file = marker.get("data-prodockit-bibliography-file") or self.cache.default_bib_file
+            if bib_file in appended_page_files:
+                self._remove_bibliography_marker(parent_map, marker)
+                continue
+            appended_page_files.add(bib_file)
+            self._append_page_bibliography(
+                root,
+                parent_map,
+                marker,
+                page_keys,
+                occurrences,
+            )
 
     @staticmethod
     def _occurrence_id(key: str, number: int) -> str:
@@ -461,6 +483,57 @@ class BibliographyResolverTreeprocessor(Treeprocessor):
         target.remove(node)
         for i, child in enumerate(wrapped):
             target.insert(index + i, child)
+
+    @staticmethod
+    def _marker_target(
+        parent_map: dict[etree.Element, etree.Element],
+        marker: etree.Element,
+    ) -> tuple[etree.Element, etree.Element] | None:
+        """Return the node to remove for a bibliography marker."""
+        container = parent_map.get(marker)
+        if container is None:
+            return None
+        if len(container) == 1 and not (container.text or "").strip():
+            grandparent = parent_map.get(container)
+            if grandparent is not None:
+                return grandparent, container
+        return container, marker
+
+    def _remove_bibliography_marker(
+        self,
+        parent_map: dict[etree.Element, etree.Element],
+        marker: etree.Element,
+    ) -> None:
+        target = self._marker_target(parent_map, marker)
+        if target is not None:
+            parent, node = target
+            parent.remove(node)
+
+    def _append_page_bibliography(
+        self,
+        root: etree.Element,
+        parent_map: dict[etree.Element, etree.Element],
+        marker: etree.Element,
+        page_keys: dict[str, list[str]],
+        occurrences: dict[str, dict[str, list[str]]],
+    ) -> None:
+        """Replace a page marker with a bibliography at the end of the page."""
+        bib_file = marker.get("data-prodockit-bibliography-file") or self.cache.default_bib_file
+        keys = frozenset(page_keys.get(bib_file, []))
+        html = self.cache.bibliography_html(bib_file, "page-cited", keys)
+        self._remove_bibliography_marker(parent_map, marker)
+        if not html:
+            return
+
+        wrapped = etree.fromstring(f"<div>{html}</div>")
+        if self.page_backlinks:
+            self._append_page_backlinks(wrapped, occurrences.get(bib_file, {}))
+        section = etree.Element("section", {"class": "prodockit-page-bibliography"})
+        heading = etree.SubElement(section, "h2")
+        heading.text = marker.get("data-prodockit-bibliography-heading") or "References"
+        for child in list(wrapped):
+            section.append(child)
+        root.append(section)
 
     @staticmethod
     def _append_page_backlinks(wrapped: etree.Element, occurrences: dict[str, list[str]]) -> None:

@@ -4,9 +4,10 @@
 
 This single Markdown source deliberately produces several physical PDF pages.
 Its citations and footnotes appear throughout the source, while one
-`\pagebibliography` near the end must collect every resolved citation from this
-file only. The generated list must paginate without splitting an entry, and it
-must be able to share a physical page with an ordinary footnote area.
+`\pagebibliography` marker must collect every resolved citation from this file
+only and append the generated **References** section to the bottom of the web
+page. The generated list must paginate without splitting an entry, and it must
+be able to share a physical page with an ordinary footnote area.
 
 ## Source span one
 
@@ -90,9 +91,7 @@ supporting footnote before the generated list.[^source-page-three]
 REPEATED-CITATION-CALL-01 cites \cite{pagination01} again, while
 REPEATED-CITATION-CALL-02 cites \cite{pagination02} again.
 
-## Generated page-local references
-
 \pagebibliography
 
-PAGE-BIBLIOGRAPHY-FOLLOWING confirms that ordinary content resumes after the
-generated list.
+PAGE-BIBLIOGRAPHY-FOLLOWING is authored after the marker. It must remain before
+the generated **References** section on the website and in the PDF.

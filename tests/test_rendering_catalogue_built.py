@@ -801,6 +801,14 @@ def test_page_bibliography_pagination_retains_local_links_and_backlinks() -> Non
     assert len(article.select("a.footnote-ref")) == 3
     assert len(article.select(".footnote > ol > li")) == 3
     assert len(article.select(".footnote a.footnote-backref")) == 3
+    bibliography = article.select_one("section.prodockit-page-bibliography")
+    assert bibliography is not None
+    assert bibliography.select_one("h2").get_text(" ", strip=True) == "References"
+    top_level = article.find_all(recursive=False)
+    assert bibliography == top_level[-1]
+    following = article.find(string=lambda value: value and "PAGE-BIBLIOGRAPHY-FOLLOWING" in value)
+    assert following is not None
+    assert top_level.index(following.find_parent("p")) < top_level.index(bibliography)
 
 
 def test_adjacent_page_bibliographies_keep_source_entries_separate() -> None:
@@ -1018,7 +1026,7 @@ def test_page_local_bibliography_entries_paginate_without_splitting() -> None:
         assert len(_compact_marker_pages(pages, f"PAGINATION-REFERENCE-{number:02d}")) == 1
     following_pages = _compact_marker_pages(pages, "PAGE-BIBLIOGRAPHY-FOLLOWING")
     assert len(following_pages) == 1
-    assert next(iter(following_pages)) >= next(iter(last_pages))
+    assert next(iter(following_pages)) <= next(iter(first_pages))
 
 
 def test_page_local_bibliography_shares_one_source_with_physical_page_footnotes() -> None:

@@ -314,11 +314,56 @@ def test_page_bibliography_is_order_independent_and_page_scoped(
     bib_file: str, source: str
 ) -> None:
     html = _convert(source, bib_file)
+    soup = BeautifulSoup(html, "html.parser")
     assert "Chacon" in html
     assert "Skoulikari" not in html
     assert 'href="#ref-chacon2014"' in html
     assert 'id="ref-chacon2014"' in html
     assert "prodockit-bib-backlink" in html
+    section = soup.select_one("section.prodockit-page-bibliography")
+    assert section is not None
+    assert section.find("h2").get_text(strip=True) == "References"
+    assert section == soup.find_all(recursive=False)[-1]
+
+
+@pandoc_required
+def test_page_bibliography_moves_after_content_following_its_marker(
+    bib_file: str,
+) -> None:
+    html = _convert(
+        "See \\cite{chacon2014}.\n\n\\pagebibliography\n\nContent after the marker.\n",
+        bib_file,
+    )
+    soup = BeautifulSoup(html, "html.parser")
+    section = soup.select_one("section.prodockit-page-bibliography")
+    trailing = soup.find("p", string="Content after the marker.")
+    assert section is not None and trailing is not None
+    top_level = soup.find_all(recursive=False)
+    assert top_level.index(trailing) < top_level.index(section)
+
+
+@pandoc_required
+def test_page_bibliography_accepts_a_custom_heading(bib_file: str) -> None:
+    html = _convert(
+        "See \\cite{chacon2014}.\n\n"
+        "\\pagebibliography{}{Sources used on this page}\n",
+        bib_file,
+    )
+    soup = BeautifulSoup(html, "html.parser")
+    heading = soup.select_one("section.prodockit-page-bibliography > h2")
+    assert heading is not None
+    assert heading.get_text(strip=True) == "Sources used on this page"
+
+
+@pandoc_required
+def test_repeated_page_bibliography_markers_make_one_section(bib_file: str) -> None:
+    html = _convert(
+        "See \\cite{chacon2014}.\n\n\\pagebibliography\n\n\\pagebibliography\n",
+        bib_file,
+    )
+    soup = BeautifulSoup(html, "html.parser")
+    assert len(soup.select("section.prodockit-page-bibliography")) == 1
+    assert len(soup.select("#ref-chacon2014")) == 1
 
 
 @pandoc_required
@@ -364,6 +409,8 @@ def test_empty_and_unresolved_page_bibliographies_are_removed_cleanly(
     empty = _convert("Before.\n\n\\pagebibliography\n\nAfter.\n", bib_file)
     assert "Before" in empty and "After" in empty
     assert 'id="refs"' not in empty
+    assert "prodockit-page-bibliography" not in empty
+    assert "<h2>References</h2>" not in empty
 
     unresolved = _convert(
         "See \\cite{missing}.\n\n\\pagebibliography\n",
