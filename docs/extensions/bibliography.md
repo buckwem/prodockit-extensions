@@ -217,10 +217,11 @@ This page cites one source \cite{chacon2014}.
 ```
 
 The marker generates a **References** heading and places the heading and list
-at the bottom of the web page generated from that Markdown source file. Its
+at the bottom of the authored content on the web page generated from that
+Markdown source file. Website footnotes follow the reference list. The marker's
 position in the Markdown does not control where the list appears. This also
-keeps the list after all content from that source file when the site is
-assembled as a PDF.
+keeps the list after all authored content from that source file when the site
+is assembled as a PDF.
 
 Here, *page* specifically means one web page generated from one Markdown source
 file; it does not mean one physical page in the PDF. A long web page may produce

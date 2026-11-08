@@ -99,9 +99,9 @@ whole page, then passes each distinct citation or reference-list request to
 `pandoc --citeproc` with the configured `.bib` and `.csl` files. The collection
 pass makes `\pagebibliography` independent of whether its marker appears before
 or after the citations. Its generated heading and reference list are appended
-to the bottom of the web page generated from that Markdown source, and retain
-that ordering when assembled into a PDF. Formatted HTML is memoized for the
-rest of the build.
+after the authored web-page content but before Python-Markdown's website
+footnote container, and retain that source ordering when assembled into a PDF.
+Formatted HTML is memoized for the rest of the build.
 
 \ref{fig-bibliography-pipeline} follows one formatting request from the
 Markdown, BibTeX, and CSL inputs through `prodockit.bibliography` to Pandoc.

@@ -533,7 +533,21 @@ class BibliographyResolverTreeprocessor(Treeprocessor):
         heading.text = marker.get("data-prodockit-bibliography-heading") or "References"
         for child in list(wrapped):
             section.append(child)
-        root.append(section)
+        # Python-Markdown appends its website footnote container to the end of
+        # the document tree. References belong at the end of the authored page
+        # content, but before those notes, matching conventional reading order.
+        footnotes = next(
+            (
+                child
+                for child in root
+                if "footnote" in (child.get("class") or "").split()
+            ),
+            None,
+        )
+        if footnotes is None:
+            root.append(section)
+        else:
+            root.insert(list(root).index(footnotes), section)
 
     @staticmethod
     def _append_page_backlinks(wrapped: etree.Element, occurrences: dict[str, list[str]]) -> None:

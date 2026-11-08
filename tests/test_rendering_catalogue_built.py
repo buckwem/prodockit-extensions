@@ -805,7 +805,10 @@ def test_page_bibliography_pagination_retains_local_links_and_backlinks() -> Non
     assert bibliography is not None
     assert bibliography.select_one("h2").get_text(" ", strip=True) == "References"
     top_level = article.find_all(recursive=False)
-    assert bibliography == top_level[-1]
+    footnotes = article.select_one("div.footnote")
+    assert footnotes is not None
+    assert top_level.index(bibliography) < top_level.index(footnotes)
+    assert footnotes == top_level[-1]
     following = article.find(string=lambda value: value and "PAGE-BIBLIOGRAPHY-FOLLOWING" in value)
     assert following is not None
     assert top_level.index(following.find_parent("p")) < top_level.index(bibliography)

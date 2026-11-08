@@ -343,6 +343,28 @@ def test_page_bibliography_moves_after_content_following_its_marker(
 
 
 @pandoc_required
+def test_page_bibliography_appears_before_website_footnotes(bib_file: str) -> None:
+    md = markdown.Markdown(
+        extensions=[
+            "footnotes",
+            BibliographyExtension(bib_file=bib_file, source="doc.md"),
+        ]
+    )
+    html = md.convert(
+        "See \\cite{chacon2014} with a note.[^1]\n\n"
+        "\\pagebibliography\n\n"
+        "[^1]: Supporting detail.\n"
+    )
+    soup = BeautifulSoup(html, "html.parser")
+    section = soup.select_one("section.prodockit-page-bibliography")
+    footnotes = soup.select_one("div.footnote")
+    assert section is not None and footnotes is not None
+    top_level = soup.find_all(recursive=False)
+    assert top_level.index(section) < top_level.index(footnotes)
+    assert footnotes == top_level[-1]
+
+
+@pandoc_required
 def test_page_bibliography_accepts_a_custom_heading(bib_file: str) -> None:
     html = _convert(
         "See \\cite{chacon2014}.\n\n"
