@@ -282,6 +282,41 @@ def test_build_namespaces_repeated_fragment_ids_and_their_links(
     assert 'id="details"' not in compiled
 
 
+def test_build_namespaces_page_local_bibliography_links(
+    tmp_path: Path, fake_pandoc_on_path
+) -> None:
+    work_dir = tmp_path / "work"
+    fake_pandoc_on_path('echo "%PDF-1.4 stub" > "$3"')
+    citation_id = "cite-skou2023-12345678-1"
+    page_html = (
+        f'<p><span id="{citation_id}" class="prodockit-bib-cite">'
+        '<a href="#ref-skou2023">(Skoulikari 2023)</a></span></p>'
+        '<div id="refs"><div id="ref-skou2023" class="csl-entry reference">'
+        'Learning Git <span class="prodockit-bib-backlinks">'
+        f'<a class="prodockit-bib-backlink" href="#{citation_id}">back 1</a>'
+        "</span></div></div>"
+    )
+    build_pdf(
+        [
+            Page(docs_rel_path="first.md", html=page_html),
+            Page(docs_rel_path="second.md", html=page_html),
+        ],
+        str(tmp_path / "out.pdf"),
+        include_table_of_contents=False,
+        work_dir=str(work_dir),
+        keep_work_dir=True,
+    )
+
+    compiled = (work_dir / "_prodockit_pdf_compiled.html").read_text(encoding="utf-8")
+    for page in ("first", "second"):
+        assert f'id="page-{page}--ref-skou2023"' in compiled
+        assert f'href="#page-{page}--ref-skou2023"' in compiled
+        assert f'id="page-{page}--{citation_id}"' in compiled
+        assert f'href="#page-{page}--{citation_id}"' in compiled
+    assert compiled.count('id="ref-skou2023"') == 0
+    assert compiled.count(f'id="{citation_id}"') == 0
+
+
 def test_repository_links_use_the_detected_remote_default_branch(
     tmp_path: Path, fake_pandoc_on_path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

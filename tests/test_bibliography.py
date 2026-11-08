@@ -6,6 +6,7 @@ from pathlib import Path
 
 import markdown
 import pytest
+from bs4 import BeautifulSoup
 
 import prodockit.bibliography as prodockit_bibliography
 from prodockit.bibliography import BibliographyError, BibliographyExtension
@@ -299,3 +300,167 @@ def test_no_bibliography_marker_means_citations_are_unlinked(bib_file: str) -> N
     html = _convert("See \\cite{chacon2014}.", bib_file)
     assert "Chacon" in html
     assert "<a href" not in html
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "\\pagebibliography\n\nSee \\cite{chacon2014}.\n",
+        "See \\cite{chacon2014}.\n\n\\pagebibliography\n",
+    ],
+)
+@pandoc_required
+def test_page_bibliography_is_order_independent_and_page_scoped(
+    bib_file: str, source: str
+) -> None:
+    html = _convert(source, bib_file)
+    soup = BeautifulSoup(html, "html.parser")
+    assert "Chacon" in html
+    assert "Skoulikari" not in html
+    assert 'href="#ref-chacon2014"' in html
+    assert 'id="ref-chacon2014"' in html
+    assert "prodockit-bib-backlink" in html
+    section = soup.select_one("section.prodockit-page-bibliography")
+    assert section is not None
+    assert section.find("h2").get_text(strip=True) == "References"
+    assert section == soup.find_all(recursive=False)[-1]
+
+
+@pandoc_required
+def test_page_bibliography_moves_after_content_following_its_marker(
+    bib_file: str,
+) -> None:
+    html = _convert(
+        "See \\cite{chacon2014}.\n\n\\pagebibliography\n\nContent after the marker.\n",
+        bib_file,
+    )
+    soup = BeautifulSoup(html, "html.parser")
+    section = soup.select_one("section.prodockit-page-bibliography")
+    trailing = soup.find("p", string="Content after the marker.")
+    assert section is not None and trailing is not None
+    top_level = soup.find_all(recursive=False)
+    assert top_level.index(trailing) < top_level.index(section)
+
+
+@pandoc_required
+def test_page_bibliography_appears_before_website_footnotes(bib_file: str) -> None:
+    md = markdown.Markdown(
+        extensions=[
+            "footnotes",
+            BibliographyExtension(bib_file=bib_file, source="doc.md"),
+        ]
+    )
+    html = md.convert(
+        "See \\cite{chacon2014} with a note.[^1]\n\n"
+        "\\pagebibliography\n\n"
+        "[^1]: Supporting detail.\n"
+    )
+    soup = BeautifulSoup(html, "html.parser")
+    section = soup.select_one("section.prodockit-page-bibliography")
+    footnotes = soup.select_one("div.footnote")
+    assert section is not None and footnotes is not None
+    top_level = soup.find_all(recursive=False)
+    assert top_level.index(section) < top_level.index(footnotes)
+    assert footnotes == top_level[-1]
+
+
+@pandoc_required
+def test_page_bibliography_accepts_a_custom_heading(bib_file: str) -> None:
+    html = _convert(
+        "See \\cite{chacon2014}.\n\n"
+        "\\pagebibliography{}{Sources used on this page}\n",
+        bib_file,
+    )
+    soup = BeautifulSoup(html, "html.parser")
+    heading = soup.select_one("section.prodockit-page-bibliography > h2")
+    assert heading is not None
+    assert heading.get_text(strip=True) == "Sources used on this page"
+
+
+@pandoc_required
+def test_repeated_page_bibliography_markers_make_one_section(bib_file: str) -> None:
+    html = _convert(
+        "See \\cite{chacon2014}.\n\n\\pagebibliography\n\n\\pagebibliography\n",
+        bib_file,
+    )
+    soup = BeautifulSoup(html, "html.parser")
+    assert len(soup.select("section.prodockit-page-bibliography")) == 1
+    assert len(soup.select("#ref-chacon2014")) == 1
+
+
+@pandoc_required
+def test_repeated_page_citations_make_one_entry_and_multiple_backlinks(
+    bib_file: str,
+) -> None:
+    html = _convert(
+        "First \\cite{chacon2014}; second \\cite{chacon2014}.\n\n"
+        "\\pagebibliography\n",
+        bib_file,
+    )
+    soup = BeautifulSoup(html, "html.parser")
+    assert len(soup.select("#ref-chacon2014")) == 1
+    citations = soup.select("span.prodockit-bib-cite[id]")
+    backlinks = soup.select("#ref-chacon2014 a.prodockit-bib-backlink")
+    assert len(citations) == len(backlinks) == 2
+    assert [link.get("href") for link in backlinks] == [
+        f"#{citation['id']}" for citation in citations
+    ]
+    assert [link.get("aria-label") for link in backlinks] == [
+        "Back to citation 1 for chacon2014",
+        "Back to citation 2 for chacon2014",
+    ]
+
+
+@pandoc_required
+def test_page_bibliography_can_disable_backlinks(bib_file: str) -> None:
+    html = _convert(
+        "See \\cite{chacon2014}.\n\n\\pagebibliography\n",
+        bib_file,
+        page_backlinks=False,
+    )
+    soup = BeautifulSoup(html, "html.parser")
+    assert soup.select_one("#ref-chacon2014") is not None
+    assert soup.select_one(".prodockit-bib-backlink") is None
+    assert soup.select_one("span.prodockit-bib-cite[id]") is None
+
+
+@pandoc_required
+def test_empty_and_unresolved_page_bibliographies_are_removed_cleanly(
+    bib_file: str,
+) -> None:
+    empty = _convert("Before.\n\n\\pagebibliography\n\nAfter.\n", bib_file)
+    assert "Before" in empty and "After" in empty
+    assert 'id="refs"' not in empty
+    assert "prodockit-page-bibliography" not in empty
+    assert "<h2>References</h2>" not in empty
+
+    unresolved = _convert(
+        "See \\cite{missing}.\n\n\\pagebibliography\n",
+        bib_file,
+    )
+    assert "prodockit-bib-cite-unresolved" in unresolved
+    assert 'id="refs"' not in unresolved
+
+
+@pandoc_required
+def test_page_bibliography_file_argument_restricts_its_entries(
+    tmp_path: Path, bib_file: str
+) -> None:
+    background = tmp_path / "background.bib"
+    background.write_text(
+        "@book{knuth1997,\n"
+        "  author = {Knuth, Donald},\n"
+        "  title = {The Art of Computer Programming},\n"
+        "  year = {1997},\n"
+        "  publisher = {Addison-Wesley}\n"
+        "}\n",
+        encoding="utf-8",
+    )
+    html = _convert(
+        f"Default \\cite{{chacon2014}} and local \\cite{{knuth1997}}.\n\n"
+        f"\\pagebibliography{{{background}}}\n",
+        bib_file,
+    )
+    assert "Knuth" in html
+    assert 'id="ref-knuth1997"' in html
+    assert 'id="ref-chacon2014"' not in html

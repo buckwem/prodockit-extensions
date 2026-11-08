@@ -1259,6 +1259,13 @@ _BIB_FIXTURE = """
   year = {2023},
   publisher = {O'Reilly Media}
 }
+
+@book{chacon2014,
+  author = {Chacon, Scott and Straub, Ben},
+  title = {Pro Git},
+  year = {2014},
+  publisher = {Apress}
+}
 """
 
 
@@ -1397,6 +1404,186 @@ def test_bibliography_cross_links_to_the_page_whose_marker_defines_the_key(
     )
     assert "Knuth" in bibliography_html
     assert "Skoulikari" not in bibliography_html
+
+
+@pandoc_required
+def test_page_bibliographies_share_one_file_but_keep_page_entries_separate(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    docs_dir = tmp_path / "docs"
+    docs_dir.mkdir()
+    bib_file = tmp_path / "refs.bib"
+    bib_file.write_text(_BIB_FIXTURE, encoding="utf-8")
+    (docs_dir / "first.md").write_text(
+        "See \\cite{skou2023}.\n\n\\pagebibliography\n", encoding="utf-8"
+    )
+    (docs_dir / "second.md").write_text(
+        "See \\cite{chacon2014}.\n\n\\pagebibliography\n", encoding="utf-8"
+    )
+    monkeypatch.setattr(
+        prodockit_zensical,
+        "nav_pages",
+        lambda: (str(docs_dir), ["first.md", "second.md"]),
+    )
+
+    first = _convert_as_zensical_page_with_bibliography(
+        (docs_dir / "first.md").read_text(encoding="utf-8"),
+        "first.md",
+        str(bib_file),
+    )
+    second = _convert_as_zensical_page_with_bibliography(
+        (docs_dir / "second.md").read_text(encoding="utf-8"),
+        "second.md",
+        str(bib_file),
+    )
+    assert "Skoulikari" in first and "Chacon" not in first
+    assert "Chacon" in second and "Skoulikari" not in second
+    assert 'href="#ref-skou2023"' in first
+    assert 'href="#ref-chacon2014"' in second
+
+
+@pandoc_required
+def test_local_bibliography_coexists_with_global_fallback(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    docs_dir = tmp_path / "docs"
+    docs_dir.mkdir()
+    bib_file = tmp_path / "refs.bib"
+    bib_file.write_text(_BIB_FIXTURE, encoding="utf-8")
+    (docs_dir / "local.md").write_text(
+        "See \\cite{skou2023}.\n\n\\pagebibliography\n", encoding="utf-8"
+    )
+    (docs_dir / "ordinary.md").write_text("See \\cite{chacon2014}.\n", encoding="utf-8")
+    (docs_dir / "references.md").write_text(
+        "# References\n\n\\bibliography{}{true}\n", encoding="utf-8"
+    )
+    monkeypatch.setattr(
+        prodockit_zensical,
+        "nav_pages",
+        lambda: (str(docs_dir), ["local.md", "ordinary.md", "references.md"]),
+    )
+
+    local = _convert_as_zensical_page_with_bibliography(
+        (docs_dir / "local.md").read_text(encoding="utf-8"),
+        "local.md",
+        str(bib_file),
+    )
+    ordinary = _convert_as_zensical_page_with_bibliography(
+        (docs_dir / "ordinary.md").read_text(encoding="utf-8"),
+        "ordinary.md",
+        str(bib_file),
+    )
+    assert 'href="#ref-skou2023"' in local
+    assert 'href="references.md#ref-chacon2014"' in ordinary
+
+
+@pandoc_required
+def test_nested_page_bibliography_uses_local_fragments(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    docs_dir = tmp_path / "docs"
+    nested = docs_dir / "chapters"
+    nested.mkdir(parents=True)
+    bib_file = tmp_path / "refs.bib"
+    bib_file.write_text(_BIB_FIXTURE, encoding="utf-8")
+    source = "See \\cite{skou2023}.\n\n\\pagebibliography\n"
+    (nested / "one.md").write_text(source, encoding="utf-8")
+    monkeypatch.setattr(
+        prodockit_zensical,
+        "nav_pages",
+        lambda: (str(docs_dir), ["chapters/one.md"]),
+    )
+    html = _convert_as_zensical_page_with_bibliography(
+        source, "chapters/one.md", str(bib_file)
+    )
+    assert 'href="#ref-skou2023"' in html
+    assert 'href="#cite-skou2023-' in html
+
+
+@pandoc_required
+def test_page_bibliography_live_reload_recollects_page_keys(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    docs_dir = tmp_path / "docs"
+    docs_dir.mkdir()
+    page = docs_dir / "page.md"
+    bib_file = tmp_path / "refs.bib"
+    bib_file.write_text(_BIB_FIXTURE, encoding="utf-8")
+    monkeypatch.setattr(
+        prodockit_zensical,
+        "nav_pages",
+        lambda: (str(docs_dir), ["page.md"]),
+    )
+
+    first_source = "See \\cite{skou2023}.\n\n\\pagebibliography\n"
+    page.write_text(first_source, encoding="utf-8")
+    first = _convert_as_zensical_page_with_bibliography(
+        first_source, "page.md", str(bib_file)
+    )
+    assert "Skoulikari" in first and "Chacon" not in first
+
+    second_source = "Now see \\cite{chacon2014}.\n\n\\pagebibliography\n"
+    page.write_text(second_source, encoding="utf-8")
+    second = _convert_as_zensical_page_with_bibliography(
+        second_source, "page.md", str(bib_file)
+    )
+    assert "Chacon" in second and "Skoulikari" not in second
+
+
+@pandoc_required
+def test_page_bibliography_live_reload_reads_an_updated_bib_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    docs_dir = tmp_path / "docs"
+    docs_dir.mkdir()
+    page = docs_dir / "page.md"
+    bib_file = tmp_path / "refs.bib"
+    source = "See \\cite{skou2023}.\n\n\\pagebibliography\n"
+    page.write_text(source, encoding="utf-8")
+    bib_file.write_text(_BIB_FIXTURE, encoding="utf-8")
+    monkeypatch.setattr(
+        prodockit_zensical,
+        "nav_pages",
+        lambda: (str(docs_dir), ["page.md"]),
+    )
+
+    first = _convert_as_zensical_page_with_bibliography(
+        source, "page.md", str(bib_file)
+    )
+    assert "Skoulikari" in first
+
+    bib_file.write_text(
+        _BIB_FIXTURE.replace("Learning Git", "Learning Git, revised edition"),
+        encoding="utf-8",
+    )
+    second = _convert_as_zensical_page_with_bibliography(
+        source, "page.md", str(bib_file)
+    )
+    assert "revised edition" in second.casefold()
+
+
+@pandoc_required
+def test_fenced_page_bibliography_example_does_not_become_a_global_target(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    docs_dir = tmp_path / "docs"
+    docs_dir.mkdir()
+    bib_file = tmp_path / "refs.bib"
+    bib_file.write_text(_BIB_FIXTURE, encoding="utf-8")
+    (docs_dir / "example.md").write_text(
+        "```markdown\n\\pagebibliography\n```\n", encoding="utf-8"
+    )
+    (docs_dir / "citation.md").write_text("See \\cite{skou2023}.\n", encoding="utf-8")
+    monkeypatch.setattr(
+        prodockit_zensical,
+        "nav_pages",
+        lambda: (str(docs_dir), ["example.md", "citation.md"]),
+    )
+    html = _convert_as_zensical_page_with_bibliography(
+        "See \\cite{skou2023}.\n", "citation.md", str(bib_file)
+    )
+    assert "Skoulikari" in html
+    assert "<a href" not in html
 
 
 def test_heading_prescan_picks_up_a_page_edited_since_the_last_render(

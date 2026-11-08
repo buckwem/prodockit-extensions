@@ -63,6 +63,8 @@ tests = [
   "tests/test_rendering_catalogue_built.py::test_admonition_pagination_specimens_retain_nested_website_content",
   "tests/test_rendering_catalogue_built.py::test_container_pagination_specimens_retain_website_hierarchy",
   "tests/test_rendering_catalogue_built.py::test_rich_block_pagination_specimens_retain_captions_and_rows",
+  "tests/test_rendering_catalogue_built.py::test_page_bibliography_pagination_retains_local_links_and_backlinks",
+  "tests/test_rendering_catalogue_built.py::test_adjacent_page_bibliographies_keep_source_entries_separate",
 ]
 
 [[layer]]
@@ -88,6 +90,9 @@ tests = [
   "tests/test_rendering_catalogue_built.py::test_definition_and_task_list_labels_remain_with_their_content",
   "tests/test_rendering_catalogue_built.py::test_complex_table_repeats_its_header_without_splitting_rows",
   "tests/test_rendering_catalogue_built.py::test_figure_and_long_caption_remain_on_one_page",
+  "tests/test_rendering_catalogue_built.py::test_page_local_bibliography_entries_paginate_without_splitting",
+  "tests/test_rendering_catalogue_built.py::test_page_local_bibliography_shares_one_source_with_physical_page_footnotes",
+  "tests/test_rendering_catalogue_built.py::test_adjacent_source_does_not_leak_into_page_local_bibliography_pdf",
   "tests/test_rendering_catalogue_built.py::test_phase_two_specimens_are_present_in_the_catalogue_pdf",
   "tests/test_rendering_catalogue_built.py::test_phase_three_specimens_and_static_fallbacks_are_present_in_the_catalogue_pdf",
   "tests/test_rendering_catalogue_built.py::test_phase_four_specimens_and_static_fallbacks_are_present_in_the_catalogue_pdf",
