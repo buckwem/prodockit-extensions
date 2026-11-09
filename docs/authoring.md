@@ -83,6 +83,7 @@ Match the document outcome you need to its authoring feature in
 | Show a folder and file hierarchy | [Directory trees](extensions/tree.md) |
 | Present a procedure with connected numbered stages | [Numbered steps](extensions/steps.md) |
 | Present any number of grid cards in an infinite carousel | [Card carousel](extensions/carousel.md) |
+| Link regions of a map or diagram to pages and headings | [Image hotspots](extensions/image-hotspots.md) |
 | Cite a BibTeX library in a selected CSL style | [Bibliography](extensions/bibliography.md) |
 | Mark terms for a PDF back-of-book index | [Index](extensions/index-terms.md) |
 /// table-caption | <

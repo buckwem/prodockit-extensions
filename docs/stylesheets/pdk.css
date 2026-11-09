@@ -1000,3 +1000,33 @@ img.documentation-diagram {
     break-inside: avoid-page !important;
   }
 }
+
+/* Image hotspots use the same box as the responsive image. */
+.md-typeset figure.pdk-hotspots {
+    display: block;
+}
+.pdk-hotspots-image {
+    display: inline-block;
+    position: relative;
+    max-width: 100%;
+}
+.md-typeset .pdk-hotspots-image > img {
+    display: block;
+    height: auto;
+    max-width: 100%;
+}
+.pdk-hotspots-region {
+    position: absolute;
+}
+.pdk-hotspots-region:focus-visible {
+    outline: 3px solid currentColor;
+    box-shadow: 0 0 0 5px Canvas;
+}
+.md-typeset .pdk-hotspots-links {
+    text-align: start;
+}
+@media print {
+    .pdk-hotspots-region {
+        display: none;
+    }
+}

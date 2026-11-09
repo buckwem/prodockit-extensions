@@ -16,7 +16,10 @@ adds an equivalent public API, only this module needs to change.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from importlib import import_module
+from pathlib import Path
+from typing import Protocol, cast
 
 from markdown import Markdown
 
@@ -31,15 +34,16 @@ _CONTRACT_ERROR = (
 )
 
 
-def current_page_path(md: Markdown) -> str | None:
-    """Return the source path of the page Zensical is currently rendering.
+class _Page(Protocol):
+    path: str | None
 
-    ``None`` means that this Markdown conversion is not running with a
-    Zensical page context.  A changed Zensical contract is different: it
-    raises :class:`ZensicalPageContextAPIError`, allowing the caller to issue
-    a compatibility diagnostic instead of silently treating every page as
-    the same source.
-    """
+
+class _Context(Protocol):
+    page: _Page | None
+    config: Mapping[str, object]
+
+
+def _rendering_context(md: Markdown) -> _Context | None:
     try:
         context_module = import_module("zensical.extensions.context")
     except ModuleNotFoundError as error:
@@ -53,15 +57,35 @@ def current_page_path(md: Markdown) -> str | None:
         raise ZensicalPageContextAPIError(_CONTRACT_ERROR) from error
 
     try:
-        ContextPreprocessor = context_module.ContextPreprocessor
-        context = ContextPreprocessor.from_markdown(md)
-        if context is None or context.page is None:
+        return cast("_Context | None", context_module.ContextPreprocessor.from_markdown(md))
+    except (AttributeError, TypeError) as error:
+        raise ZensicalPageContextAPIError(_CONTRACT_ERROR) from error
+
+
+def current_page_path(md: Markdown) -> str | None:
+    """Return the source path of the page Zensical is currently rendering."""
+    context = _rendering_context(md)
+    if context is None:
+        return None
+    try:
+        page = context.page
+        if page is None:
             return None
-        path = context.page.path
+        path = page.path
         if path is None:
             raise ZensicalPageContextAPIError(_CONTRACT_ERROR)
         return str(path)
-    except ZensicalPageContextAPIError:
-        raise
     except (AttributeError, TypeError) as error:
         raise ZensicalPageContextAPIError(_CONTRACT_ERROR) from error
+
+
+def current_docs_dir(md: Markdown) -> Path:
+    """Resolve the active Zensical docs directory independently of the shell cwd."""
+    context = _rendering_context(md)
+    if context is None:
+        raise ZensicalPageContextAPIError("Zensical's rendering context is unavailable")
+    root = context.config.get("root_dir")
+    docs = context.config.get("docs_dir", "docs")
+    if not isinstance(root, str) or not isinstance(docs, str):
+        raise ZensicalPageContextAPIError("Zensical's documentation directory is unavailable")
+    return (Path(root) / docs).resolve()

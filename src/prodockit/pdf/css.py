@@ -932,6 +932,15 @@ figure {
     margin-left: 0 !important;
     margin-right: 0 !important;
 }
+/* Keep hotspot figures compact and align their text links with the bullets. */
+figure.pdk-hotspots .pdk-hotspots-image img {
+    max-height: 125mm;
+    width: auto;
+    height: auto;
+}
+figure.pdk-hotspots .pdk-hotspots-links {
+    text-align: left;
+}
 /* A prepend-position figure-caption is retagged from <figure> to <div> in
    prodockit.pdf.html (so its caption keeps original document order through
    Pandoc) - same page-break/centering treatment as the "figure {}" rule
