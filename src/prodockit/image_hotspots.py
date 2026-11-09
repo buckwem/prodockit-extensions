@@ -111,8 +111,6 @@ def _render(src: str, source: str, docs: Path) -> str:
             "height": str(height),
         },
     )
-    link_group = ET.SubElement(figure, "div", {"class": "pdk-hotspots-links web-only"})
-    links = ET.SubElement(link_group, "ul")
     for index, entry in enumerate(hotspots, start=1):
         try:
             if not isinstance(entry, dict):
@@ -132,7 +130,6 @@ def _render(src: str, source: str, docs: Path) -> str:
                 "class": "pdk-hotspots-region",
             },
         )
-        ET.SubElement(ET.SubElement(links, "li"), "a", {"href": href}).text = label
     return ET.tostring(figure, encoding="unicode", method="html")
 
 

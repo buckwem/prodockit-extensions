@@ -7,9 +7,8 @@ icon: lucide/map-pin
 # Image hotspots
 
 Turn regions of a map, diagram or other local raster image into links. Hotspots
-follow the image as it resizes. On the website, a list beneath the image
-offers the same destinations as text links. In a Prodockit PDF, click
-the corresponding region directly on the image.
+follow the image as it resizes. Click the corresponding region directly
+on the image on the website or in a Prodockit PDF.
 
 ## Enable image hotspots
 

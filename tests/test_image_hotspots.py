@@ -71,18 +71,17 @@ def test_zensical_resolves_image_and_links(project):
     assert image["src"] == "../../assets/test.png"
     assert image["alt"] == "Test map"
     regions = figure.select(".pdk-hotspots-region")
-    links = figure.select(".pdk-hotspots-links a")
-    assert (
-        [link["href"] for link in regions]
-        == [link["href"] for link in links]
-        == ["#first", "../../other/#section", "https://example.com/"]
-    )
-    assert [link["aria-label"] for link in regions] == [link.text for link in links]
+    assert [link["href"] for link in regions] == [
+        "#first",
+        "../../other/#section",
+        "https://example.com/",
+    ]
+    assert [link["aria-label"] for link in regions] == ["First & second", "Other page", "External"]
+    assert figure.select("a") == regions
     assert regions[0]["style"] == (
         "left:10.0000000000%;top:10.0000000000%;width:20.0000000000%;height:30.0000000000%"
     )
     assert "web-only" not in regions[0]["class"]
-    assert figure.select_one(".pdk-hotspots-links.web-only") is not None
 
 
 @pytest.mark.parametrize(
