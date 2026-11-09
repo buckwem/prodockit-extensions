@@ -105,6 +105,55 @@ def test_the_pdf_built_and_has_pages(prodockit_pdf):
     assert prodockit_pdf.page_count > 5
 
 
+@pytest.mark.parametrize(
+    ("size", "hotspots"),
+    [
+        (
+            (939, 987),
+            {
+                "stop-1": (624, 417, 38, 59),
+                "stop-2": (115, 168, 39, 59),
+                "stop-3": (213, 435, 39, 59),
+                "stop-4": (409, 618, 40, 59),
+            },
+        ),
+        (
+            (2509, 1013),
+            {
+                "structure-and-layout": (692, 10, 442, 222),
+                "evidence-and-navigation": (692, 390, 442, 222),
+                "https://prodockit.org/pdf/": (692, 771, 442, 222),
+            },
+        ),
+    ],
+)
+def test_pdf_hotspots_cover_the_authored_image_regions(prodockit_pdf, size, hotspots):
+    for page in prodockit_pdf:
+        links = page.get_links()
+        for image in page.get_image_info():
+            if (image["width"], image["height"]) != size:
+                continue
+            left, top, right, bottom = image["bbox"]
+            scale_x = (right - left) / size[0]
+            scale_y = (bottom - top) / size[1]
+            for href, (x, y, width, height) in hotspots.items():
+                expected = (
+                    left + x * scale_x,
+                    top + y * scale_y,
+                    left + (x + width) * scale_x,
+                    top + (y + height) * scale_y,
+                )
+                if not any(
+                    (link.get("nameddest") or link.get("uri")) == href
+                    and tuple(link["from"]) == pytest.approx(expected, abs=0.1)
+                    for link in links
+                ):
+                    break
+            else:
+                return
+    pytest.fail(f"No image of size {size} has all hotspot links in their expected positions")
+
+
 def test_pdf_figure_captions_use_chapter_and_figure_numbers(prodockit_pdf):
     text = " ".join(
         " ".join(page.get_text().split()) for page in prodockit_pdf

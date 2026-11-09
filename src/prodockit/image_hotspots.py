@@ -89,7 +89,17 @@ def _render(src: str, source: str, docs: Path) -> str:
     width, height = _dimensions(image, source, docs)
 
     figure = ET.Element("figure", {"class": "pdk-hotspots"})
-    canvas = ET.SubElement(figure, "div", {"class": "pdk-hotspots-image"})
+    # Size the PDF wrapper and image together, with a 125 mm height cap.
+    # CSS pixels convert at 96 per inch, so small images keep their size.
+    print_width = min(width * 25.4 / 96, 125 * width / height)
+    canvas = ET.SubElement(
+        figure,
+        "div",
+        {
+            "class": "pdk-hotspots-image",
+            "style": f"--pdk-hotspots-print-width:{print_width:.6f}mm",
+        },
+    )
     ET.SubElement(
         canvas,
         "img",
@@ -101,7 +111,7 @@ def _render(src: str, source: str, docs: Path) -> str:
             "height": str(height),
         },
     )
-    link_group = ET.SubElement(figure, "div", {"class": "pdk-hotspots-links"})
+    link_group = ET.SubElement(figure, "div", {"class": "pdk-hotspots-links web-only"})
     links = ET.SubElement(link_group, "ul")
     for index, entry in enumerate(hotspots, start=1):
         try:
@@ -119,7 +129,7 @@ def _render(src: str, source: str, docs: Path) -> str:
                 "href": href,
                 "aria-label": label,
                 "style": style,
-                "class": "pdk-hotspots-region web-only",
+                "class": "pdk-hotspots-region",
             },
         )
         ET.SubElement(ET.SubElement(links, "li"), "a", {"href": href}).text = label

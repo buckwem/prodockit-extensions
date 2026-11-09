@@ -81,7 +81,8 @@ def test_zensical_resolves_image_and_links(project):
     assert regions[0]["style"] == (
         "left:10.0000000000%;top:10.0000000000%;width:20.0000000000%;height:30.0000000000%"
     )
-    assert "web-only" in regions[0]["class"]
+    assert "web-only" not in regions[0]["class"]
+    assert figure.select_one(".pdk-hotspots-links.web-only") is not None
 
 
 @pytest.mark.parametrize(

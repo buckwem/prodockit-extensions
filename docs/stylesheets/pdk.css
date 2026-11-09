@@ -1025,8 +1025,3 @@ img.documentation-diagram {
 .md-typeset .pdk-hotspots-links {
     text-align: start;
 }
-@media print {
-    .pdk-hotspots-region {
-        display: none;
-    }
-}
