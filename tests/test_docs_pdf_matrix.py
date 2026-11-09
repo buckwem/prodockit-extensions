@@ -56,7 +56,7 @@ def test_every_coverage_representative_is_really_built() -> None:
     }
 
 
-def test_all_nine_authoring_extensions_use_the_single_page_path() -> None:
+def test_all_authoring_extensions_use_the_single_page_path() -> None:
     groups, _ = _matrix()
 
     assert groups["authoring_extensions"] == [
@@ -67,6 +67,7 @@ def test_all_nine_authoring_extensions_use_the_single_page_path() -> None:
         "extensions/tables.md",
         "extensions/tree.md",
         "extensions/steps.md",
+        "extensions/image-hotspots.md",
         "extensions/bibliography.md",
         "extensions/index-terms.md",
     ]
