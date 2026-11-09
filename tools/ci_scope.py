@@ -116,6 +116,7 @@ _PDF_RUNTIME_FILES = {
     "src/prodockit/steps.py",
     "src/prodockit/tables.py",
     "src/prodockit/tree.py",
+    "src/prodockit/image_hotspots.py",
     "src/prodockit/zensical_macros.py",
 }
 

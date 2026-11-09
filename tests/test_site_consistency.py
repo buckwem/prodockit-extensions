@@ -311,10 +311,10 @@ def test_command_reference_is_a_top_level_section() -> None:
 
     assert all("command-line.md" not in item.values() for item in authoring)
     assert all("command-line.md" not in item.values() for item in maintenance)
-    assert {"34. Command overview": "command-line.md"} in commands
-    assert {"35. Reading command output": "commands/output.md"} in commands
-    assert {"36. Bootstrap": "commands/bootstrap.md"} in commands
-    assert {"37. Diagnostics": "commands/diag.md"} in commands
+    assert {"35. Command overview": "command-line.md"} in commands
+    assert {"36. Reading command output": "commands/output.md"} in commands
+    assert {"37. Bootstrap": "commands/bootstrap.md"} in commands
+    assert {"38. Diagnostics": "commands/diag.md"} in commands
     assert "document authors" in _text("docs/command-line.md")
 
 
@@ -348,6 +348,7 @@ def test_authoring_navigation_uses_consistent_sentence_case() -> None:
         "Tables",
         "Directory trees",
         "Numbered steps",
+        "Image hotspots",
         "Card carousel",
         "BibTeX bibliography",
         "Index (PDF only)",

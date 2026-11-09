@@ -932,6 +932,24 @@ figure {
     margin-left: 0 !important;
     margin-right: 0 !important;
 }
+/* Anchor PDF link annotations to the displayed image. Keep this div
+   positioned despite the PDF canvas reset for ordinary website containers. */
+.pdk-hotspots-image {
+    display: block;
+    position: relative !important;
+    width: var(--pdk-hotspots-print-width);
+    max-width: 100%;
+    margin: 0 auto;
+}
+.pdk-hotspots-image img {
+    display: block;
+    width: 100%;
+    height: auto;
+}
+.pdk-hotspots-region {
+    display: block;
+    position: absolute;
+}
 /* A prepend-position figure-caption is retagged from <figure> to <div> in
    prodockit.pdf.html (so its caption keeps original document order through
    Pandoc) - same page-break/centering treatment as the "figure {}" rule

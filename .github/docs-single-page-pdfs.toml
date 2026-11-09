@@ -29,6 +29,7 @@ authoring_extensions = [
   "extensions/tables.md",
   "extensions/tree.md",
   "extensions/steps.md",
+  "extensions/image-hotspots.md",
   "extensions/bibliography.md",
   "extensions/index-terms.md",
 ]

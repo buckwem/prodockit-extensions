@@ -32,6 +32,7 @@ with Prodockit and explains why each one is needed.
 | [`beautifulsoup4`](https://www.crummy.com/software/BeautifulSoup/) (>= 4.12) | `prodockit.pdf` |
 | \index{dependencies!`click`} (>= 8.0) | the `prodockit` command-line tool |
 | [`PyYAML`](https://pyyaml.org/) (>= 6.0) | `prodockit adopt` support for Zensical projects that retain a compatible `mkdocs.yml` or `mkdocs.yaml` configuration filename |
+| [`Pillow`](https://python-pillow.org/) (>= 10) | Reads source raster dimensions when building image hotspots |
 | [`packaging`](https://packaging.pypa.io/) (>= 24.0) | comparing an adopted project's recorded Prodockit version floor with the installed release |
 | \index{dependencies!`pypdf`} (>= 4.0) | `prodockit.pdf` |
 | [`tomlkit`](https://tomlkit.readthedocs.io/) (>= 0.13.2) | editing Adopt's TOML configuration and review ledger while preserving existing comments and formatting |

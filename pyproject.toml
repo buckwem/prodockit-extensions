@@ -70,6 +70,8 @@ dependencies = [
   # A direct import for `prodockit adopt`, which preserves existing MkDocs
   # and Zensical YAML configuration as well as Zensical's TOML format.
   "PyYAML>=6.0",
+  # Read source image dimensions for responsive hotspots.
+  "Pillow>=10",
   # Adopt compares a recorded Prodockit floor with the running release so an
   # already-adopted project is upgraded rather than accepted merely because
   # some older ``>=`` requirement is present.
@@ -123,7 +125,6 @@ dev = [
   "types-Markdown",
   "types-beautifulsoup4",
   "types-PyYAML",
-  "Pillow>=10",
   "pytest",
   "pytest-cov",
   "pymupdf>=1.24,<2",
