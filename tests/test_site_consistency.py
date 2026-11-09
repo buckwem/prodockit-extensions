@@ -348,6 +348,7 @@ def test_authoring_navigation_uses_consistent_sentence_case() -> None:
         "Tables",
         "Directory trees",
         "Numbered steps",
+        "Image hotspots",
         "Card carousel",
         "BibTeX bibliography",
         "Index (PDF only)",
@@ -355,7 +356,6 @@ def test_authoring_navigation_uses_consistent_sentence_case() -> None:
         "Page update dates",
         "Generate a PDF",
         "Stylesheets",
-        "Image hotspots",
     ]
 
 
