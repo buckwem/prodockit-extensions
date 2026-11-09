@@ -64,6 +64,11 @@
   {% include ".icons/material/file-pdf-box.svg" %}
 </a>
 {% endif %}
+{% if page.url == "extensions/image-hotspots/" %}
+<a href="{{ "page-pdfs/extensions/image-hotspots.pdf" | url }}" title="Download this page as PDF" class="md-content__button md-icon">
+  {% include ".icons/material/file-pdf-box.svg" %}
+</a>
+{% endif %}
 {% if page.url == "extensions/bibliography/" %}
 <a href="{{ "page-pdfs/extensions/bibliography.pdf" | url }}" title="Download this page as PDF" class="md-content__button md-icon">
   {% include ".icons/material/file-pdf-box.svg" %}
