@@ -327,9 +327,9 @@ def fix_up_page_html(
     # The hook arrow can be shaped as emoji and render as a missing glyph.
     # Use the text-only return arrow for generated bibliography links.
     for link in soup.select("a.prodockit-bib-backlink"):
-        label = link.string
-        if label is not None and label.startswith("↩"):
-            label.replace_with("↵" + label[1:])
+        backlink_text = link.string
+        if backlink_text is not None and backlink_text.startswith("↩"):
+            link.string = "↵" + backlink_text[1:]
 
     # Pandoc preserves attributes on Divs but not on list items. Carry the
     # authored carousel width on its container for the static print grid.

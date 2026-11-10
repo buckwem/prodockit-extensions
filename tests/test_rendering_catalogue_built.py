@@ -803,7 +803,13 @@ def test_page_bibliography_pagination_retains_local_links_and_backlinks() -> Non
     assert len(article.select(".footnote a.footnote-backref")) == 3
     bibliography = article.select_one("section.prodockit-page-bibliography")
     assert bibliography is not None
-    assert bibliography.select_one("h2").get_text(" ", strip=True) == "References"
+    heading = bibliography.select_one("h2#references")
+    assert heading is not None
+    permalink = heading.select_one("a.headerlink")
+    assert permalink is not None
+    permalink.extract()
+    assert heading.get_text(" ", strip=True) == "References"
+    assert page.select_one(".md-sidebar--secondary a[href='#references']") is not None
     top_level = article.find_all(recursive=False)
     footnotes = article.select_one("div.footnote")
     assert footnotes is not None
