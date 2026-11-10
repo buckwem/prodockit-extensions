@@ -12,6 +12,7 @@ import markdown
 import pytest
 from pypdf import PdfReader
 
+from prodockit import bibliography
 from prodockit.pdf.build import Page, PdfBuildError, build_pdf
 from prodockit.pdf.index import INDEX_TITLE_CLASS
 
@@ -315,6 +316,67 @@ def test_build_namespaces_page_local_bibliography_links(
         assert f'href="#page-{page}--{citation_id}"' in compiled
     assert compiled.count('id="ref-skou2023"') == 0
     assert compiled.count(f'id="{citation_id}"') == 0
+
+
+@real_pandoc_and_weasyprint_required
+@pytest.mark.parametrize("numbered", [False, True])
+def test_page_bibliography_return_links_jump_to_each_citation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, numbered: bool
+) -> None:
+    monkeypatch.setattr(bibliography, "_project_pandoc_executable", lambda: Path("pandoc"))
+    bib_file = tmp_path / "references.bib"
+    bib_file.write_text(
+        "@book{sample, author={Smith, Jane}, title={Sample Reference}, year={2024}}",
+        encoding="utf-8",
+    )
+    html = markdown.markdown(
+        r"""# Bibliography preview
+
+## First citation
+
+First occurrence \cite{sample}.
+
+<div class="page-break"></div>
+
+## Second citation
+
+Second occurrence \cite{sample}.
+
+<div class="page-break"></div>
+
+\pagebibliography
+""",
+        extensions=[
+            "toc",
+            bibliography.BibliographyExtension(
+                bib_file=str(bib_file), page_backlink_numbers=numbered
+            ),
+        ],
+    )
+    output = tmp_path / "bibliography.pdf"
+    build_pdf(
+        [Page(docs_rel_path="example.md", html=html)],
+        str(output),
+        include_table_of_contents=False,
+    )
+
+    pdf = PdfReader(output)
+    assert len(pdf.pages) == 3
+    references = pdf.pages[2]
+    text = references.extract_text()
+    assert "References" in text
+    assert ("↵1 ↵2" if numbered else "↵ ↵") in " ".join(text.split())
+    targets = [
+        dest
+        for annotation in references.get("/Annots", [])
+        if (dest := annotation.get_object().get("/Dest")) and dest.startswith("cite-sample-")
+    ]
+    assert len(targets) == 2
+    assert [pdf.get_destination_page_number(pdf.named_destinations[dest]) for dest in targets] == [
+        0, 1
+    ]
+    assert "First occurrence" in pdf.pages[0].extract_text()
+    assert "Second occurrence" in pdf.pages[1].extract_text()
 
 
 def test_repository_links_use_the_detected_remote_default_branch(

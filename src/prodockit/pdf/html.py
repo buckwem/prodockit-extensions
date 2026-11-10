@@ -324,6 +324,13 @@ def fix_up_page_html(
     soup = BeautifulSoup(html, "html.parser")
     _group_table_rowspans(soup)
 
+    # The hook arrow can be shaped as emoji and render as a missing glyph.
+    # Use the text-only return arrow for generated bibliography links.
+    for link in soup.select("a.prodockit-bib-backlink"):
+        label = link.string
+        if label is not None and label.startswith("↩"):
+            label.replace_with("↵" + label[1:])
+
     # Pandoc preserves attributes on Divs but not on list items. Carry the
     # authored carousel width on its container for the static print grid.
     for carousel in soup.select("div.grid.cards.pdk-carousel"):
