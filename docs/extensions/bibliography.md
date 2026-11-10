@@ -94,6 +94,7 @@ bib_file = "references.bib"
 csl_style = "harvard-cite-them-right.csl"
 unresolved = "?"
 page_backlinks = true
+page_backlink_numbers = false
 ```
 
 The effect and default of each setting are listed in
@@ -104,7 +105,8 @@ The effect and default of each setting are listed in
 | \index{prodockit.bibliography!`bib_file`} | `"references.bib"` | Path to the `.bib` file, relative to the directory where you run `zensical build` or `zensical serve`. |
 | \index{prodockit.bibliography!`csl_style`} | `""` (Pandoc's default) | Path to the `.csl` file that controls citation and reference-list formatting. Leave it out to use Pandoc's default style. |
 | \index{prodockit.bibliography!`unresolved`} | `"?"` | Text shown for a citation key that cannot be found in the `.bib` file. |
-| \index{prodockit.bibliography!`page_backlinks`} | `true` | Add numbered links from each page-local reference back to every citation occurrence on that page. |
+| \index{prodockit.bibliography!`page_backlinks`} | `true` | Add return arrows from each page-local reference back to every citation occurrence on that page. |
+| `page_backlink_numbers` | `false` | Show occurrence numbers beside the return arrows, for example `↩1` and `↩2`. |
 | \index{prodockit.bibliography!`source`} | `""` (detected automatically) | Advanced: identifies the current page when using the extension outside Zensical. Leave it unset in `zensical.toml`. |
 /// table-caption | <
     attrs: {id: tab-extensions-bibliography-choose-the-bibliography-settings}
@@ -218,7 +220,8 @@ This page cites one source \cite{chacon2014}.
 
 The marker generates a **References** heading and places the heading and list
 at the bottom of the authored content on the web page generated from that
-Markdown source file. Website footnotes follow the reference list. The marker's
+Markdown source file. The heading appears in the page contents when the table
+of contents is enabled. Website footnotes follow the reference list. The marker's
 position in the Markdown does not control where the list appears. This also
 keeps the list after all authored content from that source file when the site
 is assembled as a PDF.
@@ -229,7 +232,7 @@ many PDF pages: one `\pagebibliography` collects the resolved citations from the
 complete source file, wherever those citations appear in the rendered PDF.
 Citations in another Markdown file are not included.
 
-Each citation links down to its local entry, and the numbered return links
+Each citation links down to its local entry, and the return arrows (`↩`)
 beside the entry link back to every occurrence of that citation. The marker may
 appear before or after the citations because the complete source file is
 collected before the references are generated. In a PDF, ordinary footnotes
@@ -250,6 +253,7 @@ excluded from the list. A page with no resolved citations produces no empty
 heading, list or marker. Repeated markers for the same bibliography file
 produce one list.
 
+Set `page_backlink_numbers = true` to display numbers beside the arrows.
 Set `page_backlinks = false` to omit the return links while keeping citations
 linked to their local entries. Page-local markers never replace or become the
 target of a project-wide `\bibliography` marker, so both forms can be used in

@@ -339,12 +339,14 @@ class BibliographyResolverTreeprocessor(Treeprocessor):
         source: str,
         unresolved: str,
         page_backlinks: bool,
+        page_backlink_numbers: bool,
     ) -> None:
         super().__init__(md)
         self.cache = cache
         self.source = source
         self.unresolved = unresolved
         self.page_backlinks = page_backlinks
+        self.page_backlink_numbers = page_backlink_numbers
 
     def run(self, root: etree.Element) -> None:
         elements = list(root.iter())
@@ -549,8 +551,9 @@ class BibliographyResolverTreeprocessor(Treeprocessor):
         else:
             root.insert(list(root).index(footnotes), section)
 
-    @staticmethod
-    def _append_page_backlinks(wrapped: etree.Element, occurrences: dict[str, list[str]]) -> None:
+    def _append_page_backlinks(
+        self, wrapped: etree.Element, occurrences: dict[str, list[str]]
+    ) -> None:
         for entry in wrapped.iter():
             entry_id = entry.get("id") or ""
             if not entry_id.startswith("ref-"):
@@ -571,9 +574,7 @@ class BibliographyResolverTreeprocessor(Treeprocessor):
                         "aria-label": f"Back to citation {number} for {key}",
                     },
                 )
-                # Keep the visible label ASCII-only: it remains readable in
-                # PDF fonts that do not contain the curved return-arrow glyph.
-                link.text = f"back {number}"
+                link.text = f"↩{number}" if self.page_backlink_numbers else "↩"
                 link.tail = " "
             entry.append(backlinks)
 
@@ -656,6 +657,10 @@ class BibliographyExtension(Extension):
                 "Whether page-local bibliography entries link back to every "
                 "citation occurrence on the current page.",
             ],
+            "page_backlink_numbers": [
+                False,
+                "Whether to show occurrence numbers beside page bibliography return arrows.",
+            ],
             "source": [
                 "",
                 "Identifier for the current document (e.g. its path), used "
@@ -671,6 +676,7 @@ class BibliographyExtension(Extension):
         csl_style: str = self.getConfig("csl_style")
         unresolved: str = self.getConfig("unresolved")
         page_backlinks: bool = self.getConfig("page_backlinks")
+        page_backlink_numbers: bool = self.getConfig("page_backlink_numbers")
         detected_source = page_source(md)
         source: str = self.getConfig("source") or detected_source or ""
 
@@ -730,9 +736,10 @@ class BibliographyExtension(Extension):
                 source,
                 unresolved,
                 page_backlinks,
+                page_backlink_numbers,
             ),
             "prodockit-bibliography-resolver",
-            1,
+            6,  # After inline processing and before Python-Markdown toc (5).
         )
 
 
