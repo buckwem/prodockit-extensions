@@ -22,6 +22,8 @@ Zensical doesn't provide out of the box, each usable independently:
   ``\\cite{id}``/the reference list in any Citation Style Language (CSL)
   style (APA, IEEE, Harvard, ...) via Pandoc's own ``--citeproc`` - first use
   prepares the verified project-local Pandoc runtime even without a PDF build.
+- ``image-hotspots`` - link regions of a raster image to headings or URLs in
+  Zensical pages and PDFs.
 - ``prodockit.index`` - mark a term inline with ``\\index{Term}`` for a
   traditional, PDF-only back-of-book index (see ``prodockit.pdf``'s own
   the extension's ``include`` option) - with hierarchical sub-entries and
@@ -113,6 +115,6 @@ alongside them.
 See https://prodockit.org/ for documentation.
 """
 
-__version__ = "0.79.0"
+__version__ = "0.80.0"
 
 __all__ = ["__version__"]

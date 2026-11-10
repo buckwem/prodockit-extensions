@@ -31,6 +31,8 @@ prodockit combines:
 - nine [Python-Markdown](https://python-markdown.github.io/) authoring
   extensions for headings, references, citations, glossaries, tables,
   directories, procedures, bibliographies, and indexes;
+- [image hotspots](https://prodockit.org/extensions/image-hotspots/) for clickable
+  map and diagram regions on the web and in PDFs;
 - a Pandoc and WeasyPrint PDF pipeline;
 - Zensical macros and built-output tests; and
 - commands for machine setup, template updates, repository metadata, and
