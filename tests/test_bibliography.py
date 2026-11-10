@@ -366,11 +366,12 @@ def test_page_bibliography_appears_before_website_footnotes(bib_file: str) -> No
 
 @pandoc_required
 def test_page_bibliography_accepts_a_custom_heading(bib_file: str) -> None:
-    html = _convert(
+    md = markdown.Markdown(extensions=["toc", BibliographyExtension(bib_file=bib_file)])
+    html = md.convert(
         "See \\cite{chacon2014}.\n\n"
-        "\\pagebibliography{}{Sources used on this page}\n",
-        bib_file,
+        "\\pagebibliography{}{Sources used on this page}\n"
     )
+    assert 'href="#sources-used-on-this-page"' in md.toc
     soup = BeautifulSoup(html, "html.parser")
     heading = soup.select_one("section.prodockit-page-bibliography > h2")
     assert heading is not None
@@ -389,18 +390,21 @@ def test_repeated_page_bibliography_markers_make_one_section(bib_file: str) -> N
 
 
 @pandoc_required
+@pytest.mark.parametrize(("numbered", "labels"), [(False, ["↩", "↩"]), (True, ["↩1", "↩2"])])
 def test_repeated_page_citations_make_one_entry_and_multiple_backlinks(
-    bib_file: str,
+    bib_file: str, numbered: bool, labels: list[str],
 ) -> None:
     html = _convert(
         "First \\cite{chacon2014}; second \\cite{chacon2014}.\n\n"
         "\\pagebibliography\n",
         bib_file,
+        page_backlink_numbers=numbered,
     )
     soup = BeautifulSoup(html, "html.parser")
     assert len(soup.select("#ref-chacon2014")) == 1
     citations = soup.select("span.prodockit-bib-cite[id]")
     backlinks = soup.select("#ref-chacon2014 a.prodockit-bib-backlink")
+    assert [link.get_text() for link in backlinks] == labels
     assert len(citations) == len(backlinks) == 2
     assert [link.get("href") for link in backlinks] == [
         f"#{citation['id']}" for citation in citations
