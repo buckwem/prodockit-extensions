@@ -19,6 +19,12 @@ only when it adds or changes behaviour that matters to a user, or requires an
 upgrade action. Defect-by-defect history belongs in GitHub issues and pull
 requests rather than here.
 
+## 0.80.0 (2026-11-10)
+
+- Added image hotspots that turn pixel-defined regions of maps and diagrams into links on the web and in PDFs.
+  Existing projects can refresh the managed styles with `prodockit shared-files --apply`.
+- Added page-local bibliography headings to the page contents and simplified citation return links to arrows with optional numbering.
+
 ## 0.79.0 (2026-11-08)
 
 - Added page-local BibTeX reference lists with two-way links between each
