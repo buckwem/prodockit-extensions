@@ -63,7 +63,14 @@ Use the UTC date/time field to jump in time, the clock-speed field (0–3600) to
 freeze or accelerate the Christmas route, and Step to advance a single frame.
 Simulation time controls the route independently of snowfall. Each time Santa
 returns for another flight pass in preview mode, the clock jumps to the next
-destination. After the last destination, it cycles back to Kiritimati. Reset snow
+destination. After the last destination, it cycles back to Kiritimati.
+
+Choose **Current Santa zone** to use the current UTC time of day on 25 December
+of the preview year. This lets you inspect the clock-based destination outside
+the festive season. It follows the real clock at normal speed and changes
+destination at time-zone boundaries, including fractional offsets. Flight passes
+do not advance the destination in this preset. Editing the time or speed returns
+to the simulated clock. Reset snow
 restarts the seeded animation. Presets cover Christmas start, Nepal's fractional
 offset, Christmas end, maximum snow, reduced motion and the real theme palette
 controls. The output reports UTC time, destination, palette, particle count,

@@ -69,6 +69,12 @@ const server = http.createServer((req, res) => {
     });
     const bounded = await state();
     assert.ok(bounded.particles <= 180 && bounded.bank <= 48);
+    await page.select('select[aria-label="Preview preset"]', 'Current Santa zone');
+    const previewTime = await page.$eval('input[aria-label="Simulated UTC time"]', el => el.value);
+    const utcNow = new Date();
+    assert.equal(previewTime.slice(5, 10), '12-25');
+    assert.equal(previewTime.slice(11, 16), utcNow.toISOString().slice(11, 16));
+    assert.equal(await page.$eval('input[aria-label="Clock speed"]', el => el.value), '1');
     await page.goto(base);
     assert.equal(await page.$$('canvas').then(x=>x.length), 0);
     console.log('Passed Christmas boundaries, Nepal handover, mobile, palette, navigation, print, reduced motion and ten simulated minutes.');

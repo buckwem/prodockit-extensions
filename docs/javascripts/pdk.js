@@ -459,7 +459,7 @@ document.addEventListener("DOMContentLoaded", function() {
     let particles = [], bank = [], seed = 42;
     const seedInput = Number(query.get("pdk-festive-seed") || 42);
     const initialSeed = Number.isFinite(seedInput) ? seedInput >>> 0 : 42;
-    let simulated = Date.now(), speed = 1, frames = 0, frameCost = 0, density = 1;
+    let simulated = Date.now(), speed = 1, liveSantaZone = false, frames = 0, frameCost = 0, density = 1;
     if (preview) {
       const value = query.get("pdk-festive-time");
       if (value && !/Z$/.test(value)) throw Error("preview time must be an ISO UTC timestamp ending in Z");
@@ -510,20 +510,26 @@ document.addEventListener("DOMContentLoaded", function() {
       const title = document.createElement("strong"); title.textContent = "Festive preview"; panel.append(title);
       clock = document.createElement("input"); clock.type = "datetime-local"; clock.setAttribute("aria-label", "Simulated UTC time");
       clock.value = new Date(simulated).toISOString().slice(0, 19);
-      on(clock, "change", () => { const value = Date.parse(clock.value + "Z"); if (Number.isFinite(value)) simulated = value; draw(); });
+      on(clock, "change", () => { const value = Date.parse(clock.value + "Z"); if (Number.isFinite(value)) { liveSantaZone = false; simulated = value; } draw(); });
       panel.append(clock);
       const rate = document.createElement("input"); rate.type = "number"; rate.min = "0"; rate.max = "3600"; rate.value = String(speed);
       rate.setAttribute("aria-label", "Clock speed");
-      on(rate, "change", () => { const value = Number(rate.value); if (Number.isFinite(value) && value >= 0 && value <= 3600) speed = value; });
+      on(rate, "change", () => { const value = Number(rate.value); if (Number.isFinite(value) && value >= 0 && value <= 3600) { liveSantaZone = false; speed = value; } });
       panel.append(rate);
       button("Step", () => { advance(1 / 60); draw(); });
       button("Reset snow", () => { reset(); draw(); });
       const preset = document.createElement("select"); preset.setAttribute("aria-label", "Preview preset");
-      for (const text of ["Choose preset", "Christmas start", "Nepal", "Christmas end", "Maximum snow", "Light palette", "Dark palette", "Reduced motion"]) {
+      for (const text of ["Choose preset", "Current Santa zone", "Christmas start", "Nepal", "Christmas end", "Maximum snow", "Light palette", "Dark palette", "Reduced motion"]) {
         const option = document.createElement("option"); option.textContent = text; preset.append(option);
       }
       on(preset, "change", () => {
         const year = new Date(simulated).getUTCFullYear();
+        liveSantaZone = preset.value === "Current Santa zone";
+        if (liveSantaZone) {
+          const now = new Date();
+          simulated = Date.UTC(year, 11, 25, now.getUTCHours(), now.getUTCMinutes(), now.getUTCSeconds());
+          speed = 1; rate.value = "1";
+        }
         const times = {"Christmas start": Date.UTC(year, 11, 24, 10), Nepal: Date.UTC(year, 11, 24, 18, 15), "Christmas end": Date.UTC(year, 11, 26, 12)};
         if (times[preset.value] !== undefined) simulated = times[preset.value];
         if (preset.value === "Maximum snow") bank.fill(48);
@@ -555,13 +561,20 @@ document.addEventListener("DOMContentLoaded", function() {
       draw();
     }
     function advance(dt) {
-      if (preview) simulated += dt * speed * 1000;
+      if (preview) {
+        if (liveSantaZone) {
+          const now = new Date();
+          simulated = Date.UTC(new Date(simulated).getUTCFullYear(), 11, 25,
+            now.getUTCHours(), now.getUTCMinutes(), now.getUTCSeconds(), now.getUTCMilliseconds());
+          clock.value = new Date(simulated).toISOString().slice(0, 19);
+        } else simulated += dt * speed * 1000;
+      }
       angle += dt * 0.12;
       flight.progress += dt * 55 / (width + 320);
       // Both endpoints are beyond the rotated artwork bounds. Pick the next
       // entrance only after the complete sleigh and parcel sled have left.
       if (flight.progress >= 1) {
-        if (preview && config.sleigh !== false) {
+        if (preview && !liveSantaZone && config.sleigh !== false) {
           const year = new Date(simulated).getUTCFullYear();
           const route = schedule(year);
           const next = route.find(stop => stop.time > simulated);
