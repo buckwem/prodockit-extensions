@@ -143,7 +143,10 @@ midnight and 02:00 boundaries.
 ### Drone display
 
 Select **Drone display** for a two-minute choreography of coloured lights.
-The lights morph every twelve seconds through Happy New Year, a bird, deer,
+The lights form perspective-projected shapes with depth and gently rotating
+viewpoints. Birds and butterflies flap their wings, the deer gallops, the dolphin
+swims, the heart pulses, and the globe rotates as a sphere. The lights morph
+every twelve seconds through Happy New Year, a bird, deer,
 dolphin, butterfly, heart, star, globe, tree and flower. Mixed mode can also
 choose this sequence, waiting for fireworks to clear before the drones start.
 The drone sequence is silent. The New Year time window and visitor controls

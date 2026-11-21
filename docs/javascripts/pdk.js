@@ -677,7 +677,18 @@ document.addEventListener("DOMContentLoaded", function() {
       }
       const pixels = pen.getImageData(0,0,360,180).data, points = [];
       for (let y=0;y<180;y+=4) for (let x=0;x<360;x+=4) {
-        if (pixels[(y*360+x)*4+3]>80) points.push({x:x/360,y:y/180});
+        if (pixels[(y*360+x)*4+3]>80) {
+          const depth = scene === "Happy New Year" ? 0.035 : 0.10;
+          for (const z of [-depth, 0, depth]) points.push({x:x/360,y:y/180,z});
+        }
+      }
+      if (scene === "Globe") {
+        return Array.from({length: 850}, (_, i) => {
+          const vertical = 1 - 2 * (i + 0.5) / 850;
+          const ring = Math.sqrt(1 - vertical * vertical), a = i * Math.PI * (3 - Math.sqrt(5));
+          return {x: 0.5 + Math.cos(a) * ring * 0.24, y: 0.5 + vertical * 0.42,
+            z: Math.sin(a) * ring * 0.24};
+        });
       }
       return points;
     }
@@ -691,21 +702,55 @@ document.addEventListener("DOMContentLoaded", function() {
       const names = ["Happy New Year", "Bird", "Deer", "Dolphin", "Butterfly", "Heart", "Star", "Globe", "Tree", "Flower"];
       if (scene !== drone.scene) {
         drone.scene = scene; drone.name = names[scene]; drone.targets = droneTargets(drone.name);
-        while (drone.points.length < drone.targets.length) drone.points.push({x:random(),y:1.1});
+        while (drone.points.length < drone.targets.length) drone.points.push({x:random(),y:1.1,z:0});
       }
       const ease = 1 - Math.exp(-dt * 1.7);
       drone.points.forEach((p,i) => {
-        const target = drone.targets[i] || {x:0.5,y:1.15};
-        p.x += (target.x-p.x)*ease; p.y += (target.y-p.y)*ease;
+        const target = drone.targets[i] || {x:0.5,y:1.15,z:0};
+        p.x += (target.x-p.x)*ease; p.y += (target.y-p.y)*ease; p.z += (target.z-p.z)*ease;
       });
     }
     function drawDrones() {
-      const span = Math.min(width*0.88,900), tall = span/2;
-      const left = (width-span)/2, top = Math.max(65,(height-tall)/2);
-      drone.points.forEach((p,i) => {
-        ctx.fillStyle = "hsl(" + ((drone.scene*38+i*0.15)%360) + " 85% 60%)";
-        ctx.beginPath(); ctx.arc(left+p.x*span,top+p.y*tall,1.6,0,7); ctx.fill();
-      });
+      const span = Math.min(width * 0.80, 800, height * 1.25), tall = span / 2;
+      const time = drone.elapsed;
+      const yaw = drone.name === "Globe" ? time * 0.35 : Math.sin(time * 0.45) * 0.48;
+      const pitch = Math.sin(time * 0.32) * 0.14;
+      const projected = drone.points.map((point, i) => {
+        let x = point.x - 0.5, y = (point.y - 0.5) / 2, z = point.z;
+        if (drone.name === "Bird" || drone.name === "Butterfly") {
+          const wing = Math.min(1, Math.abs(x) * 3);
+          z += Math.sin(time * (drone.name === "Bird" ? 3 : 5)) * wing * 0.14;
+          y += Math.cos(time * 3) * wing * 0.025;
+        } else if (drone.name === "Dolphin") {
+          y += Math.sin(time * 2.2 + x * 7) * 0.045;
+          z += Math.cos(time * 2.2 + x * 5) * 0.035;
+        } else if (drone.name === "Deer") {
+          y -= Math.abs(Math.sin(time * 3)) * 0.035;
+          if (point.y > 0.65) x += Math.sin(time * 6 + (point.x > 0.5 ? Math.PI : 0)) * 0.035;
+        } else if (drone.name === "Heart") {
+          const pulse = 1 + Math.sin(time * 3) * 0.055;
+          x *= pulse; y *= pulse; z *= pulse;
+        } else if (drone.name === "Star" || drone.name === "Flower") {
+          const turn = time * 0.22, cx = x;
+          x = cx * Math.cos(turn) - y * Math.sin(turn);
+          y = cx * Math.sin(turn) + y * Math.cos(turn);
+        }
+        const rx = x * Math.cos(yaw) + z * Math.sin(yaw);
+        const rz = -x * Math.sin(yaw) + z * Math.cos(yaw);
+        const ry = y * Math.cos(pitch) - rz * Math.sin(pitch);
+        const depth = y * Math.sin(pitch) + rz * Math.cos(pitch);
+        const perspective = 1 / (1 - depth * 0.55);
+        return {x: width / 2 + rx * span * perspective,
+          y: Math.max(90 + tall / 2, height / 2) + ry * span * perspective,
+          depth, radius: Math.max(0.8, 1.5 * perspective), hue: (drone.scene * 38 + i * 0.05) % 360};
+      }).sort((a,b) => a.depth - b.depth);
+      for (const p of projected) {
+        const brightness = Math.max(35, Math.min(78, 57 + p.depth * 65));
+        ctx.fillStyle = "hsl(" + p.hue + " 85% " + brightness + "%)";
+        ctx.globalAlpha = 0.55 + Math.min(0.45, Math.max(0, p.depth + 0.25));
+        ctx.beginPath(); ctx.arc(p.x, p.y, p.radius, 0, 7); ctx.fill();
+      }
+      ctx.globalAlpha = 1;
     }
     function advance(dt) {
       if (preview) simulated += dt * speed * 1000;
