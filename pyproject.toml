@@ -159,6 +159,7 @@ packages = ["src/prodockit"]
 "docs/stylesheets/pdk.css" = "prodockit/assets/pdk.css"
 "docs/stylesheets/pdk-pdf.css" = "prodockit/assets/pdk-pdf.css"
 "docs/javascripts/pdk.js" = "prodockit/assets/pdk.js"
+"docs/javascripts/pdk-sleigh.png" = "prodockit/assets/pdk-sleigh.png"
 "docs/javascripts/mathjax.js" = "prodockit/assets/mathjax.js"
 "src/prodockit/pdf/tex2svg.cjs" = "prodockit/pdf/tex2svg.cjs"
 

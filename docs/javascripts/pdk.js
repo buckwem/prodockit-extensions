@@ -360,6 +360,7 @@ document.addEventListener("DOMContentLoaded", function() {
 // Optional viewport decorations. Configuration is emitted by pdk_festive().
 (function () {
   "use strict";
+  const artworkURL = new URL("pdk-sleigh.png", document.currentScript.src || location.href).href;
   const loopback = ["localhost", "127.0.0.1", "[::1]"].includes(location.hostname);
   const query = new URLSearchParams(location.search);
   const preview = loopback && query.get("pdk-festive-test") === "1";
@@ -444,6 +445,13 @@ document.addEventListener("DOMContentLoaded", function() {
     controls.setAttribute("aria-label", "Festive effects");
     const ctx = canvas.getContext("2d");
     if (!ctx) throw Error("canvas is unavailable");
+    let artwork;
+    function loadArtwork() {
+      if (artwork) return;
+      artwork = new Image();
+      artwork.onload = () => { if (!events.signal.aborted) draw(); };
+      artwork.src = artworkURL;
+    }
     let saved = {};
     try { saved = JSON.parse(localStorage.getItem("pdk-festive") || "{}") || {}; } catch (_) {}
     let paused = motion.matches || saved.paused === true, hidden = saved.hidden === true;
@@ -562,31 +570,23 @@ document.addEventListener("DOMContentLoaded", function() {
       if (preview) canvas.dataset.snapshot = JSON.stringify({particles: particles.length, bank: Math.max(...bank), destination: stop?.label, colour, paused, hidden});
     }
     function sleigh(stop) {
-      const scale = Math.min(1, width / 380, height / 350);
-      const x = 8 + (width - 310 * scale - 16) * (0.5 + 0.5 * Math.sin(angle));
-      const y = 70 + Math.max(0, height - 230 * scale - 100) * (0.5 + 0.5 * Math.sin(angle * 1.7));
-      ctx.save(); ctx.translate(x, y); ctx.scale(scale, scale);
-      // Parcels trail behind the sleigh, connected by a curved tow rope.
-      ctx.strokeStyle = "#a96e18"; ctx.lineWidth = 3;
-      ctx.beginPath(); ctx.moveTo(95, 65); ctx.quadraticCurveTo(115, 80 + Math.sin(angle) * 5, 135, 66); ctx.stroke();
-      for (let i = 0; i < 7; i++) {
-        const px = 8 + (i % 3) * 27, py = 48 - Math.floor(i / 3) * 22;
-        ctx.fillStyle = ["#dc3535", "#168250", "#e4b535"][i % 3]; ctx.fillRect(px, py, 25, 23);
-        ctx.fillStyle = "#fff1af"; ctx.fillRect(px + 11, py, 3, 23); ctx.fillRect(px, py + 9, 25, 3);
-      }
-      // Father Christmas, hat, beard and sleigh.
-      ctx.fillStyle = "#cc252b"; ctx.fillRect(150, 15, 36, 42);
-      ctx.fillStyle = "#f2c7a5"; ctx.beginPath(); ctx.arc(168, 9, 14, 0, 7); ctx.fill();
-      ctx.fillStyle = "white"; ctx.beginPath(); ctx.moveTo(154, 10); ctx.lineTo(182, 10); ctx.lineTo(168, 34); ctx.fill();
-      ctx.fillStyle = "#cc252b"; ctx.beginPath(); ctx.moveTo(152, -2); ctx.lineTo(178, -2); ctx.lineTo(178, -25); ctx.fill();
-      ctx.fillStyle = "white"; ctx.beginPath(); ctx.arc(179, -25, 5, 0, 7); ctx.fill();
-      ctx.fillStyle = "#b71f2a"; ctx.beginPath(); ctx.moveTo(130, 40); ctx.lineTo(294, 40); ctx.lineTo(279, 77); ctx.lineTo(145, 77); ctx.closePath(); ctx.fill();
-      ctx.strokeStyle = "#dba630"; ctx.lineWidth = 5; ctx.beginPath(); ctx.moveTo(127, 84); ctx.lineTo(282, 84); ctx.quadraticCurveTo(303, 83, 302, 65); ctx.stroke();
-      ctx.fillStyle = "#fff1cd"; ctx.fillRect(191, 47, 88, 23);
-      ctx.fillStyle = "#301b15"; ctx.font = "bold 13px sans-serif"; ctx.textAlign = "center";
-      const label = ctx.measureText(stop.label).width <= 80 ? stop.label : stop.compact;
-      ctx.fillText(label, 235, 63);
-      ctx.restore();
+      loadArtwork();
+      if (!artwork.complete || !artwork.naturalWidth) return;
+      const spriteWidth = Math.min(480, width - 24, (height - 120) * 1.5);
+      const spriteHeight = spriteWidth * artwork.naturalHeight / artwork.naturalWidth;
+      const x = 12 + Math.max(0, width - spriteWidth - 24) * (0.5 + 0.5 * Math.sin(angle));
+      const y = 60 + Math.max(0, height - spriteHeight - 100) * (0.5 + 0.5 * Math.sin(angle * 1.7));
+      ctx.drawImage(artwork, x, y, spriteWidth, spriteHeight);
+      // The generated artwork reserves this cream panel for the live destination.
+      const panelX = x + spriteWidth * 0.49, panelY = y + spriteHeight * 0.58;
+      const panelWidth = spriteWidth * 0.30, panelHeight = spriteHeight * 0.10;
+      ctx.fillStyle = "#301b15";
+      ctx.font = "bold " + Math.max(11, spriteWidth * 0.032) + "px sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      const label = ctx.measureText(stop.label).width <= panelWidth - 8 ? stop.label : stop.compact;
+      ctx.fillText(label, panelX + panelWidth / 2, panelY + panelHeight / 2);
+      ctx.textBaseline = "alphabetic";
     }
     function tick(now) {
       frame = 0;

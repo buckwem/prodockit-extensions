@@ -7,7 +7,12 @@ const http = require('node:http');
 const puppeteer = require('puppeteer-core');
 const script = fs.readFileSync('docs/javascripts/pdk.js', 'utf8');
 const css = fs.readFileSync('docs/stylesheets/pdk.css', 'utf8');
-const server = http.createServer((req, res) => { res.setHeader("Content-Type", "text/html; charset=utf-8"); res.end(
+const server = http.createServer((req, res) => {
+  if (req.url === '/pdk-sleigh.png') {
+    res.setHeader('Content-Type', 'image/png');
+    return res.end(fs.readFileSync('docs/javascripts/pdk-sleigh.png'));
+  }
+  res.setHeader("Content-Type", "text/html; charset=utf-8"); res.end(
   '<meta charset="utf-8"><style>' + css + '</style><body data-md-color-scheme="default"><div data-md-component="palette"></div><a href="#target">Underlying link</a>' +
   '<div style="height:3000px"></div><h2 id="target">Target</h2><script>' +
   'window.document$={subscribe(f){window.refresh=f;f()}};</script><script>' + script + '</script>'

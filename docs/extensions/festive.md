@@ -35,6 +35,17 @@ festive mode on or off and remembers the choice. Visitors can also pause or
 hide the effect with the controls at the bottom right. Reduced motion starts paused. The decoration allows clicks, scrolling
 and text selection through to the page. Browser print and PDF exports omit it.
 
+The sleigh illustration is an optional managed asset. Add this entry to your
+existing `.prodockit-shared-files.toml` file and run `pdk shared-files --apply`.
+
+```toml
+[[files]]
+source = "pdk-sleigh.png"
+target = "docs/javascripts/pdk-sleigh.png"
+```
+
+Keep the image beside `pdk.js`. The browser loads it when the sleigh is needed.
+
 ## Preview with zensical serve
 
 Run `zensical serve` and open this page with the following query string.
