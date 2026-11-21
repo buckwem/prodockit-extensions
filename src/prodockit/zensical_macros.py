@@ -287,6 +287,18 @@ def define_env(env: Any) -> None:
         env.variables[name] = env.variables[f"pdk_{name}"]
 
     @env.macro  # type: ignore[untyped-decorator]
+    def pdk_festive() -> str:
+        """Emit the opt-in festive configuration for the managed website script."""
+        import html
+        import json
+
+        settings = (config.get("extra") or {}).get("festive") or {}
+        if not isinstance(settings, dict):
+            raise ValueError("extra.festive must be a configuration table")
+        payload = html.escape(json.dumps(settings), quote=True)
+        return f'<span hidden data-pdk-festive="{payload}"></span>'
+
+    @env.macro  # type: ignore[untyped-decorator]
     def pdk_heading_counter_reset(page: Any) -> str:
         """Continues chapter/section numbering (and the matching sidebar
         numbering) across pages, from this page's position in nav - see

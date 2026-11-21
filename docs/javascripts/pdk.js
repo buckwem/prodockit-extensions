@@ -356,3 +356,271 @@ document.addEventListener("DOMContentLoaded", function() {
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", refresh);
   else refresh();
 })();
+
+// Optional viewport decorations. Configuration is emitted by pdk_festive().
+(function () {
+  "use strict";
+  const loopback = ["localhost", "127.0.0.1", "[::1]"].includes(location.hostname);
+  const query = new URLSearchParams(location.search);
+  const preview = loopback && query.get("pdk-festive-test") === "1";
+  // Representatives for distinct Christmas offsets, including fractional zones.
+  const stops = [
+    ["Pacific/Kiritimati", "Kiritimati", "Kiribati"], ["Pacific/Chatham", "Chatham", "Chatham"],
+    ["Pacific/Auckland", "Auckland", "NZ"], ["Pacific/Tarawa", "Tarawa", "Tarawa"],
+    ["Australia/Sydney", "Sydney", "Sydney"], ["Australia/Adelaide", "Adelaide", "Adelaide"],
+    ["Australia/Brisbane", "Brisbane", "Brisbane"], ["Australia/Darwin", "Darwin", "Darwin"],
+    ["Asia/Tokyo", "Tokyo", "Tokyo"], ["Asia/Singapore", "Singapore", "SG"],
+    ["Asia/Bangkok", "Bangkok", "Bangkok"], ["Asia/Yangon", "Yangon", "Yangon"],
+    ["Asia/Dhaka", "Dhaka", "Dhaka"], ["Asia/Kathmandu", "Kathmandu", "Nepal"],
+    ["Asia/Kolkata", "Delhi", "Delhi"], ["Asia/Karachi", "Karachi", "Karachi"],
+    ["Asia/Kabul", "Kabul", "Kabul"], ["Asia/Dubai", "Dubai", "Dubai"],
+    ["Asia/Tehran", "Tehran", "Tehran"], ["Asia/Riyadh", "Riyadh", "Riyadh"],
+    ["Europe/Athens", "Athens", "Athens"], ["Europe/Paris", "Paris", "Paris"],
+    ["Europe/London", "London", "London"], ["Atlantic/Azores", "Azores", "Azores"],
+    ["Atlantic/South_Georgia", "S Georgia", "S Georgia"], ["America/Sao_Paulo", "Rio", "Rio"],
+    ["America/St_Johns", "St Johns", "St Johns"], ["America/Halifax", "Halifax", "Halifax"],
+    ["America/New_York", "New York", "NY"], ["America/Chicago", "Chicago", "Chicago"],
+    ["America/Denver", "Denver", "Denver"], ["America/Los_Angeles", "LA", "LA"],
+    ["America/Anchorage", "Alaska", "Alaska"], ["Pacific/Marquesas", "Marquesas", "Marquesas"],
+    ["Pacific/Honolulu", "Honolulu", "Hawaii"], ["Pacific/Pago_Pago", "Samoa", "Samoa"],
+    ["Etc/GMT+12", "Baker", "Baker"]
+  ];
+  const schedules = new Map();
+  function schedule(year) {
+    if (schedules.has(year)) return schedules.get(year);
+    const midnight = Date.UTC(year, 11, 25);
+    const result = stops.map(([zone, label, compact]) => {
+      const parts = new Intl.DateTimeFormat("en-GB", {
+        timeZone: zone, timeZoneName: "longOffset"
+      }).formatToParts(new Date(midnight));
+      const offset = parts.find(p => p.type === "timeZoneName").value;
+      const match = offset.match(/GMT([+-])(\d{2}):(\d{2})/);
+      const minutes = match ? (Number(match[2]) * 60 + Number(match[3])) * (match[1] === "+" ? 1 : -1) : 0;
+      return {time: midnight - minutes * 60000, label, compact};
+    }).sort((a, b) => a.time - b.time);
+    schedules.clear();
+    schedules.set(year, result);
+    return result;
+  }
+  function destination(time) {
+    const date = new Date(time), year = date.getUTCFullYear();
+    if (time < Date.UTC(year, 11, 24, 10) || time >= Date.UTC(year, 11, 26, 12)) return null;
+    return schedule(year).filter(stop => stop.time <= time).at(-1);
+  }
+  function day(value) {
+    if (typeof value !== "string" || !/^\d{2}-\d{2}$/.test(value)) throw Error("season dates must use MM-DD");
+    const date = new Date("2000-" + value + "T00:00:00Z");
+    if (!Number.isFinite(+date) || date.toISOString().slice(5, 10) !== value) throw Error("invalid season date");
+    return value;
+  }
+  let controller;
+  function start() {
+    const marker = document.querySelector("[data-pdk-festive]");
+    if (!marker && !preview) { controller?.dispose(); controller = null; return; }
+    const raw = marker?.getAttribute("data-pdk-festive") || "{}";
+    if (controller?.raw === raw) { controller.mountToggle(); return; }
+    controller?.dispose();
+    controller = null;
+    try {
+      const config = JSON.parse(raw);
+      if (config.enabled !== true && !preview) return;
+      if (config.effect && config.effect !== "snow") throw Error("effect must be snow");
+      for (const key of ["enabled", "sleigh"]) {
+        if (config[key] !== undefined && typeof config[key] !== "boolean") throw Error(key + " must be a boolean");
+      }
+      const first = day(config.season_start || "12-01"), last = day(config.season_end || "01-06");
+      controller = create(config, first, last, raw);
+    } catch (error) { console.warn("Prodockit festive overlay:", error.message); }
+  }
+  function create(config, first, last, raw) {
+    const events = new AbortController();
+    const on = (target, type, action) => target.addEventListener(type, action, {signal: events.signal});
+    const motion = matchMedia("(prefers-reduced-motion: reduce)");
+    const canvas = document.createElement("canvas");
+    canvas.className = "pdk-festive-canvas";
+    canvas.setAttribute("aria-hidden", "true");
+    const controls = document.createElement("div");
+    controls.className = "pdk-festive-controls";
+    controls.setAttribute("aria-label", "Festive effects");
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw Error("canvas is unavailable");
+    let saved = {};
+    try { saved = JSON.parse(localStorage.getItem("pdk-festive") || "{}") || {}; } catch (_) {}
+    let paused = motion.matches || saved.paused === true, hidden = saved.hidden === true;
+    let printing = false, frame = 0, previous = 0, angle = 0, width = 1, height = 1;
+    let particles = [], bank = [], spawn = 0, seed = 42;
+    const seedInput = Number(query.get("pdk-festive-seed") || 42);
+    const initialSeed = Number.isFinite(seedInput) ? seedInput >>> 0 : 42;
+    let simulated = Date.now(), speed = 1, frames = 0, frameCost = 0, density = 1;
+    if (preview) {
+      const value = query.get("pdk-festive-time");
+      if (value && !/Z$/.test(value)) throw Error("preview time must be an ISO UTC timestamp ending in Z");
+      simulated = value ? Date.parse(value) : Date.now();
+      speed = Number(query.get("pdk-festive-speed") || 1);
+      if (!Number.isFinite(simulated) || !Number.isFinite(speed) || speed < 0 || speed > 3600) throw Error("invalid preview time or speed");
+    }
+    function random() { seed = (1664525 * seed + 1013904223) >>> 0; return seed / 4294967296; }
+    function reset() { seed = initialSeed; particles = []; bank = Array(80).fill(0); spawn = 0; angle = 0; }
+    function persist() { try { localStorage.setItem("pdk-festive", JSON.stringify({paused, hidden})); } catch (_) {} }
+    function button(label, action) {
+      const element = document.createElement("button");
+      element.type = "button"; element.textContent = label;
+      on(element, "click", action); controls.append(element); return element;
+    }
+    const pause = button("", () => { paused = !paused; persist(); refresh(); });
+    const hide = button("", () => { hidden = !hidden; persist(); refresh(); });
+    const toggle = document.createElement("button");
+    toggle.type = "button"; toggle.className = "pdk-festive-toggle md-header__button md-icon";
+    toggle.textContent = "❄"; toggle.setAttribute("aria-label", "Turn festive mode off");
+    on(toggle, "click", () => { hidden = !hidden; persist(); refresh(); });
+    function mountToggle() {
+      const palette = document.querySelector("[data-md-component=palette]");
+      if (palette && toggle.nextElementSibling !== palette) palette.before(toggle);
+      else if (!palette && !toggle.isConnected) controls.prepend(toggle);
+    }
+    let panel, status, clock;
+    if (preview) {
+      panel = document.createElement("div"); panel.className = "pdk-festive-preview";
+      controls.append(panel);
+      const title = document.createElement("strong"); title.textContent = "Festive preview"; panel.append(title);
+      clock = document.createElement("input"); clock.type = "datetime-local"; clock.setAttribute("aria-label", "Simulated UTC time");
+      clock.value = new Date(simulated).toISOString().slice(0, 19);
+      on(clock, "change", () => { const value = Date.parse(clock.value + "Z"); if (Number.isFinite(value)) simulated = value; draw(); });
+      panel.append(clock);
+      const rate = document.createElement("input"); rate.type = "number"; rate.min = "0"; rate.max = "3600"; rate.value = String(speed);
+      rate.setAttribute("aria-label", "Clock speed");
+      on(rate, "change", () => { const value = Number(rate.value); if (Number.isFinite(value) && value >= 0 && value <= 3600) speed = value; });
+      panel.append(rate);
+      button("Step", () => { advance(1 / 60); draw(); });
+      button("Reset snow", () => { reset(); draw(); });
+      const preset = document.createElement("select"); preset.setAttribute("aria-label", "Preview preset");
+      for (const text of ["Choose preset", "Christmas start", "Nepal", "Christmas end", "Maximum snow", "Light palette", "Dark palette", "Reduced motion"]) {
+        const option = document.createElement("option"); option.textContent = text; preset.append(option);
+      }
+      on(preset, "change", () => {
+        const year = new Date(simulated).getUTCFullYear();
+        const times = {"Christmas start": Date.UTC(year, 11, 24, 10), Nepal: Date.UTC(year, 11, 24, 18, 15), "Christmas end": Date.UTC(year, 11, 26, 12)};
+        if (times[preset.value] !== undefined) simulated = times[preset.value];
+        if (preset.value === "Maximum snow") bank.fill(28);
+        if (preset.value === "Reduced motion") paused = true;
+        if (preset.value.includes("palette")) {
+          const scheme = preset.value === "Dark palette" ? "slate" : "default";
+          document.querySelector('[data-md-color-scheme="' + scheme + '"][type="radio"]')?.click();
+        }
+        clock.value = new Date(simulated).toISOString().slice(0, 19); refresh();
+      });
+      panel.append(preset);
+      status = document.createElement("output"); panel.append(status);
+    }
+    function eligible() {
+      if (preview) return true;
+      const today = new Date().toISOString().slice(5, 10);
+      return first <= last ? today >= first && today <= last : today >= first || today <= last;
+    }
+    function resize() {
+      width = Math.max(1, window.innerWidth); height = Math.max(1, window.innerHeight);
+      const ratio = Math.min(devicePixelRatio || 1, 2);
+      canvas.width = Math.round(width * ratio); canvas.height = Math.round(height * ratio);
+      ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+      particles = particles.filter(p => p.x < width && p.y < height);
+      draw();
+    }
+    function advance(dt) {
+      if (preview) simulated += dt * speed * 1000;
+      angle += dt * 0.12;
+      // Melt from below independently of incoming snow, never retaining history.
+      bank = bank.map(value => Math.max(0, value - dt * 0.55));
+      spawn += dt * Math.min(45, width / 25) * density;
+      while (spawn >= 1 && particles.length < 180) {
+        spawn--;
+        particles.push({x: random() * width, y: -5, r: 1 + random() * 2, v: 22 + random() * 40, phase: random() * 6.28});
+      }
+      spawn = Math.min(spawn, 1);
+      particles = particles.filter(p => {
+        p.y += p.v * dt; p.x = (p.x + Math.sin(angle + p.phase) * dt * 12 + width) % width;
+        const index = Math.min(79, Math.floor(p.x / width * 80));
+        if (p.y >= height - bank[index]) {
+          bank[index] = Math.min(28, bank[index] + p.r * 1.6);
+          return false;
+        }
+        return true;
+      });
+    }
+    function draw() {
+      ctx.clearRect(0, 0, width, height);
+      const dark = document.body.getAttribute("data-md-color-scheme") === "slate" ||
+        (document.body.getAttribute("data-md-color-scheme") === "auto" && matchMedia("(prefers-color-scheme: dark)").matches);
+      const colour = dark ? "#fff" : "#111";
+      ctx.fillStyle = colour;
+      for (const p of particles) { ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, 7); ctx.fill(); }
+      for (let i = 0; i < bank.length; i++) ctx.fillRect(i * width / 80, height - bank[i], width / 80 + 1, bank[i]);
+      const stop = config.sleigh === false ? null : destination(preview ? simulated : Date.now());
+      if (stop) sleigh(stop);
+      if (status) status.textContent = new Date(simulated).toISOString() + " · " + (stop?.label || "No sleigh") +
+        " · " + (dark ? "dark" : "light") + " · " + particles.length + " flakes · " + Math.max(...bank).toFixed(1) +
+        " px snow · " + frameCost.toFixed(1) + " ms/frame";
+      if (preview) canvas.dataset.snapshot = JSON.stringify({particles: particles.length, bank: Math.max(...bank), destination: stop?.label, colour, paused, hidden});
+    }
+    function sleigh(stop) {
+      const scale = Math.min(1, width / 380, height / 350);
+      const x = 8 + (width - 310 * scale - 16) * (0.5 + 0.5 * Math.sin(angle));
+      const y = 70 + Math.max(0, height - 230 * scale - 100) * (0.5 + 0.5 * Math.sin(angle * 1.7));
+      ctx.save(); ctx.translate(x, y); ctx.scale(scale, scale);
+      // Parcels trail behind the sleigh, connected by a curved tow rope.
+      ctx.strokeStyle = "#a96e18"; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.moveTo(95, 65); ctx.quadraticCurveTo(115, 80 + Math.sin(angle) * 5, 135, 66); ctx.stroke();
+      for (let i = 0; i < 7; i++) {
+        const px = 8 + (i % 3) * 27, py = 48 - Math.floor(i / 3) * 22;
+        ctx.fillStyle = ["#dc3535", "#168250", "#e4b535"][i % 3]; ctx.fillRect(px, py, 25, 23);
+        ctx.fillStyle = "#fff1af"; ctx.fillRect(px + 11, py, 3, 23); ctx.fillRect(px, py + 9, 25, 3);
+      }
+      // Father Christmas, hat, beard and sleigh.
+      ctx.fillStyle = "#cc252b"; ctx.fillRect(150, 15, 36, 42);
+      ctx.fillStyle = "#f2c7a5"; ctx.beginPath(); ctx.arc(168, 9, 14, 0, 7); ctx.fill();
+      ctx.fillStyle = "white"; ctx.beginPath(); ctx.moveTo(154, 10); ctx.lineTo(182, 10); ctx.lineTo(168, 34); ctx.fill();
+      ctx.fillStyle = "#cc252b"; ctx.beginPath(); ctx.moveTo(152, -2); ctx.lineTo(178, -2); ctx.lineTo(178, -25); ctx.fill();
+      ctx.fillStyle = "white"; ctx.beginPath(); ctx.arc(179, -25, 5, 0, 7); ctx.fill();
+      ctx.fillStyle = "#b71f2a"; ctx.beginPath(); ctx.moveTo(130, 40); ctx.lineTo(294, 40); ctx.lineTo(279, 77); ctx.lineTo(145, 77); ctx.closePath(); ctx.fill();
+      ctx.strokeStyle = "#dba630"; ctx.lineWidth = 5; ctx.beginPath(); ctx.moveTo(127, 84); ctx.lineTo(282, 84); ctx.quadraticCurveTo(303, 83, 302, 65); ctx.stroke();
+      ctx.fillStyle = "#fff1cd"; ctx.fillRect(191, 47, 88, 23);
+      ctx.fillStyle = "#301b15"; ctx.font = "bold 13px sans-serif"; ctx.textAlign = "center";
+      const label = ctx.measureText(stop.label).width <= 80 ? stop.label : stop.compact;
+      ctx.fillText(label, 235, 63);
+      ctx.restore();
+    }
+    function tick(now) {
+      frame = 0;
+      const begin = performance.now(), dt = Math.min(0.05, previous ? (now - previous) / 1000 : 0);
+      previous = now; advance(dt); draw();
+      frameCost = frameCost * 0.95 + (performance.now() - begin) * 0.05;
+      if (++frames % 300 === 0) density = frameCost > 12 ? Math.max(0.25, density * 0.8) : Math.min(1, density + 0.05);
+      frame = requestAnimationFrame(tick);
+    }
+    function refresh() {
+      cancelAnimationFrame(frame); frame = 0; previous = 0;
+      canvas.hidden = hidden || !eligible(); controls.hidden = !eligible();
+      pause.textContent = paused ? "Resume snow" : "Pause snow"; pause.setAttribute("aria-pressed", String(paused));
+      mountToggle();
+      toggle.setAttribute("aria-pressed", String(!hidden));
+      toggle.setAttribute("aria-label", hidden ? "Turn festive mode on" : "Turn festive mode off");
+      toggle.title = hidden ? "Turn festive mode on" : "Turn festive mode off";
+      hide.textContent = hidden ? "Show snow" : "Hide snow"; hide.setAttribute("aria-pressed", String(hidden));
+      draw();
+      if (!hidden && eligible() && !paused && !document.hidden && !printing) frame = requestAnimationFrame(tick);
+    }
+    reset(); document.body.append(canvas, controls); resize();
+    on(window, "resize", resize);
+    if (window.visualViewport) on(window.visualViewport, "resize", resize);
+    on(document, "visibilitychange", refresh);
+    on(motion, "change", () => { if (motion.matches) paused = true; refresh(); });
+    on(window, "beforeprint", () => { printing = true; refresh(); });
+    on(window, "afterprint", () => { printing = false; refresh(); });
+    const observer = new MutationObserver(draw);
+    observer.observe(document.body, {attributes: true, attributeFilter: ["data-md-color-scheme"]});
+    const timer = setInterval(refresh, 60000);
+    refresh();
+    return {raw, mountToggle, dispose() { events.abort(); observer.disconnect(); clearInterval(timer); cancelAnimationFrame(frame); canvas.remove(); controls.remove(); toggle.remove(); }};
+  }
+  if (typeof document$ !== "undefined") document$.subscribe(start);
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", start); else start();
+})();

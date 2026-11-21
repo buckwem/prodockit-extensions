@@ -1,0 +1,73 @@
+---
+icon: lucide/snowflake
+---
+
+{{ pdk_heading_counter_reset(page) }}
+
+# Festive overlay
+
+Add falling snow and a Christmas sleigh to the website. Snow stays fixed to
+the viewport while the page scrolls. A shallow bank accumulates at the bottom,
+melts continuously and remains bounded at 28 CSS pixels.
+
+## Enable the overlay
+
+Load the managed `pdk.js` and `pdk.css` assets and refresh them with
+`pdk shared-files --apply`. Add these settings to `zensical.toml`.
+
+```toml
+[project.extra.festive]
+enabled = true
+effect = "snow"
+season_start = "12-01"
+season_end = "01-06"
+sleigh = true
+```
+
+Add `{{ "{{ pdk_festive() }}" }}` to a shared Markdown snippet included on each page,
+or to each page where you want the overlay. The normal Prodockit macros setup
+provides this helper. A page without the helper has no decoration in production.
+
+Season dates are inclusive UTC dates and may cross New Year. Disabled is the
+default. Snow is black in the default light palette and white in the slate
+palette. A snowflake icon immediately to the left of the light/dark switch turns
+festive mode on or off and remembers the choice. Visitors can also pause or
+hide the effect with the controls at the bottom right. Reduced motion starts paused. The decoration allows clicks, scrolling
+and text selection through to the page. Browser print and PDF exports omit it.
+
+## Preview with zensical serve
+
+Run `zensical serve` and open this page with the following query string.
+
+```text
+?pdk-festive-test=1&pdk-festive-time=2026-12-24T10%3A00%3A00Z&pdk-festive-speed=60&pdk-festive-seed=42
+```
+
+Preview works only on `localhost`, `127.0.0.1` and IPv6 loopback. It forces the
+season active, including on this page without a configuration marker. Production
+hosts ignore the preview parameters.
+
+Use the UTC date/time field to jump in time, the clock-speed field (0–3600) to
+freeze or accelerate the Christmas route, and Step to advance a single frame.
+Simulation time controls the route independently of snowfall. Reset snow
+restarts the seeded animation. Presets cover Christmas start, Nepal's fractional
+offset, Christmas end, maximum snow, reduced motion and the real theme palette
+controls. The output reports UTC time, destination, palette, particle count,
+bank height and mean rendering cost. Resize the browser to test mobile layouts.
+
+Keep the query string in the address bar when navigating between pages. The
+controller persists across instant navigation while the configuration is the
+same. Live reload restarts the deterministic seed and requested preview time.
+
+## Christmas route
+
+Father Christmas starts at Kiritimati, Kiribati, at 10:00 UTC on 24 December.
+He visits a representative destination as local Christmas midnight reaches it,
+moving westwards. The sleigh disappears at 12:00 UTC on 26 December after Baker
+Island's Christmas Day finishes. The visitor's time zone does not alter the route.
+
+The destination table includes half-hour and quarter-hour offsets. The browser's
+IANA time-zone database supplies daylight-saving offsets for that year's
+Christmas. Tied midnights use the last representative in table order. Labels use
+a reserved panel and compact alternatives, such as Kiribati, NZ and Hawaii.
+The sleigh pulls a mound of parcels along a curved route within the viewport.

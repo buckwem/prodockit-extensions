@@ -204,6 +204,7 @@ jobs:
       # raw LaTeX, the way the Mermaid diagram above once was. Needs no
       # browser: tex2svg.js is plain Node.
       - run: npm ci --prefix tools/browser-test
+      - run: node tools/browser-test/festive.cjs /usr/bin/google-chrome
       # The [testing] extra brings pytest/pymupdf for the built-output
       # checks below. pymupdf is also what extra.pdf_include_index needs to
       # read page numbers back out of the first pass, so this one install
