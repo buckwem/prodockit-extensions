@@ -139,3 +139,12 @@ Choose an individual fireworks style, launch a test burst, change the UTC
 clock or speed, and reset the particles in the preview panel. Try zones such
 as Pacific/Kiritimati, Asia/Kathmandu and America/New_York around their local
 midnight and 02:00 boundaries.
+
+### Drone display
+
+Select **Drone display** for a two-minute choreography of coloured lights.
+The lights morph every twelve seconds through Happy New Year, a bird, deer,
+dolphin, butterfly, heart, star, globe, tree and flower. Mixed mode can also
+choose this sequence, waiting for fireworks to clear before the drones start.
+The drone sequence is silent. The New Year time window and visitor controls
+apply to both fireworks and drones.

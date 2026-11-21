@@ -451,7 +451,7 @@ document.addEventListener("DOMContentLoaded", function() {
     const motion = matchMedia("(prefers-reduced-motion: reduce)");
     let paused = motion.matches, hidden = false, printing = false, sound = false;
     let audio, volume = 0.25, master, frame = 0, previous = 0, launchIn = 0;
-    let width = innerWidth, height = innerHeight, rockets = [], sparks = [], groundEffects = [];
+    let width = innerWidth, height = innerHeight, rockets = [], sparks = [], groundEffects = [], drone = null;
     let seed = Number(query.get("pdk-festive-seed") || 42) >>> 0;
     let simulated = preview && query.get("pdk-festive-time") ? Date.parse(query.get("pdk-festive-time")) : Date.now();
     if (!Number.isFinite(simulated)) throw Error("invalid fireworks preview time");
@@ -507,7 +507,7 @@ document.addEventListener("DOMContentLoaded", function() {
     level.setAttribute("aria-label", "Fireworks volume");
     on(level, "input", () => { volume = Number(level.value) / 100; syncAudio(); });
     controls.append(level);
-    const styles = ["Peony", "Ring", "Palm", "Willow", "Crackle", "Roman candle bank", "Fountain", "Fan jets", "Mine"];
+    const styles = ["Peony", "Ring", "Palm", "Willow", "Crackle", "Roman candle bank", "Fountain", "Fan jets", "Mine", "Drone display"];
     let chosen = "Mixed", pendingKind = null, status;
     if (preview) {
       const select = document.createElement("select"); select.setAttribute("aria-label", "Fireworks style");
@@ -515,13 +515,13 @@ document.addEventListener("DOMContentLoaded", function() {
         const option = document.createElement("option"); option.textContent = label; select.append(option);
       }
       on(select, "change", () => {
-        chosen = select.value; pendingKind = null; launchIn = 0; rockets = []; sparks = []; groundEffects = [];
+        chosen = select.value; pendingKind = null; launchIn = 0; rockets = []; sparks = []; groundEffects = []; drone = null;
       }); controls.append(select);
       const clock = document.createElement("input"); clock.type = "datetime-local";
       clock.value = new Date(simulated).toISOString().slice(0, 19); clock.setAttribute("aria-label", "Simulated UTC time");
       on(clock, "change", () => {
         const next = Date.parse(clock.value + "Z");
-        if (Number.isFinite(next)) { simulated = next; rockets = []; sparks = []; groundEffects = []; refresh(); }
+        if (Number.isFinite(next)) { simulated = next; rockets = []; sparks = []; groundEffects = []; drone = null; refresh(); }
       }); controls.append(clock);
       const rate = document.createElement("input"); rate.type = "number"; rate.min = "0"; rate.max = "3600";
       rate.value = String(speed); rate.setAttribute("aria-label", "Clock speed");
@@ -529,7 +529,7 @@ document.addEventListener("DOMContentLoaded", function() {
       controls.append(rate);
       button("Burst", "Launch a test firework", () => { if (active()) launch(); draw(); });
       button("Step", "Advance fireworks one frame", () => { advance(1 / 60); draw(); });
-      button("Reset", "Reset fireworks", () => { seed = 42; pendingKind = null; rockets = []; sparks = []; groundEffects = []; launchIn = 0; draw(); });
+      button("Reset", "Reset fireworks", () => { seed = 42; pendingKind = null; rockets = []; sparks = []; groundEffects = []; drone = null; launchIn = 0; draw(); });
       status = document.createElement("output"); controls.append(status);
     }
     function syncAudio() {
@@ -551,11 +551,15 @@ document.addEventListener("DOMContentLoaded", function() {
       source.start(when); source.stop(when + duration);
     }
     function launch() {
-      if (groundEffects.length || sparks.some(p => p.ground) || rockets.length >= 5 || sparks.length > 1000) return;
+      if (drone || groundEffects.length || sparks.some(p => p.ground) || rockets.length >= 5 || sparks.length > 1000) return;
       // Keep a selected ground sequence queued while the aerial display clears.
       // Rerolling here allowed new aerial launches to starve ground effects.
       if (!pendingKind) pendingKind = chosen === "Mixed" ? styles[Math.floor(random() * styles.length)] : chosen;
       const kind = pendingKind;
+      if (kind === "Drone display") {
+        if (rockets.length || sparks.length) return;
+        pendingKind = null; startDrones(); return;
+      }
       if (["Roman candle bank", "Fountain", "Fan jets", "Mine"].includes(kind)) {
         if (rockets.length || sparks.length) return;
         if (groundEffects.length === 0) {
@@ -615,9 +619,98 @@ document.addEventListener("DOMContentLoaded", function() {
       effect.volley++;
       noise(roman ? 0.14 : mine ? 0.6 : 0.2, roman ? 900 : 2400);
     }
+    function droneTargets(scene) {
+      const mask = document.createElement("canvas"); mask.width = 360; mask.height = 180;
+      const pen = mask.getContext("2d");
+      pen.strokeStyle = "white"; pen.fillStyle = "white"; pen.lineWidth = 3;
+      pen.lineCap = "round"; pen.lineJoin = "round";
+      function line(points) {
+        pen.beginPath(); points.forEach(([x, y], i) => i ? pen.lineTo(x, y) : pen.moveTo(x, y)); pen.stroke();
+      }
+      if (scene === "Happy New Year") {
+        pen.textAlign = "center"; pen.font = "bold 45px sans-serif";
+        pen.fillText("HAPPY", 180, 68); pen.fillText("NEW YEAR", 180, 125);
+      } else if (scene === "Bird") {
+        line([[35,95],[75,52],[120,42],[175,94],[180,107],[190,85],[235,42],[282,52],[325,95]]);
+        line([[35,95],[95,78],[155,110],[180,107],[205,110],[265,78],[325,95]]);
+        line([[175,110],[162,145],[180,130],[198,145],[187,110]]);
+        pen.beginPath(); pen.arc(180,94,9,0,7); pen.stroke();
+      } else if (scene === "Deer") {
+        line([[85,95],[110,75],[210,75],[235,38],[258,43],[247,65],[226,90],[210,117],[109,117],[85,95]]);
+        line([[112,115],[105,158],[95,158]]); line([[132,117],[145,158],[155,158]]);
+        line([[200,115],[195,158],[185,158]]); line([[217,105],[237,155],[247,155]]);
+        line([[237,39],[230,15],[215,7]]); line([[231,20],[244,9]]);
+        line([[250,42],[264,17],[282,10]]); line([[266,21],[257,7]]);
+        line([[87,94],[65,77]]);
+      } else if (scene === "Dolphin") {
+        pen.beginPath(); pen.moveTo(55,108); pen.bezierCurveTo(90,50,205,35,275,85);
+        pen.lineTo(310,90); pen.lineTo(280,104); pen.bezierCurveTo(195,72,155,122,90,125);
+        pen.lineTo(70,150); pen.lineTo(62,125); pen.lineTo(35,132); pen.closePath(); pen.stroke();
+        line([[158,67],[170,32],[195,62]]); line([[175,103],[188,136],[208,96]]);
+      } else if (scene === "Butterfly") {
+        for (const side of [-1,1]) {
+          pen.beginPath(); pen.moveTo(180,90);
+          pen.bezierCurveTo(180+side*125,-45,180+side*165,100,180+side*38,104);
+          pen.bezierCurveTo(180+side*145,180,180+side*42,192,180,90); pen.stroke();
+        }
+        line([[180,55],[180,140]]); line([[180,60],[166,40]]); line([[180,60],[194,40]]);
+      } else if (scene === "Heart") {
+        pen.beginPath(); pen.moveTo(180,150); pen.bezierCurveTo(10,45,100,-5,180,55);
+        pen.bezierCurveTo(260,-5,350,45,180,150); pen.stroke();
+      } else if (scene === "Star") {
+        const points = Array.from({length:11},(_,i) => {
+          const a=i*Math.PI/5-Math.PI/2, r=i%2?32:78;
+          return [180+Math.cos(a)*r,90+Math.sin(a)*r];
+        }); line(points);
+      } else if (scene === "Globe") {
+        for (const rx of [75,45,15]) { pen.beginPath(); pen.ellipse(180,90,rx,75,0,0,7); pen.stroke(); }
+        for (const ry of [20,48]) { pen.beginPath(); pen.ellipse(180,90,75,ry,0,0,7); pen.stroke(); }
+      } else if (scene === "Tree") {
+        line([[180,12],[130,65],[150,65],[105,108],[135,108],[85,150],[275,150],[225,108],[255,108],[210,65],[230,65],[180,12]]);
+        line([[168,150],[168,170],[192,170],[192,150]]);
+      } else {
+        for (let i=0;i<8;i++) {
+          const a=i*Math.PI/4;
+          pen.beginPath(); pen.ellipse(180+Math.cos(a)*40,90+Math.sin(a)*40,28,14,a,0,7); pen.stroke();
+        }
+        pen.beginPath(); pen.arc(180,90,18,0,7); pen.stroke();
+      }
+      const pixels = pen.getImageData(0,0,360,180).data, points = [];
+      for (let y=0;y<180;y+=4) for (let x=0;x<360;x+=4) {
+        if (pixels[(y*360+x)*4+3]>80) points.push({x:x/360,y:y/180});
+      }
+      return points;
+    }
+    function startDrones() {
+      drone = {elapsed:0, scene:-1, targets:[], points:[], name:""};
+    }
+    function advanceDrones(dt) {
+      drone.elapsed += dt;
+      if (drone.elapsed >= 120) { drone = null; return; }
+      const scene = Math.floor(drone.elapsed / 12);
+      const names = ["Happy New Year", "Bird", "Deer", "Dolphin", "Butterfly", "Heart", "Star", "Globe", "Tree", "Flower"];
+      if (scene !== drone.scene) {
+        drone.scene = scene; drone.name = names[scene]; drone.targets = droneTargets(drone.name);
+        while (drone.points.length < drone.targets.length) drone.points.push({x:random(),y:1.1});
+      }
+      const ease = 1 - Math.exp(-dt * 1.7);
+      drone.points.forEach((p,i) => {
+        const target = drone.targets[i] || {x:0.5,y:1.15};
+        p.x += (target.x-p.x)*ease; p.y += (target.y-p.y)*ease;
+      });
+    }
+    function drawDrones() {
+      const span = Math.min(width*0.88,900), tall = span/2;
+      const left = (width-span)/2, top = Math.max(65,(height-tall)/2);
+      drone.points.forEach((p,i) => {
+        ctx.fillStyle = "hsl(" + ((drone.scene*38+i*0.15)%360) + " 85% 60%)";
+        ctx.beginPath(); ctx.arc(left+p.x*span,top+p.y*tall,1.6,0,7); ctx.fill();
+      });
+    }
     function advance(dt) {
       if (preview) simulated += dt * speed * 1000;
-      if (!active()) { rockets = []; sparks = []; groundEffects = []; return; }
+      if (!active()) { rockets = []; sparks = []; groundEffects = []; drone = null; return; }
+      if (drone) { advanceDrones(dt); return; }
       launchIn -= dt;
       if (launchIn <= 0) { launch(); launchIn = 1.2 + random() * 1.6; }
       groundEffects = groundEffects.filter(effect => {
@@ -641,6 +734,7 @@ document.addEventListener("DOMContentLoaded", function() {
     function draw() {
       ctx.clearRect(0, 0, width, height);
       if (active()) {
+        if (drone) drawDrones();
         for (const r of rockets) {
           ctx.strokeStyle = "hsl(" + r.hue + " 85% 55%)"; ctx.lineWidth = 2;
           ctx.beginPath(); ctx.moveTo(r.x, r.y + 18); ctx.lineTo(r.x, r.y); ctx.stroke();
@@ -655,7 +749,7 @@ document.addEventListener("DOMContentLoaded", function() {
       if (status) status.textContent = new Date(simulated).toISOString() + " · " + zone +
         " · " + (active() ? "New Year active" : "Outside 00:00–02:00 on 1 January") + " · " + sparks.length + " sparks";
       if (preview) canvas.dataset.snapshot = JSON.stringify({effect: "fireworks", active: active(), sparks: sparks.length,
-        rockets: rockets.length, groundEffects: groundEffects.map(e => e.kind), groundSparks: sparks.filter(p => p.ground).length, sound, paused, hidden, zone, style: chosen});
+        rockets: rockets.length, drone: drone?.name, groundEffects: groundEffects.map(e => e.kind), groundSparks: sparks.filter(p => p.ground).length, sound, paused, hidden, zone, style: chosen});
     }
     function tick(now) {
       frame = 0; const dt = Math.min(0.05, previous ? (now - previous) / 1000 : 0); previous = now;

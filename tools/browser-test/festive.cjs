@@ -122,6 +122,23 @@ const server = http.createServer((req, res) => {
       assert.ok((await state()).sparks <= 1400);
       assert.ok((await state()).groundEffects.length <= 3);
     }
+    await page.select('select[aria-label="Fireworks style"]', 'Drone display');
+    await page.click('button[aria-label="Reset fireworks"]');
+    await page.click('button[aria-label="Launch a test firework"]');
+    const droneScenes = await page.evaluate(() => {
+      const step = document.querySelector('button[aria-label="Advance fireworks one frame"]');
+      const seen = new Set();
+      for (let i=0;i<7190;i++) {
+        step.click();
+        if (i%60===0) {
+          const state = JSON.parse(document.querySelector('canvas').dataset.snapshot);
+          if (state.drone) seen.add(state.drone);
+          if (state.rockets || state.sparks) throw Error('fireworks overlap drones');
+        }
+      }
+      return [...seen];
+    });
+    assert.deepEqual(droneScenes, ['Happy New Year','Bird','Deer','Dolphin','Butterfly','Heart','Star','Globe','Tree','Flower']);
     await page.select('select[aria-label="Fireworks style"]', 'Mixed');
     await page.click('button[aria-label="Reset fireworks"]');
     const mixedGroundStyles = await page.evaluate(() => {
