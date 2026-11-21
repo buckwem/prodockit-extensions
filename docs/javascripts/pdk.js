@@ -560,7 +560,16 @@ document.addEventListener("DOMContentLoaded", function() {
       flight.progress += dt * 55 / (width + 320);
       // Both endpoints are beyond the rotated artwork bounds. Pick the next
       // entrance only after the complete sleigh and parcel sled have left.
-      if (flight.progress >= 1) newFlight();
+      if (flight.progress >= 1) {
+        if (preview && config.sleigh !== false) {
+          const year = new Date(simulated).getUTCFullYear();
+          const route = schedule(year);
+          const next = route.find(stop => stop.time > simulated);
+          simulated = (next || route[0]).time;
+          clock.value = new Date(simulated).toISOString().slice(0, 19);
+        }
+        newFlight();
+      }
       // Thaw a few small patches at a time, leaving other areas to form drifts.
       meltTimer -= dt;
       if (meltTimer <= 0) {

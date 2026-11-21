@@ -57,6 +57,11 @@ const server = http.createServer((req, res) => {
     await page.emulateMediaType('screen');
     await page.emulateMediaFeatures([{name:'prefers-reduced-motion', value:'reduce'}]);
     await page.waitForFunction(() => JSON.parse(document.querySelector('canvas').dataset.snapshot).paused);
+    await page.evaluate(() => {
+      const step = [...document.querySelectorAll('button')].find(b => b.textContent === 'Step');
+      for(let i=0;i<800;i++) step.click();
+    });
+    assert.equal((await state()).destination, 'Chatham');
     // Accelerate ten minutes of snowfall by deterministic single-frame steps.
     await page.evaluate(() => {
       const step = [...document.querySelectorAll('button')].find(b => b.textContent === 'Step');
