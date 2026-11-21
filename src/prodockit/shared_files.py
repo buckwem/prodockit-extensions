@@ -32,22 +32,21 @@ RESOURCES = {
     "pdk-pdf.css": ("assets", "pdk-pdf.css"),
     "pdk.js": ("assets", "pdk.js"),
     "mathjax.js": ("assets", "mathjax.js"),
+    "pdk-sleigh.png": ("assets", "pdk-sleigh.png"),
 }
 
 # An editable install imports directly from src/ and therefore does not see
 # hatch's wheel-only force-include mapping.  This fallback points at the same
 # canonical source file that the wheel build maps into prodockit/assets.
 DEVELOPMENT_SOURCES = {
-    "pdk.css": Path(__file__).resolve().parents[2] / "docs" / "stylesheets" / "pdk.css",
-    "pdk-pdf.css": Path(__file__).resolve().parents[2]
-    / "docs"
-    / "stylesheets"
-    / "pdk-pdf.css",
-    "pdk.js": Path(__file__).resolve().parents[2] / "docs" / "javascripts" / "pdk.js",
-    "mathjax.js": Path(__file__).resolve().parents[2]
+    "pdk-sleigh.png": Path(__file__).resolve().parents[2]
     / "docs"
     / "javascripts"
-    / "mathjax.js",
+    / "pdk-sleigh.png",
+    "pdk.css": Path(__file__).resolve().parents[2] / "docs" / "stylesheets" / "pdk.css",
+    "pdk-pdf.css": Path(__file__).resolve().parents[2] / "docs" / "stylesheets" / "pdk-pdf.css",
+    "pdk.js": Path(__file__).resolve().parents[2] / "docs" / "javascripts" / "pdk.js",
+    "mathjax.js": Path(__file__).resolve().parents[2] / "docs" / "javascripts" / "mathjax.js",
 }
 
 
@@ -144,9 +143,7 @@ def load_manifest(root: str | os.PathLike[str] = ".") -> list[SharedFile]:
 
     version = data.get("version")
     if version != MANIFEST_VERSION:
-        raise SharedFileError(
-            f"{MANIFEST} needs version = {MANIFEST_VERSION}; found {version!r}"
-        )
+        raise SharedFileError(f"{MANIFEST} needs version = {MANIFEST_VERSION}; found {version!r}")
     entries = data.get("files")
     if not isinstance(entries, list) or not entries:
         raise SharedFileError(f"{MANIFEST} needs at least one [[files]] entry")
@@ -160,8 +157,7 @@ def load_manifest(root: str | os.PathLike[str] = ".") -> list[SharedFile]:
         if not isinstance(source, str) or source not in RESOURCES:
             choices = ", ".join(sorted(RESOURCES))
             raise SharedFileError(
-                f"{MANIFEST} files entry {number} has unknown source {source!r}; "
-                f"choose {choices}"
+                f"{MANIFEST} files entry {number} has unknown source {source!r}; choose {choices}"
             )
         target = _safe_target(entry.get("target"))
         if target in targets:

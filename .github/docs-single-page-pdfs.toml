@@ -89,3 +89,4 @@ other_page_shapes = [
 "devcons/limitations.md" = "devcons/devcons.md"
 "about/support.md" = "about/index.md"
 "about/limitations.md" = "about/index.md"
+"extensions/festive.md" = "extensions/carousel.md"

@@ -1022,3 +1022,52 @@ img.documentation-diagram {
     outline: 3px solid currentColor;
     box-shadow: 0 0 0 5px Canvas;
 }
+
+.pdk-festive-canvas {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 20;
+}
+.pdk-festive-controls {
+    position: fixed;
+    bottom: 2.5rem;
+    right: 0.5rem;
+    z-index: 21;
+    max-width: min(22rem, 90vw);
+    padding: 0.3rem;
+    border-radius: 0.3rem;
+    color: var(--md-default-fg-color, #111);
+    background: var(--md-default-bg-color, white);
+    font: 14px sans-serif;
+    box-shadow: 0 1px 5px #8888;
+}
+.pdk-festive-controls button,
+.pdk-festive-controls input,
+.pdk-festive-controls select {
+    margin: 0.2rem;
+    padding: 0.3rem;
+    border: 1px solid currentColor;
+    border-radius: 0.2rem;
+    font: inherit;
+    color: inherit;
+    background: inherit;
+}
+.pdk-festive-controls :focus-visible { outline: 3px solid var(--md-accent-fg-color, blue); }
+.pdk-festive-preview strong,
+.pdk-festive-preview output { display: block; }
+.pdk-festive-speaker,
+.pdk-festive-toggle {
+    font-size: 1.3rem;
+    cursor: pointer;
+}
+.pdk-festive-toggle[aria-pressed="false"] { opacity: 0.5; }
+.pdk-festive-toggle:focus-visible { outline: 3px solid var(--md-accent-fg-color, blue); }
+.pdk-festive-canvas[hidden], .pdk-festive-controls[hidden],
+.pdk-festive-toggle[hidden], .pdk-festive-speaker[hidden] { display: none !important; }
+@media print {
+    .pdk-festive-canvas, .pdk-festive-controls, .pdk-festive-speaker,
+.pdk-festive-toggle { display: none !important; }
+}

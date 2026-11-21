@@ -24,6 +24,8 @@ extra_css = [
 # PDF, including the PDF's numbered bookmark outline.
 extra.heading_numbering = true
 extra.website_heading_numbering = true
+# Opt in on this reference website. Package installation and Adopt leave it disabled.
+extra.festive = { enabled = true, effect = "auto", season_start = "12-01", season_end = "01-06", sleigh = true }
 
 # Client-side MathJax, for the website only - the PDF pre-renders the same
 # formulas to SVG instead (see `pymdownx.arithmatex` below). Order is
@@ -82,37 +84,38 @@ nav = [
     {"32. Page update dates" = "update-dates.md"},
     {"33. Generate a PDF" = "pdf.md"},
     {"34. Stylesheets" = "stylesheets.md"},
+    {"35. Festive overlay" = "extensions/festive.md"},
   ]},
   {"Command reference" = [
-    {"35. Command overview" = "command-line.md"},
-    {"36. Reading command output" = "commands/output.md"},
-    {"37. Bootstrap" = "commands/bootstrap.md"},
-    {"38. Diagnostics" = "commands/diag.md"},
-    {"39. Adopt" = "commands/adopt.md"},
-    {"40. Pins" = "commands/pins.md"},
-    {"41. Template Sync" = "commands/template-sync.md"},
-    {"42. Configuration check" = "commands/config.md"},
-    {"43. Shared files" = "commands/shared-files.md"},
-    {"44. Build a PDF" = "commands/pdf.md"},
-    {"45. Build a source bundle" = "commands/source-bundle.md"},
-    {"46. Synchronise repository metadata" = "commands/sync-repo.md"},
-    {"47. Update page dates" = "commands/update-dates.md"},
+    {"36. Command overview" = "command-line.md"},
+    {"37. Reading command output" = "commands/output.md"},
+    {"38. Bootstrap" = "commands/bootstrap.md"},
+    {"39. Diagnostics" = "commands/diag.md"},
+    {"40. Adopt" = "commands/adopt.md"},
+    {"41. Pins" = "commands/pins.md"},
+    {"42. Template Sync" = "commands/template-sync.md"},
+    {"43. Configuration check" = "commands/config.md"},
+    {"44. Shared files" = "commands/shared-files.md"},
+    {"45. Build a PDF" = "commands/pdf.md"},
+    {"46. Build a source bundle" = "commands/source-bundle.md"},
+    {"47. Synchronise repository metadata" = "commands/sync-repo.md"},
+    {"48. Update page dates" = "commands/update-dates.md"},
   ]},
   {"Contributor internals" = [
-    {"48. Overview" = "devcons/devcons.md"},
-    {"49. Development and code map" = "devcons/development.md"},
-    {"50. Extension integration" = "devcons/extension-internals.md"},
-    {"51. PDF pipeline and API" = "devcons/pdf-internals.md"},
-    {"52. Bootstrap design" = "devcons/bootstrap-internals.md"},
-    {"53. Zensical coupling" = "devcons/zensical-coupling.md"},
-    {"54. Implementation limitations" = "devcons/limitations.md"},
+    {"49. Overview" = "devcons/devcons.md"},
+    {"50. Development and code map" = "devcons/development.md"},
+    {"51. Extension integration" = "devcons/extension-internals.md"},
+    {"52. PDF pipeline and API" = "devcons/pdf-internals.md"},
+    {"53. Bootstrap design" = "devcons/bootstrap-internals.md"},
+    {"54. Zensical coupling" = "devcons/zensical-coupling.md"},
+    {"55. Implementation limitations" = "devcons/limitations.md"},
   ]},
   {"About" = [
-    {"55. About prodockit" = "about/index.md"},
-    {"56. Support and compatibility" = "about/support.md"},
-    {"57. Known limitations" = "about/limitations.md"},
-    {"58. Release notes" = "about/changelog.md"},
-    {"59. Licence" = "about/license.md"},
+    {"56. About prodockit" = "about/index.md"},
+    {"57. Support and compatibility" = "about/support.md"},
+    {"58. Known limitations" = "about/limitations.md"},
+    {"59. Release notes" = "about/changelog.md"},
+    {"60. Licence" = "about/license.md"},
   ]},
 ]
 
