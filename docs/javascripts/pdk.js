@@ -552,6 +552,21 @@ document.addEventListener("DOMContentLoaded", function() {
       source.onended = () => { source.disconnect(); filter.disconnect(); gain.disconnect(); };
       source.start(when); source.stop(when + duration);
     }
+    function tone(startFrequency, endFrequency, duration, strength, delay = 0) {
+      if (!sound || !audio || audio.state !== "running" || document.hidden ||
+          paused || hidden || !active()) return;
+      const oscillator = audio.createOscillator(), gain = audio.createGain();
+      const when = audio.currentTime + delay;
+      oscillator.type = "sine";
+      oscillator.frequency.setValueAtTime(startFrequency, when);
+      oscillator.frequency.exponentialRampToValueAtTime(endFrequency, when + duration);
+      gain.gain.setValueAtTime(0.001, when);
+      gain.gain.exponentialRampToValueAtTime(strength, when + Math.min(0.05, duration / 4));
+      gain.gain.exponentialRampToValueAtTime(0.001, when + duration);
+      oscillator.connect(gain); gain.connect(master);
+      oscillator.onended = () => { oscillator.disconnect(); gain.disconnect(); };
+      oscillator.start(when); oscillator.stop(when + duration);
+    }
     function launch() {
       if (drone || groundEffects.length || sparks.some(p => p.ground) || rockets.length >= 5 || sparks.length > 1000) return;
       // Keep a selected ground sequence queued while the aerial display clears.
@@ -585,6 +600,11 @@ document.addEventListener("DOMContentLoaded", function() {
         });
       }
       noise(0.35, 1600);
+      // A sustained rising whistle follows selected rockets towards their apex.
+      if (["Ring", "Palm", "Crackle"].includes(kind) || Math.random() < 0.3) {
+        const ascent = Math.max(0.2, (height + 5 - target) / 250);
+        tone(650 + Math.random() * 250, 1900 + Math.random() * 500, ascent, 0.16);
+      }
     }
     function burst(rocket) {
       const count = rocket.kind === "Palm" ? 35 : 90;
@@ -598,6 +618,11 @@ document.addEventListener("DOMContentLoaded", function() {
           hue: rocket.kind === "Willow" ? 42 : rocket.hue, kind: rocket.kind});
       }
       noise(0.9, 250, 0.12);
+      if (["Peony", "Palm", "Willow"].includes(rocket.kind) || Math.random() < 0.25) {
+        // A descending low-frequency pressure pulse supplies the boom body.
+        tone(75 + Math.random() * 25, 28, 0.95, 0.65, 0.12);
+        noise(1.25, 130, 0.12);
+      }
       if (rocket.kind === "Crackle") for (let i = 0; i < 6; i++) noise(0.07, 3000, 0.3 + i * 0.1);
     }
     function erupt(effect) {

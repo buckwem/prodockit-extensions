@@ -124,7 +124,8 @@ volleys from five tubes, while fountains and fan jets produce sustained sprays.
 Changing the selected style clears the previous effects. Each style has a matching synthesised sound. The header uses a firework icon.
 
 Press the speaker icon to enable synthesised launch, boom and crackle sounds.
-Sound starts muted and requires a click. Use the volume slider to adjust it.
+Selected aerial launches whistle upwards, and larger bursts add a deep boom
+with a short propagation delay. Sound starts muted and requires a click. Use the volume slider to adjust it.
 Pausing, hiding, printing or switching to a hidden tab silences the sound.
 Reduced motion starts the display paused.
 
