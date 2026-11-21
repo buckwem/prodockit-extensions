@@ -520,7 +520,7 @@ document.addEventListener("DOMContentLoaded", function() {
         const year = new Date(simulated).getUTCFullYear();
         const times = {"Christmas start": Date.UTC(year, 11, 24, 10), Nepal: Date.UTC(year, 11, 24, 18, 15), "Christmas end": Date.UTC(year, 11, 26, 12)};
         if (times[preset.value] !== undefined) simulated = times[preset.value];
-        if (preset.value === "Maximum snow") bank.fill(28);
+        if (preset.value === "Maximum snow") bank.fill(12);
         if (preset.value === "Reduced motion") paused = true;
         if (preset.value.includes("palette")) {
           const scheme = preset.value === "Dark palette" ? "slate" : "default";
@@ -563,7 +563,7 @@ document.addEventListener("DOMContentLoaded", function() {
         p.y += p.v * dt; p.x = (p.x + Math.sin(angle + p.phase) * dt * 12 + width) % width;
         const index = Math.min(79, Math.floor(p.x / width * 80));
         if (p.y >= height - bank[index]) {
-          bank[index] = Math.min(28, bank[index] + p.r * 1.6);
+          bank[index] = Math.min(12, bank[index] + p.r * 1.6);
           return false;
         }
         return true;
