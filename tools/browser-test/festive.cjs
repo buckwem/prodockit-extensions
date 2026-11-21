@@ -104,61 +104,31 @@ const server = http.createServer((req, res) => {
     await page.waitForFunction(() => JSON.parse(document.querySelector('canvas').dataset.snapshot).sound);
     await page.click('.pdk-festive-speaker');
     assert.equal((await state()).sound, false);
-    await page.select('select[aria-label="Fireworks style"]', 'Willow');
+    assert.equal(await page.$$('select[aria-label="Fireworks style"]').then(els => els.length), 0);
     await page.click('button[aria-label="Launch a test firework"]');
-    assert.ok((await state()).rockets >= 1 && (await state()).rockets <= 3);
-    for (const style of ['Roman candle bank', 'Fountain', 'Fan jets', 'Mine']) {
-      await page.click('button[aria-label="Reset fireworks"]');
-      await page.select('select[aria-label="Fireworks style"]', style);
-      await page.click('button[aria-label="Launch a test firework"]');
-      assert.deepEqual((await state()).groundEffects, [style, style, style]);
-      assert.equal((await state()).rockets, 0);
-      await page.click('button[aria-label="Advance fireworks one frame"]');
-      assert.ok((await state()).groundSparks > 0, style + ' emits ground sparks');
-      await page.evaluate(() => {
-        const step = document.querySelector('button[aria-label="Advance fireworks one frame"]');
-        for (let i=0;i<600;i++) step.click();
-      });
-      assert.ok((await state()).sparks <= 1400);
-      assert.ok((await state()).groundEffects.length <= 3);
-    }
-    await page.select('select[aria-label="Fireworks style"]', 'Drone display');
-    await page.click('button[aria-label="Reset fireworks"]');
-    await page.click('button[aria-label="Launch a test firework"]');
-    const droneScenes = await page.evaluate(() => {
+    const rotation = await page.evaluate(() => {
       const step = document.querySelector('button[aria-label="Advance fireworks one frame"]');
-      const seen = new Set();
-      for (let i=0;i<7190;i++) {
-        step.click();
-        if (i%60===0) {
-          const state = JSON.parse(document.querySelector('canvas').dataset.snapshot);
-          if (state.drone) {
-            seen.add(state.drone);
-            if (state.drone !== 'Happy New Year' && state.droneDepthLevels < 10) {
-              throw Error('formation must have a volumetric surface, not repeated flat layers');
-            }
-          }
-          if (state.rockets || state.sparks) throw Error('fireworks overlap drones');
-        }
-      }
-      return [...seen];
-    });
-    assert.deepEqual(droneScenes, ['Happy New Year','Bird','Deer','Dolphin','Butterfly','Heart','Star','Globe','Tree','Flower']);
-    await page.select('select[aria-label="Fireworks style"]', 'Mixed');
-    await page.click('button[aria-label="Reset fireworks"]');
-    const mixedGroundStyles = await page.evaluate(() => {
-      const step = document.querySelector('button[aria-label="Advance fireworks one frame"]');
-      const seen = new Set();
+      const shows = [], scenes = new Set(), ground = new Set();
       for (let i = 0; i < 18000; i++) {
         step.click();
         if (i % 30 === 0) {
           const state = JSON.parse(document.querySelector('canvas').dataset.snapshot);
-          state.groundEffects.forEach(style => seen.add(style));
+          if (shows.at(-1) !== state.show) shows.push(state.show);
+          state.groundEffects.forEach(style => ground.add(style));
+          if (state.drone) {
+            scenes.add(state.drone);
+            if (state.rockets || state.sparks || state.groundEffects.length) throw Error('fireworks overlap drones');
+            if (state.drone !== 'Happy New Year' && state.droneDepthLevels < 10) throw Error('formation must have volumetric depth');
+          }
+          if (state.sparks > 1400 || state.groundEffects.length > 3 || state.rockets > 5) throw Error('particle budget exceeded');
+          if (new Set(state.groundEffects).size > 1) throw Error('ground styles overlap');
         }
       }
-      return [...seen];
+      return {shows, scenes:[...scenes], ground:[...ground]};
     });
-    assert.ok(mixedGroundStyles.length >= 3, 'mixed mode must continue scheduling ground displays');
+    assert.deepEqual(rotation.shows.slice(0,3), ['fireworks','drones','fireworks']);
+    assert.deepEqual(rotation.scenes, ['Happy New Year','Bird','Deer','Dolphin','Butterfly','Heart','Star','Globe','Tree','Flower']);
+    assert.ok(rotation.ground.length > 0);
     await page.emulateMediaType('print');
     assert.equal(await page.$eval('.pdk-festive-speaker', el => getComputedStyle(el).display), 'none');
     await page.emulateMediaType('screen');

@@ -452,7 +452,7 @@ document.addEventListener("DOMContentLoaded", function() {
     const controls = document.createElement("div"); controls.className = "pdk-festive-controls";
     const motion = matchMedia("(prefers-reduced-motion: reduce)");
     let paused = motion.matches, hidden = false, printing = false, sound = false;
-    let audio, volume = 0.25, master, frame = 0, previous = 0, launchIn = 0;
+    let audio, volume = 0.4, master, frame = 0, previous = 0, launchIn = 0, fireworksElapsed = 0;
     let width = innerWidth, height = innerHeight, rockets = [], sparks = [], groundEffects = [], drone = null;
     let seed = Number(query.get("pdk-festive-seed") || 42) >>> 0;
     let simulated = preview && query.get("pdk-festive-time") ? Date.parse(query.get("pdk-festive-time")) : Date.now();
@@ -505,25 +505,18 @@ document.addEventListener("DOMContentLoaded", function() {
     }
     const pause = button("Pause fireworks", "Pause fireworks", () => { paused = !paused; refresh(); });
     const level = document.createElement("input");
-    level.type = "range"; level.min = "0"; level.max = "100"; level.value = "25";
+    level.type = "range"; level.min = "0"; level.max = "100"; level.value = "40";
     level.setAttribute("aria-label", "Fireworks volume");
     on(level, "input", () => { volume = Number(level.value) / 100; syncAudio(); });
     controls.append(level);
-    const styles = ["Peony", "Ring", "Palm", "Willow", "Crackle", "Roman candle bank", "Fountain", "Fan jets", "Mine", "Drone display"];
-    let chosen = "Mixed", pendingKind = null, status;
+    const styles = ["Peony", "Ring", "Palm", "Willow", "Crackle", "Roman candle bank", "Fountain", "Fan jets", "Mine"];
+    let pendingKind = null, status;
     if (preview) {
-      const select = document.createElement("select"); select.setAttribute("aria-label", "Fireworks style");
-      for (const label of ["Mixed", ...styles]) {
-        const option = document.createElement("option"); option.textContent = label; select.append(option);
-      }
-      on(select, "change", () => {
-        chosen = select.value; pendingKind = null; launchIn = 0; rockets = []; sparks = []; groundEffects = []; drone = null;
-      }); controls.append(select);
       const clock = document.createElement("input"); clock.type = "datetime-local";
       clock.value = new Date(simulated).toISOString().slice(0, 19); clock.setAttribute("aria-label", "Simulated UTC time");
       on(clock, "change", () => {
         const next = Date.parse(clock.value + "Z");
-        if (Number.isFinite(next)) { simulated = next; rockets = []; sparks = []; groundEffects = []; drone = null; refresh(); }
+        if (Number.isFinite(next)) { simulated = next; rockets = []; sparks = []; groundEffects = []; drone = null; fireworksElapsed = 0; pendingKind = null; refresh(); }
       }); controls.append(clock);
       const rate = document.createElement("input"); rate.type = "number"; rate.min = "0"; rate.max = "3600";
       rate.value = String(speed); rate.setAttribute("aria-label", "Clock speed");
@@ -531,13 +524,13 @@ document.addEventListener("DOMContentLoaded", function() {
       controls.append(rate);
       button("Burst", "Launch a test firework", () => { if (active()) launch(); draw(); });
       button("Step", "Advance fireworks one frame", () => { advance(1 / 60); draw(); });
-      button("Reset", "Reset fireworks", () => { seed = 42; pendingKind = null; rockets = []; sparks = []; groundEffects = []; drone = null; launchIn = 0; draw(); });
+      button("Reset", "Reset fireworks", () => { seed = 42; fireworksElapsed = 0; pendingKind = null; rockets = []; sparks = []; groundEffects = []; drone = null; launchIn = 0; draw(); });
       status = document.createElement("output"); controls.append(status);
     }
     function syncAudio() {
       if (!master) return;
       const audible = sound && !paused && !hidden && !document.hidden && !printing && active();
-      master.gain.setTargetAtTime(audible ? volume * 0.35 : 0, audio.currentTime, 0.02);
+      master.gain.setTargetAtTime(audible ? volume * 0.55 : 0, audio.currentTime, 0.02);
     }
     function noise(duration, low, delay = 0) {
       if (!sound || !audio || audio.state !== "running" || document.hidden || paused || hidden || !active()) return;
@@ -568,15 +561,11 @@ document.addEventListener("DOMContentLoaded", function() {
       oscillator.start(when); oscillator.stop(when + duration);
     }
     function launch() {
-      if (drone || groundEffects.length || sparks.some(p => p.ground) || rockets.length >= 5 || sparks.length > 1000) return;
+      if (fireworksElapsed >= 120 || drone || groundEffects.length || sparks.some(p => p.ground) || rockets.length >= 5 || sparks.length > 1000) return;
       // Keep a selected ground sequence queued while the aerial display clears.
       // Rerolling here allowed new aerial launches to starve ground effects.
-      if (!pendingKind) pendingKind = chosen === "Mixed" ? styles[Math.floor(random() * styles.length)] : chosen;
+      if (!pendingKind) pendingKind = styles[Math.floor(random() * styles.length)];
       const kind = pendingKind;
-      if (kind === "Drone display") {
-        if (rockets.length || sparks.length) return;
-        pendingKind = null; startDrones(); return;
-      }
       if (["Roman candle bank", "Fountain", "Fan jets", "Mine"].includes(kind)) {
         if (rockets.length || sparks.length) return;
         if (groundEffects.length === 0) {
@@ -599,11 +588,11 @@ document.addEventListener("DOMContentLoaded", function() {
           y: height + 5, target, hue: (hue + i * 120) % 360, kind
         });
       }
-      noise(0.35, 1600);
+      noise(0.55, 1900);
       // A sustained rising whistle follows selected rockets towards their apex.
       if (["Ring", "Palm", "Crackle"].includes(kind) || Math.random() < 0.3) {
         const ascent = Math.max(0.2, (height + 5 - target) / 250);
-        tone(650 + Math.random() * 250, 1900 + Math.random() * 500, ascent, 0.16);
+        tone(650 + Math.random() * 250, 1900 + Math.random() * 500, ascent, 0.30);
       }
     }
     function burst(rocket) {
@@ -617,12 +606,13 @@ document.addEventListener("DOMContentLoaded", function() {
           life: rocket.kind === "Willow" ? 4 : 1.5 + random() * 1.5,
           hue: rocket.kind === "Willow" ? 42 : rocket.hue, kind: rocket.kind});
       }
-      noise(0.9, 250, 0.12);
-      if (["Peony", "Palm", "Willow"].includes(rocket.kind) || Math.random() < 0.25) {
-        // A descending low-frequency pressure pulse supplies the boom body.
-        tone(75 + Math.random() * 25, 28, 0.95, 0.65, 0.12);
-        noise(1.25, 130, 0.12);
-      }
+      // Every aerial burst has an audible report, with a deeper rumble for
+      // the larger shells and brighter snaps for rings and crackling effects.
+      const heavy = ["Peony", "Palm", "Willow"].includes(rocket.kind);
+      noise(heavy ? 1.4 : 0.8, heavy ? 300 : 1100, 0.12);
+      tone(heavy ? 95 : 145, heavy ? 28 : 55, heavy ? 1.25 : 0.65,
+        heavy ? 0.9 : 0.55, 0.12);
+      if (heavy) noise(1.6, 130, 0.18);
       if (rocket.kind === "Crackle") for (let i = 0; i < 6; i++) noise(0.07, 3000, 0.3 + i * 0.1);
     }
     function erupt(effect) {
@@ -735,7 +725,7 @@ document.addEventListener("DOMContentLoaded", function() {
     }
     function advanceDrones(dt) {
       drone.elapsed += dt;
-      if (drone.elapsed >= 120) { drone = null; return; }
+      if (drone.elapsed >= 120) { drone = null; fireworksElapsed = 0; launchIn = 0; return; }
       const scene = Math.floor(drone.elapsed / 12);
       const names = ["Happy New Year", "Bird", "Deer", "Dolphin", "Butterfly", "Heart", "Star", "Globe", "Tree", "Flower"];
       if (scene !== drone.scene) {
@@ -817,8 +807,12 @@ document.addEventListener("DOMContentLoaded", function() {
       if (preview) simulated += dt * speed * 1000;
       if (!active()) { rockets = []; sparks = []; groundEffects = []; drone = null; return; }
       if (drone) { advanceDrones(dt); return; }
+      fireworksElapsed += dt;
       launchIn -= dt;
-      if (launchIn <= 0) { launch(); launchIn = 1.2 + random() * 1.6; }
+      if (fireworksElapsed < 120 && launchIn <= 0) { launch(); launchIn = 1.2 + random() * 1.6; }
+      if (fireworksElapsed >= 120 && !rockets.length && !sparks.length && !groundEffects.length) {
+        pendingKind = null; startDrones(); return;
+      }
       groundEffects = groundEffects.filter(effect => {
         effect.life -= dt; effect.next -= dt;
         if (effect.next <= 0) {
@@ -855,7 +849,7 @@ document.addEventListener("DOMContentLoaded", function() {
       if (status) status.textContent = new Date(simulated).toISOString() + " · " + zone +
         " · " + (active() ? "New Year active" : "Outside 00:00–02:00 on 1 January") + " · " + sparks.length + " sparks";
       if (preview) canvas.dataset.snapshot = JSON.stringify({effect: "fireworks", active: active(), sparks: sparks.length,
-        rockets: rockets.length, drone: drone?.name, droneDepthLevels: drone ? new Set(drone.targets.map(p => p.z.toFixed(3))).size : 0, groundEffects: groundEffects.map(e => e.kind), groundSparks: sparks.filter(p => p.ground).length, sound, paused, hidden, zone, style: chosen});
+        rockets: rockets.length, drone: drone?.name, droneDepthLevels: drone ? new Set(drone.targets.map(p => p.z.toFixed(3))).size : 0, groundEffects: groundEffects.map(e => e.kind), groundSparks: sparks.filter(p => p.ground).length, sound, paused, hidden, zone, show: drone ? "drones" : "fireworks"});
     }
     function tick(now) {
       frame = 0; const dt = Math.min(0.05, previous ? (now - previous) / 1000 : 0); previous = now;

@@ -115,17 +115,17 @@ website uses auto. Installation remains opt-in.
 Fireworks appear from **00:00 inclusive until 02:00 exclusive on 1 January**
 in the visitor's browser time zone. The display mixes peony bursts, rings,
 palms, golden willows and crackling sparks, plus Roman candle banks,
-fountains, fan jets and sudden mines erupting from the bottom edge. Mixed mode
-chooses randomly between these styles. Aerial fireworks launch in groups of
+fountains, fan jets and sudden mines erupting from the bottom edge. The fireworks phase chooses randomly between these styles. Aerial fireworks launch in groups of
 one to three, bursting together at different positions and in different colours.
 Ground sequences use three instances of
 the same effect, each with a different colour. Roman candle banks fire repeated
 volleys from five tubes, while fountains and fan jets produce sustained sprays.
-Changing the selected style clears the previous effects. Each style has a matching synthesised sound. The header uses a firework icon.
+Each style has a matching synthesised sound. The header uses a firework icon.
 
 Press the speaker icon to enable synthesised launch, boom and crackle sounds.
-Selected aerial launches whistle upwards, and larger bursts add a deep boom
-with a short propagation delay. Sound starts muted and requires a click. Use the volume slider to adjust it.
+Selected aerial launches whistle upwards, and every aerial burst has a report,
+with deeper booms and rumbling tails for larger shells after a short
+propagation delay. Sound starts muted and requires a click. Use the volume slider to adjust it.
 Pausing, hiding, printing or switching to a hidden tab silences the sound.
 Reduced motion starts the display paused.
 
@@ -136,14 +136,14 @@ and `pdk-festive-zone` selects the zone used to evaluate the two-hour window.
 ?pdk-festive-test=1&pdk-festive-effect=fireworks&pdk-festive-time=2027-01-01T00%3A00%3A00Z&pdk-festive-zone=Europe%2FLondon&pdk-festive-speed=1
 ```
 
-Choose an individual fireworks style, launch a test burst, change the UTC
-clock or speed, and reset the particles in the preview panel. Try zones such
+The show rotates automatically without a style selector. In the preview panel,
+launch a test burst, step a frame, change the UTC clock or speed, or reset the show. Try zones such
 as Pacific/Kiritimati, Asia/Kathmandu and America/New_York around their local
 midnight and 02:00 boundaries.
 
 ### Drone display
 
-Select **Drone display** for a two-minute choreography of coloured lights.
+Each drone phase provides a two-minute choreography of coloured lights.
 The lights sample three-dimensional surfaces, shown in perspective with rotating
 viewpoints. The deer uses 1,100 surface samples from Quaternius's CC0
 [Deer model](https://poly.pizza/m/T6Cs7tmMHJ). The other objects use procedural
@@ -152,7 +152,7 @@ three-dimensional wings, cones and petals. The title retains shallow depth for
 readability. Birds and butterflies flap their wings, the deer trots with alternating diagonal leg pairs, the dolphin
 swims, the heart pulses, and the globe rotates as a sphere. The lights morph
 every twelve seconds through Happy New Year, a bird, deer,
-dolphin, butterfly, heart, star, globe, tree and flower. Mixed mode can also
-choose this sequence, waiting for fireworks to clear before the drones start.
+dolphin, butterfly, heart, star, globe, tree and flower. The show alternates automatically between two minutes of fireworks and the
+two-minute drone sequence, allowing the previous fireworks to clear first.
 The drone sequence is silent. The New Year time window and visitor controls
 apply to both fireworks and drones.
