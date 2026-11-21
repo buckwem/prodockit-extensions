@@ -613,10 +613,14 @@ document.addEventListener("DOMContentLoaded", function() {
       // Draw destination text separately so the left-facing version stays readable.
       const plaqueCentre = spriteWidth * 0.14 * (facingLeft ? -1 : 1);
       ctx.fillStyle = "#301b15";
-      ctx.font = "bold " + spriteWidth * 0.032 + "px sans-serif";
+      const fontSize = spriteWidth * 0.052;
+      const labelWidth = spriteWidth * 0.28;
+      ctx.font = "bold " + fontSize + "px sans-serif";
+      const label = ctx.measureText(stop.label).width <= labelWidth ? stop.label : stop.compact;
+      const fittedSize = fontSize * Math.min(1, labelWidth / ctx.measureText(label).width);
+      ctx.font = "bold " + fittedSize + "px sans-serif";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
-      const label = ctx.measureText(stop.label).width <= spriteWidth * 0.28 ? stop.label : stop.compact;
       ctx.fillText(label, plaqueCentre, spriteHeight * 0.13);
       ctx.restore();
     }
