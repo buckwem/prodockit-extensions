@@ -44,7 +44,13 @@ to disable the extension independently of other Prodockit features.
 
 Add `&#123;&#123; pdk_festive() &#125;&#125;` to a shared Markdown snippet included on each page,
 or to each page where you want the overlay. The normal Prodockit macros setup
-provides this helper. A page without the helper has no decoration in production.
+provides this helper.
+
+This reference website uses a site-wide alternative in `overrides/main.html`.
+Its `extrahead` block adds the festive configuration marker to every page when
+`extra.festive.enabled` is true, so no Markdown helper or shared snippet is
+needed here. A page needs either the helper or this template marker to display
+an overlay in production.
 
 Season dates are inclusive UTC dates and may cross New Year. Disabled is the
 default. Snow is black in the default light palette and white in the slate

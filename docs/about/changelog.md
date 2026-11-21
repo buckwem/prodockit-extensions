@@ -19,7 +19,10 @@ only when it adds or changes behaviour that matters to a user, or requires an
 upgrade action. Defect-by-defect history belongs in GitHub issues and pull
 requests rather than here.
 
-## Unreleased
+## 0.81.0 (2026-11-21)
+
+- Added separately enabled Christmas snow and sleigh overlays and New Year fireworks with optional sound and drone displays.
+  Refresh managed assets with `prodockit shared-files --apply`; festive effects remain disabled until configured.
 
 - Rebaselined website and PDF builds on Zensical 0.1.3; its refreshed Python icon appears in the installation guide.
 
