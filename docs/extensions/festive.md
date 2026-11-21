@@ -100,4 +100,5 @@ because Samoa itself is on the other side of the date line. The Chatham Islands 
 quarter-hour offset. Marquesas and South Georgia retain their names to represent
 their particular offsets. Baker Island is an uninhabited Pacific island used for the final UTC−12
 boundary. Labels use a reserved panel and compact alternatives where needed.
-The sleigh pulls a mound of parcels along a curved route within the viewport.
+The sleigh carries a mound of parcels behind Father Christmas as it follows
+a curved route through the viewport.
