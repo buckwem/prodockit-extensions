@@ -9,6 +9,7 @@ venv/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
+.pdk/portable/
 .prodockit-quarantine/
 /.prodockit/cache/pdf/
 .coverage

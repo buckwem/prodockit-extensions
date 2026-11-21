@@ -119,7 +119,11 @@ prodockit = "prodockit.cli:main"
 pdk = "prodockit.cli:main"
 
 [project.optional-dependencies]
+portable = [
+  "markdown-it-py>=4.0",
+]
 dev = [
+  "markdown-it-py>=4.0",
   "ruff",
   "mypy",
   "types-Markdown",

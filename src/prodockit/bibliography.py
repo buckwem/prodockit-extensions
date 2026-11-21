@@ -133,9 +133,12 @@ class _BibliographyCache:
     its own one file.
     """
 
-    def __init__(self, default_bib_file: str, csl_style: str) -> None:
+    def __init__(
+        self, default_bib_file: str, csl_style: str, *, pandoc: Path | None = None
+    ) -> None:
         self.default_bib_file = default_bib_file
         self.csl_style = csl_style
+        self.pandoc = pandoc
         self._citations: dict[str, tuple[str, bool]] = {}
         self._bibliography_html: dict[tuple[str, BibliographyScope, frozenset[str]], str] = {}
         # Populated once, up front, from _zensical.prescan_bibliography() -
@@ -144,6 +147,14 @@ class _BibliographyCache:
         self.all_cited_keys: set[str] = set()
         self.first_page_for_file: dict[str, str] = {}
 
+    def _run(self, body: str, *, bib_files: list[str], front_matter: str = "") -> tuple[str, str]:
+        """Share citeproc formatting with callers supplying an explicit runtime."""
+        options = {"pandoc": self.pandoc} if self.pandoc is not None else {}
+        return _run_pandoc_citeproc(
+            body, bib_files=bib_files, csl_style=self.csl_style,
+            front_matter=front_matter, **options,
+        )
+
     def resolve_citation(self, key: str) -> tuple[str, bool]:
         """Returns (formatted_inline_html, resolved) for one citation key,
         running `pandoc` once per distinct key (searching every distinct
@@ -151,9 +162,7 @@ class _BibliographyCache:
         regardless of which specific marker/page it'll end up cross-linked
         to) and caching the result for the rest of this build."""
         if key not in self._citations:
-            stdout, stderr = _run_pandoc_citeproc(
-                f"[@{key}]\n", bib_files=self.all_bib_files, csl_style=self.csl_style
-            )
+            stdout, stderr = self._run(f"[@{key}]\n", bib_files=self.all_bib_files)
             resolved = not _NOT_FOUND_RE.search(stderr)
             soup = BeautifulSoup(stdout, "html.parser")
             span = soup.find("span", class_="citation")
@@ -196,14 +205,11 @@ class _BibliographyCache:
                 selected = self.all_cited_keys if scope == "site-cited" else page_keys
                 keys = sorted(selected & _bib_file_keys(bib_file))
                 body = "".join(f"[@{key}]\n\n" for key in keys)
-                stdout, _ = _run_pandoc_citeproc(
-                    body, bib_files=[bib_file], csl_style=self.csl_style
-                )
+                stdout, _ = self._run(body, bib_files=[bib_file])
             else:
-                stdout, _ = _run_pandoc_citeproc(
+                stdout, _ = self._run(
                     "",
                     bib_files=[bib_file],
-                    csl_style=self.csl_style,
                     front_matter="---\nnocite: '@*'\n---\n\n",
                 )
             soup = BeautifulSoup(stdout, "html.parser")
@@ -237,7 +243,8 @@ def _project_pandoc_executable() -> Path:
 
 
 def _run_pandoc_citeproc(
-    body: str, *, bib_files: list[str], csl_style: str, front_matter: str = ""
+    body: str, *, bib_files: list[str], csl_style: str, front_matter: str = "",
+    pandoc: Path | None = None,
 ) -> tuple[str, str]:
     """Runs `pandoc --citeproc` over `front_matter + body` (Pandoc's own
     markdown citation syntax, e.g. `[@key]`), returning (stdout, stderr) as
@@ -248,7 +255,7 @@ def _run_pandoc_citeproc(
     module docstring - only a genuinely broken invocation is, e.g. a
     malformed `.bib` file)."""
     try:
-        pandoc = _project_pandoc_executable()
+        pandoc = pandoc or _project_pandoc_executable()
     except (OSError, RuntimeError) as error:
         raise BibliographyError(
             f"project-local Pandoc could not be prepared for bibliography use: {error}"

@@ -1,0 +1,373 @@
+# Copyright (c) 2026 Mark Buckwell and contributors
+# SPDX-License-Identifier: MIT
+
+"""Collect semantics, then edit source spans; never render entire pages in Python.
+
+The CommonMark tokenizer is a conservative boundary, not a claim of PyMdown
+compatibility. Unsupported containers/generators are refused in this prototype.
+Python-Markdown is used only for the existing heading semantics, with an explicit
+source and registry. No Zensical context or automatic extension discovery runs.
+"""
+
+from __future__ import annotations
+
+import html
+import re
+import xml.etree.ElementTree as ET
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any
+
+import markdown
+import yaml
+from bs4 import BeautifulSoup
+
+from prodockit.bibliography import _BibliographyCache
+from prodockit.headings import HeadingsTreeprocessor
+from prodockit.image_hotspots import _render as render_hotspots
+from prodockit.portable import PortableError
+from prodockit.project_config import ProjectConfig
+from prodockit.util import IdRegistry, cross_page_href
+
+_COMMAND = re.compile(
+    r"\\(?P<name>autoref|ref|cite)\{(?P<key>[^{}\s,]+)\}"
+    r"|\\(?P<bib>bibliography)(?!\w)(?:\{(?P<file>[^{}]*)\})?"
+    r"(?:\{(?P<cited>true|false)\})?"
+)
+_UNSUPPORTED = re.compile(
+    r"\\(?:pagebibliography|citeref|gls|cite|ref|autoref|bibliography)\b"
+    r"|\{[{%]|--8<--|^\s*(?:!!!|\?\?\?|===|///)",
+    re.MULTILINE,
+)
+_ATTRS = re.compile(r"\s+\{(?::\s*)?([^{}]*)\}\s*$")
+
+
+@dataclass
+class Edit:
+    start: int
+    end: int
+    kind: str
+    value: str
+    key: str = ""
+    cited: bool = False
+
+
+@dataclass
+class Page:
+    source: str
+    text: str
+    meta: dict[str, Any]
+    edits: list[Edit] = field(default_factory=list)
+    headings: list[tuple[int, int, str]] = field(default_factory=list)
+    targets: list[dict[str, Any]] = field(default_factory=list)
+
+
+def _error(page: Page, offset: int, message: str) -> PortableError:
+    line = page.text.count("\n", 0, offset) + 1
+    return PortableError(f"{page.source}:{line}: {message}")
+
+
+def _tokenizer() -> Any:
+    try:
+        from markdown_it import MarkdownIt
+    except ImportError as error:
+        raise PortableError(
+            "install the optional prototype with pip install 'prodockit[portable]'"
+        ) from error
+
+    def command(state: Any, silent: bool) -> bool:
+        match = _COMMAND.match(state.src, state.pos)
+        if match is None:
+            unsupported = _UNSUPPORTED.match(state.src, state.pos)
+            if unsupported is not None:
+                if not silent:
+                    token = state.push("pdk_unsupported", "", 0)
+                    token.content = unsupported.group()
+                state.pos = unsupported.end()
+                return True
+            return False
+        if not silent:
+            token = state.push("pdk_command", "", 0)
+            token.meta = {
+                "start": state.pos,
+                "end": match.end(),
+                "kind": match.group("name") or "bibliography",
+                "key": match.group("key") or match.group("file") or "",
+                "cited": match.group("cited") == "true",
+                "in_link": state.linkLevel > 0,
+            }
+        state.pos = match.end()
+        return True
+
+    parser = MarkdownIt("commonmark")
+    parser.core.ruler.disable(["text_join"])
+    parser.inline.ruler.before("escape", "pdk_command", command)
+    return parser
+
+
+def scan(source: str, text: str) -> Page:
+    """Retain original spans, protecting code with the tokenizer's own rules."""
+    text = text.replace("\r\n", "\n")
+    lines = text.splitlines(keepends=True)
+    body_start = 0
+    meta: dict[str, Any] = {}
+    if lines and lines[0].strip() == "---":
+        end = next((i for i in range(1, len(lines)) if lines[i].strip() in {"---", "..."}), None)
+        if end is None:
+            raise PortableError(f"{source}: unclosed front matter")
+        value = yaml.safe_load("".join(lines[1:end]))
+        if value is not None and not isinstance(value, dict):
+            raise PortableError(f"{source}: front matter must be a mapping")
+        meta = value or {}
+        body_start = sum(map(len, lines[: end + 1]))
+    page = Page(source, text, meta)
+    if meta.get("template") or meta.get("render_macros"):
+        raise _error(page, 0, "generated page content is outside the portable prototype")
+    body = text[body_start:]
+    offsets = [body_start]
+    for line in body.splitlines(keepends=True):
+        offsets.append(offsets[-1] + len(line))
+    tokens = _tokenizer().parse(body)
+    for index, token in enumerate(tokens):
+        if token.map is None:
+            continue
+        start, end = (offsets[n] for n in token.map)
+        if token.type == "fence" and token.info.strip() == "image-hotspots":
+            if token.level != 0:
+                raise _error(page, start, "nested hotspots are outside the portable prototype")
+            page.edits.append(Edit(start, end, "hotspots", token.content))
+        elif token.type == "html_block" and _UNSUPPORTED.search(token.content):
+            raise _error(page, start, "affected syntax in HTML is outside the portable prototype")
+        elif token.type == "heading_open":
+            if token.level != 0 or not token.markup.startswith("#"):
+                raise _error(
+                    page, start, "only top-level ATX headings are supported by the prototype"
+                )
+            following = tokens[index + 1]
+            if any(child.type == "pdk_command" for child in following.children or []):
+                raise _error(page, start, "references inside headings are outside the prototype")
+            page.headings.append((start, end, text[start:end].rstrip("\n")))
+        elif token.type == "inline":
+            children = token.children or []
+            for child in children:
+                if child.type == "pdk_unsupported":
+                    raise _error(
+                        page,
+                        start,
+                        "unsupported syntax or generated content in the portable prototype",
+                    )
+                if child.type in {"text", "html_inline"} and _UNSUPPORTED.search(child.content):
+                    raise _error(
+                        page,
+                        start,
+                        "unsupported syntax or generated content in the portable prototype",
+                    )
+            commands = [child.meta for child in children if child.type == "pdk_command"]
+            if not commands:
+                continue
+            if token.level != 1 or tokens[index - 1].type != "paragraph_open":
+                raise _error(
+                    page, start, "affected syntax in nested content is outside the prototype"
+                )
+            raw = text[start:end]
+            at = raw.find(token.content)
+            if at < 0 or raw.strip() != token.content:
+                raise _error(page, start, "cannot map the affected content to an exact source span")
+            for item in commands:
+                if item["in_link"]:
+                    raise _error(page, start, "references inside links are outside the prototype")
+                a, b = start + at + item["start"], start + at + item["end"]
+                if item["kind"] == "bibliography" and text[a:b] != token.content:
+                    raise _error(page, a, "put the bibliography marker alone in its paragraph")
+                page.edits.append(Edit(a, b, item["kind"], "", item["key"], item["cited"]))
+    return page
+
+
+def _heading_records(
+    page: Page, registry: IdRegistry, start_count: int, appendix: str | None
+) -> None:
+    md = markdown.Markdown(extensions=["attr_list", "toc"], output_format="xhtml")
+    # Parse only headings; unaffected page content still goes through Zensical.
+    parsed = md.convert("\n\n".join(line for _, _, line in page.headings))
+    root = ET.fromstring(f"<div>{parsed}</div>")
+    headings = list(root)
+    if len(headings) != len(page.headings) or any(
+        not re.fullmatch("h[1-6]", h.tag) for h in headings
+    ):
+        raise PortableError(f"{page.source}: heading tokenizers disagree")
+    HeadingsTreeprocessor(
+        md, registry, page.source, start_count=start_count, appendix_letter=appendix
+    ).run(root)
+    for (start, end, line), heading in zip(page.headings, headings, strict=True):
+        ident = heading.get("id") or ""
+        record = registry.get(ident)
+        assert record is not None
+        page.targets.append({"id": ident, "text": record.text, "number": record.number})
+        # Preserve authored attributes, adding an explicit renderer-independent ID.
+        line = re.sub(r"\s+#+\s*$", "", line)
+        attrs = _ATTRS.search(line)
+        if attrs is not None:
+            if not re.search(r"(?:^|\s)(?:#\S+|id\s*=)", attrs.group(1)):
+                line = line[: attrs.start()] + f" {{: {attrs.group(1)} #{ident} }}"
+        else:
+            line += f" {{: #{ident} }}"
+        page.edits.append(Edit(start, end, "heading", line + "\n"))
+
+
+def compile_pages(
+    config: ProjectConfig,
+    sources: dict[str, str],
+    *,
+    pandoc: Path | None = None,
+) -> tuple[dict[str, str], dict[str, Any], set[Path]]:
+    """Compile the supported slice with explicit ownership and two passes."""
+    pages = {source: scan(source, text) for source, text in sources.items()}
+    nav_order = list(dict.fromkeys(p.source_path for p in config.nav_pages))
+    missing = set(nav_order) - pages.keys()
+    if missing:
+        raise PortableError(f"navigation pages are missing: {', '.join(sorted(missing))}")
+    order = nav_order + sorted(pages.keys() - set(nav_order))
+    registry = IdRegistry()
+    heading_options = config.markdown_extensions.get("prodockit.headings", {})
+    enabled = bool({"prodockit.headings", "prodockit.refs"} & config.markdown_extensions.keys())
+    continuous = heading_options.get("numbering") == "continuous"
+    if continuous and not nav_order:
+        raise PortableError("continuous numbering requires explicit navigation in the prototype")
+    start_count, appendix_count = 0, 0
+    for source in order:
+        page = pages[source]
+        if not enabled:
+            continue
+        appendix = None
+        if continuous and page.meta.get(heading_options.get("appendix_attr", "is_appendix")):
+            if appendix_count >= 26:
+                raise PortableError("the prototype supports at most 26 appendices")
+            appendix = chr(ord("A") + appendix_count)
+            appendix_count += 1
+        _heading_records(
+            page, registry, start_count if continuous and source in nav_order else 0, appendix
+        )
+        if continuous and appendix is None and source in nav_order:
+            start_count += sum(1 for t in page.targets if t["number"] and "." not in t["number"])
+
+    dependencies: set[Path] = set()
+    bib_options = config.markdown_extensions.get("prodockit.bibliography", {})
+    default_bib = str((config.root / str(bib_options.get("bib_file", "references.bib"))).resolve())
+    style = str(bib_options.get("csl_style", ""))
+    if style:
+        style = str((config.root / style).resolve())
+    cache = _BibliographyCache(default_bib, style, pandoc=pandoc)
+    bib_used = any(e.kind in {"cite", "bibliography"} for p in pages.values() for e in p.edits)
+    if bib_used:
+        if "prodockit.bibliography" not in config.markdown_extensions:
+            raise PortableError("bibliography syntax requires prodockit.bibliography configuration")
+        if pandoc is None:
+            raise PortableError(
+                "the bibliography prototype requires --pandoc PATH to an installed Pandoc"
+            )
+        if style:
+            dependencies.add(Path(style))
+        for source in order:
+            for edit in pages[source].edits:
+                if edit.kind == "bibliography":
+                    edit.key = str((config.root / edit.key).resolve()) if edit.key else default_bib
+                    if edit.key not in cache.all_bib_files:
+                        cache.all_bib_files.append(edit.key)
+                    cache.first_page_for_file.setdefault(edit.key, source)
+                elif edit.kind == "cite":
+                    cache.all_cited_keys.add(edit.key)
+        dependencies.update(Path(p) for p in cache.all_bib_files)
+        for path in dependencies:
+            if not path.is_file():
+                raise PortableError(f"bibliography dependency not found: {path}")
+
+    outputs: dict[str, str] = {}
+    details: dict[str, Any] = {}
+    for source in order:
+        page = pages[source]
+        links: list[dict[str, str]] = []
+        for edit in page.edits:
+            if edit.kind in {"ref", "autoref"}:
+                if "prodockit.refs" not in config.markdown_extensions:
+                    raise _error(
+                        page, edit.start, "reference syntax requires prodockit.refs configuration"
+                    )
+                record = registry.get(edit.key)
+                if record is None:
+                    raise _error(page, edit.start, f"unresolved reference {edit.key!r}")
+                href = cross_page_href(record.source, source, edit.key)
+                label = f"{record.number} {record.text}" if record.number else record.text
+                edit.value = (
+                    f'<a class="prodockit-{edit.kind}" href="{html.escape(href, quote=True)}">'
+                    f"{html.escape(label)}</a>"
+                )
+                links.append({"page": record.source, "id": edit.key, "text": label})
+            elif edit.kind == "hotspots":
+                fences = config.markdown_extensions.get("pymdownx.superfences", {}).get(
+                    "custom_fences", []
+                )
+                if not any(
+                    f.get("format") == "prodockit.image_hotspots.format_hotspots" for f in fences
+                ):
+                    raise _error(page, edit.start, "image-hotspots formatter must be configured")
+                try:
+                    edit.value = render_hotspots(edit.value, source, config.docs_dir) + "\n"
+                except (ValueError, yaml.YAMLError) as error:
+                    raise _error(page, edit.start, str(error)) from error
+            elif edit.kind == "bibliography":
+                edit.value = cache.bibliography_html(
+                    edit.key, "site-cited" if edit.cited else "all"
+                )
+            elif edit.kind == "cite":
+                formatted, resolved = cache.resolve_citation(edit.key)
+                if not resolved:
+                    raise _error(page, edit.start, f"unresolved citation {edit.key!r}")
+                destinations = [
+                    (file, target)
+                    for file, target in cache.first_page_for_file.items()
+                    if BeautifulSoup(cache.bibliography_html(file, "all"), "html.parser").find(
+                        id=f"ref-{edit.key}"
+                    )
+                ]
+                if not destinations:
+                    raise _error(
+                        page, edit.start, f"citation {edit.key!r} has no bibliography destination"
+                    )
+                target = destinations[0][1]
+                href = cross_page_href(target, source, f"ref-{edit.key}")
+                edit.value = (
+                    f'<span class="prodockit-bib-cite"><a href="{html.escape(href, quote=True)}">'
+                    f"{formatted}</a></span>"
+                )
+                links.append(
+                    {
+                        "page": target,
+                        "id": f"ref-{edit.key}",
+                        "text": BeautifulSoup(formatted, "html.parser").get_text(" ", strip=True),
+                    }
+                )
+        chunks: list[str] = []
+        source_map: list[dict[str, Any]] = []
+        cursor = 0
+        generated_line = 1
+        for edit in sorted(page.edits, key=lambda e: e.start):
+            if edit.start < cursor:
+                raise _error(page, edit.start, "overlapping transformations")
+            untouched = page.text[cursor : edit.start]
+            chunks.extend([untouched, edit.value])
+            generated_line += untouched.count("\n")
+            source_map.append(
+                {
+                    "kind": edit.kind,
+                    "source_start_line": page.text.count("\n", 0, edit.start) + 1,
+                    "source_end_line": page.text.count("\n", 0, edit.end) + 1,
+                    "generated_start_line": generated_line,
+                    "generated_end_line": generated_line + edit.value.count("\n"),
+                }
+            )
+            generated_line += edit.value.count("\n")
+            cursor = edit.end
+        chunks.append(page.text[cursor:])
+        outputs[source] = "".join(chunks)
+        details[source] = {"targets": page.targets, "links": links, "source_map": source_map}
+    return outputs, details, dependencies
