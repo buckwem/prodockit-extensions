@@ -1,0 +1,24 @@
+[project]
+site_name = "Portable build feasibility"
+site_url = "https://example.test/manual/"
+nav = [{Home = "index.md"}, {Guide = "guide/install.md"}, {References = "references.md"}]
+
+[project.theme]
+font = false
+
+[project.markdown_extensions.attr_list]
+[project.markdown_extensions.toc]
+permalink = true
+[project.markdown_extensions.tables]
+
+[project.markdown_extensions."prodockit.headings"]
+numbering = "continuous"
+[project.markdown_extensions."prodockit.refs"]
+[project.markdown_extensions."prodockit.bibliography"]
+bib_file = "references.bib"
+
+[project.markdown_extensions.pymdownx.superfences]
+custom_fences = [
+  {name = "image-hotspots", class = "image-hotspots", format = "prodockit.image_hotspots.format_hotspots"},
+  {name = "mermaid", class = "mermaid"},
+]

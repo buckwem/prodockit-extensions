@@ -122,6 +122,7 @@ from prodockit.pdf.runtime_prepare import (
 from prodockit.pdf.runtime_store import RuntimeStoreError
 from prodockit.pdf.site import BuiltSiteError
 from prodockit.pdf.source_bundle import SourceBundleError
+from prodockit.portable.cli import register_commands
 from prodockit.project_config import ProjectConfigError, load_project_config
 from prodockit.renderer_resilience import RetryNotice
 from prodockit.revision_dates import RevisionDateError, update_built_site_revision_dates
@@ -393,9 +394,24 @@ def _echo_captured_stderr(error: Exception) -> None:
 # would need parsing to compare them.
 @click.group(context_settings={"help_option_names": ["-h", "--help"]})
 @click.version_option(__version__, "--version", message="%(version)s")
-def main() -> None:
+@click.option(
+    "--portable", "-p", is_flag=True,
+    help="Use experimental source preparation for build/serve.",
+)
+@click.pass_context
+def main(ctx: click.Context, portable: bool = False) -> None:
     """prodockit - extensions for Zensical needed for professional and
     academic documentation."""
+    ctx.ensure_object(dict)
+    ctx.obj["portable"] = portable
+    if portable and ctx.invoked_subcommand not in {"prepare", "build", "serve", "validate"}:
+        raise click.UsageError(
+            "--portable/-p currently supports prepare, build, serve and validate only; "
+            "omit it for the existing approach."
+        )
+
+
+register_commands(main)
 
 
 #: Host, name, login ID, assessed - then three more when it is assessed

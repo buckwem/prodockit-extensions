@@ -78,6 +78,11 @@ _ALL_RUNTIME_FILES = {
     "src/prodockit/__init__.py",
     "src/prodockit/__main__.py",
     "src/prodockit/cli.py",
+    # Portable commands share the CLI entry point used by every wheel consumer.
+    "src/prodockit/portable/__init__.py",
+    "src/prodockit/portable/cli.py",
+    "src/prodockit/portable/compiler.py",
+    "src/prodockit/portable/project.py",
     "src/prodockit/diagnostics.py",
     "src/prodockit/environment.py",
     "src/prodockit/renderer_health.py",
