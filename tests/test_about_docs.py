@@ -37,7 +37,7 @@ def test_support_page_centralises_public_compatibility_information() -> None:
         "Alpha",
         "Python 3.11",
         "Python 3.14",
-        "Zensical 0.1.0",
+        "Zensical 0.1.3",
         "pymdown-extensions 12.0.1",
         "PyMdown Blocks",
         "Linux",

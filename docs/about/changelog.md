@@ -19,6 +19,10 @@ only when it adds or changes behaviour that matters to a user, or requires an
 upgrade action. Defect-by-defect history belongs in GitHub issues and pull
 requests rather than here.
 
+## Unreleased
+
+- Rebaselined website and PDF builds on Zensical 0.1.3; its refreshed Python icon appears in the installation guide.
+
 ## 0.80.0 (2026-11-10)
 
 - Added image hotspots that turn pixel-defined regions of maps and diagrams into links on the web and in PDFs.
