@@ -66,7 +66,10 @@ Keep the image beside `pdk.js`. The browser loads it when the sleigh is needed.
 
 ## Preview with zensical serve
 
-Run `zensical serve` and open the following URL.
+Run `zensical serve` and use the address and port shown in its terminal output.
+The URLs below use `8000` as an example; replace it with the port selected by
+the server, which may be different. Keep the `/extensions/festive/` path and
+query parameters when opening a preview.
 
 ```text
 http://127.0.0.1:8000/extensions/festive/?pdk-festive-test=1&pdk-festive-time=2026-12-24T10%3A00%3A00Z&pdk-festive-speed=60&pdk-festive-seed=42
@@ -166,7 +169,8 @@ propagation delay. Sound starts muted and requires a click. Use the volume slide
 Pausing, hiding, printing or switching to a hidden tab silences the sound.
 Reduced motion starts the display paused.
 
-For a local preview, open the following URL. The time is UTC
+For a local preview, open the following URL, replacing `8000` with the port
+shown by `zensical serve`. The time is UTC
 and `pdk-festive-zone` selects the zone used to evaluate the two-hour window.
 
 ```text
