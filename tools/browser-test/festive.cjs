@@ -99,7 +99,7 @@ const server = http.createServer((req, res) => {
     }
     await page.goto(fireworksURL + encodeURIComponent('2026-12-31T18:15:00Z'));
     assert.equal((await state()).sound, false);
-    assert.equal(await page.$eval('.pdk-festive-toggle', el => el.textContent), '🎆');
+    assert.equal(await page.$eval('.pdk-festive-toggle svg', el => el.getAttribute('stroke')), 'currentColor');
     await page.click('.pdk-festive-speaker');
     await page.waitForFunction(() => JSON.parse(document.querySelector('canvas').dataset.snapshot).sound);
     await page.click('.pdk-festive-speaker');

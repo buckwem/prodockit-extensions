@@ -470,9 +470,17 @@ document.addEventListener("DOMContentLoaded", function() {
       const el = document.createElement("button"); el.type = "button"; el.textContent = text;
       el.setAttribute("aria-label", label); on(el, "click", action); parent.append(el); return el;
     }
-    const toggle = button("🎆", "Turn fireworks off", () => { hidden = !hidden; refresh(); });
+    function outlineIcon(paths) {
+      return '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + paths + '</svg>';
+    }
+    const fireworkIcon = outlineIcon('<path d="M12 3v4m0 6v8M3 10h4m10 0h4M5.6 3.6l2.8 2.8m7.2 0 2.8-2.8M5.6 16.4l2.8-2.8m7.2 0 2.8 2.8"/><circle cx="12" cy="10" r="1.5"/>');
+    const speakerBody = '<path d="M11 5 6 9H3v6h3l5 4z"/>';
+    const speakerOnIcon = outlineIcon(speakerBody + '<path d="M15 8a6 6 0 0 1 0 8m3-11a10 10 0 0 1 0 14"/>');
+    const speakerOffIcon = outlineIcon(speakerBody + '<path d="m16 9 5 6m0-6-5 6"/>');
+    const toggle = button("", "Turn fireworks off", () => { hidden = !hidden; refresh(); });
     toggle.className = "pdk-festive-toggle md-header__button md-icon";
-    const speaker = button("🔇", "Enable fireworks sound", async () => {
+    toggle.innerHTML = fireworkIcon;
+    const speaker = button("", "Enable fireworks sound", async () => {
       if (!sound) {
         const Audio = window.AudioContext || window.webkitAudioContext;
         if (!Audio) { speaker.disabled = true; speaker.title = "Audio is unavailable"; return; }
@@ -641,7 +649,7 @@ document.addEventListener("DOMContentLoaded", function() {
       canvas.hidden = hidden; controls.hidden = !preview && !active();
       toggle.setAttribute("aria-pressed", String(!hidden));
       toggle.setAttribute("aria-label", hidden ? "Turn fireworks on" : "Turn fireworks off");
-      speaker.textContent = sound ? "🔊" : "🔇";
+      speaker.innerHTML = sound ? speakerOnIcon : speakerOffIcon;
       speaker.setAttribute("aria-label", sound ? "Mute fireworks sound" : "Enable fireworks sound");
       speaker.setAttribute("aria-pressed", String(sound));
       pause.textContent = paused ? "Resume fireworks" : "Pause fireworks";
