@@ -587,7 +587,7 @@ document.addEventListener("DOMContentLoaded", function() {
     function sleigh(stop) {
       loadArtwork();
       if (!artwork.complete || !artwork.naturalWidth) return;
-      const spriteWidth = Math.min(120, width - 24, (height - 120) * 1.5);
+      const spriteWidth = Math.min(240, width - 24, (height - 120) * 1.5);
       const spriteHeight = spriteWidth * artwork.naturalHeight / artwork.naturalWidth;
       const progress = flight.progress;
       const centreX = flight.fromLeft
