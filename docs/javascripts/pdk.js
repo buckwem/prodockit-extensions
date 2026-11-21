@@ -572,21 +572,34 @@ document.addEventListener("DOMContentLoaded", function() {
     function sleigh(stop) {
       loadArtwork();
       if (!artwork.complete || !artwork.naturalWidth) return;
-      const spriteWidth = Math.min(480, width - 24, (height - 120) * 1.5);
+      const spriteWidth = Math.min(120, width - 24, (height - 120) * 1.5);
       const spriteHeight = spriteWidth * artwork.naturalHeight / artwork.naturalWidth;
-      const x = 12 + Math.max(0, width - spriteWidth - 24) * (0.5 + 0.5 * Math.sin(angle));
-      const y = 60 + Math.max(0, height - spriteHeight - 100) * (0.5 + 0.5 * Math.sin(angle * 1.7));
-      ctx.drawImage(artwork, x, y, spriteWidth, spriteHeight);
-      // The generated artwork reserves this cream panel for the live destination.
-      const panelX = x + spriteWidth * 0.49, panelY = y + spriteHeight * 0.58;
-      const panelWidth = spriteWidth * 0.30, panelHeight = spriteHeight * 0.10;
+      const travelX = Math.max(0, width - spriteWidth - 40);
+      const travelY = Math.max(0, height - spriteHeight - 150);
+      const centreX = 20 + spriteWidth / 2 + travelX * (0.5 + 0.5 * Math.sin(angle));
+      const centreY = 75 + spriteHeight / 2 + travelY * (0.5 + 0.5 * Math.sin(angle * 2));
+      const velocityX = travelX * Math.cos(angle);
+      const velocityY = travelY * 2 * Math.cos(angle * 2);
+      const facingLeft = velocityX < 0;
+      // The tangent controls the pitch, capped to keep the passenger upright.
+      const pitch = Math.max(-0.38, Math.min(0.38,
+        Math.atan2(velocityY, Math.abs(velocityX) + 100))) * (facingLeft ? -1 : 1);
+      ctx.save();
+      ctx.translate(centreX, centreY);
+      ctx.rotate(pitch);
+      ctx.save();
+      if (facingLeft) ctx.scale(-1, 1);
+      ctx.drawImage(artwork, -spriteWidth / 2, -spriteHeight / 2, spriteWidth, spriteHeight);
+      ctx.restore();
+      // Draw destination text separately so the left-facing version stays readable.
+      const plaqueCentre = spriteWidth * 0.14 * (facingLeft ? -1 : 1);
       ctx.fillStyle = "#301b15";
-      ctx.font = "bold " + Math.max(11, spriteWidth * 0.032) + "px sans-serif";
+      ctx.font = "bold " + spriteWidth * 0.032 + "px sans-serif";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
-      const label = ctx.measureText(stop.label).width <= panelWidth - 8 ? stop.label : stop.compact;
-      ctx.fillText(label, panelX + panelWidth / 2, panelY + panelHeight / 2);
-      ctx.textBaseline = "alphabetic";
+      const label = ctx.measureText(stop.label).width <= spriteWidth * 0.28 ? stop.label : stop.compact;
+      ctx.fillText(label, plaqueCentre, spriteHeight * 0.13);
+      ctx.restore();
     }
     function tick(now) {
       frame = 0;
