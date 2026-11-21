@@ -671,10 +671,10 @@ document.addEventListener("DOMContentLoaded", function() {
       ctx.drawImage(artwork, -spriteWidth / 2, -spriteHeight / 2, spriteWidth, spriteHeight);
       ctx.restore();
       // Draw destination text separately so the left-facing version stays readable.
-      const plaqueCentre = spriteWidth * 0.14 * (facingLeft ? -1 : 1);
+      const plaqueCentre = spriteWidth * 0.08 * (facingLeft ? -1 : 1);
       ctx.fillStyle = "#301b15";
       const fontSize = spriteWidth * 0.052;
-      const labelWidth = spriteWidth * 0.28;
+      const labelWidth = spriteWidth * 0.48;
       ctx.font = "bold " + fontSize + "px sans-serif";
       const label = ctx.measureText(stop.label).width <= labelWidth ? stop.label : stop.compact;
       const fittedSize = fontSize * Math.min(1, labelWidth / ctx.measureText(label).width);
