@@ -83,7 +83,9 @@ const server = http.createServer((req, res) => {
     const previewTime = await page.$eval('input[aria-label="Simulated UTC time"]', el => el.value);
     const utcNow = new Date();
     assert.equal(previewTime.slice(5, 10), '12-25');
-    assert.equal(previewTime.slice(11, 16), utcNow.toISOString().slice(11, 16));
+    const shownMinutes = Number(previewTime.slice(11, 13)) * 60 + Number(previewTime.slice(14, 16));
+    const nowMinutes = utcNow.getUTCHours() * 60 + utcNow.getUTCMinutes();
+    assert.ok((nowMinutes - shownMinutes + 1440) % 1440 <= 1, 'preview follows the current UTC minute');
     assert.equal(await page.$eval('input[aria-label="Clock speed"]', el => el.value), '1');
     await page.goto(base);
     assert.equal(await page.$$('canvas').then(x=>x.length), 0);
