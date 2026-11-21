@@ -2,8 +2,8 @@
 # SPDX-License-Identifier: MIT
 
 [inventory]
-reviewed_on = "2026-11-06"
-reviewed_zensical = "0.1.0"
+reviewed_on = "2026-11-21"
+reviewed_zensical = "0.1.3"
 
 [[source]]
 name = "Python-Markdown extensions"
