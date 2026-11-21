@@ -564,8 +564,15 @@ document.addEventListener("DOMContentLoaded", function() {
         }
         return;
       }
-      rockets.push({x: width * (0.15 + random() * 0.7), y: height + 5,
-        target: height * (0.15 + random() * 0.35), hue: random() * 360, kind});
+      const count = Math.min(1 + Math.floor(random() * 3), 5 - rockets.length);
+      const target = height * (0.15 + random() * 0.35);
+      const hue = random() * 360;
+      for (let i = 0; i < count; i++) {
+        rockets.push({
+          x: width * (count === 1 ? 0.2 + random() * 0.6 : 0.2 + i * 0.6 / (count - 1)),
+          y: height + 5, target, hue: (hue + i * 120) % 360, kind
+        });
+      }
       noise(0.35, 1600);
     }
     function burst(rocket) {

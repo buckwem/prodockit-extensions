@@ -106,7 +106,7 @@ const server = http.createServer((req, res) => {
     assert.equal((await state()).sound, false);
     await page.select('select[aria-label="Fireworks style"]', 'Willow');
     await page.click('button[aria-label="Launch a test firework"]');
-    assert.equal((await state()).rockets, 1);
+    assert.ok((await state()).rockets >= 1 && (await state()).rockets <= 3);
     for (const style of ['Roman candle bank', 'Fountain', 'Fan jets', 'Mine']) {
       await page.click('button[aria-label="Reset fireworks"]');
       await page.select('select[aria-label="Fireworks style"]', style);

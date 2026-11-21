@@ -116,7 +116,9 @@ Fireworks appear from **00:00 inclusive until 02:00 exclusive on 1 January**
 in the visitor's browser time zone. The display mixes peony bursts, rings,
 palms, golden willows and crackling sparks, plus Roman candle banks,
 fountains, fan jets and sudden mines erupting from the bottom edge. Mixed mode
-chooses randomly between these styles. Ground sequences use three instances of
+chooses randomly between these styles. Aerial fireworks launch in groups of
+one to three, bursting together at different positions and in different colours.
+Ground sequences use three instances of
 the same effect, each with a different colour. Roman candle banks fire repeated
 volleys from five tubes, while fountains and fan jets produce sustained sprays.
 Changing the selected style clears the previous effects. Each style has a matching synthesised sound. The header uses a firework icon.
