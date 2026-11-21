@@ -6,15 +6,20 @@ icon: lucide/snowflake
 
 # Festive overlay
 
-Add falling snow and a Christmas sleigh to the website. Snow stays fixed to
-the viewport while the page scrolls. A shallow bank accumulates at the bottom,
-melts in small changing patches and remains bounded at 48 CSS pixels.
-Snow between the thawing patches continues to accumulate into drifts.
+The festive extension adds seasonal overlays to your website. The first two
+overlays celebrate Christmas and New Year. Other festive overlays may be added
+on request. The overlays stay fixed to the viewport while the page scrolls.
 
-Installing Prodockit leaves festive mode unconfigured. This reference website
+- **Christmas** brings falling snow, gradually melting drifts and Father Christmas
+  travelling in his sleigh.
+- **New Year** alternates fireworks with animated drone displays, with optional
+  sound for the fireworks.
+
+The festive extension is enabled separately from other Prodockit features.
+Installing Prodockit leaves it disabled and unconfigured. This reference website
 opts in explicitly through its own `zensical.toml`.
 
-## Enable the overlay
+## Enable the festive extension
 
 Load the managed `pdk.js` and `pdk.css` assets and refresh them with
 `pdk shared-files --apply`. Add these settings to `zensical.toml`.
@@ -22,11 +27,16 @@ Load the managed `pdk.js` and `pdk.css` assets and refresh them with
 ```toml
 [project.extra.festive]
 enabled = true
-effect = "snow"
+effect = "auto"
 season_start = "12-01"
 season_end = "01-06"
 sleigh = true
 ```
+
+`effect = "auto"` selects the New Year overlay on 1 January and the Christmas
+overlay during the configured snow season. Use `"snow"` or `"fireworks"` to
+select just one overlay. Set `enabled = false`, or remove the festive settings,
+to disable the extension independently of other Prodockit features.
 
 Add `&#123;&#123; pdk_festive() &#125;&#125;` to a shared Markdown snippet included on each page,
 or to each page where you want the overlay. The normal Prodockit macros setup
@@ -88,7 +98,13 @@ Keep the query string in the address bar when navigating between pages. The
 controller persists across instant navigation while the configuration is the
 same. Live reload restarts the deterministic seed and requested preview time.
 
-## Christmas route
+## Christmas overlay
+
+Snow forms a shallow bank at the bottom of the viewport. It melts in small
+changing patches and remains bounded at 48 CSS pixels. Snow between the thawing
+patches continues to accumulate into drifts.
+
+### Christmas route
 
 Father Christmas starts at Kiritimati, Kiribati, at 10:00 UTC on 24 December.
 He visits a representative destination as local Christmas midnight reaches it,
