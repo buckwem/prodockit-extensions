@@ -519,12 +519,25 @@ document.addEventListener("DOMContentLoaded", function() {
       button("Step", () => { advance(1 / 60); draw(); });
       button("Reset snow", () => { reset(); draw(); });
       const preset = document.createElement("select"); preset.setAttribute("aria-label", "Preview preset");
-      for (const text of ["Choose preset", "Current Santa zone", "Christmas start", "Nepal", "Christmas end", "Maximum snow", "Light palette", "Dark palette", "Reduced motion"]) {
+      for (const text of ["Choose preset", "Reset", "Changing Location", "Current Santa zone", "Christmas start", "Nepal", "Christmas end", "Maximum snow", "Light palette", "Dark palette", "Reduced motion"]) {
         const option = document.createElement("option"); option.textContent = text; preset.append(option);
       }
       on(preset, "change", () => {
         const year = new Date(simulated).getUTCFullYear();
         liveSantaZone = preset.value === "Current Santa zone";
+        if (preset.value === "Reset") {
+          reset();
+          simulated = query.get("pdk-festive-time")
+            ? Date.parse(query.get("pdk-festive-time")) : Date.now();
+          speed = Number(query.get("pdk-festive-speed") || 1);
+          paused = motion.matches; hidden = false;
+          rate.value = String(speed);
+        }
+        if (preset.value === "Changing Location") {
+          simulated = schedule(year)[0].time;
+          speed = 0; rate.value = "0"; paused = false; hidden = false;
+          newFlight();
+        }
         if (liveSantaZone) {
           const now = new Date();
           simulated = Date.UTC(year, 11, 25, now.getUTCHours(), now.getUTCMinutes(), now.getUTCSeconds());

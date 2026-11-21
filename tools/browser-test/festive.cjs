@@ -69,6 +69,11 @@ const server = http.createServer((req, res) => {
     });
     const bounded = await state();
     assert.ok(bounded.particles <= 180 && bounded.bank <= 48);
+    await page.select('select[aria-label="Preview preset"]', 'Changing Location');
+    assert.equal((await state()).destination, 'Kiritimati');
+    assert.equal(await page.$eval('input[aria-label="Clock speed"]', el => el.value), '0');
+    await page.select('select[aria-label="Preview preset"]', 'Reset');
+    assert.equal((await state()).bank, 0);
     await page.select('select[aria-label="Preview preset"]', 'Current Santa zone');
     const previewTime = await page.$eval('input[aria-label="Simulated UTC time"]', el => el.value);
     const utcNow = new Date();
