@@ -120,7 +120,8 @@ one to three, bursting together at different positions and in different colours.
 Ground sequences use three instances of
 the same effect, each with a different colour. Roman candle banks fire repeated
 volleys from five tubes, while fountains and fan jets produce sustained sprays.
-Each style has a matching synthesised sound. The header uses a firework icon.
+Each style has a matching synthesised sound. The header uses a firework icon. Festive icons appear only during the active
+season or New Year window.
 
 Press the speaker icon to enable synthesised launch, boom and crackle sounds.
 Selected aerial launches whistle upwards, and every aerial burst has a report,

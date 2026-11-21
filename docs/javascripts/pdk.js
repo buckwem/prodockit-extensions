@@ -854,11 +854,17 @@ document.addEventListener("DOMContentLoaded", function() {
     function tick(now) {
       frame = 0; const dt = Math.min(0.05, previous ? (now - previous) / 1000 : 0); previous = now;
       advance(dt); draw(); syncAudio();
+      const inWindow = active();
+      canvas.hidden = hidden || !inWindow;
+      toggle.hidden = !inWindow; speaker.hidden = !inWindow;
+      controls.hidden = !preview && !inWindow;
       frame = requestAnimationFrame(tick);
     }
     function refresh() {
       cancelAnimationFrame(frame); frame = 0; previous = 0;
-      canvas.hidden = hidden; controls.hidden = !preview && !active();
+      const inWindow = active();
+      canvas.hidden = hidden || !inWindow; controls.hidden = !preview && !inWindow;
+      toggle.hidden = !inWindow; speaker.hidden = !inWindow;
       toggle.setAttribute("aria-pressed", String(!hidden));
       toggle.setAttribute("aria-label", hidden ? "Turn fireworks on" : "Turn fireworks off");
       speaker.innerHTML = sound ? speakerOnIcon : speakerOffIcon;
@@ -1147,7 +1153,9 @@ document.addEventListener("DOMContentLoaded", function() {
     }
     function refresh() {
       cancelAnimationFrame(frame); frame = 0; previous = 0;
-      canvas.hidden = hidden || !eligible(); controls.hidden = !eligible();
+      const inSeason = eligible();
+      canvas.hidden = hidden || !inSeason; controls.hidden = !inSeason;
+      toggle.hidden = !inSeason;
       pause.textContent = paused ? "Resume snow" : "Pause snow"; pause.setAttribute("aria-pressed", String(paused));
       mountToggle();
       toggle.setAttribute("aria-pressed", String(!hidden));

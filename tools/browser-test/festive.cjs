@@ -96,6 +96,8 @@ const server = http.createServer((req, res) => {
     ]) {
       await page.goto(fireworksURL + encodeURIComponent(instant));
       assert.equal((await state()).active, expected);
+      assert.equal(await page.$eval('.pdk-festive-toggle', el => !el.hidden), expected);
+      assert.equal(await page.$eval('.pdk-festive-speaker', el => !el.hidden), expected);
     }
     await page.goto(fireworksURL + encodeURIComponent('2026-12-31T18:15:00Z'));
     assert.equal((await state()).sound, false);

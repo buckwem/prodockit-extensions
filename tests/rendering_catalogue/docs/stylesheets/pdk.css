@@ -1065,7 +1065,8 @@ img.documentation-diagram {
 }
 .pdk-festive-toggle[aria-pressed="false"] { opacity: 0.5; }
 .pdk-festive-toggle:focus-visible { outline: 3px solid var(--md-accent-fg-color, blue); }
-.pdk-festive-canvas[hidden], .pdk-festive-controls[hidden] { display: none; }
+.pdk-festive-canvas[hidden], .pdk-festive-controls[hidden],
+.pdk-festive-toggle[hidden], .pdk-festive-speaker[hidden] { display: none !important; }
 @media print {
     .pdk-festive-canvas, .pdk-festive-controls, .pdk-festive-speaker,
 .pdk-festive-toggle { display: none !important; }
