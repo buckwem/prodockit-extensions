@@ -360,7 +360,7 @@ document.addEventListener("DOMContentLoaded", function() {
 // Optional viewport decorations. Configuration is emitted by pdk_festive().
 (function () {
   "use strict";
-  const artworkURL = new URL("pdk-sleigh.png", document.currentScript.src || location.href).href;
+  const artworkBase = document.currentScript?.src || location.href;
   const loopback = ["localhost", "127.0.0.1", "[::1]"].includes(location.hostname);
   const query = new URLSearchParams(location.search);
   const preview = loopback && query.get("pdk-festive-test") === "1";
@@ -450,7 +450,7 @@ document.addEventListener("DOMContentLoaded", function() {
       if (artwork) return;
       artwork = new Image();
       artwork.onload = () => { if (!events.signal.aborted) draw(); };
-      artwork.src = artworkURL;
+      artwork.src = new URL("pdk-sleigh.png", artworkBase).href;
     }
     let saved = {};
     try { saved = JSON.parse(localStorage.getItem("pdk-festive") || "{}") || {}; } catch (_) {}

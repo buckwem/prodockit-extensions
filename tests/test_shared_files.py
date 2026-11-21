@@ -57,6 +57,7 @@ def test_manifest_manages_only_prodockit_owned_stylesheets() -> None:
         ("pdk.css", "docs/stylesheets/pdk.css"),
         ("pdk-pdf.css", "docs/stylesheets/pdk-pdf.css"),
         ("pdk.js", "docs/javascripts/pdk.js"),
+        ("pdk-sleigh.png", "docs/javascripts/pdk-sleigh.png"),
     ]
     assert (ROOT / "docs/stylesheets/extra.css").is_file()
     assert (ROOT / "docs/stylesheets/print.css").is_file()

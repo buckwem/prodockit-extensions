@@ -25,7 +25,9 @@ const fixture = (count, extra = '', prefix = 'card') => `<div class="grid cards 
         window.timers = new Map(); window.serial = 0;
         window.setInterval = callback => { const id = ++window.serial; window.timers.set(id, callback); return id; };
         window.clearInterval = id => window.timers.delete(id);
-        window.document$ = {subscribe(callback) { window.navigate = callback; }};
+        const subscribers = [];
+        window.document$ = {subscribe(callback) { subscribers.push(callback); }};
+        window.navigate = () => subscribers.forEach(callback => callback());
       });
       if (enhance) await page.addScriptTag({content: script});
       await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));

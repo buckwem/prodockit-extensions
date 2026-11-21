@@ -25,7 +25,7 @@ season_end = "01-06"
 sleigh = true
 ```
 
-Add `{{ "{{ pdk_festive() }}" }}` to a shared Markdown snippet included on each page,
+Add `&#123;&#123; pdk_festive() &#125;&#125;` to a shared Markdown snippet included on each page,
 or to each page where you want the overlay. The normal Prodockit macros setup
 provides this helper. A page without the helper has no decoration in production.
 
