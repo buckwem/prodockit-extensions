@@ -92,6 +92,7 @@ _ALL_RUNTIME_FILES = {
     "src/prodockit/shared_files.py",
     "src/prodockit/windows_terminal.py",
     "src/prodockit/util.py",
+    "src/prodockit/semantics.py",
     "src/prodockit/py.typed",
     "tools/ci_scope.py",
 }

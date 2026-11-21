@@ -18,8 +18,9 @@ from markdown.inlinepatterns import InlineProcessor
 from markdown.treeprocessors import Treeprocessor
 
 from prodockit._zensical import page_source, share
-from prodockit.headings import CAPTION_LEVEL, HeadingsExtension
-from prodockit.util import IdRegistry, cross_page_href
+from prodockit.headings import HeadingsExtension
+from prodockit.semantics import PageContext, resolve_reference
+from prodockit.util import IdRegistry
 
 REF_RE = r"\\ref\{([^}\s]+)\}"
 
@@ -132,21 +133,13 @@ class RefResolverTreeprocessor(Treeprocessor):
         rather than falling back to `unresolved` - it is a perfectly good
         thing to point at. Only a genuinely unknown id is unresolved.
         """
-        record = self.registry.get(ref_id)
-        if record is None:
+        reference = resolve_reference(PageContext(self.source), self.registry, ref_id)
+        if reference is None:
             el.text = self.unresolved
             el.set("class", f"{css_class} {css_class}-unresolved")
             return
-        if record.level == CAPTION_LEVEL and record.number:
-            # "Figure 3.1", not "Figure 3.1 Component Model". A caption is
-            # referred to by its label mid-sentence - "the components in
-            # Figure 3.1" - where repeating the caption's own words reads
-            # as a stutter. A heading is the other way round: its number
-            # alone says nothing about where the reader is being sent.
-            el.text = record.number
-        else:
-            el.text = f"{record.number} {record.text}" if record.number else record.text
-        el.set("href", cross_page_href(record.source, self.source, ref_id))
+        el.text = reference.text
+        el.set("href", reference.href)
 
 
 class RefsExtension(Extension):

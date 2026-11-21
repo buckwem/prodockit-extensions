@@ -119,6 +119,7 @@ def test_shared_packaging_and_command_files_select_every_matrix() -> None:
         "src/prodockit/portable/cli.py",
         "src/prodockit/portable/compiler.py",
         "src/prodockit/portable/project.py",
+        "src/prodockit/semantics.py",
         "src/prodockit/renderer_health.py",
         "src/prodockit/renderer_resilience.py",
         "src/prodockit/weasyprint_probe.py",

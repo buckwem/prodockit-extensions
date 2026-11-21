@@ -29,6 +29,8 @@ from prodockit._zensical import (
     preseed_heading_ids_from_nav,
     share,
 )
+from prodockit.semantics import CAPTION_LEVEL as CAPTION_LEVEL
+from prodockit.semantics import PageCollector, PageContext
 from prodockit.util import IdRegistry
 
 #: The caption blocks this numbers, and the word each is labelled with.
@@ -38,10 +40,6 @@ CAPTION_KINDS = {
     "prodockit-figure-caption": "Figure",
     "prodockit-table-caption": "Table",
 }
-
-#: Captions are registered at a level no heading uses, so a reference can
-#: tell one from a section without a second lookup.
-CAPTION_LEVEL = 0
 
 HEADING_TAGS = {"h1", "h2", "h3", "h4", "h5", "h6"}
 
@@ -281,22 +279,9 @@ class HeadingsTreeprocessor(Treeprocessor):
     def _register_caption(
         self,
         el: etree.Element,
-        counters: list[int],
-        captions: dict[str, int],
+        collector: PageCollector,
     ) -> None:
-        """Numbers a captioned figure or table, and registers its id.
-
-        Numbered here rather than anywhere else because this is where the
-        chapter number already exists: `counters[0]` is the same value the
-        stylesheet reaches for as `counter(h1-count)`, and an appendix's
-        letter is already substituted for it. Numbering captions in a
-        second pass would mean deriving that a second time.
-
-        Only a caption carrying an id is registered. An unreferenced
-        figure still gets its visible number from the stylesheet, exactly
-        as before; this adds nothing to a document that never points at
-        one.
-        """
+        """Extract a caption's facts; leave numbering to the shared core."""
         _fit_figure_to_authored_image_width(el)
         classes = (el.get("class") or "").split()
         kind = next((k for k in CAPTION_KINDS if k in classes), None)
@@ -308,27 +293,6 @@ class HeadingsTreeprocessor(Treeprocessor):
             kind = "prodockit-table-caption" if el.find(".//table") is not None else (
                 "prodockit-figure-caption"
             )
-        captions[kind] += 1
-        caption_id = el.get("id")
-        if not caption_id:
-            return
-        # pymdownx.blocks.caption gives every automatically numbered caption
-        # a page-local implementation id such as ``__table-caption_1``. The
-        # counter restarts on every Markdown page, so that id is useful as an
-        # anchor within the generated page but is not an authored cross-page
-        # reference target. Registering it in Zensical's shared registry made
-        # the first unlabelled table on two pages look like a duplicate id.
-        # Explicit author ids do not use this reserved shape and continue to
-        # be registered normally.
-        generated_id = rf"__{re.escape(kind.removeprefix('prodockit-'))}_\d+(?:_\d+)*"
-        if re.fullmatch(generated_id, caption_id):
-            return
-        chapter = (
-            self.appendix_letter
-            if self.appendix_letter is not None
-            else str(counters[0] or 1)
-        )
-        label = CAPTION_KINDS[kind]
         # The caption's own auto-number is skipped. It lives in a
         # `caption-prefix` span, holds whatever the project's prefix
         # template produced ("1." here, "Figure 1." in a bare build), and
@@ -339,22 +303,16 @@ class HeadingsTreeprocessor(Treeprocessor):
             if child.tag in {"figcaption", "div"}
             for part in _caption_text(child)
         ).strip()
-        self.registry.register(
-            source=self.source,
-            id=caption_id,
-            level=CAPTION_LEVEL,
-            text=text,
-            number=f"{label} {chapter}.{captions[kind]}",
-            strict=self.strict,
-        )
+        collector.caption(kind.removeprefix("prodockit-"), el.get("id"), text)
 
     def run(self, root: etree.Element) -> None:
-        self.registry.clear_source(self.source)
-        counters = [self.start_count, 0, 0, 0, 0, 0]
-        captions = dict.fromkeys(CAPTION_KINDS, 0)
+        collector = PageCollector(
+            PageContext(self.source, self.start_count, self.appendix_letter),
+            self.registry, strict=self.strict,
+        )
         for el in root.iter():
             if el.tag == "figure":
-                self._register_caption(el, counters, captions)
+                self._register_caption(el, collector)
                 continue
             if el.tag not in HEADING_TAGS:
                 continue
@@ -373,37 +331,8 @@ class HeadingsTreeprocessor(Treeprocessor):
 
             level = int(el.tag[1])
             classes = (el.get("class") or "").split()
-            if "unnumbered" in classes:
-                number = None
-            else:
-                # A shallower level that's never actually appeared yet (the
-                # document skipped straight from h1 to h3, started below
-                # h1, or nested this heading under an .unnumbered one) is
-                # backfilled to 1 rather than left at 0 - otherwise the
-                # number below would show a literal "0" segment (e.g.
-                # "1.0.1"), which is worse than treating the missing level
-                # as an implicit first one. Doesn't touch start_count
-                # itself when it's already non-zero (continuous numbering
-                # legitimately seeding this page's h1 counter from earlier
-                # pages) since that's not a gap to fill.
-                for shallower in range(level - 1):
-                    if counters[shallower] == 0:
-                        counters[shallower] = 1
-                counters[level - 1] += 1
-                for deeper in range(level, 6):
-                    counters[deeper] = 0
-                first = (
-                    self.appendix_letter if self.appendix_letter is not None else str(counters[0])
-                )
-                number = ".".join([first] + [str(c) for c in counters[1:level]])
-
-            self.registry.register(
-                source=self.source,
-                id=heading_id,
-                level=level,
-                text=text,
-                number=number,
-                strict=self.strict,
+            collector.heading(
+                heading_id, level, text, unnumbered="unnumbered" in classes,
             )
 
 
