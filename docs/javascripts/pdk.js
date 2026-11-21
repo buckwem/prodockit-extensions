@@ -455,8 +455,8 @@ document.addEventListener("DOMContentLoaded", function() {
     let saved = {};
     try { saved = JSON.parse(localStorage.getItem("pdk-festive") || "{}") || {}; } catch (_) {}
     let paused = motion.matches || saved.paused === true, hidden = saved.hidden === true;
-    let printing = false, frame = 0, previous = 0, angle = 0, width = 1, height = 1;
-    let particles = [], bank = [], spawn = 0, seed = 42;
+    let printing = false, frame = 0, previous = 0, angle = 0, width = Math.max(1, innerWidth), height = Math.max(1, innerHeight);
+    let particles = [], bank = [], seed = 42;
     const seedInput = Number(query.get("pdk-festive-seed") || 42);
     const initialSeed = Number.isFinite(seedInput) ? seedInput >>> 0 : 42;
     let simulated = Date.now(), speed = 1, frames = 0, frameCost = 0, density = 1;
@@ -477,7 +477,11 @@ document.addEventListener("DOMContentLoaded", function() {
       };
     }
     function reset() {
-      seed = initialSeed; particles = []; bank = Array(80).fill(0); spawn = 0; angle = 0;
+      seed = initialSeed; bank = Array(Math.min(1600, Math.ceil(width / 3))).fill(0); angle = 0;
+      particles = Array.from({length: Math.min(180, Math.ceil(width / 4))}, () => ({
+        x: random() * width, y: random() * height,
+        r: 1 + random() * 2, v: 22 + random() * 40, phase: random() * 6.28
+      }));
       newFlight();
     }
     function persist() { try { localStorage.setItem("pdk-festive", JSON.stringify({paused, hidden})); } catch (_) {} }
@@ -520,7 +524,7 @@ document.addEventListener("DOMContentLoaded", function() {
         const year = new Date(simulated).getUTCFullYear();
         const times = {"Christmas start": Date.UTC(year, 11, 24, 10), Nepal: Date.UTC(year, 11, 24, 18, 15), "Christmas end": Date.UTC(year, 11, 26, 12)};
         if (times[preset.value] !== undefined) simulated = times[preset.value];
-        if (preset.value === "Maximum snow") bank.fill(12);
+        if (preset.value === "Maximum snow") bank.fill(48);
         if (preset.value === "Reduced motion") paused = true;
         if (preset.value.includes("palette")) {
           const scheme = preset.value === "Dark palette" ? "slate" : "default";
@@ -541,7 +545,11 @@ document.addEventListener("DOMContentLoaded", function() {
       const ratio = Math.min(devicePixelRatio || 1, 2);
       canvas.width = Math.round(width * ratio); canvas.height = Math.round(height * ratio);
       ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
-      particles = particles.filter(p => p.x < width && p.y < height);
+      particles.forEach(p => { p.x %= width; p.y %= height; });
+      const previousBank = bank;
+      const count = Math.min(1600, Math.ceil(width / 3));
+      bank = Array.from({length: count}, (_, i) =>
+        previousBank[Math.min(previousBank.length - 1, Math.floor(i / count * previousBank.length))] || 0);
       draw();
     }
     function advance(dt) {
@@ -553,21 +561,18 @@ document.addEventListener("DOMContentLoaded", function() {
       if (flight.progress >= 1) newFlight();
       // Melt from below independently of incoming snow, never retaining history.
       bank = bank.map(value => Math.max(0, value - dt * 0.55));
-      spawn += dt * Math.min(45, width / 25) * density;
-      while (spawn >= 1 && particles.length < 180) {
-        spawn--;
-        particles.push({x: random() * width, y: -5, r: 1 + random() * 2, v: 22 + random() * 40, phase: random() * 6.28});
-      }
-      spawn = Math.min(spawn, 1);
-      particles = particles.filter(p => {
+      for (const p of particles) {
         p.y += p.v * dt; p.x = (p.x + Math.sin(angle + p.phase) * dt * 12 + width) % width;
-        const index = Math.min(79, Math.floor(p.x / width * 80));
-        if (p.y >= height - bank[index]) {
-          bank[index] = Math.min(12, bank[index] + p.r * 1.6);
-          return false;
+        const index = Math.min(bank.length - 1, Math.floor(p.x / width * bank.length));
+        if (p.y + p.r >= height - bank[index]) {
+          // Deposit across the flake's own footprint, instead of a wide column.
+          const left = Math.max(0, Math.floor((p.x - p.r) / width * bank.length));
+          const right = Math.min(bank.length - 1, Math.floor((p.x + p.r) / width * bank.length));
+          for (let i = left; i <= right; i++) bank[i] = Math.min(48, bank[i] + p.r * 1.6);
+          // Recycle immediately so the population never exhausts and pauses.
+          p.x = random() * width; p.y = -p.r;
         }
-        return true;
-      });
+      }
     }
     function draw() {
       ctx.clearRect(0, 0, width, height);
@@ -575,8 +580,8 @@ document.addEventListener("DOMContentLoaded", function() {
         (document.body.getAttribute("data-md-color-scheme") === "auto" && matchMedia("(prefers-color-scheme: dark)").matches);
       const colour = dark ? "#fff" : "#111";
       ctx.fillStyle = colour;
-      for (const p of particles) { ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, 7); ctx.fill(); }
-      for (let i = 0; i < bank.length; i++) ctx.fillRect(i * width / 80, height - bank[i], width / 80 + 1, bank[i]);
+      for (const p of particles.slice(0, Math.ceil(particles.length * density))) { ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, 7); ctx.fill(); }
+      for (let i = 0; i < bank.length; i++) ctx.fillRect(i * width / bank.length, height - bank[i], width / bank.length + 0.25, bank[i]);
       const stop = config.sleigh === false ? null : destination(preview ? simulated : Date.now());
       if (stop) sleigh(stop);
       if (status) status.textContent = new Date(simulated).toISOString() + " · " + (stop?.label || "No sleigh") +

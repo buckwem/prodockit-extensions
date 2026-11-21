@@ -8,7 +8,7 @@ icon: lucide/snowflake
 
 Add falling snow and a Christmas sleigh to the website. Snow stays fixed to
 the viewport while the page scrolls. A shallow bank accumulates at the bottom,
-melts continuously and remains bounded at 12 CSS pixels.
+melts continuously and remains bounded at 48 CSS pixels.
 
 ## Enable the overlay
 

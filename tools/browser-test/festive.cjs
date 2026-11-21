@@ -63,7 +63,7 @@ const server = http.createServer((req, res) => {
       for(let i=0;i<36000;i++) step.click();
     });
     const bounded = await state();
-    assert.ok(bounded.particles <= 180 && bounded.bank <= 12);
+    assert.ok(bounded.particles <= 180 && bounded.bank <= 48);
     await page.goto(base);
     assert.equal(await page.$$('canvas').then(x=>x.length), 0);
     console.log('Passed Christmas boundaries, Nepal handover, mobile, palette, navigation, print, reduced motion and ten simulated minutes.');
