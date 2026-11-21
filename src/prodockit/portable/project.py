@@ -312,7 +312,8 @@ def _build(prepared: Prepared, *, clean: bool = False, strict: bool = True) -> N
         raise PortableError(f"Zensical build failed with status {result.returncode}")
     validate(prepared)
     version = subprocess.run(
-        [sys.executable, "-m", "zensical", "--version"], capture_output=True, text=True, check=True
+        [sys.executable, "-m", "zensical", "--version"],
+        capture_output=True, text=True, encoding="utf-8", check=True,
     ).stdout.strip()
     (prepared.site / ".pdk-build.json").write_text(
         json.dumps(

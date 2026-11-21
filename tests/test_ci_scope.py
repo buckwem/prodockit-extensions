@@ -115,6 +115,10 @@ def test_shared_packaging_and_command_files_select_every_matrix() -> None:
     for path in (
         "pyproject.toml",
         "src/prodockit/cli.py",
+        "src/prodockit/portable/__init__.py",
+        "src/prodockit/portable/cli.py",
+        "src/prodockit/portable/compiler.py",
+        "src/prodockit/portable/project.py",
         "src/prodockit/renderer_health.py",
         "src/prodockit/renderer_resilience.py",
         "src/prodockit/weasyprint_probe.py",
