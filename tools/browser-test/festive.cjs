@@ -132,7 +132,12 @@ const server = http.createServer((req, res) => {
         step.click();
         if (i%60===0) {
           const state = JSON.parse(document.querySelector('canvas').dataset.snapshot);
-          if (state.drone) seen.add(state.drone);
+          if (state.drone) {
+            seen.add(state.drone);
+            if (state.drone !== 'Happy New Year' && state.droneDepthLevels < 10) {
+              throw Error('formation must have a volumetric surface, not repeated flat layers');
+            }
+          }
           if (state.rockets || state.sparks) throw Error('fireworks overlap drones');
         }
       }

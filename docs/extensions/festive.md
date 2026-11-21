@@ -143,8 +143,12 @@ midnight and 02:00 boundaries.
 ### Drone display
 
 Select **Drone display** for a two-minute choreography of coloured lights.
-The lights form perspective-projected shapes with depth and gently rotating
-viewpoints. Birds and butterflies flap their wings, the deer gallops, the dolphin
+The lights sample three-dimensional surfaces, shown in perspective with rotating
+viewpoints. The deer uses 1,100 surface samples from Quaternius's CC0
+[Deer model](https://poly.pizza/m/T6Cs7tmMHJ). The other objects use procedural
+volumetric surfaces, including a spherical globe, rounded animal bodies,
+three-dimensional wings, cones and petals. The title retains shallow depth for
+readability. Birds and butterflies flap their wings, the deer gallops, the dolphin
 swims, the heart pulses, and the globe rotates as a sphere. The lights morph
 every twelve seconds through Happy New Year, a bird, deer,
 dolphin, butterfly, heart, star, globe, tree and flower. Mixed mode can also
