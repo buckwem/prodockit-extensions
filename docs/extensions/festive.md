@@ -33,8 +33,12 @@ season_end = "01-06"
 sleigh = true
 ```
 
+Only one overlay can be active at a time. Choose a single `effect` value in
+one `[project.extra.festive]` configuration table.
+
 `effect = "auto"` selects the New Year overlay on 1 January and the Christmas
-overlay during the configured snow season. Use `"snow"` or `"fireworks"` to
+overlay during the configured snow season. It switches between the overlays
+automatically and never displays them together. Use `"snow"` or `"fireworks"` to
 select just one overlay. Set `enabled = false`, or remove the festive settings,
 to disable the extension independently of other Prodockit features.
 
@@ -140,7 +144,9 @@ effect = "fireworks"
 
 The New Year overlay uses the fixed local-time window below, so it does not need
 snow season dates or sleigh settings. Change `effect` to `"auto"` in the full
-configuration above to enable both celebrations.
+configuration above to cover both celebrations automatically, with only one
+overlay active at a time. The configuration blocks are alternatives; do not add
+a second `[project.extra.festive]` table.
 
 Fireworks appear from **00:00 inclusive until 02:00 exclusive on 1 January**
 in the visitor's browser time zone. The display mixes peony bursts, rings,
