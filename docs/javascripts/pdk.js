@@ -508,14 +508,14 @@ document.addEventListener("DOMContentLoaded", function() {
     on(level, "input", () => { volume = Number(level.value) / 100; syncAudio(); });
     controls.append(level);
     const styles = ["Peony", "Ring", "Palm", "Willow", "Crackle", "Roman candle bank", "Fountain", "Fan jets", "Mine"];
-    let chosen = "Mixed", status;
+    let chosen = "Mixed", pendingKind = null, status;
     if (preview) {
       const select = document.createElement("select"); select.setAttribute("aria-label", "Fireworks style");
       for (const label of ["Mixed", ...styles]) {
         const option = document.createElement("option"); option.textContent = label; select.append(option);
       }
       on(select, "change", () => {
-        chosen = select.value; launchIn = 0; rockets = []; sparks = []; groundEffects = [];
+        chosen = select.value; pendingKind = null; launchIn = 0; rockets = []; sparks = []; groundEffects = [];
       }); controls.append(select);
       const clock = document.createElement("input"); clock.type = "datetime-local";
       clock.value = new Date(simulated).toISOString().slice(0, 19); clock.setAttribute("aria-label", "Simulated UTC time");
@@ -529,7 +529,7 @@ document.addEventListener("DOMContentLoaded", function() {
       controls.append(rate);
       button("Burst", "Launch a test firework", () => { if (active()) launch(); draw(); });
       button("Step", "Advance fireworks one frame", () => { advance(1 / 60); draw(); });
-      button("Reset", "Reset fireworks", () => { seed = 42; rockets = []; sparks = []; groundEffects = []; launchIn = 0; draw(); });
+      button("Reset", "Reset fireworks", () => { seed = 42; pendingKind = null; rockets = []; sparks = []; groundEffects = []; launchIn = 0; draw(); });
       status = document.createElement("output"); controls.append(status);
     }
     function syncAudio() {
@@ -552,10 +552,14 @@ document.addEventListener("DOMContentLoaded", function() {
     }
     function launch() {
       if (groundEffects.length || sparks.some(p => p.ground) || rockets.length >= 5 || sparks.length > 1000) return;
-      const kind = chosen === "Mixed" ? styles[Math.floor(random() * styles.length)] : chosen;
+      // Keep a selected ground sequence queued while the aerial display clears.
+      // Rerolling here allowed new aerial launches to starve ground effects.
+      if (!pendingKind) pendingKind = chosen === "Mixed" ? styles[Math.floor(random() * styles.length)] : chosen;
+      const kind = pendingKind;
       if (["Roman candle bank", "Fountain", "Fan jets", "Mine"].includes(kind)) {
         if (rockets.length || sparks.length) return;
         if (groundEffects.length === 0) {
+          pendingKind = null;
           const hue = random() * 360;
           for (let i = 0; i < 3; i++) {
             groundEffects.push({kind, x: width * (0.2 + i * 0.3), life: kind === "Mine" ? 0.1 : 5,
@@ -564,6 +568,7 @@ document.addEventListener("DOMContentLoaded", function() {
         }
         return;
       }
+      pendingKind = null;
       const count = Math.min(1 + Math.floor(random() * 3), 5 - rockets.length);
       const target = height * (0.15 + random() * 0.35);
       const hue = random() * 360;

@@ -122,6 +122,21 @@ const server = http.createServer((req, res) => {
       assert.ok((await state()).sparks <= 1400);
       assert.ok((await state()).groundEffects.length <= 3);
     }
+    await page.select('select[aria-label="Fireworks style"]', 'Mixed');
+    await page.click('button[aria-label="Reset fireworks"]');
+    const mixedGroundStyles = await page.evaluate(() => {
+      const step = document.querySelector('button[aria-label="Advance fireworks one frame"]');
+      const seen = new Set();
+      for (let i = 0; i < 18000; i++) {
+        step.click();
+        if (i % 30 === 0) {
+          const state = JSON.parse(document.querySelector('canvas').dataset.snapshot);
+          state.groundEffects.forEach(style => seen.add(style));
+        }
+      }
+      return [...seen];
+    });
+    assert.ok(mixedGroundStyles.length >= 3, 'mixed mode must continue scheduling ground displays');
     await page.emulateMediaType('print');
     assert.equal(await page.$eval('.pdk-festive-speaker', el => getComputedStyle(el).display), 'none');
     await page.emulateMediaType('screen');
