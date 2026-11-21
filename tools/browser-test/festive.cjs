@@ -33,7 +33,7 @@ const server = http.createServer((req, res) => {
     async function state() { return page.$eval('canvas', c => JSON.parse(c.dataset.snapshot)); }
     for (const [time, expected] of [
       ['2026-12-24T09:59:59Z', undefined], ['2026-12-24T10:00:00Z', 'Kiritimati'],
-      ['2026-12-24T18:15:00Z', 'Kathmandu'], ['2026-12-26T11:59:59Z', 'Baker'],
+      ['2026-12-24T18:15:00Z', 'Nepal'], ['2026-12-26T11:59:59Z', 'Baker Island'],
       ['2026-12-26T12:00:00Z', undefined]
     ]) {
       await load(time); assert.equal((await state()).destination, expected);
@@ -61,7 +61,7 @@ const server = http.createServer((req, res) => {
       const step = [...document.querySelectorAll('button')].find(b => b.textContent === 'Step');
       for(let i=0;i<800;i++) step.click();
     });
-    assert.equal((await state()).destination, 'Chatham');
+    assert.equal((await state()).destination, 'Chatham Is.');
     // Accelerate ten minutes of snowfall by deterministic single-frame steps.
     await page.evaluate(() => {
       const step = [...document.querySelectorAll('button')].find(b => b.textContent === 'Step');

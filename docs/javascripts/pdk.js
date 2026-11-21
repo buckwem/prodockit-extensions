@@ -366,25 +366,25 @@ document.addEventListener("DOMContentLoaded", function() {
   const preview = loopback && query.get("pdk-festive-test") === "1";
   // Representatives for distinct Christmas offsets, including fractional zones.
   const stops = [
-    ["Pacific/Kiritimati", "Kiritimati", "Kiribati"], ["Pacific/Chatham", "Chatham", "Chatham"],
-    ["Pacific/Auckland", "Auckland", "NZ"], ["Pacific/Tarawa", "Tarawa", "Tarawa"],
+    ["Pacific/Kiritimati", "Kiritimati", "Kiribati"], ["Pacific/Chatham", "Chatham Is.", "Chatham"],
+    ["Pacific/Auckland", "New Zealand", "NZ"], ["Pacific/Fiji", "Fiji", "Fiji"],
     ["Australia/Sydney", "Sydney", "Sydney"], ["Australia/Adelaide", "Adelaide", "Adelaide"],
     ["Australia/Brisbane", "Brisbane", "Brisbane"], ["Australia/Darwin", "Darwin", "Darwin"],
     ["Asia/Tokyo", "Tokyo", "Tokyo"], ["Asia/Singapore", "Singapore", "SG"],
-    ["Asia/Bangkok", "Bangkok", "Bangkok"], ["Asia/Yangon", "Yangon", "Yangon"],
-    ["Asia/Dhaka", "Dhaka", "Dhaka"], ["Asia/Kathmandu", "Kathmandu", "Nepal"],
+    ["Asia/Bangkok", "Bangkok", "Bangkok"], ["Asia/Yangon", "Myanmar", "Myanmar"],
+    ["Asia/Dhaka", "Bangladesh", "Bangladesh"], ["Asia/Kathmandu", "Nepal", "Nepal"],
     ["Asia/Kolkata", "Delhi", "Delhi"], ["Asia/Karachi", "Karachi", "Karachi"],
     ["Asia/Kabul", "Kabul", "Kabul"], ["Asia/Dubai", "Dubai", "Dubai"],
     ["Asia/Tehran", "Tehran", "Tehran"], ["Asia/Riyadh", "Riyadh", "Riyadh"],
     ["Europe/Athens", "Athens", "Athens"], ["Europe/Paris", "Paris", "Paris"],
     ["Europe/London", "London", "London"], ["Atlantic/Azores", "Azores", "Azores"],
-    ["Atlantic/South_Georgia", "S Georgia", "S Georgia"], ["America/Sao_Paulo", "Rio", "Rio"],
-    ["America/St_Johns", "St Johns", "St Johns"], ["America/Halifax", "Halifax", "Halifax"],
+    ["Atlantic/South_Georgia", "South Georgia", "S Georgia"], ["America/Sao_Paulo", "Rio", "Rio"],
+    ["America/St_Johns", "Newfoundland", "Newfoundl."], ["America/Halifax", "Nova Scotia", "Nova Scotia"],
     ["America/New_York", "New York", "NY"], ["America/Chicago", "Chicago", "Chicago"],
-    ["America/Denver", "Denver", "Denver"], ["America/Los_Angeles", "LA", "LA"],
+    ["America/Denver", "Denver", "Denver"], ["America/Los_Angeles", "Los Angeles", "LA"],
     ["America/Anchorage", "Alaska", "Alaska"], ["Pacific/Marquesas", "Marquesas", "Marquesas"],
-    ["Pacific/Honolulu", "Honolulu", "Hawaii"], ["Pacific/Pago_Pago", "Samoa", "Samoa"],
-    ["Etc/GMT+12", "Baker", "Baker"]
+    ["Pacific/Honolulu", "Hawaii", "Hawaii"], ["Pacific/Pago_Pago", "American Samoa", "Am. Samoa"],
+    ["Etc/GMT+12", "Baker Island", "Baker Is."]
   ];
   const schedules = new Map();
   function schedule(year) {

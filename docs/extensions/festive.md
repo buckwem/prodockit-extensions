@@ -89,6 +89,10 @@ Island's Christmas Day finishes. The visitor's time zone does not alter the rout
 
 The destination table includes half-hour and quarter-hour offsets. The browser's
 IANA time-zone database supplies daylight-saving offsets for that year's
-Christmas. Tied midnights use the last representative in table order. Labels use
-a reserved panel and compact alternatives, such as Kiribati, NZ and Hawaii.
+Christmas. Tied midnights use the last representative in table order. Labels favour familiar cities, countries and regions, including Fiji, New Zealand,
+Nepal, Bangladesh, Newfoundland and Hawaii. American Samoa is labelled explicitly
+because Samoa itself is on the other side of the date line. Chatham Islands,
+Marquesas and South Georgia retain their names to represent their particular
+offsets. Baker Island is an uninhabited Pacific island used for the final UTC−12
+boundary. Labels use a reserved panel and compact alternatives where needed.
 The sleigh pulls a mound of parcels along a curved route within the viewport.
