@@ -35,6 +35,13 @@ from prodockit._zensical_page_context import (
     current_page_path,
 )
 from prodockit.project_config import find_project_config, load_project_config
+from prodockit.semantics import (
+    CAPTION_LABELS,
+    NumberingState,
+    PageContext,
+    PageOutline,
+    continuous_numbering,
+)
 
 T = TypeVar("T")
 
@@ -391,22 +398,16 @@ def prescan_headings(appendix_attr: str) -> tuple[dict[str, int], dict[str, str]
     if located is None:
         return None
     docs_dir, pages = located
-    start_counts: dict[str, int] = {}
-    appendix_letters: dict[str, str] = {}
-    running_total = 0
-    next_letter_index = 0
+    outlines: list[PageOutline] = []
     for rel_path in pages:
         try:
             text = (Path(docs_dir) / rel_path).read_text(encoding="utf-8")
         except OSError:
             continue
-        if _front_matter_flag(text, appendix_attr):
-            next_letter_index += 1
-            appendix_letters[rel_path] = chr(ord("A") + next_letter_index - 1)
-            continue
-        start_counts[rel_path] = running_total
-        running_total += _count_top_level_headings(text)
-    return start_counts, appendix_letters
+        outlines.append(PageOutline(
+            rel_path, _count_top_level_headings(text), _front_matter_flag(text, appendix_attr),
+        ))
+    return continuous_numbering(outlines)
 
 
 _HEADING_LINE_RE = re.compile(r"^(#{1,6})\s+(\S.*?)\s*$")
@@ -421,10 +422,7 @@ _CAPTION_CLOSE_RE = re.compile(r"^(?P<indent>[ \t]*)(?P<fence>/{3,})[ \t]*$")
 _LIST_ITEM_RE = re.compile(r"^(?P<indent>[ \t]*)(?:[-+*]|\d+[.)])[ \t]+")
 _CAPTION_SELECTOR_ID_RE = re.compile(r"#([\w:.-]+)")
 _CAPTION_ATTR_ID_RE = re.compile(r"(?:^|[, {])[\"']?id[\"']?[ \t]*:[ \t]*[\"']?([\w:.-]+)")
-_CAPTION_LABELS = {
-    "figure-caption": "Figure",
-    "table-caption": "Table",
-}
+_CAPTION_LABELS = CAPTION_LABELS
 
 
 def _strip_front_matter(text: str) -> str:
@@ -713,37 +711,26 @@ def preseed_heading_ids_from_nav(
             text = (Path(docs_dir) / rel_path).read_text(encoding="utf-8")
         except OSError:
             continue
-        appendix_letter = appendix_letters.get(rel_path)
-        counters = [start_counts.get(rel_path, 0), 0, 0, 0, 0, 0]
-        captions = dict.fromkeys(_CAPTION_LABELS, 0)
+        numbering = NumberingState(PageContext(
+            rel_path, start_counts.get(rel_path, 0), appendix_letters.get(rel_path),
+        ))
         seen_ids: set[str] = set()
         for kind, level, text_content, explicit_id, unnumbered in _scan_page_numberables(text):
             if kind in _CAPTION_LABELS:
-                captions[kind] += 1
+                caption_number = numbering.caption(kind)
                 if explicit_id is None:
                     continue
-                chapter = appendix_letter if appendix_letter is not None else str(counters[0] or 1)
                 registry.preseed(
                     source=rel_path,
                     id=explicit_id,
                     level=0,
                     text=text_content,
-                    number=f"{_CAPTION_LABELS[kind]} {chapter}.{captions[kind]}",
+                    number=caption_number,
                 )
                 continue
             heading_id = explicit_id or unique(slugify(text_content, separator), seen_ids)
             seen_ids.add(heading_id)
-            if unnumbered:
-                number = None
-            else:
-                for shallower in range(level - 1):
-                    if counters[shallower] == 0:
-                        counters[shallower] = 1
-                counters[level - 1] += 1
-                for deeper in range(level, 6):
-                    counters[deeper] = 0
-                first = appendix_letter if appendix_letter is not None else str(counters[0])
-                number = ".".join([first] + [str(c) for c in counters[1:level]])
+            number = numbering.heading(level, unnumbered=unnumbered)
             registry.preseed(
                 source=rel_path,
                 id=heading_id,

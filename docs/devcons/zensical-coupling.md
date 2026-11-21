@@ -33,9 +33,8 @@ Supported boundaries
 ///
 
 The public `prodockit pdf` command follows the supported boundaries in
-\ref{tab-devcons-zensical-coupling-supported-boundaries}. It runs a clean
-Zensical build before extracting the configured pages from the completed
-site.
+\ref{tab-devcons-zensical-coupling-supported-boundaries}. It extracts the
+configured pages from an already completed website build.
 
 Zensical's CLI commands are supported interfaces. Generated HTML and CSS are
 still formats that can evolve, but they are the product of the documented
@@ -150,6 +149,43 @@ The heading extension never inspects the processor itself. If the registered
 processor exists but its representation has changed, the adapter raises a
 distinct compatibility error and the build warns once that cross-page
 references to automatically generated heading ids may remain unresolved.
+
+## Portable preparation and shared semantics {: #coupling-portable-semantics }
+
+[Issue #1072](https://github.com/buckwem/prodockit-extensions/issues/1072)
+tracks an opt-in source-preparation approach. `pdk --portable build` and
+`pdk -p serve` use it; `pdk build` and `pdk serve` retain the existing approach.
+Both read the same original sources and configuration. Portable preparation
+copies its inputs into isolated generations, so switching back requires no
+source restoration or cleanup.
+
+`prodockit.semantics` supplies shared heading and caption numbering, target
+collection and reference labels. Its `PageContext` receives the original page
+identity, chapter start and optional appendix letter explicitly. The core
+uses caller-owned registries and imports neither Markdown nor Zensical.
+Prodockit's existing `ProjectConfig` continues to supply project paths and
+navigation at the input boundary.
+
+The legacy treeprocessor and navigation pre-scan delegate numbering to this
+core. The heading-counter macro obtains its existing numbering plan through
+the same pre-scan. Portable preparation parses its supported headings into
+plain facts and calls the core directly, without invoking the legacy heading
+treeprocessor. Parsing, slug generation and HTML formatting remain the
+responsibility of the respective adapters.
+
+This separates semantic rules from private page discovery without changing
+the default approach's collision policy or retiring its adapter. Portable
+preparation still rejects ambiguous cross-page IDs and unsupported constructs.
+Its current slice covers top-level ATX headings and references, global
+bibliographies and image hotspots. Captions are covered by the shared rules
+and legacy regression checks, but portable caption parsing remains future work.
+Citation/glossary migration, generated content, portable PDF selection and
+qualification against a future Rust renderer also remain in the issue.
+
+Tests compare reference labels and destinations across both build approaches,
+check switching with unchanged authoring files, and run the semantic core with
+renderer and legacy adapter imports blocked. Portable build checks also make
+private context access and legacy heading-treeprocessor execution fail.
 
 ## Migration progress {: #coupling-removed-dependencies }
 

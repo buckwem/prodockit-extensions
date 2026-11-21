@@ -23,10 +23,16 @@ import yaml
 from bs4 import BeautifulSoup
 
 from prodockit.bibliography import _BibliographyCache
-from prodockit.headings import HeadingsTreeprocessor
 from prodockit.image_hotspots import _render as render_hotspots
 from prodockit.portable import PortableError
 from prodockit.project_config import ProjectConfig
+from prodockit.semantics import (
+    PageCollector,
+    PageContext,
+    PageOutline,
+    continuous_numbering,
+    resolve_reference,
+)
 from prodockit.util import IdRegistry, cross_page_href
 
 _COMMAND = re.compile(
@@ -183,9 +189,7 @@ def scan(source: str, text: str) -> Page:
     return page
 
 
-def _heading_records(
-    page: Page, registry: IdRegistry, start_count: int, appendix: str | None
-) -> None:
+def _parsed_headings(page: Page) -> list[ET.Element]:
     md = markdown.Markdown(extensions=["attr_list", "toc"], output_format="xhtml")
     # Parse only headings; unaffected page content still goes through Zensical.
     parsed = md.convert("\n\n".join(line for _, _, line in page.headings))
@@ -195,13 +199,19 @@ def _heading_records(
         not re.fullmatch("h[1-6]", h.tag) for h in headings
     ):
         raise PortableError(f"{page.source}: heading tokenizers disagree")
-    HeadingsTreeprocessor(
-        md, registry, page.source, start_count=start_count, appendix_letter=appendix
-    ).run(root)
+    return headings
+
+
+def _heading_records(
+    page: Page, headings: list[ET.Element], context: PageContext, registry: IdRegistry,
+) -> None:
+    collector = PageCollector(context, registry)
     for (start, end, line), heading in zip(page.headings, headings, strict=True):
         ident = heading.get("id") or ""
-        record = registry.get(ident)
-        assert record is not None
+        record = collector.heading(
+            ident, int(heading.tag[1]), "".join(heading.itertext()),
+            unnumbered="unnumbered" in (heading.get("class") or "").split(),
+        )
         page.targets.append({"id": ident, "text": record.text, "number": record.number})
         # Preserve authored attributes, adding an explicit renderer-independent ID.
         line = re.sub(r"\s+#+\s*$", "", line)
@@ -233,22 +243,30 @@ def compile_pages(
     continuous = heading_options.get("numbering") == "continuous"
     if continuous and not nav_order:
         raise PortableError("continuous numbering requires explicit navigation in the prototype")
-    start_count, appendix_count = 0, 0
+    parsed = {source: _parsed_headings(pages[source]) for source in order} if enabled else {}
+    starts: dict[str, int] = {}
+    appendices: dict[str, str] = {}
+    if continuous and enabled:
+        outlines = [PageOutline(
+            source,
+            sum(
+                1 for heading in parsed[source]
+                if heading.tag == "h1" and "unnumbered" not in (heading.get("class") or "").split()
+            ),
+            bool(pages[source].meta.get(heading_options.get("appendix_attr", "is_appendix"))),
+        ) for source in nav_order]
+        if sum(page.is_appendix for page in outlines) > 26:
+            raise PortableError("the prototype supports at most 26 appendices")
+        starts, appendices = continuous_numbering(outlines)
+    contexts = {
+        source: PageContext(source, starts.get(source, 0), appendices.get(source))
+        for source in order
+    }
     for source in order:
         page = pages[source]
         if not enabled:
             continue
-        appendix = None
-        if continuous and page.meta.get(heading_options.get("appendix_attr", "is_appendix")):
-            if appendix_count >= 26:
-                raise PortableError("the prototype supports at most 26 appendices")
-            appendix = chr(ord("A") + appendix_count)
-            appendix_count += 1
-        _heading_records(
-            page, registry, start_count if continuous and source in nav_order else 0, appendix
-        )
-        if continuous and appendix is None and source in nav_order:
-            start_count += sum(1 for t in page.targets if t["number"] and "." not in t["number"])
+        _heading_records(page, parsed[source], contexts[source], registry)
 
     dependencies: set[Path] = set()
     bib_options = config.markdown_extensions.get("prodockit.bibliography", {})
@@ -292,16 +310,15 @@ def compile_pages(
                     raise _error(
                         page, edit.start, "reference syntax requires prodockit.refs configuration"
                     )
-                record = registry.get(edit.key)
-                if record is None:
+                reference = resolve_reference(contexts[source], registry, edit.key)
+                if reference is None:
                     raise _error(page, edit.start, f"unresolved reference {edit.key!r}")
-                href = cross_page_href(record.source, source, edit.key)
-                label = f"{record.number} {record.text}" if record.number else record.text
+                href, label = reference.href, reference.text
                 edit.value = (
                     f'<a class="prodockit-{edit.kind}" href="{html.escape(href, quote=True)}">'
                     f"{html.escape(label)}</a>"
                 )
-                links.append({"page": record.source, "id": edit.key, "text": label})
+                links.append({"page": reference.target.source, "id": edit.key, "text": label})
             elif edit.kind == "hotspots":
                 fences = config.markdown_extensions.get("pymdownx.superfences", {}).get(
                     "custom_fences", []
@@ -369,5 +386,11 @@ def compile_pages(
             cursor = edit.end
         chunks.append(page.text[cursor:])
         outputs[source] = "".join(chunks)
-        details[source] = {"targets": page.targets, "links": links, "source_map": source_map}
+        details[source] = {
+            "targets": page.targets, "links": links, "source_map": source_map,
+            "numbering": {
+                "start_count": contexts[source].start_count,
+                "appendix_letter": contexts[source].appendix_letter,
+            },
+        }
     return outputs, details, dependencies

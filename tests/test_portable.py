@@ -147,6 +147,8 @@ def test_build_without_private_context_and_switch_back(
 def forbidden(*args, **kwargs):
     raise AssertionError("private page context was called")
 context._rendering_context = forbidden
+from prodockit.headings import HeadingsTreeprocessor
+HeadingsTreeprocessor.run = forbidden
 """)
     monkeypatch.setenv("PYTHONPATH", str(guard) + os.pathsep + os.environ["PYTHONPATH"])
     import prodockit._zensical_page_context as context
@@ -154,6 +156,11 @@ context._rendering_context = forbidden
     with monkeypatch.context() as isolated:
         isolated.setattr(
             context, "_rendering_context", lambda *_: pytest.fail("private page context was called")
+        )
+        from prodockit.headings import HeadingsTreeprocessor
+
+        isolated.setattr(
+            HeadingsTreeprocessor, "run", lambda *_: pytest.fail("legacy heading adapter was called")
         )
         prepared = build(str(portable_project))
     portable = _article(prepared.site / "index.html")
@@ -219,6 +226,91 @@ def test_default_wrapper_selects_nonstandard_configuration(
         == "2.1 Installation"
     )
     assert os.environ["PRODOCKIT_CONFIG_FILE"] == str(root / "missing.toml")
+
+
+@pytest.mark.parametrize("numbering", ["continuous", "per-document"])
+@pytest.mark.parametrize("directory_urls", [True, False])
+def test_shared_semantics_match_across_build_modes(
+    portable_project: Path, numbering: str, directory_urls: bool,
+) -> None:
+    root = portable_project.parent
+    config = portable_project.read_text().replace(
+        'site_name = "Portable prototype"',
+        f'site_name = "Portable prototype"\nuse_directory_urls = {str(directory_urls).lower()}',
+    ).replace('numbering = "continuous"', f'numbering = "{numbering}"\nappendix_attr = "annex"')
+    portable_project.write_text(config)
+    (root / "docs/index.md").write_text(r"""# Cover {: #cover .unnumbered }
+
+# First {: #first }
+
+Forward: \ref{second}, \autoref{detail}, \ref{cafe-tea}, \ref{overview_1}, \ref{note}.
+
+Appendix: \ref{terms}. Back to cover: \ref{cover}.
+""")
+    (root / "docs/guide/install.md").write_text("""# Second {: #second }
+
+### Detail
+
+## Café & *tea*
+
+## Overview
+
+## Overview
+
+## Note {: .unnumbered }
+""")
+    (root / "docs/references.md").write_text("""---
+annex: true
+---
+# Appendix
+
+## Terms
+""")
+    # A page outside navigation keeps per-document numbering even when its
+    # front matter carries the appendix flag, matching the legacy approach.
+    (root / "docs/loose.md").write_text("""---
+annex: true
+---
+# Loose
+
+Self: \\ref{loose}.
+""")
+    originals = {
+        path: path.read_bytes()
+        for path in [portable_project, *(root / "docs").rglob("*")]
+        if path.is_file()
+    }
+
+    def references(site: Path) -> dict[str, list[tuple[str, str]]]:
+        result = {}
+        for page in site.rglob("*.html"):
+            result[page.relative_to(site).as_posix()] = [
+                (link.get_text(), str(link["href"]))
+                for link in _article(page).select("a.prodockit-ref, a.prodockit-autoref")
+            ]
+        return result
+
+    runner = CliRunner()
+    normal = runner.invoke(main, ["build", "-f", str(portable_project), "--clean", "--strict"])
+    assert normal.exit_code == 0, normal.output
+    before = references(root / "site")
+    chapter = "2" if numbering == "continuous" else "1"
+    appendix = "A" if numbering == "continuous" else "1"
+    assert [text for text, href in before["index.html"]] == [
+        f"{chapter} Second", f"{chapter}.1.1 Detail", f"{chapter}.2 Café & tea",
+        f"{chapter}.4 Overview", "Note", f"{appendix}.1 Terms", "Cover",
+    ]
+    prepared = build(str(portable_project))
+    assert references(prepared.site) == before
+    assert references(root / "site") == before
+    manifest = json.loads(prepared.manifest.read_text())
+    assert manifest["pages"]["loose.md"]["numbering"] == {
+        "start_count": 0, "appendix_letter": None,
+    }
+    normal = runner.invoke(main, ["build", "-f", str(portable_project), "--clean", "--strict"])
+    assert normal.exit_code == 0, normal.output
+    assert references(root / "site") == before
+    assert all(path.read_bytes() == contents for path, contents in originals.items())
 
 
 @pytest.mark.parametrize("prefix", [["--portable"], ["-p"]])

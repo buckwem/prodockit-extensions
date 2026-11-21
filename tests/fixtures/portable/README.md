@@ -59,8 +59,19 @@ Zensical. Only the migrated extension/formatter registrations are removed from
 the generated configuration.
 
 Preparation uses a structural tokenizer and makes edits at mapped source spans.
-It renders only headings to reuse the existing numbering rules; it does not
-render whole documents to HTML in Python. Sources with ambiguous duplicate IDs
+It parses only headings with Python-Markdown to obtain their IDs and text;
+it does not render whole documents to HTML in Python. Both build approaches
+use `prodockit.semantics` for page numbering, target collection and reference
+labels. Portable preparation no longer invokes the legacy heading treeprocessor.
+The shared core itself has no Markdown or Zensical dependency.
+
+Navigation order determines continuous chapter starts and appendix letters.
+Pages outside navigation keep per-document numbering, including those with an
+appendix flag. The manifest records each page's starting count and appendix
+letter alongside its original source identity. Reordering navigation or editing
+headings produces a fresh plan in the next generation.
+
+Sources with ambiguous duplicate IDs
 are refused in this prototype instead of taking the legacy first-wins route.
 Source locations for replacements are recorded in the manifest. Prepared
 Markdown uses LF line endings.
@@ -89,6 +100,7 @@ Run the focused checks with:
 
 ```sh
 pytest tests/test_portable.py tests/test_bibliography.py tests/test_zensical_api_boundaries.py
+pytest tests/test_semantics.py tests/test_headings.py tests/test_refs.py tests/test_zensical.py
 ```
 
 The live-preview test needs permission to bind a loopback port. It checks edits,
