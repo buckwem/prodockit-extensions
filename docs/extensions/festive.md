@@ -52,10 +52,10 @@ Keep the image beside `pdk.js`. The browser loads it when the sleigh is needed.
 
 ## Preview with zensical serve
 
-Run `zensical serve` and open this page with the following query string.
+Run `zensical serve` and open the following URL.
 
 ```text
-?pdk-festive-test=1&pdk-festive-time=2026-12-24T10%3A00%3A00Z&pdk-festive-speed=60&pdk-festive-seed=42
+http://127.0.0.1:8000/extensions/festive/?pdk-festive-test=1&pdk-festive-time=2026-12-24T10%3A00%3A00Z&pdk-festive-speed=60&pdk-festive-seed=42
 ```
 
 Preview works only on `localhost`, `127.0.0.1` and IPv6 loopback. It forces the
@@ -130,11 +130,11 @@ propagation delay. Sound starts muted and requires a click. Use the volume slide
 Pausing, hiding, printing or switching to a hidden tab silences the sound.
 Reduced motion starts the display paused.
 
-For a local preview, open the following query on this page. The time is UTC
+For a local preview, open the following URL. The time is UTC
 and `pdk-festive-zone` selects the zone used to evaluate the two-hour window.
 
 ```text
-?pdk-festive-test=1&pdk-festive-effect=fireworks&pdk-festive-time=2027-01-01T00%3A00%3A00Z&pdk-festive-zone=Europe%2FLondon&pdk-festive-speed=1
+http://127.0.0.1:8000/extensions/festive/?pdk-festive-test=1&pdk-festive-effect=fireworks&pdk-festive-time=2027-01-01T00%3A00%3A00Z&pdk-festive-zone=Europe%2FLondon&pdk-festive-speed=1
 ```
 
 The show rotates automatically without a style selector. In the preview panel,
