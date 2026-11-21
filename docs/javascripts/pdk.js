@@ -450,8 +450,8 @@ document.addEventListener("DOMContentLoaded", function() {
     const controls = document.createElement("div"); controls.className = "pdk-festive-controls";
     const motion = matchMedia("(prefers-reduced-motion: reduce)");
     let paused = motion.matches, hidden = false, printing = false, sound = false;
-    let audio, volume = 0.25, master, frame = 0, previous = 0, launchIn = 0, styleIndex = 0;
-    let width = innerWidth, height = innerHeight, rockets = [], sparks = [];
+    let audio, volume = 0.25, master, frame = 0, previous = 0, launchIn = 0;
+    let width = innerWidth, height = innerHeight, rockets = [], sparks = [], groundEffects = [];
     let seed = Number(query.get("pdk-festive-seed") || 42) >>> 0;
     let simulated = preview && query.get("pdk-festive-time") ? Date.parse(query.get("pdk-festive-time")) : Date.now();
     if (!Number.isFinite(simulated)) throw Error("invalid fireworks preview time");
@@ -499,7 +499,7 @@ document.addEventListener("DOMContentLoaded", function() {
     level.setAttribute("aria-label", "Fireworks volume");
     on(level, "input", () => { volume = Number(level.value) / 100; syncAudio(); });
     controls.append(level);
-    const styles = ["Peony", "Ring", "Palm", "Willow", "Crackle"];
+    const styles = ["Peony", "Ring", "Palm", "Willow", "Crackle", "Roman candle bank", "Fountain", "Fan jets", "Mine"];
     let chosen = "Mixed", status;
     if (preview) {
       const select = document.createElement("select"); select.setAttribute("aria-label", "Fireworks style");
@@ -511,14 +511,15 @@ document.addEventListener("DOMContentLoaded", function() {
       clock.value = new Date(simulated).toISOString().slice(0, 19); clock.setAttribute("aria-label", "Simulated UTC time");
       on(clock, "change", () => {
         const next = Date.parse(clock.value + "Z");
-        if (Number.isFinite(next)) { simulated = next; rockets = []; sparks = []; refresh(); }
+        if (Number.isFinite(next)) { simulated = next; rockets = []; sparks = []; groundEffects = []; refresh(); }
       }); controls.append(clock);
       const rate = document.createElement("input"); rate.type = "number"; rate.min = "0"; rate.max = "3600";
       rate.value = String(speed); rate.setAttribute("aria-label", "Clock speed");
       on(rate, "change", () => { const next = Number(rate.value); if (Number.isFinite(next) && next >= 0 && next <= 3600) speed = next; });
       controls.append(rate);
       button("Burst", "Launch a test firework", () => { if (active()) launch(); draw(); });
-      button("Reset", "Reset fireworks", () => { seed = 42; rockets = []; sparks = []; launchIn = 0; draw(); });
+      button("Step", "Advance fireworks one frame", () => { advance(1 / 60); draw(); });
+      button("Reset", "Reset fireworks", () => { seed = 42; rockets = []; sparks = []; groundEffects = []; launchIn = 0; draw(); });
       status = document.createElement("output"); controls.append(status);
     }
     function syncAudio() {
@@ -541,7 +542,14 @@ document.addEventListener("DOMContentLoaded", function() {
     }
     function launch() {
       if (rockets.length >= 5 || sparks.length > 1000) return;
-      const kind = chosen === "Mixed" ? styles[styleIndex++ % styles.length] : chosen;
+      const kind = chosen === "Mixed" ? styles[Math.floor(random() * styles.length)] : chosen;
+      if (["Roman candle bank", "Fountain", "Fan jets", "Mine"].includes(kind)) {
+        if (groundEffects.length < 3) {
+          groundEffects.push({kind, x: width * (0.2 + random() * 0.6), life: kind === "Mine" ? 0.1 : 5,
+            next: 0, hue: random() * 360, volley: 0});
+        }
+        return;
+      }
       rockets.push({x: width * (0.15 + random() * 0.7), y: height + 5,
         target: height * (0.15 + random() * 0.35), hue: random() * 360, kind});
       noise(0.35, 1600);
@@ -560,19 +568,48 @@ document.addEventListener("DOMContentLoaded", function() {
       noise(0.9, 250, 0.12);
       if (rocket.kind === "Crackle") for (let i = 0; i < 6; i++) noise(0.07, 3000, 0.3 + i * 0.1);
     }
+    function erupt(effect) {
+      const roman = effect.kind === "Roman candle bank";
+      const mine = effect.kind === "Mine";
+      const jets = effect.kind === "Fan jets" ? 7 : roman ? 5 : 1;
+      const perJet = mine ? 100 : roman ? 4 : 12;
+      for (let tube = 0; tube < jets; tube++) {
+        const direction = -Math.PI / 2 + (effect.kind === "Fan jets" ? (tube - 3) * 0.16 : 0);
+        const x = effect.x + (tube - (jets - 1) / 2) * Math.min(24, width / 20);
+        for (let i = 0; i < perJet && sparks.length < 1400; i++) {
+          const angle = direction + (random() - 0.5) * (mine ? 1.1 : 0.18);
+          const velocity = roman ? 190 + random() * 80 : mine ? 100 + random() * 250 : 100 + random() * 140;
+          sparks.push({x, y: height - 3, px: x, py: height - 3,
+            vx: Math.cos(angle) * velocity, vy: Math.sin(angle) * velocity,
+            life: roman ? 3.5 : 1.5 + random() * 1.7,
+            hue: roman ? (effect.hue + effect.volley * 67 + tube * 35) % 360 : 35 + random() * 20,
+            kind: effect.kind, ground: true});
+        }
+      }
+      effect.volley++;
+      noise(roman ? 0.14 : mine ? 0.6 : 0.2, roman ? 900 : 2400);
+    }
     function advance(dt) {
       if (preview) simulated += dt * speed * 1000;
-      if (!active()) { rockets = []; sparks = []; return; }
+      if (!active()) { rockets = []; sparks = []; groundEffects = []; return; }
       launchIn -= dt;
       if (launchIn <= 0) { launch(); launchIn = 1.2 + random() * 1.6; }
+      groundEffects = groundEffects.filter(effect => {
+        effect.life -= dt; effect.next -= dt;
+        if (effect.next <= 0) {
+          erupt(effect);
+          effect.next = effect.kind === "Roman candle bank" ? 0.65 : 0.09;
+        }
+        return effect.life > 0;
+      });
       rockets = rockets.filter(r => {
         r.y -= dt * 250;
         if (r.y <= r.target) { burst(r); return false; } return true;
       });
       sparks = sparks.filter(p => {
         p.px = p.x; p.py = p.y;
-        p.x += p.vx * dt; p.y += p.vy * dt; p.vy += dt * (p.kind === "Willow" ? 19 : 35);
-        p.vx *= Math.exp(-dt * 0.25); p.life -= dt; return p.life > 0;
+        p.x += p.vx * dt; p.y += p.vy * dt; p.vy += dt * (p.ground ? 95 : p.kind === "Willow" ? 19 : 35);
+        p.vx *= Math.exp(-dt * 0.25); p.life -= dt; return p.life > 0 && (!p.ground || p.y < height + 8);
       });
     }
     function draw() {
@@ -592,7 +629,7 @@ document.addEventListener("DOMContentLoaded", function() {
       if (status) status.textContent = new Date(simulated).toISOString() + " · " + zone +
         " · " + (active() ? "New Year active" : "Outside 00:00–02:00 on 1 January") + " · " + sparks.length + " sparks";
       if (preview) canvas.dataset.snapshot = JSON.stringify({effect: "fireworks", active: active(), sparks: sparks.length,
-        rockets: rockets.length, sound, paused, hidden, zone, style: chosen});
+        rockets: rockets.length, groundEffects: groundEffects.map(e => e.kind), groundSparks: sparks.filter(p => p.ground).length, sound, paused, hidden, zone, style: chosen});
     }
     function tick(now) {
       frame = 0; const dt = Math.min(0.05, previous ? (now - previous) / 1000 : 0); previous = now;

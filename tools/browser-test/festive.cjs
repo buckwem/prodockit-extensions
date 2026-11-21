@@ -107,6 +107,20 @@ const server = http.createServer((req, res) => {
     await page.select('select[aria-label="Fireworks style"]', 'Willow');
     await page.click('button[aria-label="Launch a test firework"]');
     assert.equal((await state()).rockets, 1);
+    for (const style of ['Roman candle bank', 'Fountain', 'Fan jets', 'Mine']) {
+      await page.click('button[aria-label="Reset fireworks"]');
+      await page.select('select[aria-label="Fireworks style"]', style);
+      await page.click('button[aria-label="Launch a test firework"]');
+      assert.ok((await state()).groundEffects.includes(style));
+      await page.click('button[aria-label="Advance fireworks one frame"]');
+      assert.ok((await state()).groundSparks > 0, style + ' emits ground sparks');
+      await page.evaluate(() => {
+        const step = document.querySelector('button[aria-label="Advance fireworks one frame"]');
+        for (let i=0;i<600;i++) step.click();
+      });
+      assert.ok((await state()).sparks <= 1400);
+      assert.ok((await state()).groundEffects.length <= 3);
+    }
     await page.emulateMediaType('print');
     assert.equal(await page.$eval('.pdk-festive-speaker', el => getComputedStyle(el).display), 'none');
     await page.emulateMediaType('screen');
