@@ -61,7 +61,7 @@ const server = http.createServer((req, res) => {
       const step = [...document.querySelectorAll('button')].find(b => b.textContent === 'Step');
       for(let i=0;i<800;i++) step.click();
     });
-    assert.equal((await state()).destination, 'Chatham Is.');
+    assert.equal((await state()).destination, 'New Zealand');
     // Accelerate ten minutes of snowfall by deterministic single-frame steps.
     await page.evaluate(() => {
       const step = [...document.querySelectorAll('button')].find(b => b.textContent === 'Step');

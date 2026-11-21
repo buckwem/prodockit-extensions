@@ -366,7 +366,7 @@ document.addEventListener("DOMContentLoaded", function() {
   const preview = loopback && query.get("pdk-festive-test") === "1";
   // Representatives for distinct Christmas offsets, including fractional zones.
   const stops = [
-    ["Pacific/Kiritimati", "Kiritimati", "Kiribati"], ["Pacific/Chatham", "Chatham Is.", "Chatham"],
+    ["Pacific/Kiritimati", "Kiritimati", "Kiribati"], ["Pacific/Chatham", "New Zealand", "NZ"],
     ["Pacific/Auckland", "New Zealand", "NZ"], ["Pacific/Fiji", "Fiji", "Fiji"],
     ["Australia/Sydney", "Sydney", "Sydney"], ["Australia/Adelaide", "Adelaide", "Adelaide"],
     ["Australia/Brisbane", "Brisbane", "Brisbane"], ["Australia/Darwin", "Darwin", "Darwin"],
