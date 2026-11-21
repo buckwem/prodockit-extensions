@@ -468,7 +468,18 @@ document.addEventListener("DOMContentLoaded", function() {
       if (!Number.isFinite(simulated) || !Number.isFinite(speed) || speed < 0 || speed > 3600) throw Error("invalid preview time or speed");
     }
     function random() { seed = (1664525 * seed + 1013904223) >>> 0; return seed / 4294967296; }
-    function reset() { seed = initialSeed; particles = []; bank = Array(80).fill(0); spawn = 0; angle = 0; }
+    let flight;
+    function newFlight() {
+      flight = {
+        progress: 0, fromLeft: random() < 0.5,
+        startY: 0.15 + random() * 0.65, endY: 0.15 + random() * 0.65,
+        bend: (random() - 0.5) * 0.16
+      };
+    }
+    function reset() {
+      seed = initialSeed; particles = []; bank = Array(80).fill(0); spawn = 0; angle = 0;
+      newFlight();
+    }
     function persist() { try { localStorage.setItem("pdk-festive", JSON.stringify({paused, hidden})); } catch (_) {} }
     function button(label, action) {
       const element = document.createElement("button");
@@ -536,6 +547,10 @@ document.addEventListener("DOMContentLoaded", function() {
     function advance(dt) {
       if (preview) simulated += dt * speed * 1000;
       angle += dt * 0.12;
+      flight.progress += dt * 55 / (width + 320);
+      // Both endpoints are beyond the rotated artwork bounds. Pick the next
+      // entrance only after the complete sleigh and parcel sled have left.
+      if (flight.progress >= 1) newFlight();
       // Melt from below independently of incoming snow, never retaining history.
       bank = bank.map(value => Math.max(0, value - dt * 0.55));
       spawn += dt * Math.min(45, width / 25) * density;
@@ -574,16 +589,20 @@ document.addEventListener("DOMContentLoaded", function() {
       if (!artwork.complete || !artwork.naturalWidth) return;
       const spriteWidth = Math.min(120, width - 24, (height - 120) * 1.5);
       const spriteHeight = spriteWidth * artwork.naturalHeight / artwork.naturalWidth;
-      const travelX = Math.max(0, width - spriteWidth - 40);
-      const travelY = Math.max(0, height - spriteHeight - 150);
-      const centreX = 20 + spriteWidth / 2 + travelX * (0.5 + 0.5 * Math.sin(angle));
-      const centreY = 75 + spriteHeight / 2 + travelY * (0.5 + 0.5 * Math.sin(angle * 2));
-      const velocityX = travelX * Math.cos(angle);
-      const velocityY = travelY * 2 * Math.cos(angle * 2);
-      const facingLeft = velocityX < 0;
-      // The tangent controls the pitch, capped to keep the passenger upright.
+      const progress = flight.progress;
+      const centreX = flight.fromLeft
+        ? -160 + (width + 320) * progress
+        : width + 160 - (width + 320) * progress;
+      const centreY = height * (
+        flight.startY + (flight.endY - flight.startY) * progress +
+        flight.bend * Math.sin(Math.PI * progress)
+      );
+      const velocityY = height * (
+        flight.endY - flight.startY + flight.bend * Math.PI * Math.cos(Math.PI * progress)
+      );
+      const facingLeft = !flight.fromLeft;
       const pitch = Math.max(-0.38, Math.min(0.38,
-        Math.atan2(velocityY, Math.abs(velocityX) + 100))) * (facingLeft ? -1 : 1);
+        Math.atan2(velocityY, width + 320))) * (facingLeft ? -1 : 1);
       ctx.save();
       ctx.translate(centreX, centreY);
       ctx.rotate(pitch);
