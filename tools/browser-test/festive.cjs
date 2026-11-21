@@ -131,6 +131,30 @@ const server = http.createServer((req, res) => {
     assert.deepEqual(rotation.shows.slice(0,3), ['fireworks','drones','fireworks']);
     assert.deepEqual(rotation.scenes, ['Happy New Year','Bird','Deer','Dolphin','Butterfly','Heart','Star','Globe','Tree','Flower']);
     assert.ok(rotation.ground.length > 0);
+    for (const enabled of [true, false]) {
+      await page.evaluate(enabled => {
+        const marker = document.createElement('span');
+        marker.dataset.pdkFestive = JSON.stringify({enabled:true, effect:'fireworks', drone:enabled});
+        document.body.append(marker);
+        window.refresh();
+      }, enabled);
+      const result = await page.evaluate(() => {
+        const step = document.querySelector('button[aria-label="Advance fireworks one frame"]');
+        let sawDrones = false, laterFireworks = false;
+        for (let i = 0; i < 9000; i++) {
+          step.click();
+          if (i % 30 === 0) {
+            const state = JSON.parse(document.querySelector('canvas').dataset.snapshot);
+            sawDrones ||= state.show === 'drones';
+            if (i > 8000 && (state.rockets || state.sparks || state.groundEffects.length)) laterFireworks = true;
+          }
+        }
+        return {sawDrones, laterFireworks};
+      });
+      assert.equal(result.sawDrones, enabled);
+      if (!enabled) assert.ok(result.laterFireworks, 'fireworks continue beyond the drone transition');
+      await page.evaluate(() => document.querySelector('[data-pdk-festive]').remove());
+    }
     await page.emulateMediaType('print');
     assert.equal(await page.$eval('.pdk-festive-speaker', el => getComputedStyle(el).display), 'none');
     await page.emulateMediaType('screen');

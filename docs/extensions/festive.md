@@ -143,6 +143,7 @@ Load the managed assets and include the configuration helper as described in
 [project.extra.festive]
 enabled = true
 effect = "fireworks"
+drone = true
 ```
 
 The New Year overlay uses the fixed local-time window below, so it does not need
@@ -183,6 +184,11 @@ as Pacific/Kiritimati, Asia/Kathmandu and America/New_York around their local
 midnight and 02:00 boundaries.
 
 ### Drone display
+
+Drone displays are enabled by default. Omitting `drone` is equivalent to
+`drone = true`. Set `drone = false` in `[project.extra.festive]` to disable
+them and show fireworks throughout the active New Year window. This setting
+also applies when `effect = "auto"` selects the New Year overlay.
 
 Each drone phase provides a two-minute choreography of coloured lights.
 The lights sample three-dimensional surfaces, shown in perspective with rotating

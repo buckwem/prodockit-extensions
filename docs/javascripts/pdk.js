@@ -428,7 +428,7 @@ document.addEventListener("DOMContentLoaded", function() {
       const config = JSON.parse(raw);
       if (config.enabled !== true && !preview) return;
       if (config.effect && !["snow", "fireworks", "auto"].includes(config.effect)) throw Error("effect must be snow, fireworks or auto");
-      for (const key of ["enabled", "sleigh"]) {
+      for (const key of ["enabled", "sleigh", "drone"]) {
         if (config[key] !== undefined && typeof config[key] !== "boolean") throw Error(key + " must be a boolean");
       }
       const first = day(config.season_start || "12-01"), last = day(config.season_end || "01-06");
@@ -561,7 +561,7 @@ document.addEventListener("DOMContentLoaded", function() {
       oscillator.start(when); oscillator.stop(when + duration);
     }
     function launch() {
-      if (fireworksElapsed >= 120 || drone || groundEffects.length || sparks.some(p => p.ground) || rockets.length >= 5 || sparks.length > 1000) return;
+      if ((config.drone !== false && fireworksElapsed >= 120) || drone || groundEffects.length || sparks.some(p => p.ground) || rockets.length >= 5 || sparks.length > 1000) return;
       // Keep a selected ground sequence queued while the aerial display clears.
       // Rerolling here allowed new aerial launches to starve ground effects.
       if (!pendingKind) pendingKind = styles[Math.floor(random() * styles.length)];
@@ -809,8 +809,8 @@ document.addEventListener("DOMContentLoaded", function() {
       if (drone) { advanceDrones(dt); return; }
       fireworksElapsed += dt;
       launchIn -= dt;
-      if (fireworksElapsed < 120 && launchIn <= 0) { launch(); launchIn = 1.2 + random() * 1.6; }
-      if (fireworksElapsed >= 120 && !rockets.length && !sparks.length && !groundEffects.length) {
+      if ((config.drone === false || fireworksElapsed < 120) && launchIn <= 0) { launch(); launchIn = 1.2 + random() * 1.6; }
+      if (config.drone !== false && fireworksElapsed >= 120 && !rockets.length && !sparks.length && !groundEffects.length) {
         pendingKind = null; startDrones(); return;
       }
       groundEffects = groundEffects.filter(effect => {
