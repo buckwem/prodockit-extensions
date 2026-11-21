@@ -128,6 +128,20 @@ Set `effect = "fireworks"` for New Year celebrations, or `effect = "auto"`
 for snow in the configured season and fireworks on 1 January. The reference
 website uses auto. Installation remains opt-in.
 
+To enable only the New Year overlay, add this configuration to `zensical.toml`.
+Load the managed assets and include the configuration helper as described in
+[Enable the festive extension](#enable-the-festive-extension).
+
+```toml
+[project.extra.festive]
+enabled = true
+effect = "fireworks"
+```
+
+The New Year overlay uses the fixed local-time window below, so it does not need
+snow season dates or sleigh settings. Change `effect` to `"auto"` in the full
+configuration above to enable both celebrations.
+
 Fireworks appear from **00:00 inclusive until 02:00 exclusive on 1 January**
 in the visitor's browser time zone. The display mixes peony bursts, rings,
 palms, golden willows and crackling sparks, plus Roman candle banks,
