@@ -148,7 +148,7 @@ viewpoints. The deer uses 1,100 surface samples from Quaternius's CC0
 [Deer model](https://poly.pizza/m/T6Cs7tmMHJ). The other objects use procedural
 volumetric surfaces, including a spherical globe, rounded animal bodies,
 three-dimensional wings, cones and petals. The title retains shallow depth for
-readability. Birds and butterflies flap their wings, the deer gallops, the dolphin
+readability. Birds and butterflies flap their wings, the deer trots with alternating diagonal leg pairs, the dolphin
 swims, the heart pulses, and the globe rotates as a sphere. The lights morph
 every twelve seconds through Happy New Year, a bird, deer,
 dolphin, butterfly, heart, star, globe, tree and flower. Mixed mode can also

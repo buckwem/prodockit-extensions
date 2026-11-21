@@ -738,8 +738,31 @@ document.addEventListener("DOMContentLoaded", function() {
           y += Math.sin(time * 2.2 + x * 7) * 0.045;
           z += Math.cos(time * 2.2 + x * 5) * 0.035;
         } else if (drone.name === "Deer") {
-          y -= Math.abs(Math.sin(time * 3)) * 0.035;
-          if (point.y > 0.65) x += Math.sin(time * 6 + (point.x > 0.5 ? Math.PI : 0)) * 0.035;
+          // A gentle diagonal-pair trot. Rotate each leg around its own
+          // shoulder/hip, then flex the lower leg only during the swing.
+          const stride = time * 3.2;
+          y -= (1 - Math.cos(stride * 2)) * 0.004;
+          if (point.y > 0.59) {
+            const front = point.x > 0.4, farSide = point.z < 0;
+            const phase = stride + (front !== farSide ? Math.PI : 0);
+            const hipX = (front ? 0.59 : 0.20) - 0.5;
+            const hipY = (0.59 - 0.5) / 2;
+            const kneeX = (front ? 0.59 : 0.16) - 0.5;
+            const kneeY = (0.86 - 0.5) / 2;
+            const swing = Math.sin(phase) * 0.28;
+            const flex = Math.max(0, Math.cos(phase)) * (front ? -0.55 : 0.55);
+            let legX = point.x - 0.5, legY = (point.y - 0.5) / 2;
+            if (point.y > 0.86) {
+              const dx = legX - kneeX, dy = legY - kneeY;
+              legX = kneeX + dx * Math.cos(flex) - dy * Math.sin(flex);
+              legY = kneeY + dx * Math.sin(flex) + dy * Math.cos(flex);
+            }
+            const dx = legX - hipX, dy = legY - hipY;
+            const blend = Math.min(1, (point.y - 0.59) / 0.09);
+            x += (hipX + dx * Math.cos(swing) - dy * Math.sin(swing) - x) * blend;
+            y += (hipY + dx * Math.sin(swing) + dy * Math.cos(swing) -
+              (point.y - 0.5) / 2) * blend;
+          }
         } else if (drone.name === "Heart") {
           const pulse = 1 + Math.sin(time * 3) * 0.055;
           x *= pulse; y *= pulse; z *= pulse;
