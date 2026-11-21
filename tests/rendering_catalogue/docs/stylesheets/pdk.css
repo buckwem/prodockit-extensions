@@ -1058,6 +1058,7 @@ img.documentation-diagram {
 .pdk-festive-controls :focus-visible { outline: 3px solid var(--md-accent-fg-color, blue); }
 .pdk-festive-preview strong,
 .pdk-festive-preview output { display: block; }
+.pdk-festive-speaker,
 .pdk-festive-toggle {
     font-size: 1.3rem;
     cursor: pointer;
@@ -1066,5 +1067,6 @@ img.documentation-diagram {
 .pdk-festive-toggle:focus-visible { outline: 3px solid var(--md-accent-fg-color, blue); }
 .pdk-festive-canvas[hidden], .pdk-festive-controls[hidden] { display: none; }
 @media print {
-    .pdk-festive-canvas, .pdk-festive-controls, .pdk-festive-toggle { display: none !important; }
+    .pdk-festive-canvas, .pdk-festive-controls, .pdk-festive-speaker,
+.pdk-festive-toggle { display: none !important; }
 }

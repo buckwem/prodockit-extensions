@@ -105,3 +105,30 @@ their particular offsets. Baker Island is an uninhabited Pacific island used for
 boundary. Labels use a reserved panel and compact alternatives where needed.
 The sleigh carries a mound of parcels behind Father Christmas as it follows
 a curved route through the viewport.
+
+## New Year fireworks
+
+Set `effect = "fireworks"` for New Year celebrations, or `effect = "auto"`
+for snow in the configured season and fireworks on 1 January. The reference
+website uses auto. Installation remains opt-in.
+
+Fireworks appear from **00:00 inclusive until 02:00 exclusive on 1 January**
+in the visitor's browser time zone. The display mixes peony bursts, rings,
+palms, golden willows and crackling sparks. The header uses a firework icon.
+
+Press the speaker icon to enable synthesised launch, boom and crackle sounds.
+Sound starts muted and requires a click. Use the volume slider to adjust it.
+Pausing, hiding, printing or switching to a hidden tab silences the sound.
+Reduced motion starts the display paused.
+
+For a local preview, open the following query on this page. The time is UTC
+and `pdk-festive-zone` selects the zone used to evaluate the two-hour window.
+
+```text
+?pdk-festive-test=1&pdk-festive-effect=fireworks&pdk-festive-time=2027-01-01T00%3A00%3A00Z&pdk-festive-zone=Europe%2FLondon&pdk-festive-speed=1
+```
+
+Choose an individual fireworks style, launch a test burst, change the UTC
+clock or speed, and reset the particles in the preview panel. Try zones such
+as Pacific/Kiritimati, Asia/Kathmandu and America/New_York around their local
+midnight and 02:00 boundaries.

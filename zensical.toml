@@ -25,7 +25,7 @@ extra_css = [
 extra.heading_numbering = true
 extra.website_heading_numbering = true
 # Opt in on this reference website. Package installation and Adopt leave it disabled.
-extra.festive = { enabled = true, effect = "snow", season_start = "12-01", season_end = "01-06", sleigh = true }
+extra.festive = { enabled = true, effect = "auto", season_start = "12-01", season_end = "01-06", sleigh = true }
 
 # Client-side MathJax, for the website only - the PDF pre-renders the same
 # formulas to SVG instead (see `pymdownx.arithmatex` below). Order is

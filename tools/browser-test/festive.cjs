@@ -89,6 +89,27 @@ const server = http.createServer((req, res) => {
     assert.equal(await page.$eval('input[aria-label="Clock speed"]', el => el.value), '1');
     await page.goto(base);
     assert.equal(await page.$$('canvas').then(x=>x.length), 0);
+    const fireworksURL = base + '/?pdk-festive-test=1&pdk-festive-effect=fireworks&pdk-festive-speed=0&pdk-festive-zone=Asia%2FKathmandu&pdk-festive-time=';
+    for (const [instant, expected] of [
+      ['2026-12-31T18:14:59Z', false], ['2026-12-31T18:15:00Z', true],
+      ['2026-12-31T20:14:59Z', true], ['2026-12-31T20:15:00Z', false]
+    ]) {
+      await page.goto(fireworksURL + encodeURIComponent(instant));
+      assert.equal((await state()).active, expected);
+    }
+    await page.goto(fireworksURL + encodeURIComponent('2026-12-31T18:15:00Z'));
+    assert.equal((await state()).sound, false);
+    assert.equal(await page.$eval('.pdk-festive-toggle', el => el.textContent), '🎆');
+    await page.click('.pdk-festive-speaker');
+    await page.waitForFunction(() => JSON.parse(document.querySelector('canvas').dataset.snapshot).sound);
+    await page.click('.pdk-festive-speaker');
+    assert.equal((await state()).sound, false);
+    await page.select('select[aria-label="Fireworks style"]', 'Willow');
+    await page.click('button[aria-label="Launch a test firework"]');
+    assert.equal((await state()).rockets, 1);
+    await page.emulateMediaType('print');
+    assert.equal(await page.$eval('.pdk-festive-speaker', el => getComputedStyle(el).display), 'none');
+    await page.emulateMediaType('screen');
     console.log('Passed Christmas boundaries, Nepal handover, mobile, palette, navigation, print, reduced motion and ten simulated minutes.');
   } finally { await browser.close(); server.close(); }
 })().catch(error => {console.error(error); server.close(); process.exitCode=1;});

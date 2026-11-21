@@ -419,19 +419,215 @@ document.addEventListener("DOMContentLoaded", function() {
     const marker = document.querySelector("[data-pdk-festive]");
     if (!marker && !preview) { controller?.dispose(); controller = null; return; }
     const raw = marker?.getAttribute("data-pdk-festive") || "{}";
-    if (controller?.raw === raw) { controller.mountToggle(); return; }
+    const automaticDay = new Date().getMonth() === 0 && new Date().getDate() === 1;
+    const signature = raw + ":" + automaticDay;
+    if (controller?.signature === signature) { controller.mountToggle(); return; }
     controller?.dispose();
     controller = null;
     try {
       const config = JSON.parse(raw);
       if (config.enabled !== true && !preview) return;
-      if (config.effect && config.effect !== "snow") throw Error("effect must be snow");
+      if (config.effect && !["snow", "fireworks", "auto"].includes(config.effect)) throw Error("effect must be snow, fireworks or auto");
       for (const key of ["enabled", "sleigh"]) {
         if (config[key] !== undefined && typeof config[key] !== "boolean") throw Error(key + " must be a boolean");
       }
       const first = day(config.season_start || "12-01"), last = day(config.season_end || "01-06");
-      controller = create(config, first, last, raw);
+      const requested = preview && query.get("pdk-festive-effect") || config.effect || "snow";
+      const now = new Date();
+      const fireworks = requested === "fireworks" ||
+        (requested === "auto" && now.getMonth() === 0 && now.getDate() === 1);
+      controller = fireworks ? createFireworks(config, raw) : create(config, first, last, raw);
+      controller.signature = signature;
     } catch (error) { console.warn("Prodockit festive overlay:", error.message); }
+  }
+  function createFireworks(config, raw) {
+    const events = new AbortController();
+    const on = (el, type, action) => el.addEventListener(type, action, {signal: events.signal});
+    const canvas = document.createElement("canvas");
+    canvas.className = "pdk-festive-canvas"; canvas.setAttribute("aria-hidden", "true");
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw Error("canvas is unavailable");
+    const controls = document.createElement("div"); controls.className = "pdk-festive-controls";
+    const motion = matchMedia("(prefers-reduced-motion: reduce)");
+    let paused = motion.matches, hidden = false, printing = false, sound = false;
+    let audio, volume = 0.25, master, frame = 0, previous = 0, launchIn = 0, styleIndex = 0;
+    let width = innerWidth, height = innerHeight, rockets = [], sparks = [];
+    let seed = Number(query.get("pdk-festive-seed") || 42) >>> 0;
+    let simulated = preview && query.get("pdk-festive-time") ? Date.parse(query.get("pdk-festive-time")) : Date.now();
+    if (!Number.isFinite(simulated)) throw Error("invalid fireworks preview time");
+    let speed = preview ? Number(query.get("pdk-festive-speed") || 1) : 1;
+    if (!Number.isFinite(speed) || speed < 0 || speed > 3600) throw Error("invalid preview speed");
+    const zone = preview && query.get("pdk-festive-zone") || Intl.DateTimeFormat().resolvedOptions().timeZone;
+    const formatter = new Intl.DateTimeFormat("en-GB", {
+      timeZone: zone, month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23"
+    });
+    function active() {
+      const parts = Object.fromEntries(formatter.formatToParts(new Date(preview ? simulated : Date.now())).map(p => [p.type, p.value]));
+      return parts.month === "01" && parts.day === "01" && Number(parts.hour) < 2;
+    }
+    function random() { seed = (1664525 * seed + 1013904223) >>> 0; return seed / 4294967296; }
+    function button(text, label, action, parent = controls) {
+      const el = document.createElement("button"); el.type = "button"; el.textContent = text;
+      el.setAttribute("aria-label", label); on(el, "click", action); parent.append(el); return el;
+    }
+    const toggle = button("🎆", "Turn fireworks off", () => { hidden = !hidden; refresh(); });
+    toggle.className = "pdk-festive-toggle md-header__button md-icon";
+    const speaker = button("🔇", "Enable fireworks sound", async () => {
+      if (!sound) {
+        const Audio = window.AudioContext || window.webkitAudioContext;
+        if (!Audio) { speaker.disabled = true; speaker.title = "Audio is unavailable"; return; }
+        try {
+          if (!audio) {
+            audio = new Audio(); master = audio.createGain(); master.gain.value = 0;
+            master.connect(audio.destination);
+          }
+          await audio.resume();
+          if (events.signal.aborted) return;
+          sound = true;
+        } catch (_) { return; }
+      } else sound = false;
+      refresh();
+    });
+    speaker.className = "pdk-festive-speaker md-header__button md-icon";
+    function mountToggle() {
+      const palette = document.querySelector("[data-md-component=palette]");
+      if (palette) { palette.before(toggle); palette.before(speaker); }
+    }
+    const pause = button("Pause fireworks", "Pause fireworks", () => { paused = !paused; refresh(); });
+    const level = document.createElement("input");
+    level.type = "range"; level.min = "0"; level.max = "100"; level.value = "25";
+    level.setAttribute("aria-label", "Fireworks volume");
+    on(level, "input", () => { volume = Number(level.value) / 100; syncAudio(); });
+    controls.append(level);
+    const styles = ["Peony", "Ring", "Palm", "Willow", "Crackle"];
+    let chosen = "Mixed", status;
+    if (preview) {
+      const select = document.createElement("select"); select.setAttribute("aria-label", "Fireworks style");
+      for (const label of ["Mixed", ...styles]) {
+        const option = document.createElement("option"); option.textContent = label; select.append(option);
+      }
+      on(select, "change", () => { chosen = select.value; launchIn = 0; }); controls.append(select);
+      const clock = document.createElement("input"); clock.type = "datetime-local";
+      clock.value = new Date(simulated).toISOString().slice(0, 19); clock.setAttribute("aria-label", "Simulated UTC time");
+      on(clock, "change", () => {
+        const next = Date.parse(clock.value + "Z");
+        if (Number.isFinite(next)) { simulated = next; rockets = []; sparks = []; refresh(); }
+      }); controls.append(clock);
+      const rate = document.createElement("input"); rate.type = "number"; rate.min = "0"; rate.max = "3600";
+      rate.value = String(speed); rate.setAttribute("aria-label", "Clock speed");
+      on(rate, "change", () => { const next = Number(rate.value); if (Number.isFinite(next) && next >= 0 && next <= 3600) speed = next; });
+      controls.append(rate);
+      button("Burst", "Launch a test firework", () => { if (active()) launch(); draw(); });
+      button("Reset", "Reset fireworks", () => { seed = 42; rockets = []; sparks = []; launchIn = 0; draw(); });
+      status = document.createElement("output"); controls.append(status);
+    }
+    function syncAudio() {
+      if (!master) return;
+      const audible = sound && !paused && !hidden && !document.hidden && !printing && active();
+      master.gain.setTargetAtTime(audible ? volume * 0.35 : 0, audio.currentTime, 0.02);
+    }
+    function noise(duration, low, delay = 0) {
+      if (!sound || !audio || audio.state !== "running" || document.hidden || paused || hidden || !active()) return;
+      const buffer = audio.createBuffer(1, Math.ceil(audio.sampleRate * duration), audio.sampleRate);
+      const samples = buffer.getChannelData(0);
+      for (let i = 0; i < samples.length; i++) samples[i] = Math.random() * 2 - 1;
+      const source = audio.createBufferSource(), filter = audio.createBiquadFilter(), gain = audio.createGain();
+      source.buffer = buffer; filter.type = "lowpass"; filter.frequency.value = low;
+      const when = audio.currentTime + delay;
+      gain.gain.setValueAtTime(1, when); gain.gain.exponentialRampToValueAtTime(0.001, when + duration);
+      source.connect(filter); filter.connect(gain); gain.connect(master);
+      source.onended = () => { source.disconnect(); filter.disconnect(); gain.disconnect(); };
+      source.start(when); source.stop(when + duration);
+    }
+    function launch() {
+      if (rockets.length >= 5 || sparks.length > 1000) return;
+      const kind = chosen === "Mixed" ? styles[styleIndex++ % styles.length] : chosen;
+      rockets.push({x: width * (0.15 + random() * 0.7), y: height + 5,
+        target: height * (0.15 + random() * 0.35), hue: random() * 360, kind});
+      noise(0.35, 1600);
+    }
+    function burst(rocket) {
+      const count = rocket.kind === "Palm" ? 35 : 90;
+      for (let i = 0; i < count && sparks.length < 1400; i++) {
+        const angle = i / count * Math.PI * 2;
+        const radius = rocket.kind === "Ring" ? 100 : 35 + random() * 100;
+        const a = rocket.kind === "Palm" ? -Math.PI + random() * Math.PI : angle;
+        sparks.push({x: rocket.x, y: rocket.y, px: rocket.x, py: rocket.y,
+          vx: Math.cos(a) * radius, vy: Math.sin(a) * radius,
+          life: rocket.kind === "Willow" ? 4 : 1.5 + random() * 1.5,
+          hue: rocket.kind === "Willow" ? 42 : rocket.hue, kind: rocket.kind});
+      }
+      noise(0.9, 250, 0.12);
+      if (rocket.kind === "Crackle") for (let i = 0; i < 6; i++) noise(0.07, 3000, 0.3 + i * 0.1);
+    }
+    function advance(dt) {
+      if (preview) simulated += dt * speed * 1000;
+      if (!active()) { rockets = []; sparks = []; return; }
+      launchIn -= dt;
+      if (launchIn <= 0) { launch(); launchIn = 1.2 + random() * 1.6; }
+      rockets = rockets.filter(r => {
+        r.y -= dt * 250;
+        if (r.y <= r.target) { burst(r); return false; } return true;
+      });
+      sparks = sparks.filter(p => {
+        p.px = p.x; p.py = p.y;
+        p.x += p.vx * dt; p.y += p.vy * dt; p.vy += dt * (p.kind === "Willow" ? 19 : 35);
+        p.vx *= Math.exp(-dt * 0.25); p.life -= dt; return p.life > 0;
+      });
+    }
+    function draw() {
+      ctx.clearRect(0, 0, width, height);
+      if (active()) {
+        for (const r of rockets) {
+          ctx.strokeStyle = "hsl(" + r.hue + " 85% 55%)"; ctx.lineWidth = 2;
+          ctx.beginPath(); ctx.moveTo(r.x, r.y + 18); ctx.lineTo(r.x, r.y); ctx.stroke();
+        }
+        for (const p of sparks) {
+          ctx.globalAlpha = Math.min(1, p.life);
+          ctx.strokeStyle = "hsl(" + p.hue + " 90% 55%)"; ctx.lineWidth = p.kind === "Willow" ? 1.3 : 2;
+          ctx.beginPath(); ctx.moveTo(p.px, p.py); ctx.lineTo(p.x, p.y); ctx.stroke();
+        }
+      }
+      ctx.globalAlpha = 1;
+      if (status) status.textContent = new Date(simulated).toISOString() + " · " + zone +
+        " · " + (active() ? "New Year active" : "Outside 00:00–02:00 on 1 January") + " · " + sparks.length + " sparks";
+      if (preview) canvas.dataset.snapshot = JSON.stringify({effect: "fireworks", active: active(), sparks: sparks.length,
+        rockets: rockets.length, sound, paused, hidden, zone, style: chosen});
+    }
+    function tick(now) {
+      frame = 0; const dt = Math.min(0.05, previous ? (now - previous) / 1000 : 0); previous = now;
+      advance(dt); draw(); syncAudio();
+      frame = requestAnimationFrame(tick);
+    }
+    function refresh() {
+      cancelAnimationFrame(frame); frame = 0; previous = 0;
+      canvas.hidden = hidden; controls.hidden = !preview && !active();
+      toggle.setAttribute("aria-pressed", String(!hidden));
+      toggle.setAttribute("aria-label", hidden ? "Turn fireworks on" : "Turn fireworks off");
+      speaker.textContent = sound ? "🔊" : "🔇";
+      speaker.setAttribute("aria-label", sound ? "Mute fireworks sound" : "Enable fireworks sound");
+      speaker.setAttribute("aria-pressed", String(sound));
+      pause.textContent = paused ? "Resume fireworks" : "Pause fireworks";
+      mountToggle(); draw(); syncAudio();
+      if (!hidden && !paused && !document.hidden && !printing) frame = requestAnimationFrame(tick);
+    }
+    function resize() {
+      width = Math.max(1, innerWidth); height = Math.max(1, innerHeight);
+      const ratio = Math.min(devicePixelRatio || 1, 2);
+      canvas.width = Math.round(width * ratio); canvas.height = Math.round(height * ratio);
+      ctx.setTransform(ratio, 0, 0, ratio, 0, 0); draw();
+    }
+    document.body.append(canvas, controls); resize();
+    on(window, "resize", resize); on(document, "visibilitychange", refresh);
+    on(motion, "change", () => { if (motion.matches) paused = true; refresh(); });
+    on(window, "beforeprint", () => { printing = true; refresh(); });
+    on(window, "afterprint", () => { printing = false; refresh(); });
+    const timer = setInterval(() => { start(); if (!events.signal.aborted) refresh(); }, 60000);
+    refresh();
+    return {raw, mountToggle, dispose() {
+      events.abort(); clearInterval(timer); cancelAnimationFrame(frame);
+      audio?.close(); canvas.remove(); controls.remove(); toggle.remove(); speaker.remove();
+    }};
   }
   function create(config, first, last, raw) {
     const events = new AbortController();
@@ -713,7 +909,7 @@ document.addEventListener("DOMContentLoaded", function() {
     on(window, "afterprint", () => { printing = false; refresh(); });
     const observer = new MutationObserver(draw);
     observer.observe(document.body, {attributes: true, attributeFilter: ["data-md-color-scheme"]});
-    const timer = setInterval(refresh, 60000);
+    const timer = setInterval(() => { start(); if (!events.signal.aborted) refresh(); }, 60000);
     refresh();
     return {raw, mountToggle, dispose() { events.abort(); observer.disconnect(); clearInterval(timer); cancelAnimationFrame(frame); canvas.remove(); controls.remove(); toggle.remove(); }};
   }
