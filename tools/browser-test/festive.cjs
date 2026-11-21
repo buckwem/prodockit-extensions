@@ -111,7 +111,8 @@ const server = http.createServer((req, res) => {
       await page.click('button[aria-label="Reset fireworks"]');
       await page.select('select[aria-label="Fireworks style"]', style);
       await page.click('button[aria-label="Launch a test firework"]');
-      assert.ok((await state()).groundEffects.includes(style));
+      assert.deepEqual((await state()).groundEffects, [style, style, style]);
+      assert.equal((await state()).rockets, 0);
       await page.click('button[aria-label="Advance fireworks one frame"]');
       assert.ok((await state()).groundSparks > 0, style + ' emits ground sparks');
       await page.evaluate(() => {

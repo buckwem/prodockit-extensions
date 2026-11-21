@@ -514,7 +514,9 @@ document.addEventListener("DOMContentLoaded", function() {
       for (const label of ["Mixed", ...styles]) {
         const option = document.createElement("option"); option.textContent = label; select.append(option);
       }
-      on(select, "change", () => { chosen = select.value; launchIn = 0; }); controls.append(select);
+      on(select, "change", () => {
+        chosen = select.value; launchIn = 0; rockets = []; sparks = []; groundEffects = [];
+      }); controls.append(select);
       const clock = document.createElement("input"); clock.type = "datetime-local";
       clock.value = new Date(simulated).toISOString().slice(0, 19); clock.setAttribute("aria-label", "Simulated UTC time");
       on(clock, "change", () => {
@@ -549,12 +551,16 @@ document.addEventListener("DOMContentLoaded", function() {
       source.start(when); source.stop(when + duration);
     }
     function launch() {
-      if (rockets.length >= 5 || sparks.length > 1000) return;
+      if (groundEffects.length || sparks.some(p => p.ground) || rockets.length >= 5 || sparks.length > 1000) return;
       const kind = chosen === "Mixed" ? styles[Math.floor(random() * styles.length)] : chosen;
       if (["Roman candle bank", "Fountain", "Fan jets", "Mine"].includes(kind)) {
-        if (groundEffects.length < 3) {
-          groundEffects.push({kind, x: width * (0.2 + random() * 0.6), life: kind === "Mine" ? 0.1 : 5,
-            next: 0, hue: random() * 360, volley: 0});
+        if (rockets.length || sparks.length) return;
+        if (groundEffects.length === 0) {
+          const hue = random() * 360;
+          for (let i = 0; i < 3; i++) {
+            groundEffects.push({kind, x: width * (0.2 + i * 0.3), life: kind === "Mine" ? 0.1 : 5,
+              next: 0, hue: (hue + i * 120) % 360, volley: 0});
+          }
         }
         return;
       }
@@ -590,7 +596,7 @@ document.addEventListener("DOMContentLoaded", function() {
           sparks.push({x, y: height - 3, px: x, py: height - 3,
             vx: Math.cos(angle) * velocity, vy: Math.sin(angle) * velocity,
             life: roman ? 3.5 : 1.5 + random() * 1.7,
-            hue: roman ? (effect.hue + effect.volley * 67 + tube * 35) % 360 : 35 + random() * 20,
+            hue: (effect.hue + (random() - 0.5) * 12 + 360) % 360,
             kind: effect.kind, ground: true});
         }
       }
