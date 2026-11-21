@@ -469,6 +469,7 @@ document.addEventListener("DOMContentLoaded", function() {
     }
     function random() { seed = (1664525 * seed + 1013904223) >>> 0; return seed / 4294967296; }
     let flight;
+    let meltPatches = [], meltTimer = 0;
     function newFlight() {
       flight = {
         progress: 0, fromLeft: random() < 0.5,
@@ -482,6 +483,7 @@ document.addEventListener("DOMContentLoaded", function() {
         x: random() * width, y: random() * height,
         r: 1 + random() * 2, v: 22 + random() * 40, phase: random() * 6.28
       }));
+      meltPatches = []; meltTimer = 0;
       newFlight();
     }
     function persist() { try { localStorage.setItem("pdk-festive", JSON.stringify({paused, hidden})); } catch (_) {} }
@@ -559,8 +561,24 @@ document.addEventListener("DOMContentLoaded", function() {
       // Both endpoints are beyond the rotated artwork bounds. Pick the next
       // entrance only after the complete sleigh and parcel sled have left.
       if (flight.progress >= 1) newFlight();
-      // Melt from below independently of incoming snow, never retaining history.
-      bank = bank.map(value => Math.max(0, value - dt * 0.55));
+      // Thaw a few small patches at a time, leaving other areas to form drifts.
+      meltTimer -= dt;
+      if (meltTimer <= 0) {
+        meltTimer = 4 + random() * 4;
+        meltPatches = Array.from({length: 3}, () => ({
+          centre: random(), radius: 0.025 + random() * 0.025
+        }));
+      }
+      for (let i = 0; i < bank.length; i++) {
+        const position = (i + 0.5) / bank.length;
+        for (const patch of meltPatches) {
+          const distance = Math.abs(position - patch.centre);
+          if (distance < patch.radius) {
+            const strength = 1 - distance / patch.radius;
+            bank[i] = Math.max(0, bank[i] - dt * 1.8 * strength);
+          }
+        }
+      }
       for (const p of particles) {
         p.y += p.v * dt; p.x = (p.x + Math.sin(angle + p.phase) * dt * 12 + width) % width;
         const index = Math.min(bank.length - 1, Math.floor(p.x / width * bank.length));
