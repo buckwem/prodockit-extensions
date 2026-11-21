@@ -67,7 +67,8 @@ destination. After the last destination, it cycles back to Kiritimati.
 
 Choose **Reset** to restore the initial preview clock, seed and snowfall.
 Choose **Changing Location** to start at Kiritimati and advance one destination
-per flight pass, with the clock frozen between passes.
+per flight pass, skipping consecutive stops with the same display name,
+with the clock frozen between passes.
 
 Choose **Current Santa zone** to use the current UTC time of day on 25 December
 of the preview year. This lets you inspect the clock-based destination outside

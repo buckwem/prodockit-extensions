@@ -590,8 +590,10 @@ document.addEventListener("DOMContentLoaded", function() {
         if (preview && !liveSantaZone && config.sleigh !== false) {
           const year = new Date(simulated).getUTCFullYear();
           const route = schedule(year);
-          const next = route.find(stop => stop.time > simulated);
-          simulated = (next || route[0]).time;
+          const currentLabel = destination(simulated)?.label;
+          const next = route.find(stop => stop.time > simulated && stop.label !== currentLabel);
+          const firstDifferent = route.find(stop => stop.label !== currentLabel);
+          simulated = (next || firstDifferent || route[0]).time;
           clock.value = new Date(simulated).toISOString().slice(0, 19);
         }
         newFlight();
