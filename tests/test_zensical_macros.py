@@ -355,3 +355,15 @@ def test_shallow_detection_against_a_real_repository(tmp_path: Path) -> None:
         assert zensical_macros._repository_is_shallow() is False
     finally:
         os.chdir(original)
+
+
+@pytest.mark.parametrize("settings", [None, {}, {"enabled": False}, {"enabled": True}])
+def test_festive_macro_requires_explicit_opt_in(tmp_path, monkeypatch, settings):
+    monkeypatch.chdir(tmp_path)
+    config = _write_project(tmp_path)
+    if settings is not None:
+        config.setdefault("extra", {})["festive"] = settings
+    env = _macro_env(config)
+    define_env(env)
+    rendered = env.macros["pdk_festive"]()
+    assert bool(rendered) == bool(settings and settings.get("enabled"))

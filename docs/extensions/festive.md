@@ -11,6 +11,9 @@ the viewport while the page scrolls. A shallow bank accumulates at the bottom,
 melts in small changing patches and remains bounded at 48 CSS pixels.
 Snow between the thawing patches continues to accumulate into drifts.
 
+Installing Prodockit leaves festive mode unconfigured. This reference website
+opts in explicitly through its own `zensical.toml`.
+
 ## Enable the overlay
 
 Load the managed `pdk.js` and `pdk.css` assets and refresh them with

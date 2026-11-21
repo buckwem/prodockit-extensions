@@ -3,6 +3,9 @@
 
 {% block extrahead %}
   {{ super() }}
+  {% if config.extra.festive and config.extra.festive.enabled %}
+    <meta name="pdk-festive" data-pdk-festive='{{ config.extra.festive | tojson }}'>
+  {% endif %}
   {% if config.extra.website_heading_numbering == false %}
     <style>
       .md-typeset h1::before,

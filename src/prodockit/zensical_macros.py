@@ -295,6 +295,8 @@ def define_env(env: Any) -> None:
         settings = (config.get("extra") or {}).get("festive") or {}
         if not isinstance(settings, dict):
             raise ValueError("extra.festive must be a configuration table")
+        if settings.get("enabled") is not True:
+            return ""
         payload = html.escape(json.dumps(settings), quote=True)
         return f'<span hidden data-pdk-festive="{payload}"></span>'
 
