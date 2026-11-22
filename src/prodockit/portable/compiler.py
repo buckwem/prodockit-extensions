@@ -15,6 +15,7 @@ import html
 import re
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass, field
+from functools import partial
 from pathlib import Path
 from typing import Any
 
@@ -35,6 +36,7 @@ from prodockit.semantics import (
     continuous_numbering,
     resolve_reference,
 )
+from prodockit.tables import TableError, validate_table_attributes
 from prodockit.util import IdRegistry, cross_page_href
 
 _COMMAND = re.compile(
@@ -236,6 +238,15 @@ def compile_pages(
     pandoc: Path | None = None,
 ) -> tuple[dict[str, str], dict[str, Any], set[Path]]:
     """Compile the supported slice with explicit ownership and two passes."""
+    if "prodockit.tables" in config.markdown_extensions:
+        for source, text in sources.items():
+            try:
+                validate_table_attributes(
+                    SourceText.read(text).text.split("\n"),
+                    partial("{}:{}".format, source),
+                )
+            except TableError as error:
+                raise PortableError(str(error)) from error
     pages = {source: scan(source, text) for source, text in sources.items()}
     nav_order = list(dict.fromkeys(p.source_path for p in config.nav_pages))
     missing = set(nav_order) - pages.keys()

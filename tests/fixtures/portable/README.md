@@ -119,12 +119,17 @@ Validation checks coverage and copied text against the captured and prepared
 files. These maps are preparation metadata; native Zensical diagnostics are not
 automatically rewritten by this prototype.
 
+When `prodockit.tables` is enabled, preparation checks original table
+attributes and reports errors with the original filename and line number.
+Zensical still runs the existing table formatter and the checks on parsed
+tables. For example, write `| Name {: width="30%" } | Value |` with a space
+before the attribute list.
+
 Unsupported cases fail explicitly: nested affected syntax, Setext headings,
 caption blocks, custom slugging, macros, snippets, generated navigation/plugins,
 custom theme directories, file-visibility settings, symlinked sources, YAML
-configuration, page-local bibliographies, citation/glossary extensions and
-Prodockit table diagnostics. These remain work for later stages, not silently
-disabled features. The prototype requires explicit `attr_list` and `toc`
+configuration, page-local bibliographies and citation/glossary extensions.
+The prototype requires explicit `attr_list` and `toc`
 configuration when migrated extensions are enabled.
 
 `pdk -p serve` watches original sources and dependencies, builds and validates a

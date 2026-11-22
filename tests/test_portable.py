@@ -104,6 +104,63 @@ def _article(path: Path) -> BeautifulSoup:
     return BeautifulSoup(path.read_text(encoding="utf-8"), "html.parser")
 
 
+def _enable_prodockit_tables(config: Path) -> None:
+    with config.open("a", encoding="utf-8") as handle:
+        handle.write('\n[project.markdown_extensions."prodockit.tables"]\n')
+
+
+def test_table_layout_matches_without_private_page_context(portable_project: Path) -> None:
+    root = portable_project.parent
+    _enable_prodockit_tables(portable_project)
+    source = root / "docs/index.md"
+    source.write_text(
+        source.read_text().replace(
+            "| Name | Value |", '| Name {: width="30%" } | Value |'
+        )
+        + '\n```markdown\n| Example{: width="30%" } | Taken literally |\n```\n',
+        encoding="utf-8",
+    )
+    original = {path: path.read_bytes() for path in (portable_project, source)}
+    runner = CliRunner()
+    ordinary = ["build", "-f", str(portable_project), "--clean", "--strict"]
+    result = runner.invoke(main, ordinary)
+    assert result.exit_code == 0, result.output
+    expected = _article(root / "site/index.html").select_one("table")
+    assert expected is not None and expected.select_one("colgroup col") is not None
+
+    guard = root / "guard"
+    guard.mkdir()
+    (guard / "sitecustomize.py").write_text(
+        "import prodockit.tables\n"
+        "def forbidden(*args, **kwargs):\n"
+        "    raise AssertionError('legacy table source diagnostics were called')\n"
+        "prodockit.tables.page_source = forbidden\n"
+        "prodockit.tables.MalformedTableAttributePreprocessor.run = forbidden\n",
+        encoding="utf-8",
+    )
+    with pytest.MonkeyPatch.context() as isolated:
+        isolated.setenv("PYTHONPATH", str(guard) + os.pathsep + os.environ["PYTHONPATH"])
+        prepared = build(str(portable_project))
+    assert _article(prepared.site / "index.html").select_one("table") == expected
+    result = runner.invoke(main, ordinary)
+    assert result.exit_code == 0, result.output
+    assert _article(root / "site/index.html").select_one("table") == expected
+    assert all(path.read_bytes() == data for path, data in original.items())
+
+
+def test_table_preparation_reports_authored_path_and_line(portable_project: Path) -> None:
+    _enable_prodockit_tables(portable_project)
+    root = portable_project.parent
+    source = root / "docs/guide/install.md"
+    source.write_bytes(
+        b'---\r\ntitle: Guide\r\n---\r\n\r\n# Setup\r\n\r\n'
+        b'| Name{: width="30%" } | Description |\r\n| --- | --- |\r\n'
+    )
+    with pytest.raises(PortableError, match=r"guide/install\.md:7: missing space"):
+        prepare(str(portable_project))
+    assert not list((root / ".pdk/portable/generations").iterdir())
+
+
 def test_preparation_is_selective_and_deterministic(portable_project: Path) -> None:
     root = portable_project.parent
     original = {str(p): p.read_bytes() for p in root.rglob("*") if p.is_file()}

@@ -220,6 +220,15 @@ These changes complete the preparation infrastructure for the bounded prototype.
 They do not expand the supported syntax or migrate unrelated extensions. Both
 build approaches remain selectable from the same authoring files.
 
+### Table attribute diagnostics {: #coupling-portable-table-diagnostics }
+
+With `prodockit.tables` enabled, portable preparation validates authored
+table attributes against the captured Markdown. Errors identify the original
+document and line before Zensical runs. Both approaches use the same
+attribute checks. The prepared configuration retains table formatting and
+the checks that operate on parsed tables. Those operations already work
+without discovering the current page.
+
 ## Migration progress {: #coupling-removed-dependencies }
 
 Issue #561 removed these undocumented dependencies from production code:
