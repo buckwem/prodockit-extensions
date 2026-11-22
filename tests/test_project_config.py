@@ -7,7 +7,16 @@ from pathlib import Path
 
 import pytest
 
-from prodockit.project_config import ProjectConfigError, load_project_config
+from prodockit.project_config import ProjectConfigError, load_project_config, parse_project_config
+
+
+def test_parses_captured_config_without_reopening_original(tmp_path: Path) -> None:
+    path = tmp_path / "project/custom.toml"
+    config = parse_project_config(path, '[project]\nsite_name="Captured"\ndocs_dir="writing"\n')
+    assert config.path == path
+    assert config.site_name == "Captured"
+    assert config.docs_dir == path.parent / "writing"
+    assert not path.exists()
 
 
 def test_loads_zensical_toml_and_normalises_nested_navigation(tmp_path: Path) -> None:

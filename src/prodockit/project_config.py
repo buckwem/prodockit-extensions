@@ -257,6 +257,15 @@ def load_project_config(path: str | Path = "zensical.toml") -> ProjectConfig:
                 f"{problem.location(config_path.parent)}: {problem.message}"
             )
         source = config_path.read_text(encoding="utf-8")
+    except OSError as error:
+        raise ProjectConfigError(f"could not read {config_path}: {error}") from error
+    return parse_project_config(config_path, source)
+
+
+def parse_project_config(path: str | Path, source: str) -> ProjectConfig:
+    """Parse captured configuration text, retaining its original path identity."""
+    config_path = Path(path).resolve()
+    try:
         if config_path.suffix.lower() == ".toml":
             raw = tomllib.loads(source)
             project_value = raw.get("project")
@@ -268,7 +277,7 @@ def load_project_config(path: str | Path = "zensical.toml") -> ProjectConfig:
             if not isinstance(loaded, Mapping):
                 raise ProjectConfigError(f"{config_path} does not contain a configuration mapping")
             project = dict(loaded)
-    except (OSError, tomllib.TOMLDecodeError, yaml.YAMLError) as error:
+    except (tomllib.TOMLDecodeError, yaml.YAMLError) as error:
         raise ProjectConfigError(f"could not read {config_path}: {error}") from error
 
     return ProjectConfig(

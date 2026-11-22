@@ -6,7 +6,6 @@
 from __future__ import annotations
 
 import copy
-import hashlib
 import json
 import os
 import shutil
@@ -22,6 +21,7 @@ from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
+from types import MappingProxyType
 from typing import Any
 from urllib.parse import unquote, urlsplit
 
@@ -33,7 +33,21 @@ from prodockit._zensical_defaults import DOCUMENTED_MARKDOWN_DEFAULTS
 from prodockit.pdf.site import output_path
 from prodockit.portable import PortableError
 from prodockit.portable.compiler import compile_pages, scan
-from prodockit.project_config import CONFIG_OVERRIDE_ENV, ProjectConfig, load_project_config
+from prodockit.portable.inputs import InputSnapshot
+from prodockit.portable.manifest import (
+    SCHEMA,
+    generated_hashes,
+    read_manifest,
+    toolchain,
+    validate_inputs,
+    write_manifest,
+)
+from prodockit.project_config import (
+    CONFIG_OVERRIDE_ENV,
+    ProjectConfig,
+    load_project_config,
+    parse_project_config,
+)
 
 MIGRATED = {"prodockit.headings", "prodockit.refs", "prodockit.bibliography"}
 PENDING = {"prodockit.citations", "prodockit.glossary", "prodockit.tables"}
@@ -109,40 +123,53 @@ def _check_config(config: ProjectConfig) -> None:
         raise PortableError("the prototype requires explicit attr_list and toc configuration")
 
 
-def input_snapshot(config: ProjectConfig) -> tuple[dict[str, str], dict[str, str]]:
-    """Content hashes include all copied assets and bibliography inputs."""
+def _decode(path: Path, data: bytes) -> str:
+    try:
+        return data.decode("utf-8")
+    except UnicodeDecodeError as error:
+        line = data.count(b"\n", 0, error.start) + 1
+        raise PortableError(f"{path}:{line}: invalid UTF-8 input") from error
+
+
+def capture_inputs(config_file: Path) -> InputSnapshot:
+    """Parse and compile the same captured bytes, including configuration."""
+    config_file = config_file.resolve()
+    files = {config_file: config_file.read_bytes()}
+    config = parse_project_config(config_file, _decode(config_file, files[config_file]))
     _check_config(config)
-    files = {config.path}
     sources: dict[str, str] = {}
     for path in sorted(config.docs_dir.rglob("*")):
         if path.is_symlink():
             raise PortableError(f"symlinked source is outside the feasibility prototype: {path}")
         if path.is_file():
-            files.add(path)
+            files[path] = path.read_bytes()
             if path.suffix.lower() == ".md":
-                sources[path.relative_to(config.docs_dir).as_posix()] = path.read_text(
-                    encoding="utf-8"
-                )
+                sources[path.relative_to(config.docs_dir).as_posix()] = _decode(path, files[path])
     bib_options = config.markdown_extensions.get("prodockit.bibliography", {})
+    dependencies: set[Path] = set()
     for name in ("bib_file", "csl_style"):
         value = bib_options.get(name)
         if value:
-            files.add((config.root / str(value)).resolve())
+            dependencies.add((config.root / str(value)).resolve())
     for source, text in sources.items():
         for edit in scan(source, text).edits:
             if edit.kind in {"cite", "bibliography"}:
-                files.add(
+                dependencies.add(
                     (config.root / str(bib_options.get("bib_file", "references.bib"))).resolve()
                 )
             if edit.kind == "bibliography" and edit.key:
-                files.add((config.root / edit.key).resolve())
+                dependencies.add((config.root / edit.key).resolve())
     try:
-        hashes = {
-            str(path): hashlib.sha256(path.read_bytes()).hexdigest() for path in sorted(files)
-        }
+        for path in sorted(dependencies - files.keys()):
+            files[path] = path.read_bytes()
     except OSError as error:
         raise PortableError(f"cannot read build input: {error}") from error
-    return hashes, sources
+    return InputSnapshot(config, MappingProxyType(files))
+
+
+def input_snapshot(config: ProjectConfig) -> tuple[dict[str, str], dict[str, str]]:
+    snapshot = capture_inputs(config.path)
+    return snapshot.hashes, snapshot.sources
 
 
 def _generated_config(config: ProjectConfig) -> dict[str, Any]:
@@ -166,42 +193,55 @@ def _generated_config(config: ProjectConfig) -> dict[str, Any]:
 
 
 def _prepare(config: ProjectConfig, *, pandoc: Path | None = None) -> Prepared:
-    before, sources = input_snapshot(config)
+    snapshot = capture_inputs(config.path)
+    config = snapshot.config
     pandoc = pandoc.resolve() if pandoc is not None else None
-    output, pages, _dependencies = compile_pages(config, sources, pandoc=pandoc)
+    compiler_toolchain = toolchain(pandoc)
     directory = _workspace(config) / "generations"
     directory.mkdir(exist_ok=True)
     generation = Path(tempfile.mkdtemp(prefix="generation-", dir=directory))
     try:
-        shutil.copytree(config.docs_dir, generation / "docs")
-        for name, text in output.items():
-            (generation / "docs" / name).write_text(text, encoding="utf-8")
+        inputs = snapshot.materialize(generation)
+        output, pages, _dependencies = compile_pages(
+            config, snapshot.sources, inputs=inputs, pandoc=pandoc,
+        )
+        (generation / "docs").mkdir()
+        for name, data in snapshot.documents.items():
+            target = generation / "docs" / name
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(output[name].encode("utf-8") if name in output else data)
         generated_config = generation / "zensical.toml"
-        generated_config.write_text(tomlkit.dumps(_generated_config(config)), encoding="utf-8")
-        after, _ = input_snapshot(load_project_config(str(config.path)))
-        if before != after:
+        generated_config.write_bytes(tomlkit.dumps(_generated_config(config)).encode("utf-8"))
+        if snapshot.hashes != capture_inputs(config.path).hashes:
             raise PortableError(
                 "source inputs changed during preparation; retry with a stable snapshot"
             )
         manifest = {
-            "schema": 1,
+            "schema": SCHEMA,
             "mode": "portable",
             "prodockit": __version__,
             "original_config": str(config.path),
-            "input_hashes": before,
+            "original_docs_dir": str(config.docs_dir),
+            "input_hashes": snapshot.hashes,
             "generation": generation.name,
+            "toolchain": compiler_toolchain,
             "directory_urls": bool(config.project.get("use_directory_urls", True)),
             "pages": pages,
-            "generated_hashes": {
-                str(path.relative_to(generation)): hashlib.sha256(path.read_bytes()).hexdigest()
-                for path in sorted(generation.rglob("*"))
-                if path.is_file()
+            "source_paths": {
+                source: {
+                    "original": str(config.docs_dir / source),
+                    "captured": f".inputs/docs/{source}", "generated": f"docs/{source}",
+                } for source in pages
             },
+            "captured_inputs": {
+                str(original): captured.relative_to(generation).as_posix()
+                for original, captured in sorted(inputs.paths.items())
+            },
+            "generated_hashes": generated_hashes(generation),
         }
         manifest_path = generation / "manifest.json"
-        manifest_path.write_text(
-            json.dumps(manifest, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
-        )
+        write_manifest(manifest_path, manifest)
+        validate_inputs(generation, read_manifest(manifest_path))
         return Prepared(generated_config, manifest_path, generation / "site")
     except BaseException:
         shutil.rmtree(generation)
@@ -222,19 +262,34 @@ def _environment(config: Path) -> dict[str, str]:
     return {**os.environ, CONFIG_OVERRIDE_ENV: str(config)}
 
 
+def _validate_prepared(prepared: Prepared, *, fresh: bool = True) -> dict[str, Any]:
+    root = prepared.manifest.parent.resolve()
+    if (
+        prepared.config.resolve() != root / "zensical.toml"
+        or prepared.site.resolve() != root / "site"
+    ):
+        raise PortableError("configuration, manifest and site must belong to the same generation")
+    manifest = read_manifest(prepared.manifest.resolve())
+    validate_inputs(root, manifest)
+    if fresh and (
+        capture_inputs(Path(manifest["original_config"])).hashes != manifest["input_hashes"]
+    ):
+        raise PortableError("portable output is stale; prepare and build again")
+    return manifest
+
+
 def validate(prepared: Prepared, *, fresh: bool = True) -> None:
-    manifest = json.loads(prepared.manifest.read_text(encoding="utf-8"))
-    if manifest.get("schema") != 1 or manifest.get("mode") != "portable":
-        raise PortableError("not a supported portable generation manifest")
-    if fresh:
-        hashes, _ = input_snapshot(load_project_config(manifest["original_config"]))
-        if hashes != manifest["input_hashes"]:
-            raise PortableError("portable output is stale; prepare and build again")
-    root = prepared.config.parent
-    for name, digest in manifest["generated_hashes"].items():
-        path = root / name
-        if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != digest:
-            raise PortableError(f"prepared input changed: {name}; prepare and build again")
+    manifest = _validate_prepared(prepared, fresh=fresh)
+    receipt = prepared.site / ".pdk-build.json"
+    if receipt.exists():
+        try:
+            provenance = json.loads(receipt.read_text(encoding="utf-8"))
+            if any(
+                provenance[key] != manifest[key] for key in ("mode", "generation", "content_id")
+            ):
+                raise ValueError("build identity differs")
+        except (KeyError, TypeError, ValueError) as error:
+            raise PortableError("site receipt does not match its prepared generation") from error
     soups: dict[str, BeautifulSoup] = {}
     for source, details in manifest["pages"].items():
         path = output_path(source, prepared.site, directory_urls=manifest["directory_urls"])
@@ -301,6 +356,7 @@ def validate(prepared: Prepared, *, fresh: bool = True) -> None:
 
 
 def _build(prepared: Prepared, *, clean: bool = False, strict: bool = True) -> None:
+    manifest = _validate_prepared(prepared)
     options = (["--clean"] if clean else []) + (["--strict"] if strict else [])
     result = subprocess.run(
         command(prepared.config, "build", *options),
@@ -320,6 +376,7 @@ def _build(prepared: Prepared, *, clean: bool = False, strict: bool = True) -> N
             {
                 "mode": "portable",
                 "generation": prepared.config.parent.name,
+                "content_id": manifest["content_id"],
                 "zensical": version,
             }
         )
@@ -349,6 +406,7 @@ def _stop(process: subprocess.Popen[Any]) -> None:
 
 
 def _start(prepared: Prepared, address: str) -> subprocess.Popen[Any]:
+    _validate_prepared(prepared, fresh=False)
     try:
         host, port = address.rsplit(":", 1)
         if host not in {"localhost", "127.0.0.1"}:

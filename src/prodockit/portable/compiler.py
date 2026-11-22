@@ -25,6 +25,8 @@ from bs4 import BeautifulSoup
 from prodockit.bibliography import _BibliographyCache
 from prodockit.image_hotspots import _render as render_hotspots
 from prodockit.portable import PortableError
+from prodockit.portable.inputs import MaterializedInputs
+from prodockit.portable.source_map import SourceText, apply_edits
 from prodockit.project_config import ProjectConfig
 from prodockit.semantics import (
     PageCollector,
@@ -63,6 +65,7 @@ class Page:
     source: str
     text: str
     meta: dict[str, Any]
+    original: SourceText
     edits: list[Edit] = field(default_factory=list)
     headings: list[tuple[int, int, str]] = field(default_factory=list)
     targets: list[dict[str, Any]] = field(default_factory=list)
@@ -113,7 +116,8 @@ def _tokenizer() -> Any:
 
 def scan(source: str, text: str) -> Page:
     """Retain original spans, protecting code with the tokenizer's own rules."""
-    text = text.replace("\r\n", "\n")
+    original = SourceText.read(text)
+    text = original.text
     lines = text.splitlines(keepends=True)
     body_start = 0
     meta: dict[str, Any] = {}
@@ -126,7 +130,7 @@ def scan(source: str, text: str) -> Page:
             raise PortableError(f"{source}: front matter must be a mapping")
         meta = value or {}
         body_start = sum(map(len, lines[: end + 1]))
-    page = Page(source, text, meta)
+    page = Page(source, text, meta, original)
     if meta.get("template") or meta.get("render_macros"):
         raise _error(page, 0, "generated page content is outside the portable prototype")
     body = text[body_start:]
@@ -228,6 +232,7 @@ def compile_pages(
     config: ProjectConfig,
     sources: dict[str, str],
     *,
+    inputs: MaterializedInputs,
     pandoc: Path | None = None,
 ) -> tuple[dict[str, str], dict[str, Any], set[Path]]:
     """Compile the supported slice with explicit ownership and two passes."""
@@ -269,13 +274,20 @@ def compile_pages(
         _heading_records(page, parsed[source], contexts[source], registry)
 
     dependencies: set[Path] = set()
+
+    def dependency(path: str) -> str:
+        original = (config.root / path).resolve()
+        dependencies.add(original)
+        return str(inputs.dependency(original))
+
     bib_options = config.markdown_extensions.get("prodockit.bibliography", {})
-    default_bib = str((config.root / str(bib_options.get("bib_file", "references.bib"))).resolve())
+    default_bib = str(bib_options.get("bib_file", "references.bib"))
     style = str(bib_options.get("csl_style", ""))
-    if style:
-        style = str((config.root / style).resolve())
-    cache = _BibliographyCache(default_bib, style, pandoc=pandoc)
     bib_used = any(e.kind in {"cite", "bibliography"} for p in pages.values() for e in p.edits)
+    if bib_used:
+        default_bib = dependency(default_bib)
+        style = dependency(style) if style else ""
+    cache = _BibliographyCache(default_bib, style, pandoc=pandoc)
     if bib_used:
         if "prodockit.bibliography" not in config.markdown_extensions:
             raise PortableError("bibliography syntax requires prodockit.bibliography configuration")
@@ -283,21 +295,15 @@ def compile_pages(
             raise PortableError(
                 "the bibliography prototype requires --pandoc PATH to an installed Pandoc"
             )
-        if style:
-            dependencies.add(Path(style))
         for source in order:
             for edit in pages[source].edits:
                 if edit.kind == "bibliography":
-                    edit.key = str((config.root / edit.key).resolve()) if edit.key else default_bib
+                    edit.key = dependency(edit.key) if edit.key else default_bib
                     if edit.key not in cache.all_bib_files:
                         cache.all_bib_files.append(edit.key)
                     cache.first_page_for_file.setdefault(edit.key, source)
                 elif edit.kind == "cite":
                     cache.all_cited_keys.add(edit.key)
-        dependencies.update(Path(p) for p in cache.all_bib_files)
-        for path in dependencies:
-            if not path.is_file():
-                raise PortableError(f"bibliography dependency not found: {path}")
 
     outputs: dict[str, str] = {}
     details: dict[str, Any] = {}
@@ -328,7 +334,7 @@ def compile_pages(
                 ):
                     raise _error(page, edit.start, "image-hotspots formatter must be configured")
                 try:
-                    edit.value = render_hotspots(edit.value, source, config.docs_dir) + "\n"
+                    edit.value = render_hotspots(edit.value, source, inputs.docs_dir) + "\n"
                 except (ValueError, yaml.YAMLError) as error:
                     raise _error(page, edit.start, str(error)) from error
             elif edit.kind == "bibliography":
@@ -363,29 +369,8 @@ def compile_pages(
                         "text": BeautifulSoup(formatted, "html.parser").get_text(" ", strip=True),
                     }
                 )
-        chunks: list[str] = []
-        source_map: list[dict[str, Any]] = []
-        cursor = 0
-        generated_line = 1
-        for edit in sorted(page.edits, key=lambda e: e.start):
-            if edit.start < cursor:
-                raise _error(page, edit.start, "overlapping transformations")
-            untouched = page.text[cursor : edit.start]
-            chunks.extend([untouched, edit.value])
-            generated_line += untouched.count("\n")
-            source_map.append(
-                {
-                    "kind": edit.kind,
-                    "source_start_line": page.text.count("\n", 0, edit.start) + 1,
-                    "source_end_line": page.text.count("\n", 0, edit.end) + 1,
-                    "generated_start_line": generated_line,
-                    "generated_end_line": generated_line + edit.value.count("\n"),
-                }
-            )
-            generated_line += edit.value.count("\n")
-            cursor = edit.end
-        chunks.append(page.text[cursor:])
-        outputs[source] = "".join(chunks)
+        output, source_map = apply_edits(page.original, page.edits)
+        outputs[source] = output
         details[source] = {
             "targets": page.targets, "links": links, "source_map": source_map,
             "numbering": {
