@@ -104,6 +104,87 @@ def _article(path: Path) -> BeautifulSoup:
     return BeautifulSoup(path.read_text(encoding="utf-8"), "html.parser")
 
 
+@pytest.mark.parametrize("directory_urls", [True, False])
+def test_glossary_links_match_in_both_build_modes(
+    portable_project: Path, monkeypatch: pytest.MonkeyPatch, directory_urls: bool
+) -> None:
+    config = portable_project.read_text().replace(
+        "[project]", f"[project]\nuse_directory_urls = {str(directory_urls).lower()}"
+    )
+    portable_project.write_text(config + '\n[project.markdown_extensions."prodockit.glossary"]\n')
+    root = portable_project.parent
+    guide = root / "docs/guide/install.md"
+    refs = root / "docs/references.md"
+    guide.write_text(
+        guide.read_text() + '\nUse \\gls{data} and \\gls{local}. Literal `\\gls{literal}`.\n'
+        '\n**Local term** with example `{: #fake data-term="Literal" }`.\n'
+        '{: #local .glossary data-term="Local term" }\n',
+        encoding="utf-8",
+    )
+    refs.write_text(
+        refs.read_text()
+        + '\n**Data**.\n{: #data .glossary data-term="R&amp;D café" title="See this" }\n',
+        encoding="utf-8",
+    )
+    originals = {path: path.read_bytes() for path in (guide, refs, portable_project)}
+
+    def rendered(site: Path) -> tuple[list[tuple[str, str]], str]:
+        guide_html = "guide/install/index.html" if directory_urls else "guide/install.html"
+        refs_html = "references/index.html" if directory_urls else "references.html"
+        page = _article(site / guide_html)
+        assert any(code.get_text() == r"\gls{literal}" for code in page.select("code"))
+        target = _article(site / refs_html).select_one("p#data.glossary")
+        assert target is not None and target["title"] == "See this"
+        assert not target.has_attr("data-term")
+        return [(a["href"], a.get_text()) for a in page.select("a.prodockit-gls")], str(target)
+
+    cmd = ["build", "-f", str(portable_project), "--strict", "--clean"]
+    normal = CliRunner().invoke(main, cmd)
+    assert normal.exit_code == 0, normal.output
+    expected = rendered(root / "site")
+    forward = "../../references/" if directory_urls else "../references.html"
+    assert expected[0] == [(forward + "#data", "R&D café"), ("#local", "Local term")]
+    guard = root / "guard"
+    guard.mkdir()
+    (guard / "sitecustomize.py").write_text(
+        "import prodockit.glossary\n"
+        "def forbidden(*args, **kwargs):\n"
+        "    raise AssertionError('legacy glossary adapter was called')\n"
+        "prodockit.glossary.GlossaryExtension.extendMarkdown = forbidden\n",
+        encoding="utf-8",
+    )
+    with monkeypatch.context() as isolated:
+        isolated.setenv("PYTHONPATH", str(guard) + os.pathsep + os.environ["PYTHONPATH"])
+        prepared = build(str(portable_project))
+    assert rendered(prepared.site) == expected
+    result = CliRunner().invoke(main, cmd)
+    assert result.exit_code == 0, result.output
+    assert rendered(root / "site") == expected
+    assert all(path.read_bytes() == data for path, data in originals.items())
+
+
+@pytest.mark.parametrize(
+    ("authored", "message"),
+    [
+        ("\\gls{absent}", "unresolved glossary term 'absent'"),
+        ('- **Nested**\n  {: #nested data-term="Nested" }', "top-level paragraph"),
+        ('# Heading {: #heading data-term="Heading" }', "top-level paragraph"),
+        ('Text\n{: #term data-term="A *term*" }', "attributes were not parsed as authored"),
+        ('First\n{: #term data-term="One" }\n\nSecond\n{: #term data-term="Two" }',
+         "duplicate glossary term 'term'"),
+    ],
+)
+def test_portable_glossary_refuses_invalid_or_unqualified_input(
+    portable_project: Path, authored: str, message: str
+) -> None:
+    with portable_project.open("a", encoding="utf-8") as config:
+        config.write('\n[project.markdown_extensions."prodockit.glossary"]\n')
+    page = portable_project.parent / "docs/references.md"
+    page.write_text(authored + "\n", encoding="utf-8")
+    with pytest.raises(PortableError, match=r"references\.md:\d+: .*" + message):
+        prepare(str(portable_project))
+
+
 def _enable_prodockit_tables(config: Path) -> None:
     with config.open("a", encoding="utf-8") as handle:
         handle.write('\n[project.markdown_extensions."prodockit.tables"]\n')

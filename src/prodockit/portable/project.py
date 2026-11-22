@@ -49,8 +49,8 @@ from prodockit.project_config import (
     parse_project_config,
 )
 
-MIGRATED = {"prodockit.headings", "prodockit.refs", "prodockit.bibliography"}
-PENDING = {"prodockit.citations", "prodockit.glossary"}
+HEADING_AND_BIBLIOGRAPHY = {"prodockit.headings", "prodockit.refs", "prodockit.bibliography"}
+MIGRATED = HEADING_AND_BIBLIOGRAPHY | {"prodockit.glossary"}
 
 
 @dataclass(frozen=True)
@@ -100,7 +100,7 @@ def _check_config(config: ProjectConfig) -> None:
     if (config.project.get("theme") or {}).get("custom_dir"):
         raise PortableError("custom theme directories are outside the feasibility prototype")
     for name, options in config.markdown_extensions.items():
-        if name in PENDING or name.startswith(
+        if name == "prodockit.citations" or name.startswith(
             ("zensical.extensions.macros", "pymdownx.snippets", "pymdownx.blocks.")
         ):
             raise PortableError(
@@ -117,9 +117,10 @@ def _check_config(config: ProjectConfig) -> None:
                 raise PortableError("unsupported heading settings in the feasibility prototype")
         if name == "toc" and (options.get("slugify") or options.get("separator", "-") != "-"):
             raise PortableError("custom slugging is outside the feasibility prototype")
-    if MIGRATED & config.markdown_extensions.keys() and not {"attr_list", "toc"}.issubset(
-        config.markdown_extensions
-    ):
+    names = config.markdown_extensions.keys()
+    if "prodockit.glossary" in names and "attr_list" not in names:
+        raise PortableError("portable glossary definitions require explicit attr_list")
+    if HEADING_AND_BIBLIOGRAPHY & names and not {"attr_list", "toc"} <= names:
         raise PortableError("the prototype requires explicit attr_list and toc configuration")
 
 
@@ -151,8 +152,9 @@ def capture_inputs(config_file: Path) -> InputSnapshot:
         value = bib_options.get(name)
         if value:
             dependencies.add((config.root / str(value)).resolve())
+    glossary_enabled = "prodockit.glossary" in config.markdown_extensions
     for source, text in sources.items():
-        for edit in scan(source, text).edits:
+        for edit in scan(source, text, glossary=glossary_enabled).edits:
             if edit.kind in {"cite", "bibliography"}:
                 dependencies.add(
                     (config.root / str(bib_options.get("bib_file", "references.bib"))).resolve()
@@ -326,7 +328,8 @@ def validate(prepared: Prepared, *, fresh: bool = True) -> None:
         current = output_path(source, prepared.site, directory_urls=manifest["directory_urls"])
         actual: Counter[tuple[Path, str, str]] = Counter()
         for anchor in soups[source].select(
-            "a.prodockit-ref, a.prodockit-autoref, .prodockit-bib-cite a, a.pdk-hotspots-region"
+            "a.prodockit-ref, a.prodockit-autoref, a.prodockit-gls, "
+            ".prodockit-bib-cite a, a.pdk-hotspots-region"
         ):
             parts = urlsplit(str(anchor.get("href", "")))
             if parts.scheme or parts.netloc:
