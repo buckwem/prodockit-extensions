@@ -179,7 +179,7 @@ preparation still rejects ambiguous cross-page IDs and unsupported constructs.
 Its current slice covers top-level ATX headings and references, global
 bibliographies and image hotspots. Captions are covered by the shared rules
 and legacy regression checks, but portable caption parsing remains future work.
-Citation migration, generated content, portable PDF selection and
+Generated content, portable PDF selection and
 qualification against a future Rust renderer also remain in the issue.
 
 Tests compare reference labels and destinations across both build approaches,
@@ -239,6 +239,18 @@ internal `data-term` attribute is consumed before Zensical renders the page.
 The supported form is a paragraph followed on the next line by an attribute
 list with an explicit ID and a display value. Nested definitions and references,
 duplicate keys and missing terms produce errors with the original path and line.
+
+### Manual citations {: #coupling-portable-citations }
+
+Portable preparation also collects `data-cite-text` definitions from
+top-level paragraphs when `prodockit.citations` is enabled. It resolves
+`\citeref{id}` and comma-separated groups before Zensical renders them,
+preserving the order, brackets and semicolons of the existing extension.
+Citation keys and glossary keys keep separate registries, so a definition
+can serve both extensions with different display labels. The generated
+project retains each definition's ID and checks the rendered link targets
+and labels. Missing keys, duplicates and unsupported nested syntax report
+the original source location.
 
 ## Migration progress {: #coupling-removed-dependencies }
 

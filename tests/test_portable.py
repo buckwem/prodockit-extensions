@@ -185,6 +185,103 @@ def test_portable_glossary_refuses_invalid_or_unqualified_input(
         prepare(str(portable_project))
 
 
+@pytest.mark.parametrize("directory_urls", [True, False])
+def test_manual_citation_groups_match_in_both_build_modes(
+    portable_project: Path, monkeypatch: pytest.MonkeyPatch, directory_urls: bool
+) -> None:
+    config = portable_project.read_text().replace(
+        "[project]", f"[project]\nuse_directory_urls = {str(directory_urls).lower()}"
+    )
+    portable_project.write_text(
+        config + '\n[project.markdown_extensions."prodockit.citations"]\n'
+        '\n[project.markdown_extensions."prodockit.glossary"]\n'
+    )
+    root = portable_project.parent
+    guide = root / "docs/guide/install.md"
+    refs = root / "docs/references.md"
+    guide.write_text(
+        guide.read_text() + '\nSee \\citeref{study, local, study} and \\gls{study}. '
+        'Literal `\\citeref{literal}`.\n'
+        '\n**Local work**.\n{: #local .reference data-cite-text="Local, 2025" }\n',
+        encoding="utf-8",
+    )
+    refs.write_text(
+        refs.read_text()
+        + '\n**Study**.\n{: #study .reference data-cite-text="R&amp;D, 2026" data-term="Study" }\n',
+        encoding="utf-8",
+    )
+    paths = [guide, refs, portable_project]
+    originals = [path.read_bytes() for path in paths]
+
+    def rendered(site: Path) -> tuple[str, list[tuple[str, str]], str]:
+        guide_html = "guide/install/index.html" if directory_urls else "guide/install.html"
+        refs_html = "references/index.html" if directory_urls else "references.html"
+        page = _article(site / guide_html)
+        assert any(code.get_text() == r"\citeref{literal}" for code in page.select("code"))
+        target = _article(site / refs_html).select_one("p#study.reference")
+        assert target is not None and not target.has_attr("data-cite-text")
+        assert not target.has_attr("data-term")
+        group = page.select_one("span.prodockit-cite")
+        assert group is not None
+        items = [(anchor["href"], anchor.get_text()) for anchor in group.select("a")]
+        term = page.select_one("a.prodockit-gls")
+        assert term is not None and term.get_text() == "Study"
+        return group.get_text(), items, term["href"]
+
+    runner = CliRunner()
+    cmd = ["build", "-f", str(portable_project), "--strict", "--clean"]
+    normal = runner.invoke(main, cmd)
+    assert normal.exit_code == 0, normal.output
+    expected = rendered(root / "site")
+    forward = "../../references/#study" if directory_urls else "../references.html#study"
+    assert expected == (
+        "[R&D, 2026; Local, 2025; R&D, 2026]",
+        [(forward, "R&D, 2026"), ("#local", "Local, 2025"), (forward, "R&D, 2026")],
+        forward,
+    )
+
+    guard = root / "guard"
+    guard.mkdir()
+    (guard / "sitecustomize.py").write_text(
+        "import prodockit.citations\n"
+        "def forbidden(*args, **kwargs):\n"
+        "    raise AssertionError('legacy citation adaptor was called')\n"
+        "prodockit.citations.CitationsExtension.extendMarkdown = forbidden\n",
+        encoding="utf-8",
+    )
+    with monkeypatch.context() as isolated:
+        isolated.setenv("PYTHONPATH", str(guard) + os.pathsep + os.environ["PYTHONPATH"])
+        prepared = build(str(portable_project))
+    assert rendered(prepared.site) == expected
+    normal = runner.invoke(main, cmd)
+    assert normal.exit_code == 0, normal.output
+    assert rendered(root / "site") == expected
+    assert [path.read_bytes() for path in paths] == originals
+
+
+@pytest.mark.parametrize(
+    ("authored", "message"),
+    [
+        ("\\citeref{missing}", "unresolved citation key 'missing'"),
+        ("\\citeref{ , }", "give the citation at least one key"),
+        ('- **Nested**\n  {: #nested data-cite-text="Nested" }', "top-level paragraph"),
+        (
+            'First\n{: #one data-cite-text="One" }\n\nSecond\n{: #one data-cite-text="Two" }',
+            "duplicate citation key 'one'",
+        ),
+    ],
+)
+def test_portable_manual_citations_report_authored_location(
+    portable_project: Path, authored: str, message: str
+) -> None:
+    with portable_project.open("a", encoding="utf-8") as config:
+        config.write('\n[project.markdown_extensions."prodockit.citations"]\n')
+    page = portable_project.parent / "docs/references.md"
+    page.write_text(authored + "\n", encoding="utf-8")
+    with pytest.raises(PortableError, match=r"references\.md:\d+: .*" + message):
+        prepare(str(portable_project))
+
+
 def _enable_prodockit_tables(config: Path) -> None:
     with config.open("a", encoding="utf-8") as handle:
         handle.write('\n[project.markdown_extensions."prodockit.tables"]\n')
@@ -649,7 +746,7 @@ def test_cli_aliases_and_opt_in(portable_project: Path, prefix: list[str]) -> No
         "# Title\n\n{{ generated_heading() }}\n",
         '# Title\n\n--8<-- "snippet.md"\n',
         "# Title\n\n\\pagebibliography\n",
-        "# Title\n\n\\citeref{key}\n",
+        "# Title\n\n- Nested \\citeref{key}\n",
         "Setext\n======\n",
         "# Title\n\n!!! note\n    \\ref{target}\n",
     ],
