@@ -140,10 +140,29 @@ references. Keep the ID unique across the project. The portable compiler
 reports an original source location for duplicate or unknown keys. Run
 either build approach on the same files.
 
+With `prodockit.citations` enabled, use the same paragraph form for manually
+defined citations:
+
+```markdown
+See \citeref{guide, handbook}.
+
+Guide to the example.
+{: #guide .reference data-cite-text="Example Guide, 2026" }
+
+Example handbook.
+{: #handbook .reference data-cite-text="Example Handbook, 2025" }
+```
+
+The compiler preserves citation order and resolves links to definitions on
+the same page or a different page. A citation key and a glossary key can
+share the same name. Missing keys, duplicate citation keys and nested
+citation syntax produce an error at the original location. This syntax is
+separate from Pandoc's `\cite` and `\bibliography` commands.
+
 Unsupported cases fail explicitly: nested affected syntax, Setext headings,
 caption blocks, custom slugging, macros, snippets, generated navigation/plugins,
 custom theme directories, file-visibility settings, symlinked sources, YAML
-configuration, page-local bibliographies and the citation extension.
+configuration and page-local bibliographies.
 The prototype requires explicit `attr_list` and `toc`
 configuration when migrated extensions are enabled.
 

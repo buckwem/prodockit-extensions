@@ -32,7 +32,7 @@ from prodockit import __version__
 from prodockit._zensical_defaults import DOCUMENTED_MARKDOWN_DEFAULTS
 from prodockit.pdf.site import output_path
 from prodockit.portable import PortableError
-from prodockit.portable.compiler import compile_pages, scan
+from prodockit.portable.compiler import DEFINITION_EXTENSIONS, compile_pages, scan
 from prodockit.portable.inputs import InputSnapshot
 from prodockit.portable.manifest import (
     SCHEMA,
@@ -50,7 +50,7 @@ from prodockit.project_config import (
 )
 
 HEADING_AND_BIBLIOGRAPHY = {"prodockit.headings", "prodockit.refs", "prodockit.bibliography"}
-MIGRATED = HEADING_AND_BIBLIOGRAPHY | {"prodockit.glossary"}
+MIGRATED = HEADING_AND_BIBLIOGRAPHY | set(DEFINITION_EXTENSIONS.values())
 
 
 @dataclass(frozen=True)
@@ -100,7 +100,7 @@ def _check_config(config: ProjectConfig) -> None:
     if (config.project.get("theme") or {}).get("custom_dir"):
         raise PortableError("custom theme directories are outside the feasibility prototype")
     for name, options in config.markdown_extensions.items():
-        if name == "prodockit.citations" or name.startswith(
+        if name.startswith(
             ("zensical.extensions.macros", "pymdownx.snippets", "pymdownx.blocks.")
         ):
             raise PortableError(
@@ -118,8 +118,8 @@ def _check_config(config: ProjectConfig) -> None:
         if name == "toc" and (options.get("slugify") or options.get("separator", "-") != "-"):
             raise PortableError("custom slugging is outside the feasibility prototype")
     names = config.markdown_extensions.keys()
-    if "prodockit.glossary" in names and "attr_list" not in names:
-        raise PortableError("portable glossary definitions require explicit attr_list")
+    if names & DEFINITION_EXTENSIONS.values() and "attr_list" not in names:
+        raise PortableError("portable glossary and citation definitions require explicit attr_list")
     if HEADING_AND_BIBLIOGRAPHY & names and not {"attr_list", "toc"} <= names:
         raise PortableError("the prototype requires explicit attr_list and toc configuration")
 
@@ -152,9 +152,9 @@ def capture_inputs(config_file: Path) -> InputSnapshot:
         value = bib_options.get(name)
         if value:
             dependencies.add((config.root / str(value)).resolve())
-    glossary_enabled = "prodockit.glossary" in config.markdown_extensions
+    extensions = config.markdown_extensions.keys()
     for source, text in sources.items():
-        for edit in scan(source, text, glossary=glossary_enabled).edits:
+        for edit in scan(source, text, extensions=extensions).edits:
             if edit.kind in {"cite", "bibliography"}:
                 dependencies.add(
                     (config.root / str(bib_options.get("bib_file", "references.bib"))).resolve()
@@ -329,7 +329,7 @@ def validate(prepared: Prepared, *, fresh: bool = True) -> None:
         actual: Counter[tuple[Path, str, str]] = Counter()
         for anchor in soups[source].select(
             "a.prodockit-ref, a.prodockit-autoref, a.prodockit-gls, "
-            ".prodockit-bib-cite a, a.pdk-hotspots-region"
+            ".prodockit-cite a, .prodockit-bib-cite a, a.pdk-hotspots-region"
         ):
             parts = urlsplit(str(anchor.get("href", "")))
             if parts.scheme or parts.netloc:
