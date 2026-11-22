@@ -26,6 +26,7 @@ from PIL import Image
 from prodockit.cli import main
 from prodockit.portable import PortableError
 from prodockit.portable.compiler import scan
+from prodockit.portable.manifest import read_manifest, write_manifest
 from prodockit.portable.project import build, prepare, validate
 
 
@@ -109,6 +110,10 @@ def test_preparation_is_selective_and_deterministic(portable_project: Path) -> N
     first = prepare(str(portable_project))
     second = prepare(str(portable_project))
     assert first.config != second.config  # Independent, concurrent-safe generations.
+    one_manifest, two_manifest = read_manifest(first.manifest), read_manifest(second.manifest)
+    assert one_manifest.pop("generation") != two_manifest.pop("generation")
+    assert one_manifest == two_manifest
+    assert len(one_manifest["content_id"]) == 64
     for name in ("index.md", "guide/install.md", "references.md"):
         one = (first.config.parent / "docs" / name).read_text()
         assert one == (second.config.parent / "docs" / name).read_text()
@@ -128,6 +133,183 @@ def test_preparation_is_selective_and_deterministic(portable_project: Path) -> N
     for path, contents in original.items():
         assert Path(path).read_bytes() == contents
     assert not (root / "site").exists()
+
+
+@pytest.mark.parametrize("restore", [False, True])
+def test_preparation_uses_captured_hotspot_bytes_during_edits(
+    portable_project: Path, monkeypatch: pytest.MonkeyPatch, restore: bool,
+) -> None:
+    from prodockit.portable import project
+
+    previous = prepare(str(portable_project))
+    previous_bytes = previous.manifest.read_bytes()
+    generations = set(previous.config.parent.parent.iterdir())
+    image = portable_project.parent / "docs/assets/map.png"
+    original = image.read_bytes()
+    compile_pages = project.compile_pages
+
+    def compile_while_edited(*args, **kwargs):
+        Image.new("RGB", (400, 200)).save(image)
+        result = compile_pages(*args, **kwargs)
+        assert 'width="200"' in result[0]["guide/install.md"]
+        if restore:
+            image.write_bytes(original)
+        return result
+
+    monkeypatch.setattr(project, "compile_pages", compile_while_edited)
+    if restore:
+        prepared = prepare(str(portable_project))
+        assert read_manifest(prepared.manifest)["content_id"] == read_manifest(
+            previous.manifest
+        )["content_id"]
+    else:
+        with pytest.raises(PortableError, match="changed during preparation"):
+            prepare(str(portable_project))
+        assert set(previous.config.parent.parent.iterdir()) == generations
+    assert previous.manifest.read_bytes() == previous_bytes
+    assert not (portable_project.parent / ".pdk/portable/lock").exists()
+
+
+@pytest.mark.skipif(shutil.which("pandoc") is None, reason="requires real Pandoc citeproc")
+def test_bibliography_compiles_captured_external_dependency(
+    portable_project: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from prodockit.portable import project
+
+    root = portable_project.parent
+    bib = root / "references.bib"
+    original = b"@book{example, title={Captured title}, author={Doe, Jane}, year={2025}}\n"
+    bib.write_bytes(original)
+    with portable_project.open("a") as config:
+        config.write('\n[project.markdown_extensions."prodockit.bibliography"]\n')
+    with (root / "docs/references.md").open("a") as page:
+        page.write("\n\\bibliography\n")
+    compile_pages = project.compile_pages
+
+    def compile_while_edited(*args, **kwargs):
+        bib.write_bytes(original.replace(b"Captured title", b"Live changed title"))
+        try:
+            return compile_pages(*args, **kwargs)
+        finally:
+            bib.write_bytes(original)
+
+    monkeypatch.setattr(project, "compile_pages", compile_while_edited)
+    prepared = prepare(str(portable_project), pandoc=Path(shutil.which("pandoc")))
+    manifest = read_manifest(prepared.manifest)
+    captured = manifest["captured_inputs"][str(bib)]
+    assert captured.startswith(".inputs/dependencies/")
+    assert (prepared.config.parent / captured).read_bytes() == original
+    rendered = (prepared.config.parent / "docs/references.md").read_text().lower()
+    assert "captured title" in rendered and "live changed title" not in rendered
+    assert not list((prepared.config.parent / "docs").rglob("*.bib"))
+
+
+def test_captured_configuration_drives_preparation(
+    portable_project: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from prodockit.portable import project
+
+    home = portable_project.parent / "docs/index.md"
+    home.write_text(home.read_text().replace("#home .unnumbered", "#home"))
+    load = project.load_project_config
+
+    def edit_after_initial_load(path):
+        previous = load(path)
+        portable_project.write_text(portable_project.read_text().replace(
+            'numbering = "continuous"', 'numbering = "per-document"'
+        ))
+        return previous
+
+    monkeypatch.setattr(project, "load_project_config", edit_after_initial_load)
+    prepared = prepare(str(portable_project))
+    assert read_manifest(prepared.manifest)["input_hashes"]
+    assert (prepared.config.parent / ".inputs/config.toml").read_bytes() == portable_project.read_bytes()
+    # Continuous numbering in the stale initial load would make this chapter 2.
+    assert "1.1 Installation" in (prepared.config.parent / "docs/index.md").read_text()
+
+
+@pytest.mark.parametrize("change", ["add", "remove", "capture", "config"])
+def test_prepared_inventory_is_checked_before_zensical(
+    portable_project: Path, monkeypatch: pytest.MonkeyPatch, change: str,
+) -> None:
+    from prodockit.portable import project
+
+    prepared = prepare(str(portable_project))
+    root = prepared.config.parent
+    if change == "add":
+        (root / "docs/extra.txt").write_text("untracked input")
+    elif change == "remove":
+        (root / "docs/assets/map.png").unlink()
+    elif change == "capture":
+        (root / ".inputs/docs/index.md").write_text("changed capture")
+    else:
+        prepared.config.write_text("changed config")
+    monkeypatch.setattr(project.subprocess, "run", lambda *_a, **_k: pytest.fail("CLI was run"))
+    with pytest.raises(PortableError, match="prepared input changed"):
+        project._build(prepared)
+
+
+@pytest.mark.parametrize("change", ["fingerprint", "generation", "schema", "paths", "pages", "map", "runtime"])
+def test_invalid_manifest_is_rejected(portable_project: Path, change: str) -> None:
+    from prodockit.portable.project import _validate_prepared
+
+    prepared = prepare(str(portable_project))
+    manifest = read_manifest(prepared.manifest)
+    if change == "fingerprint":
+        manifest["directory_urls"] = False
+    elif change == "generation":
+        manifest["generation"] = "another-generation"
+    elif change == "schema":
+        manifest["schema"] = 1
+    elif change == "paths":
+        manifest["captured_inputs"][str(portable_project)] = "../zensical.toml"
+    elif change == "pages":
+        manifest["pages"]["index.md"]["links"] = [None]
+    elif change == "map":
+        manifest["pages"]["index.md"]["source_map"].pop()
+    else:
+        manifest["toolchain"]["pandoc"] = ["invalid"]
+    if change == "fingerprint":
+        prepared.manifest.write_text(json.dumps(manifest))
+    else:
+        write_manifest(prepared.manifest, manifest)
+    with pytest.raises(PortableError):
+        _validate_prepared(prepared)
+
+
+def test_changed_toolchain_is_rejected(portable_project: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from prodockit.portable import manifest
+    from prodockit.portable.project import _validate_prepared
+
+    prepared = prepare(str(portable_project))
+    monkeypatch.setattr(manifest, "version", lambda _: "a different version")
+    with pytest.raises(PortableError, match="toolchain changed"):
+        _validate_prepared(prepared)
+
+
+def test_separate_public_build_and_manifest_validation(portable_project: Path) -> None:
+    from prodockit.portable.project import command
+
+    prepared = prepare(str(portable_project))
+    subprocess.run(
+        command(prepared.config, "build", "--clean", "--strict"),
+        cwd=prepared.config.parent, check=True,
+    )
+    result = CliRunner().invoke(main, ["-p", "validate", "--manifest", str(prepared.manifest)])
+    assert result.exit_code == 0, result.output
+    assert not (prepared.site / ".inputs").exists()
+    assert not (prepared.site / ".pdk-build.json").exists()  # Separate public CLI has no receipt.
+
+
+def test_site_receipt_must_match_generation(portable_project: Path) -> None:
+    prepared = build(str(portable_project))
+    receipt = prepared.site / ".pdk-build.json"
+    contents = json.loads(receipt.read_text())
+    assert contents["content_id"] == read_manifest(prepared.manifest)["content_id"]
+    contents["content_id"] = "another-preparation"
+    receipt.write_text(json.dumps(contents))
+    with pytest.raises(PortableError, match="receipt does not match"):
+        validate(prepared)
 
 
 def test_build_without_private_context_and_switch_back(

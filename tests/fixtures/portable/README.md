@@ -73,8 +73,51 @@ headings produces a fresh plan in the next generation.
 
 Sources with ambiguous duplicate IDs
 are refused in this prototype instead of taking the legacy first-wins route.
-Source locations for replacements are recorded in the manifest. Prepared
-Markdown uses LF line endings.
+Prepared Markdown uses LF line endings.
+
+Preparation captures the configuration, Markdown, assets and bibliography/CSL
+dependencies as bytes before compiling. It parses that captured configuration
+and uses the captured images and bibliography files throughout compilation.
+A second input check rejects edits detected during preparation. Failed preparation
+removes its incomplete generation and leaves previous generations available.
+This is a consistency check, not a filesystem-wide atomic snapshot: an edit
+that is restored between checks may go undetected, but compilation still uses
+the captured bytes.
+
+Each completed generation contains:
+
+```text
+generation-.../
+  .inputs/config.toml
+  .inputs/docs/...
+  .inputs/dependencies/...   # Original external bibliography/CSL bytes
+  docs/...                  # Prepared Markdown and copied assets
+  zensical.toml
+  manifest.json
+  site/...                  # Created by Zensical
+```
+
+The captured tree is outside the generated documentation and site directories.
+Schema 2 manifests include every input hash, the exact generated-file inventory,
+original/captured/generated page paths, toolchain versions and a `content_id`.
+Identical inputs at the same original paths, with the same toolchain, produce
+the same content ID even though each invocation has a distinct generation name.
+This fingerprint checks consistency; it is not a signature or authentication.
+Validation rejects changed, missing or added prepared inputs, manifest fingerprint
+mismatches and toolchain changes. Older prototype manifests must be recreated
+with `pdk -p prepare`. The wrapper's completed-site receipt records both the
+generation and content ID; separate public CLI builds can be validated without
+a wrapper receipt.
+
+Each page's `source_map` covers copied text as well as transformed constructs.
+Spans use half-open Unicode character offsets (not UTF-8 byte offsets) and
+one-based lines/columns. Original offsets preserve CRLF/CR line endings;
+line and column positions treat each as a single newline. Copied spans retain
+exact locations; expanded references, bibliographies and hotspots map to their
+original construct. `source_paths` identifies the original file for diagnostics.
+Validation checks coverage and copied text against the captured and prepared
+files. These maps are preparation metadata; native Zensical diagnostics are not
+automatically rewritten by this prototype.
 
 Unsupported cases fail explicitly: nested affected syntax, Setext headings,
 caption blocks, custom slugging, macros, snippets, generated navigation/plugins,
@@ -99,7 +142,7 @@ input; browser-level search behaviour remains an acceptance gate for promotion.
 Run the focused checks with:
 
 ```sh
-pytest tests/test_portable.py tests/test_bibliography.py tests/test_zensical_api_boundaries.py
+pytest tests/test_portable.py tests/test_portable_source_map.py tests/test_bibliography.py tests/test_zensical_api_boundaries.py
 pytest tests/test_semantics.py tests/test_headings.py tests/test_refs.py tests/test_zensical.py
 ```
 
