@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import re
 import xml.etree.ElementTree as etree
+from collections.abc import Callable, Sequence
 from decimal import Decimal, InvalidOperation
 
 from markdown import Markdown
@@ -142,61 +143,67 @@ def _attribute_location(md: Markdown, line_number: int) -> str:
     return f"{source}:{line_number}" if source else f"line {line_number}"
 
 
-class MalformedTableAttributePreprocessor(Preprocessor):
-    """Reject malformed Prodockit cell attributes before ``attr_list`` hides them."""
-
-    def run(self, lines: list[str]) -> list[str]:
-        fence: tuple[str, int] | None = None
-        in_comment = False
-        for line_number, original in enumerate(lines, start=1):
-            fence_match = _FENCE.match(original)
-            if fence is not None:
-                if fence_match is not None:
-                    marker = fence_match.group("marker")
-                    if marker[0] == fence[0] and len(marker) >= fence[1]:
-                        fence = None
-                continue
+def validate_table_attributes(
+    lines: Sequence[str], location: Callable[[int], str]
+) -> None:
+    """Reject malformed Prodockit cell attributes with caller-supplied locations."""
+    fence: tuple[str, int] | None = None
+    in_comment = False
+    for line_number, original in enumerate(lines, start=1):
+        fence_match = _FENCE.match(original)
+        if fence is not None:
             if fence_match is not None:
                 marker = fence_match.group("marker")
-                fence = (marker[0], len(marker))
+                if marker[0] == fence[0] and len(marker) >= fence[1]:
+                    fence = None
+            continue
+        if fence_match is not None:
+            marker = fence_match.group("marker")
+            fence = (marker[0], len(marker))
+            continue
+        if original.startswith(("    ", "\t")):
+            continue
+        line, in_comment = _without_html_comments(original, in_comment)
+        stripped = line.strip()
+        if not (stripped.startswith("|") and stripped.endswith("|")):
+            continue
+        line = _INLINE_CODE.sub(lambda match: " " * len(match.group(0)), line)
+        for match in _ATTRIBUTE_LIST.finditer(line):
+            body = match.group("body")
+            attrs, remainder = get_attrs_and_remainder(body)
+            if not _uses_table_convention(attrs):
                 continue
-            if original.startswith(("    ", "\t")):
-                continue
-            line, in_comment = _without_html_comments(original, in_comment)
-            stripped = line.strip()
-            if not (stripped.startswith("|") and stripped.endswith("|")):
-                continue
-            line = _INLINE_CODE.sub(lambda match: " " * len(match.group(0)), line)
-            for match in _ATTRIBUTE_LIST.finditer(line):
-                body = match.group("body")
-                attrs, remainder = get_attrs_and_remainder(body)
-                if not _uses_table_convention(attrs):
-                    continue
-                location = _attribute_location(self.md, line_number)
-                if match.start() and not line[match.start() - 1].isspace():
-                    raise TableError(
-                        f"{location}: missing space before Prodockit table attribute list; "
-                        "insert a space before '{:'"
-                    )
-                invalid = next(
-                    (
-                        key
-                        for key, _value in attrs
-                        if key != "." and _ATTRIBUTE_NAME.fullmatch(key) is None
-                    ),
-                    None,
+            if match.start() and not line[match.start() - 1].isspace():
+                raise TableError(
+                    f"{location(line_number)}: missing space before Prodockit table attribute "
+                    "list; insert a space before '{:'"
                 )
-                quotes_are_unbalanced = body.count('"') % 2 or body.count("'") % 2
-                if invalid is not None or remainder.strip() or quotes_are_unbalanced:
-                    detail = (
-                        f"unexpected token {invalid!r}"
-                        if invalid is not None
-                        else "unbalanced quote"
-                    )
-                    raise TableError(
-                        f"{location}: malformed Prodockit table attribute list ({detail}); "
-                        "remove the stray token or complete the quoted value"
-                    )
+            invalid = next(
+                (
+                    key
+                    for key, _value in attrs
+                    if key != "." and _ATTRIBUTE_NAME.fullmatch(key) is None
+                ),
+                None,
+            )
+            quotes_are_unbalanced = body.count('"') % 2 or body.count("'") % 2
+            if invalid is not None or remainder.strip() or quotes_are_unbalanced:
+                detail = (
+                    f"unexpected token {invalid!r}"
+                    if invalid is not None
+                    else "unbalanced quote"
+                )
+                raise TableError(
+                    f"{location(line_number)}: malformed Prodockit table attribute list "
+                    f"({detail}); remove the stray token or complete the quoted value"
+                )
+
+
+class MalformedTableAttributePreprocessor(Preprocessor):
+    """Check original attributes before ``attr_list`` hides them."""
+
+    def run(self, lines: list[str]) -> list[str]:
+        validate_table_attributes(lines, lambda line: _attribute_location(self.md, line))
         return lines
 
 
@@ -687,15 +694,18 @@ def _apply_compact(table: etree.Element, headers: list[etree.Element]) -> None:
 class TablesExtension(Extension):
     """Adds table layout features and rejects failed pipe-table parses."""
 
+    check_source_attributes = True
+
     def extendMarkdown(self, md: Markdown) -> None:
         md.registerExtension(self)
         if "table" not in md.parser.blockprocessors:
             TableExtension().extendMarkdown(md)
-        md.preprocessors.register(
-            MalformedTableAttributePreprocessor(md),
-            "prodockit-malformed-table-attributes",
-            29,
-        )
+        if self.check_source_attributes:
+            md.preprocessors.register(
+                MalformedTableAttributePreprocessor(md),
+                "prodockit-malformed-table-attributes",
+                29,
+            )
         md.treeprocessors.register(
             TableWidthTreeprocessor(md),
             "prodockit-tables",
@@ -706,6 +716,12 @@ class TablesExtension(Extension):
             "prodockit-malformed-tables",
             2,
         )
+
+
+class PreparedTablesExtension(TablesExtension):
+    """Format tables after portable preparation has checked source attributes."""
+
+    check_source_attributes = False
 
 
 def makeExtension(**kwargs: object) -> TablesExtension:

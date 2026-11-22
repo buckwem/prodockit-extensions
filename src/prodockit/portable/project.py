@@ -50,7 +50,7 @@ from prodockit.project_config import (
 )
 
 MIGRATED = {"prodockit.headings", "prodockit.refs", "prodockit.bibliography"}
-PENDING = {"prodockit.citations", "prodockit.glossary", "prodockit.tables"}
+PENDING = {"prodockit.citations", "prodockit.glossary"}
 
 
 @dataclass(frozen=True)
@@ -180,6 +180,14 @@ def _generated_config(config: ProjectConfig) -> dict[str, Any]:
         extensions = copy.deepcopy(DOCUMENTED_MARKDOWN_DEFAULTS)
     for name in MIGRATED:
         extensions.pop(name, None)
+    # Source diagnostics run before generation. Keep the table renderer and
+    # the checks that operate on parsed tables and do not need the source path.
+    old = "prodockit.tables"
+    if old in extensions:
+        new = "prodockit.tables:PreparedTablesExtension"
+        extensions = {
+            new if name == old else name: options for name, options in extensions.items()
+        }
     # Only the migrated custom formatter is removed; Mermaid and other fences stay.
     superfences = extensions.get("pymdownx.superfences", {})
     if "custom_fences" in superfences:
