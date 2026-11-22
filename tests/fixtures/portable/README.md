@@ -125,10 +125,25 @@ Zensical still runs the existing table formatter and the checks on parsed
 tables. For example, write `| Name {: width="30%" } | Value |` with a space
 before the attribute list.
 
+With `prodockit.glossary` enabled, define terms on top-level paragraphs
+using a separate attribute line. For example:
+
+```markdown
+See \gls{gui}.
+
+**GUI** is short for graphical user interface.
+{: #gui .acronym data-term="Graphical user interface" }
+```
+
+Definitions can be on the same page or on another page, including forward
+references. Keep the ID unique across the project. The portable compiler
+reports an original source location for duplicate or unknown keys. Run
+either build approach on the same files.
+
 Unsupported cases fail explicitly: nested affected syntax, Setext headings,
 caption blocks, custom slugging, macros, snippets, generated navigation/plugins,
 custom theme directories, file-visibility settings, symlinked sources, YAML
-configuration, page-local bibliographies and citation/glossary extensions.
+configuration, page-local bibliographies and the citation extension.
 The prototype requires explicit `attr_list` and `toc`
 configuration when migrated extensions are enabled.
 

@@ -5,8 +5,8 @@
 
 The CommonMark tokenizer is a conservative boundary, not a claim of PyMdown
 compatibility. Unsupported containers/generators are refused in this prototype.
-Python-Markdown is used only for the existing heading semantics, with an explicit
-source and registry. No Zensical context or automatic extension discovery runs.
+Python-Markdown is used for isolated headings and glossary attributes, with
+explicit source identities. No Zensical context or extension discovery runs.
 """
 
 from __future__ import annotations
@@ -22,6 +22,7 @@ from typing import Any
 import markdown
 import yaml
 from bs4 import BeautifulSoup
+from markdown.extensions.attr_list import get_attrs_and_remainder
 
 from prodockit.bibliography import _BibliographyCache
 from prodockit.image_hotspots import _render as render_hotspots
@@ -37,10 +38,10 @@ from prodockit.semantics import (
     resolve_reference,
 )
 from prodockit.tables import TableError, validate_table_attributes
-from prodockit.util import IdRegistry, cross_page_href
+from prodockit.util import GlossaryRegistry, IdRegistry, cross_page_href
 
 _COMMAND = re.compile(
-    r"\\(?P<name>autoref|ref|cite)\{(?P<key>[^{}\s,]+)\}"
+    r"\\(?P<name>autoref|ref|cite|gls)\{(?P<key>[^{}\s,]+)\}"
     r"|\\(?P<bib>bibliography)(?!\w)(?:\{(?P<file>[^{}]*)\})?"
     r"(?:\{(?P<cited>true|false)\})?"
 )
@@ -50,6 +51,10 @@ _UNSUPPORTED = re.compile(
     re.MULTILINE,
 )
 _ATTRS = re.compile(r"\s+\{(?::\s*)?([^{}]*)\}\s*$")
+_TERM_ATTRS = re.compile(
+    r"""\{(?::\s*)?(?=[^\n]*\bdata-term\s*=)((?:"[^"\n]*"|'[^'\n]*'|[^"'{}\n])*)\}"""
+)
+_ATTR_TOKEN = re.compile(r"""[^\s=]+="[^"]*"|[^\s=]+='[^']*'|[^\s]+""")
 
 
 @dataclass
@@ -62,6 +67,13 @@ class Edit:
     cited: bool = False
 
 
+@dataclass(frozen=True)
+class GlossaryDefinition:
+    start: int
+    key: str
+    label: str
+
+
 @dataclass
 class Page:
     source: str
@@ -71,6 +83,7 @@ class Page:
     edits: list[Edit] = field(default_factory=list)
     headings: list[tuple[int, int, str]] = field(default_factory=list)
     targets: list[dict[str, Any]] = field(default_factory=list)
+    terms: list[GlossaryDefinition] = field(default_factory=list)
 
 
 def _error(page: Page, offset: int, message: str) -> PortableError:
@@ -116,7 +129,49 @@ def _tokenizer() -> Any:
     return parser
 
 
-def scan(source: str, text: str) -> Page:
+def _glossary_definitions(page: Page, start: int, raw: str, content: str, top_level: bool) -> None:
+    """Consume only a paragraph's standalone attribute list, keeping its other attributes."""
+    matches = list(_TERM_ATTRS.finditer(content))
+    # A dedicated final attribute line owns the paragraph. Earlier inline
+    # literals in its body may contain examples of the same attribute syntax.
+    if matches and content[matches[-1].start() - 1:matches[-1].start()] == "\n":
+        matches = matches[-1:]
+    for match in matches:
+        attrs, remainder = get_attrs_and_remainder(match[1].strip())
+        labels = [value for name, value in attrs if name == "data-term"]
+        if not labels:
+            continue
+        at = raw.find(content)
+        begin = start + max(at, 0) + match.start()
+        keys = [value for name, value in attrs if name == "id"]
+        tokens = _ATTR_TOKEN.findall(match[1])
+        others = [token for token in tokens if not token.startswith("data-term=")]
+        if (
+            not top_level or at < 0 or raw.strip() != content
+            or content[match.start() - 1:match.start()] != "\n"
+            or content[match.end():].strip()
+            or remainder or len(labels) != 1 or len(tokens) != len(attrs)
+            or len(tokens) - len(others) != 1
+            or len(keys) != 1 or not keys[0] or not labels[0]
+        ):
+            raise _error(
+                page, begin,
+                "put each glossary definition in a top-level paragraph with a separate "
+                "attribute line containing one ID and one data-term value",
+            )
+        # Qualify this attribute line with the same parser as the existing
+        # adaptor. In particular, decode entities exactly as that parser does.
+        rendered = markdown.markdown("Definition\n" + match[0], extensions=["attr_list"])
+        paragraph = BeautifulSoup(rendered, "html.parser").p
+        label = paragraph.get("data-term") if paragraph is not None else None
+        if paragraph is None or paragraph.get("id") != keys[0] or not isinstance(label, str):
+            raise _error(page, begin, "glossary definition attributes were not parsed as authored")
+        page.terms.append(GlossaryDefinition(begin, keys[0], label))
+        retained = "{: " + " ".join(others) + " }"
+        page.edits.append(Edit(begin, begin + len(match[0]), "glossary-definition", retained))
+
+
+def scan(source: str, text: str, *, glossary: bool = False) -> Page:
     """Retain original spans, protecting code with the tokenizer's own rules."""
     original = SourceText.read(text)
     text = original.text
@@ -148,7 +203,10 @@ def scan(source: str, text: str) -> Page:
             if token.level != 0:
                 raise _error(page, start, "nested hotspots are outside the portable prototype")
             page.edits.append(Edit(start, end, "hotspots", token.content))
-        elif token.type == "html_block" and _UNSUPPORTED.search(token.content):
+        elif token.type == "html_block" and (
+            _UNSUPPORTED.search(token.content)
+            or (glossary and re.search(r"\bdata-term\s*=", token.content))
+        ):
             raise _error(page, start, "affected syntax in HTML is outside the portable prototype")
         elif token.type == "heading_open":
             if token.level != 0 or not token.markup.startswith("#"):
@@ -174,14 +232,22 @@ def scan(source: str, text: str) -> Page:
                         start,
                         "unsupported syntax or generated content in the portable prototype",
                     )
+                if glossary and child.type == "html_inline" and "data-term" in child.content:
+                    raise _error(page, start, "glossary definitions in HTML are unsupported")
+            top_level = token.level == 1 and tokens[index - 1].type == "paragraph_open"
+            raw = text[start:end]
+            if glossary and any(
+                child.type in {"text", "html_inline"} and "data-term" in child.content
+                for child in children
+            ):
+                _glossary_definitions(page, start, raw, token.content, top_level)
             commands = [child.meta for child in children if child.type == "pdk_command"]
             if not commands:
                 continue
-            if token.level != 1 or tokens[index - 1].type != "paragraph_open":
+            if not top_level:
                 raise _error(
                     page, start, "affected syntax in nested content is outside the prototype"
                 )
-            raw = text[start:end]
             at = raw.find(token.content)
             if at < 0 or raw.strip() != token.content:
                 raise _error(page, start, "cannot map the affected content to an exact source span")
@@ -247,13 +313,22 @@ def compile_pages(
                 )
             except TableError as error:
                 raise PortableError(str(error)) from error
-    pages = {source: scan(source, text) for source, text in sources.items()}
+    glossary_enabled = "prodockit.glossary" in config.markdown_extensions
+    pages = {
+        source: scan(source, text, glossary=glossary_enabled) for source, text in sources.items()
+    }
     nav_order = list(dict.fromkeys(p.source_path for p in config.nav_pages))
     missing = set(nav_order) - pages.keys()
     if missing:
         raise PortableError(f"navigation pages are missing: {', '.join(sorted(missing))}")
     order = nav_order + sorted(pages.keys() - set(nav_order))
     registry = IdRegistry()
+    glossary = GlossaryRegistry()
+    for source in order:
+        for term in pages[source].terms:
+            if term.key in glossary:
+                raise _error(pages[source], term.start, f"duplicate glossary term {term.key!r}")
+            glossary.register(source, term.key, term.label)
     heading_options = config.markdown_extensions.get("prodockit.headings", {})
     enabled = bool({"prodockit.headings", "prodockit.refs"} & config.markdown_extensions.keys())
     continuous = heading_options.get("numbering") == "continuous"
@@ -336,6 +411,20 @@ def compile_pages(
                     f"{html.escape(label)}</a>"
                 )
                 links.append({"page": reference.target.source, "id": edit.key, "text": label})
+            elif edit.kind == "gls":
+                if not glossary_enabled:
+                    raise _error(page, edit.start, "glossary syntax requires prodockit.glossary")
+                term_record = glossary.get(edit.key)
+                if term_record is None:
+                    raise _error(page, edit.start, f"unresolved glossary term {edit.key!r}")
+                href = cross_page_href(term_record.source, source, edit.key)
+                edit.value = (
+                    f'<a class="prodockit-gls" href="{html.escape(href, quote=True)}">'
+                    f"{html.escape(term_record.text)}</a>"
+                )
+                links.append(
+                    {"page": term_record.source, "id": edit.key, "text": term_record.text.strip()}
+                )
             elif edit.kind == "hotspots":
                 fences = config.markdown_extensions.get("pymdownx.superfences", {}).get(
                     "custom_fences", []

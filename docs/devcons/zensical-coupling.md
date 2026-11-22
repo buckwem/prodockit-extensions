@@ -179,7 +179,7 @@ preparation still rejects ambiguous cross-page IDs and unsupported constructs.
 Its current slice covers top-level ATX headings and references, global
 bibliographies and image hotspots. Captions are covered by the shared rules
 and legacy regression checks, but portable caption parsing remains future work.
-Citation/glossary migration, generated content, portable PDF selection and
+Citation migration, generated content, portable PDF selection and
 qualification against a future Rust renderer also remain in the issue.
 
 Tests compare reference labels and destinations across both build approaches,
@@ -228,6 +228,17 @@ document and line before Zensical runs. Both approaches use the same
 attribute checks. The prepared configuration retains table formatting and
 the checks that operate on parsed tables. Those operations already work
 without discovering the current page.
+
+### Glossary definitions and links {: #coupling-portable-glossary }
+
+With `prodockit.glossary` and `attr_list` enabled, portable preparation
+collects top-level paragraph definitions from all captured pages. It resolves
+glossary links in a second pass using the existing glossary registry and
+relative link rules. Author IDs and classes survive preparation, while the
+internal `data-term` attribute is consumed before Zensical renders the page.
+The supported form is a paragraph followed on the next line by an attribute
+list with an explicit ID and a display value. Nested definitions and references,
+duplicate keys and missing terms produce errors with the original path and line.
 
 ## Migration progress {: #coupling-removed-dependencies }
 
