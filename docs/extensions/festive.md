@@ -92,9 +92,9 @@ Preview works only on `localhost`, `127.0.0.1` and IPv6 loopback. It forces the
 season active, including on this page without a configuration marker. Production
 hosts ignore the preview parameters.
 
-These public effect links work on pages where festive mode is enabled. They
-override the seasonal schedule for that page without opening the local preview
-panel:
+The public effect links in \ref{tab-festive-effect-presets} work on pages where
+festive mode is enabled. They override the seasonal schedule for that page
+without opening the local preview panel.
 
 | Effect | Test link |
 | --- | --- |
@@ -103,6 +103,11 @@ panel:
 | Fireworks | [Show fireworks](?pdk-festive-fireworks=true) |
 | Drones | [Show drones](?pdk-festive-drone=true) |
 | Fireworks and drones | [Show alternating display](?pdk-festive-fireworks-drone=true) |
+/// table-caption | <
+    attrs: {id: tab-festive-effect-presets}
+
+Public festive effect presets
+///
 
 The combined display alternates after about two minutes, while the drone-only
 link starts with drones. [Clear the effect](?) to return to the normal schedule.
