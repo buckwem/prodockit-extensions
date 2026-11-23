@@ -1032,35 +1032,71 @@ img.documentation-diagram {
     z-index: 20;
 }
 .pdk-festive-controls {
+    --pdk-festive-surface: var(--md-default-bg-color, #fff);
+    --pdk-festive-text: var(--md-default-fg-color, #111);
     position: fixed;
-    bottom: 2.5rem;
-    right: 0.5rem;
+    bottom: max(0.75rem, env(safe-area-inset-bottom));
+    right: max(0.75rem, env(safe-area-inset-right));
     z-index: 21;
-    max-width: min(22rem, 90vw);
-    padding: 0.3rem;
-    border-radius: 0.3rem;
-    color: var(--md-default-fg-color, #111);
-    background: var(--md-default-bg-color, white);
-    font: 14px sans-serif;
-    box-shadow: 0 1px 5px #8888;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.25rem;
+    box-sizing: border-box;
+    max-width: min(26rem, calc(100vw - 1.5rem));
+    max-height: calc(100dvh - 2rem);
+    overflow: auto;
+    padding: 0.4rem;
+    border: 1px solid currentColor;
+    border-radius: 0.5rem;
+    color: var(--pdk-festive-text);
+    background: var(--pdk-festive-surface);
+    font: 14px/1.4 system-ui, sans-serif;
+    box-shadow: 0 2px 12px #0003;
+}
+.pdk-festive-controls[data-theme="dark"] {
+    --pdk-festive-surface: #202b25;
+    --pdk-festive-text: #e7ede8;
+    color-scheme: dark;
+}
+.pdk-festive-controls[data-theme="light"] {
+    --pdk-festive-surface: #fff;
+    --pdk-festive-text: #12382e;
+    color-scheme: light;
+}
+.pdk-festive-controls[data-position="bottom-left"] {
+    right: auto;
+    left: max(0.75rem, env(safe-area-inset-left));
 }
 .pdk-festive-controls button,
 .pdk-festive-controls input,
 .pdk-festive-controls select {
-    margin: 0.2rem;
-    padding: 0.3rem;
+    box-sizing: border-box;
+    min-height: 44px;
+    max-width: 100%;
+    margin: 0;
+    padding: 0.35rem 0.55rem;
     border: 1px solid currentColor;
-    border-radius: 0.2rem;
+    border-radius: 0.3rem;
     font: inherit;
     color: inherit;
-    background: inherit;
+    background: var(--pdk-festive-surface);
+    text-transform: none;
+    letter-spacing: normal;
 }
 .pdk-festive-controls :focus-visible { outline: 3px solid var(--md-accent-fg-color, blue); }
+.pdk-festive-controls button { min-width: 44px; cursor: pointer; }
+.pdk-festive-controls svg,
+.pdk-festive-toggle svg,
+.pdk-festive-speaker svg { display: block; width: 18px; height: 18px; margin: auto; }
+.pdk-festive-preview { flex-basis: 100%; }
 .pdk-festive-preview strong,
 .pdk-festive-preview output { display: block; }
 .pdk-festive-speaker,
 .pdk-festive-toggle {
-    font-size: 1.3rem;
+    min-width: 44px;
+    min-height: 44px;
+    font-size: 18px;
     cursor: pointer;
 }
 .pdk-festive-toggle[aria-pressed="false"] { opacity: 0.5; }
