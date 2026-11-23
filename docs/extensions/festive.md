@@ -21,8 +21,13 @@ opts in explicitly through its own `zensical.toml`.
 
 ## Enable the festive extension
 
-Start from a working Prodockit website. The instructions below use the updated
-festive assets. Prodockit 0.81.0 contains the original overlay, so use a release
+If you have a Zensical site without Prodockit, follow
+[Install Prodockit](../choosing-installation.md#install-prodockit) to set up
+the Python package and build your site. Once your site builds, return here
+to enable the festive overlay.
+
+The instructions below use the updated festive assets.
+Prodockit 0.81.0 contains the original overlay, so use a release
 that includes the [festive update](https://github.com/buckwem/prodockit-extensions/pull/1079)
 for the new schedule and test links.
 
