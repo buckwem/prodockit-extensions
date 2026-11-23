@@ -229,8 +229,8 @@ zensical serve
 ## Detailed installation routes {: #choose-an-installation-path }
 
 Choose one route based on your starting point and how much setup you want
-Prodockit to handle. Start with the shared prerequisites in
-[section 3, Prepare to install](installation.md). Your chosen route then
+Prodockit to handle. Start with the shared prerequisites in section 3,
+[Prepare to install](installation.md). Your chosen route then
 guides you through the project environment, installation and verification.
 
 {% if is_surrey %}
@@ -264,7 +264,7 @@ The cards show what each route starts with and where to find its instructions.
     structure.
 
     Create a new site or return to your existing project environment, then
-    use `pdk adopt` to configure Prodockit and verify the site.
+    use Adoption (`pdk adopt`) to configure Prodockit and verify the site.
 
     [:octicons-arrow-right-24: Open section 4](getting-started.md){ .md-button .md-button--primary .installation-route-button }
 

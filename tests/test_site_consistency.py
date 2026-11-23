@@ -246,21 +246,26 @@ def test_get_started_routes_authors_to_authoring_and_publishing() -> None:
     assert "[command-line reference](command-line.md)" in publishing
 
 
-def test_install_choice_starts_with_an_expert_quick_install() -> None:
+def test_install_choice_starts_with_a_basic_install() -> None:
     choices = _text("docs/choosing-installation.md")
-    quick = choices[
-        choices.index("## Install Prodockit") : choices.index("## Choose an installation path")
-    ]
+    basic, detailed = re.findall(r"^## (.+)$", choices, flags=re.MULTILINE)
+    assert basic == "A basic Prodockit install {: #install-prodockit }"
+    assert detailed == "Detailed installation routes {: #choose-an-installation-path }"
+    quick = choices.split(f"## {basic}\n", 1)[1].split(f"## {detailed}\n", 1)[0]
 
     assert "Python 3.14 is installed" in quick
     assert "https://zensical.org/docs/get-started/" in quick
-    assert "activated project virtual environment" in quick
+    assert "project's virtual environment" in quick
+    assert "environment is active" in quick
     assert "python -m pip install --upgrade prodockit" in quick
     assert "zensical new ." not in quick
     assert "pdk adopt --apply" not in quick
     assert '[project.markdown_extensions."prodockit.tables"]' in quick
     assert '[project.markdown_extensions."pymdownx.blocks.caption"]' in quick
-    assert 'extra_css = ["stylesheets/pdk.css", "stylesheets/extra.css"]' in quick
+    assert 'extra_css = ["stylesheets/pdk.css"]' in quick
+    assert 'source = "pdk.css"' in quick
+    assert 'target = "docs/stylesheets/pdk.css"' in quick
+    assert "pdk shared-files --apply\npdk shared-files --check" in quick
     assert "For optional local PDF generation" in quick
     assert "brew install pango node" in quick
     assert "winget install OpenJS.NodeJS.LTS" in quick
@@ -273,8 +278,7 @@ def test_install_choice_starts_with_an_expert_quick_install() -> None:
     assert quick.index("zensical build --clean --strict") < quick.index(
         "pdk pdf       # optional if PDF generation is used"
     ) < quick.index("zensical serve")
-    assert "detailed installation paths" in quick
-    assert "below when you need those steps" in quick
+    assert "[section 2.2](#choose-an-installation-path)" in quick
 
 
 def test_introduction_offers_an_optional_tracking_free_support_link() -> None:
