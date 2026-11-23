@@ -32,7 +32,7 @@ python -m pip install --upgrade prodockit
 
 ////
 
-//// step | Enable the authoring extensions
+//// step | Enable the Markdown extensions
 
 Enable the Markdown extensions your site uses in `zensical.toml`. Add only
 the tables you need. If a table already exists, edit it in place. Quote the
@@ -63,6 +63,33 @@ For hand-written references, enable
 BibTeX or BibLaTeX, use [`prodockit.bibliography`](extensions/bibliography.md)
 and configure a citation style.
 
+////
+
+//// step | Register the website stylesheet
+
+Add `"stylesheets/pdk.css"` to `extra_css` in the existing `[project]`
+table. Keep the other entries. If you have your own `extra.css`, list it
+after `pdk.css` so it can override the default styles.
+
+```toml
+extra_css = ["stylesheets/pdk.css"]
+```
+
+Create `.prodockit-shared-files.toml` beside `zensical.toml`, or add the
+missing entry to your existing manifest. Keep its existing version and entries.
+
+```toml
+version = 1
+
+[[files]]
+source = "pdk.css"
+target = "docs/stylesheets/pdk.css"
+```
+
+////
+
+//// step | Enable Prodockit macros **Optional**{: .bg-green}
+
 If you use [Prodockit macros](macros.md#macros-quick-start), add
 `"prodockit.zensical_macros"` to the existing Zensical macros `modules`
 list. For a site without a macros table, use this configuration.
@@ -72,6 +99,10 @@ list. For a site without a macros table, use this configuration.
 modules = ["prodockit.zensical_macros"]
 on_error_fail = true
 ```
+
+////
+
+//// step | Enable image hotspots **Optional**{: .bg-green}
 
 [Image hotspots](extensions/image-hotspots.md#enable-image-hotspots) use a
 SuperFences formatter. If you use hotspots, add this entry to the
@@ -84,48 +115,20 @@ custom_fences = [
 ]
 ```
 
-For [card carousels](extensions/carousel.md#enable-the-carousel), enable
-`[project.markdown_extensions.md_in_html]` if it is missing and load the
-JavaScript described in Step 3. For the
-[festive overlay](extensions/festive.md#enable-the-festive-extension), follow
-its setup guide after the initial install.
-
 ////
 
-//// step | Add the website assets
+//// step | Register JavaScript for carousels or festive effects **Optional**{: .bg-green}
 
-Add `"stylesheets/pdk.css"` to `extra_css` in the existing `[project]`
-table. Keep the other entries. If you have your own `extra.css`, list it
-after `pdk.css` so it can override the default styles.
-
-```toml
-extra_css = ["stylesheets/pdk.css"]
-```
-
-Create `.prodockit-shared-files.toml` beside `zensical.toml`, or add the
-missing entry to your existing manifest. Keep any entries already there.
+If you plan to use [card carousels](extensions/carousel.md#enable-the-carousel)
+or the [festive overlay](extensions/festive.md#enable-the-festive-extension),
+add `"javascripts/pdk.js"` to `extra_javascript` in the existing `[project]`
+table. Keep any other entries.
 
 ```toml
-version = 1
-
-[[files]]
-source = "pdk.css"
-target = "docs/stylesheets/pdk.css"
+extra_javascript = ["javascripts/pdk.js"]
 ```
 
-From that folder, run the first command to copy the stylesheet from your
-installed Prodockit package. The second command checks the declared files.
-
-```bash
-pdk shared-files --apply
-pdk shared-files --check
-```
-
-If you use carousels or the festive overlay, also add this entry to the
-same manifest and add `"javascripts/pdk.js"` to `extra_javascript` in the
-existing `[project]` table. Include the optional sleigh image entry from the
-[festive setup](extensions/festive.md#enable-the-festive-extension) if you
-want the sleigh. Rerun the commands above after changing the manifest.
+Add this entry to `.prodockit-shared-files.toml` if it is missing.
 
 ```toml
 [[files]]
@@ -133,8 +136,23 @@ source = "pdk.js"
 target = "docs/javascripts/pdk.js"
 ```
 
-The detailed [Adopt route](getting-started.md) can configure the standard
-integration for you.
+For card carousels, also enable `[project.markdown_extensions.md_in_html]`
+if it is missing. For the festive overlay, follow its setup guide after your
+site builds. That guide includes the optional sleigh image.
+
+////
+
+//// step | Copy and check the website assets
+
+From the folder containing `zensical.toml`, copy the files listed in the
+manifest from your installed Prodockit package, then check them.
+
+```bash
+pdk shared-files --apply
+pdk shared-files --check
+```
+
+Rerun these commands after upgrading Prodockit or editing the manifest.
 
 ////
 
@@ -144,7 +162,6 @@ For optional local PDF generation, run the block for the current platform.
 Skip this on Windows ARM64 and let the GitLab pipeline generate PDFs instead.
 `pdk pdf --prepare all` creates and registers the PDF stylesheets **before**
 preparing the renderer; an ordinary `pdk pdf` does the same before rendering.
-Step 3 covers the website assets.
 Do not add `[project.markdown_extensions."prodockit.pdf"]` to `zensical.toml`:
 `prodockit.pdf` is the PDF command's renderer, not a Markdown extension.
 
