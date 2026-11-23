@@ -169,8 +169,16 @@ The heading is ordinary Markdown before the section so Zensical can include
 it in the contents. Put a global list with overlapping entries on a separate
 page, where its anchors cannot collide with the page-local ones.
 
-Unsupported cases fail explicitly: nested affected syntax, Setext headings,
-caption blocks, custom slugging, macros, snippets, generated navigation/plugins,
+Portable captions use the existing `pymdownx.blocks.caption` extension and
+its numbered `figure-caption` and `table-caption` types. Put them after their
+image or table, either at the top level or with four spaces per list level.
+Both selector IDs and `attrs: {id: example}` work. Portable builds supply the
+full caption number before rendering so the visible label and references
+agree. Manual caption numbers and other PyMdown block types are outside
+this slice.
+
+Unsupported cases fail explicitly: other nested affected syntax, Setext headings,
+custom slugging, macros, snippets, generated navigation/plugins,
 custom theme directories, file-visibility settings, symlinked sources and
 YAML configuration.
 The prototype requires explicit `attr_list` and `toc`

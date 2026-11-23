@@ -175,11 +175,15 @@ def read_manifest(path: Path) -> dict[str, Any]:
             if manifest["captured_inputs"].get(paths["original"]) != paths["captured"]:
                 raise PortableError(f"source mapping has no captured input: {source}")
             page = manifest["pages"][source]
-            for key, fields in (("targets", ("id", "text")), ("links", ("page", "id", "text"))):
-                if not isinstance(page[key], list) or any(
+            for key, fields in (
+                ("targets", ("id", "text")), ("links", ("page", "id", "text")),
+                ("captions", ("id", "number", "kind")),
+            ):
+                items = page.get(key, []) if key == "captions" else page[key]
+                if not isinstance(items, list) or any(
                     not isinstance(item, dict)
                     or any(not isinstance(item.get(field), str) for field in fields)
-                    for item in page[key]
+                    for item in items
                 ):
                     raise PortableError(f"invalid {key} in portable manifest: {source}")
             for link in page["links"]:

@@ -29,6 +29,12 @@ from markdown.extensions.attr_list import get_attrs_and_remainder
 from prodockit.bibliography import BibliographyResolverTreeprocessor, _BibliographyCache
 from prodockit.image_hotspots import _render as render_hotspots
 from prodockit.portable import PortableError
+from prodockit.portable.captions import (
+    CAPTION_EXTENSION,
+    Caption,
+    read_caption,
+    register_caption_rule,
+)
 from prodockit.portable.inputs import MaterializedInputs
 from prodockit.portable.source_map import SourceText, apply_edits
 from prodockit.project_config import ProjectConfig
@@ -98,6 +104,8 @@ class Page:
     edits: list[Edit] = field(default_factory=list)
     headings: list[tuple[int, int, str]] = field(default_factory=list)
     targets: list[dict[str, Any]] = field(default_factory=list)
+    captions: list[Caption] = field(default_factory=list)
+    caption_targets: list[dict[str, str]] = field(default_factory=list)
     definitions: list[Definition] = field(default_factory=list)
 
 
@@ -142,6 +150,7 @@ def _tokenizer() -> Any:
         return True
 
     parser = MarkdownIt("commonmark")
+    register_caption_rule(parser)
     parser.core.ruler.disable(["text_join"])
     parser.inline.ruler.before("escape", "pdk_command", command)
     return parser
@@ -201,7 +210,13 @@ def _definitions(
         page.edits.append(Edit(begin, begin + len(match[0]), f"{kind}-definition", retained))
 
 
-def scan(source: str, text: str, *, extensions: Collection[str] = ()) -> Page:
+def scan(
+    source: str,
+    text: str,
+    *,
+    extensions: Collection[str] = (),
+    caption_options: dict[str, Any] | None = None,
+) -> Page:
     """Retain original spans, protecting code with the tokenizer's own rules."""
     original = SourceText.read(text)
     text = original.text
@@ -232,7 +247,17 @@ def scan(source: str, text: str, *, extensions: Collection[str] = ()) -> Page:
         if token.map is None:
             continue
         start, end = (offsets[n] for n in token.map)
-        if token.type == "fence" and token.info.strip() == "image-hotspots":
+        if token.type == "pdk_caption":
+            if caption_options is None:
+                raise _error(page, start, "caption blocks require pymdownx.blocks.caption")
+            block = text[start:end]
+            interior = "\n".join(block.splitlines()[1:-1])
+            if _UNSUPPORTED.search(interior) or re.search(r"(?m)^\s*#{1,6}\s", interior):
+                raise _error(page, start, "affected syntax inside captions is unsupported")
+            page.captions.append(
+                read_caption(source, start, text.count("\n", 0, start) + 1, block, caption_options)
+            )
+        elif token.type == "fence" and token.info.strip() == "image-hotspots":
             if token.level != 0:
                 raise _error(page, start, "nested hotspots are outside the portable prototype")
             page.edits.append(Edit(start, end, "hotspots", token.content))
@@ -386,7 +411,26 @@ def _heading_records(
     page: Page, headings: list[ET.Element], context: PageContext, registry: IdRegistry,
 ) -> None:
     collector = PageCollector(context, registry)
+    captions = iter(page.captions)
+    caption = next(captions, None)
+
+    def register(caption: Caption) -> None:
+        collector.caption(caption.kind, caption.ident, "")
+        label = collector.numbering.caption_label(caption.kind)
+        page.edits.append(
+            Edit(
+                caption.options_start, caption.options_end, "caption-options",
+                caption.numbered_options(label),
+            )
+        )
+        page.caption_targets.append(
+            {"id": caption.ident or "", "number": label, "kind": caption.kind}
+        )
+
     for (start, end, line), heading in zip(page.headings, headings, strict=True):
+        while caption is not None and caption.start < start:
+            register(caption)
+            caption = next(captions, None)
         ident = heading.get("id") or ""
         record = collector.heading(
             ident, int(heading.tag[1]), "".join(heading.itertext()),
@@ -402,6 +446,9 @@ def _heading_records(
         else:
             line += f" {{: #{ident} }}"
         page.edits.append(Edit(start, end, "heading", line + "\n"))
+    while caption is not None:
+        register(caption)
+        caption = next(captions, None)
 
 
 def compile_pages(
@@ -422,8 +469,10 @@ def compile_pages(
             except TableError as error:
                 raise PortableError(str(error)) from error
     extensions = config.markdown_extensions.keys()
+    caption_options = config.markdown_extensions.get(CAPTION_EXTENSION)
     pages = {
-        source: scan(source, text, extensions=extensions) for source, text in sources.items()
+        source: scan(source, text, extensions=extensions, caption_options=caption_options)
+        for source, text in sources.items()
     }
     nav_order = list(dict.fromkeys(p.source_path for p in config.nav_pages))
     missing = set(nav_order) - pages.keys()
@@ -444,6 +493,10 @@ def compile_pages(
             book.register(source, definition.key, definition.label)
     heading_options = config.markdown_extensions.get("prodockit.headings", {})
     enabled = bool({"prodockit.headings", "prodockit.refs"} & config.markdown_extensions.keys())
+    if not enabled and any(page.captions for page in pages.values()):
+        raise PortableError(
+            "portable caption numbering requires prodockit.headings or prodockit.refs"
+        )
     continuous = heading_options.get("numbering") == "continuous"
     if continuous and not nav_order:
         raise PortableError("continuous numbering requires explicit navigation in the prototype")
@@ -619,4 +672,6 @@ def compile_pages(
                 "appendix_letter": contexts[source].appendix_letter,
             },
         }
+        if page.caption_targets:
+            details[source]["captions"] = page.caption_targets
     return outputs, details, dependencies

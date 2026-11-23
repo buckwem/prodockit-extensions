@@ -282,6 +282,147 @@ def test_portable_manual_citations_report_authored_location(
         prepare(str(portable_project))
 
 
+@pytest.mark.parametrize(("directory_urls", "appendix"), [(True, False), (False, True)])
+def test_portable_caption_parity(
+    portable_project: Path, monkeypatch: pytest.MonkeyPatch, directory_urls: bool, appendix: bool
+) -> None:
+    root = portable_project.parent
+    config = portable_project.read_text().replace(
+        "[project]", f"[project]\nuse_directory_urls = {str(directory_urls).lower()}"
+    )
+    portable_project.write_text(
+        config + '''
+[project.markdown_extensions."pymdownx.blocks.caption"]
+types = [
+  { name = "figure-caption", prefix = "{}.", classes = "prodockit-figure-caption" },
+  { name = "table-caption", prefix = "{}.", classes = "prodockit-table-caption" },
+]
+''',
+        encoding="utf-8",
+    )
+    home = root / "docs/index.md"
+    home.write_text(
+        '# Home {: #home }\n\nSee \\ref{fig-list-one}, \\autoref{fig-list-two} and \\ref{tab-results}.\n',
+        encoding="utf-8",
+    )
+    source = root / "docs/guide/install.md"
+    body = """# Setup
+
+![First](../assets/map.png)
+/// figure-caption
+Unlabelled figure
+///
+
+1. Inspect the first figure.
+
+    ![First](../assets/map.png){ width="65%" }
+    /// figure-caption | #fig-list-one
+    First nested figure
+    ///
+
+2. Inspect the second figure.
+
+    ![Second](../assets/map.png)
+    /// figure-caption
+        attrs: {id: fig-list-two}
+
+    Second nested figure
+    ///
+
+| Name | Value |
+| --- | --- |
+| Result | 12 |
+/// table-caption | <
+    attrs: {id: tab-results}
+
+Results table
+///
+
+```markdown
+/// figure-caption | #literal
+This is a code example.
+///
+```
+"""
+    front = "---\nis_appendix: true\n---\n\n" if appendix else ""
+    source.write_text(front + body, encoding="utf-8")
+    originals = {path: path.read_bytes() for path in (portable_project, home, source)}
+    runner = CliRunner()
+    ordinary = ["build", "-f", str(portable_project), "--clean", "--strict"]
+    result = runner.invoke(main, ordinary)
+    assert result.exit_code == 0, result.output
+
+    def links(site: Path) -> list[tuple[str, str]]:
+        return [
+            (link["href"], link.get_text())
+            for link in _article(site / "index.html").select(".prodockit-ref, .prodockit-autoref")
+        ]
+
+    chapter = "A" if appendix else "2"
+    base = "guide/install/" if directory_urls else "guide/install.html"
+    expected = [
+        (base + "#fig-list-one", f"Figure {chapter}.2"),
+        (base + "#fig-list-two", f"Figure {chapter}.3"),
+        (base + "#tab-results", f"Table {chapter}.1"),
+    ]
+    assert links(root / "site") == expected
+    guard = root / "guard"
+    guard.mkdir()
+    (guard / "sitecustomize.py").write_text(
+        "import prodockit._zensical_page_context as context\n"
+        "import prodockit.headings\n"
+        "def forbidden(*args, **kwargs):\n"
+        "    raise AssertionError('legacy page context or heading processor was called')\n"
+        "context._rendering_context = forbidden\n"
+        "prodockit.headings.HeadingsTreeprocessor.run = forbidden\n",
+        encoding="utf-8",
+    )
+    with monkeypatch.context() as isolated:
+        isolated.setenv("PYTHONPATH", str(guard) + os.pathsep + os.environ["PYTHONPATH"])
+        prepared = build(str(portable_project))
+    assert links(prepared.site) == expected
+    guide_file = "guide/install/index.html" if directory_urls else "guide/install.html"
+    soup = _article(prepared.site / guide_file)
+    figures = soup.select("figure.prodockit-figure-caption")
+    assert len(figures) == 3
+    assert [fig["id"] for fig in soup.select("ol li figure")] == ["fig-list-one", "fig-list-two"]
+    assert "width: 65%;" in figures[1]["style"]
+    old = _article(root / "site" / guide_file)
+    assert figures[1]["style"] == old.select_one("#fig-list-one")["style"]
+    assert soup.select_one("#tab-results").find(recursive=False).name == "figcaption"
+    assert [p.get_text() for p in soup.select(".pdk-prepared-caption-prefix")] == [
+        f"Figure {chapter}.1.", f"Figure {chapter}.2.", f"Figure {chapter}.3.", f"Table {chapter}.1."
+    ]
+    assert soup.select_one("#literal") is None
+    built = prepared.site / guide_file
+    prefix = soup.select_one(".pdk-prepared-caption-prefix")
+    assert prefix is not None
+    prefix.string = "Figure 99.99."
+    built.write_text(str(soup), encoding="utf-8")
+    with pytest.raises(PortableError, match="prepared caption anchor or number changed"):
+        validate(prepared)
+    assert all(path.read_bytes() == data for path, data in originals.items())
+    result = runner.invoke(main, ordinary)
+    assert result.exit_code == 0, result.output
+    assert links(root / "site") == expected
+
+
+def test_caption_scanner_keeps_literal_code_and_rejects_manual_numbers() -> None:
+    fixture = """    /// figure-caption | #literal
+    An indented code example.
+    ///
+
+![Example](example.png)
+/// figure-caption | 4 #manual
+Manual number
+///
+"""
+    page = scan("guide.md", fixture.rsplit("\n\n", 1)[0], caption_options={})
+    assert not page.captions
+    with pytest.raises(PortableError, match=r"guide\.md:6: custom caption numbering"):
+        scan("guide.md", fixture, caption_options={})
+
+
 def _enable_prodockit_tables(config: Path) -> None:
     with config.open("a", encoding="utf-8") as handle:
         handle.write('\n[project.markdown_extensions."prodockit.tables"]\n')

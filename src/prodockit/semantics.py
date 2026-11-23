@@ -87,6 +87,10 @@ class NumberingState:
 
     def caption(self, kind: str) -> str:
         self.captions[kind] += 1
+        return self.caption_label(kind)
+
+    def caption_label(self, kind: str) -> str:
+        """The current label after registering a caption of this kind."""
         chapter = self.context.appendix_letter
         if chapter is None:
             chapter = str(self.counters[0] or 1)
