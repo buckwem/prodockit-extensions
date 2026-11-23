@@ -21,8 +21,59 @@ opts in explicitly through its own `zensical.toml`.
 
 ## Enable the festive extension
 
-Load the managed `pdk.js` and `pdk.css` assets and refresh them with
-`pdk shared-files --apply`. Add these settings to `zensical.toml`.
+Start from a working Prodockit website. The instructions below use the updated
+festive assets. Prodockit 0.81.0 contains the original overlay, so use a release
+that includes the [festive update](https://github.com/buckwem/prodockit-extensions/pull/1079)
+for the new schedule and test links.
+
+/// steps
+
+//// step | Install or refresh the website assets
+
+Create `.prodockit-shared-files.toml` in the project root with the following
+contents. If the manifest already exists, add only the missing entries and
+keep its existing `version` and other entries.
+
+```toml
+version = 1
+
+[[files]]
+source = "pdk.css"
+target = "docs/stylesheets/pdk.css"
+
+[[files]]
+source = "pdk.js"
+target = "docs/javascripts/pdk.js"
+
+[[files]]
+source = "pdk-sleigh.png"
+target = "docs/javascripts/pdk-sleigh.png"
+```
+
+From the project root, with the project environment active, run:
+
+```bash
+pdk shared-files --apply
+pdk shared-files --check
+```
+
+These commands use the assets bundled with the installed Prodockit version.
+The sleigh image is optional for snow without a sleigh or for fireworks
+alone. If you use the sleigh, keep the image beside `pdk.js`.
+
+////
+
+//// step | Register the assets and choose a schedule
+
+Add these paths to the corresponding lists in the existing `[project]` section
+of `zensical.toml`. Keep any other entries and list each path only once.
+
+```toml
+extra_css = ["stylesheets/pdk.css"]
+extra_javascript = ["javascripts/pdk.js"]
+```
+
+Add the festive settings, or update the existing festive table:
 
 ```toml
 [project.extra.festive]
@@ -33,49 +84,56 @@ season_end = "12-30"
 sleigh = true
 fireworks_start = "01-01"
 fireworks_hours = 24
+drone = true
+sound = true
 ```
 
-Only one overlay can be active at a time. Choose a single `effect` value in
-one `[project.extra.festive]` configuration table.
+With `effect = "auto"`, snow runs from 1 to 30 December inclusive in UTC.
+The sleigh flies from 10:00 UTC on 24 December until 11:00 UTC on
+25 December. Fireworks and drones alternate throughout 1 January in each
+visitor's local time. If your existing config sets `season_end = "01-06"`,
+change it to `"12-30"` to adopt the shorter snow season.
 
-`effect = "auto"` selects the New Year overlay on the configured fireworks start
-date and the Christmas overlay during the configured snow season. It switches between the overlays
-automatically and never displays them together. Use `"snow"` or `"fireworks"` to
-select just one overlay. Set `enabled = false`, or remove the festive settings,
-to disable the extension independently of other Prodockit features.
+Choose `effect = "snow"` or `effect = "fireworks"` for a single effect.
+Set `enabled = false` to switch the overlay off. Fireworks start muted when
+sound is available. Set `sound = false` to hide the audio controls.
 
-Add `&#123;&#123; pdk_festive() &#125;&#125;` to a shared Markdown snippet included on each page,
-or to each page where you want the overlay. The normal Prodockit macros setup
-provides this helper.
+////
 
-This reference website uses a site-wide alternative in `overrides/main.html`.
-Its `extrahead` block adds the festive configuration marker to every page when
-`extra.festive.enabled` is true, so no Markdown helper or shared snippet is
-needed here. A page needs either the helper or this template marker to display
-an overlay in production.
+//// step | Enable the overlay on your pages
 
-Season dates are inclusive UTC dates and may cross New Year; the default ends
-on 30 December. Disabled is the default. Snow is black in the default light
-palette and white in the slate palette. A snowflake icon immediately to the
-left of the light/dark switch turns festive mode on or off. The pause/play
-control and the on/off control remember the visitor's choices when browser
-storage is available. Controls appear only while an effect is active, at the
-bottom right by default; set `position = "bottom-left"` to move them. Set
-`palette = "light"` or `"dark"` to override automatic colour detection.
-Each control has a keyboard focus indicator and a 44-pixel minimum target.
-Reduced motion starts paused. The decoration allows clicks, scrolling
-and text selection through to the page. Browser print and PDF exports omit it.
+With the [Prodockit macros](../macros.md#macros-quick-start) configured, add
+`{% raw %}{{ pdk_festive() }}{% endraw %}` to each Markdown page where you want
+the overlay. For shared content, put the call in a snippet included on those
+pages.
 
-The sleigh illustration is an optional managed asset. Add this entry to your
-existing `.prodockit-shared-files.toml` file and run `pdk shared-files --apply`.
+For a site-wide overlay, use a Zensical theme override that emits the festive
+marker for every page. This reference website uses the `extrahead` block in
+[its theme override](https://github.com/buckwem/prodockit-extensions/blob/main/overrides/main.html)
+with `custom_dir = "overrides"` under `[project.theme]`. Use one of these
+approaches on each page.
 
-```toml
-[[files]]
-source = "pdk-sleigh.png"
-target = "docs/javascripts/pdk-sleigh.png"
-```
+////
 
-Keep the image beside `pdk.js`. The browser loads it when the sleigh is needed.
+//// step | Check the installation
+
+Run `zensical serve` from the project root and open an enabled page with
+`?pdk-festive-snow=true` appended to its URL. The snow and its controls should
+appear even outside December. Remove the query parameter to return to the
+configured schedule. The [preview section below](#preview-with-zensical-serve)
+lists the other effect links.
+
+////
+
+///
+
+The header icon turns the effect on or off. The pause and on/off controls
+remember visitor choices when browser storage is available. Controls appear
+during the effect's active dates. Set `position = "bottom-left"` to move
+the control panel, or `palette = "light"` or `"dark"` to override automatic
+colour detection. Reduced motion starts the animation paused. The overlay
+allows clicks, scrolling and text selection through to the page. Browser print
+and PDF exports omit it.
 
 ## Preview with zensical serve
 
