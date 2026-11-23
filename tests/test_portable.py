@@ -1106,26 +1106,28 @@ def test_heading_rendering_drift_is_rejected(portable_project: Path) -> None:
         validate(prepared)
 
 
-@pytest.mark.parametrize("replacement_fails", [False, True])
+@pytest.mark.parametrize("startup_error", [None, PortableError, OSError])
 def test_preview_handles_edits_during_startup_and_failed_replacement(
-    portable_project: Path, monkeypatch: pytest.MonkeyPatch, replacement_fails: bool
+    portable_project: Path, monkeypatch: pytest.MonkeyPatch, startup_error: type[Exception] | None
 ) -> None:
     from prodockit.portable import project
 
     starts = []
+    contents = []
     processes = []
     reports = []
     source = portable_project.parent / "docs/guide/install.md"
 
     def start(prepared, address):
         starts.append(prepared)
+        contents.append((prepared.site / "guide/install/index.html").read_text())
         if len(starts) == 1:
             # The first validated generation is already built at this point.
             source.write_text(source.read_text().replace(
                 "## Installation", "## During startup {: #installation }"
             ))
-        elif len(starts) == 2 and replacement_fails:
-            raise PortableError("replacement preview could not start")
+        elif len(starts) == 2 and startup_error is not None:
+            raise startup_error("replacement preview could not start")
         process = Mock(spec=subprocess.Popen)
         process.poll.return_value = None
         processes.append(process)
@@ -1133,7 +1135,88 @@ def test_preview_handles_edits_during_startup_and_failed_replacement(
 
     def report(message):
         reports.append(message)
-        if "updated" in message or "Keeping" in message:
+        if "updated" in message:
+            raise KeyboardInterrupt
+
+    polls = 0
+    clock = 0.0
+
+    def tick(_):
+        nonlocal polls, clock
+        polls += 1
+        clock += 5 if polls == 3 else 0.5
+        if polls == 3:
+            assert len(starts) == 3  # Retried only after allowing the old preview to run.
+        if polls > 3:
+            pytest.fail("the preview did not retry the unchanged source snapshot")
+
+    monkeypatch.setattr(project, "_start", start)
+    monkeypatch.setattr(project.time, "sleep", tick)
+    monkeypatch.setattr(project.time, "monotonic", lambda: clock)
+    with pytest.raises(KeyboardInterrupt):
+        project.serve(str(portable_project), report=report)
+    assert len(starts) == (4 if startup_error is not None else 2)
+    assert "During startup" in contents[-1]
+    if startup_error is not None:
+        assert starts[2] == starts[0]
+        assert not starts[1].config.parent.exists()
+        assert sum("replacement preview could not start" in report for report in reports) == 1
+    for process in processes:
+        process.terminate.assert_called_once()
+    assert not (portable_project.parent / ".pdk/portable/lock").exists()
+
+
+def test_failed_build_discards_only_its_candidate(
+    portable_project: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from prodockit.portable import project
+
+    previous = build(str(portable_project))
+    old_site = (previous.site / "index.html").read_bytes()
+    candidates = []
+
+    def fail(prepared, **_options):
+        candidates.append(prepared)
+        prepared.site.mkdir()
+        (prepared.site / "index.html").write_text("incomplete", encoding="utf-8")
+        raise PortableError("validation failed")
+
+    monkeypatch.setattr(project, "_build", fail)
+    with pytest.raises(PortableError, match="validation failed"):
+        build(str(portable_project))
+    assert len(candidates) == 1 and not candidates[0].config.parent.exists()
+    assert (previous.site / "index.html").read_bytes() == old_site
+
+
+@pytest.mark.skipif(shutil.which("pandoc") is None, reason="requires real Pandoc citeproc")
+def test_preview_rebuilds_when_only_the_bibliography_changes(
+    portable_project: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from prodockit.portable import project
+
+    root = portable_project.parent
+    with portable_project.open("a", encoding="utf-8") as config:
+        config.write('\n[project.markdown_extensions."prodockit.bibliography"]\n')
+    source = root / "docs/index.md"
+    with source.open("a", encoding="utf-8") as page:
+        page.write("\nSee \\cite{guide}.\n\n\\pagebibliography\n")
+    original = source.read_bytes()
+    bibliography = root / "references.bib"
+    before = "@book{guide, title={Guide}, author={Doe, Jane}, year={2025}}\n"
+    bibliography.write_text(before, encoding="utf-8")
+    labels = []
+
+    def start(prepared, _address):
+        soup = _article(prepared.site / "index.html")
+        labels.append(soup.select_one(".prodockit-bib-cite").get_text())
+        if len(labels) == 1:
+            bibliography.write_text(before.replace("2025", "2026"), encoding="utf-8")
+        child = Mock(spec=subprocess.Popen)
+        child.poll.return_value = None
+        return child
+
+    def report(message):
+        if "updated" in message:
             raise KeyboardInterrupt
 
     polls = 0
@@ -1141,21 +1224,17 @@ def test_preview_handles_edits_during_startup_and_failed_replacement(
     def tick(_):
         nonlocal polls
         polls += 1
-        if polls > 2:
-            pytest.fail("the edit during startup was missed")
+        if polls > 3:
+            pytest.fail("editing the bibliography did not trigger a preview rebuild")
 
     monkeypatch.setattr(project, "_start", start)
     monkeypatch.setattr(project.time, "sleep", tick)
+    pandoc = shutil.which("pandoc")
+    assert pandoc
     with pytest.raises(KeyboardInterrupt):
-        project.serve(str(portable_project), report=report)
-    assert len(starts) == (3 if replacement_fails else 2)
-    assert "During startup" in (starts[1].site / "guide/install/index.html").read_text()
-    if replacement_fails:
-        assert starts[-1] == starts[0]
-        assert "replacement preview could not start" in reports[-1]
-    for process in processes:
-        process.terminate.assert_called_once()
-    assert not (portable_project.parent / ".pdk/portable/lock").exists()
+        project.serve(str(portable_project), pandoc=Path(pandoc), report=report)
+    assert labels == ["(Doe 2025)", "(Doe 2026)"]
+    assert source.read_bytes() == original
 
 
 @pytest.mark.skipif(
@@ -1187,6 +1266,22 @@ def test_live_preview_rebuild_recovery_and_switching(portable_project: Path) -> 
             time.sleep(0.1)
         pytest.fail(f"preview did not reach {expected!r}: {log.read_text()}")
 
+    def await_error(message: str, process: subprocess.Popen) -> None:
+        until = time.monotonic() + 15
+        while time.monotonic() < until:
+            assert process.poll() is None, log.read_text()
+            if message in log.read_text():
+                return
+            time.sleep(0.1)
+        pytest.fail(f"preview did not report {message!r}: {log.read_text()}")
+
+    def status(path: str) -> int:
+        try:
+            with urllib.request.urlopen(f"http://{address}/{path}", timeout=2) as response:
+                return response.status
+        except urllib.error.HTTPError as error:
+            return error.code
+
     source = root / "docs/guide/install.md"
     log = root / "preview.log"
     with log.open("w") as output:
@@ -1213,21 +1308,39 @@ def test_live_preview_rebuild_recovery_and_switching(portable_project: Path) -> 
                 )
             )
             await_value("1.1 Updated installation", process, log)
+            edited = source.read_text()
+            source.write_text("---\ntitle: [\n---\n\n" + edited)
+            await_error("invalid YAML front matter", process)
+            assert fetch() == "1.1 Updated installation"
+            source.write_text(edited)
             home = root / "docs/index.md"
             original = home.read_text()
             home.write_text(original.replace("ref{installation}", "ref{missing}"))
-            until = time.monotonic() + 10
-            while (
-                time.monotonic() < until and "Keeping the previous preview" not in log.read_text()
-            ):
-                time.sleep(0.1)
-            assert "Keeping the previous preview" in log.read_text()
+            await_error("unresolved reference 'missing'", process)
             assert fetch() == "1.1 Updated installation"
             home.write_text(original)
             source.write_text(
                 source.read_text().replace("Updated installation", "Final installation")
             )
             await_value("1.1 Final installation", process, log)
+
+            renamed = source.rename(source.with_name("renamed.md"))
+            await_error("navigation pages are missing: guide/install.md", process)
+            assert status("guide/install/") == 200
+            config = portable_project.read_text()
+            portable_project.write_text(config.replace("guide/install.md", "guide/renamed.md"))
+            renamed.write_text(renamed.read_text().replace("Final installation", "Renamed guide"))
+            await_value("1.1 Renamed guide", process, log)
+            assert status("guide/renamed/") == 200
+            assert status("guide/install/") == 404
+
+            renamed.unlink()
+            await_error("navigation pages are missing: guide/renamed.md", process)
+            assert status("guide/renamed/") == 200
+            portable_project.write_text(config.replace('{Guide = "guide/install.md"}, ', ""))
+            home.write_text(original.replace("{installation}", "{home}"))
+            await_value("Home", process, log)
+            assert status("guide/renamed/") == 404
         finally:
             process.send_signal(signal.SIGINT)
             process.wait(timeout=10)
@@ -1250,7 +1363,7 @@ def test_live_preview_rebuild_recovery_and_switching(portable_project: Path) -> 
             stderr=subprocess.STDOUT,
         )
         try:
-            await_value("1.1 Final installation", process, log)
+            await_value("Home", process, log)
         finally:
             process.send_signal(signal.SIGINT)
             process.wait(timeout=10)

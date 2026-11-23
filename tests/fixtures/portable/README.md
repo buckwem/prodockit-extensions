@@ -21,7 +21,8 @@ The compiler copies inputs into a new generation beneath the fixture's
 `.pdk/portable/generations/` directory. It prints the exact configuration,
 manifest and site locations. The ordinary `site/` directory and original files
 remain untouched. Generated state carries its own Git ignore file. Each command
-uses a separate generation; cleanup of old generations is manual in this prototype.
+uses a separate generation. Failed candidates are removed automatically.
+Cleanup of earlier successful generations is manual.
 
 For separate preparation, invocation and validation:
 
@@ -188,7 +189,12 @@ configuration when migrated extensions are enabled.
 candidate generation, and restarts native Zensical serve only after success.
 Invalid edits leave the previous preview available. It currently requires
 `docs_dir/index.md` and a localhost/127.0.0.1 preview address. A restart causes a
-short interruption. The two-process `prepare --watch` workflow, automatic
+short interruption. If the replacement cannot start, Prodockit restarts the
+previous successful generation and retries an unchanged candidate after five
+seconds. A new edit can trigger a retry straight away. Rename or delete a page
+and update its navigation and references to replace the previous preview.
+Once the replacement is serving, removed URLs are no longer available.
+The two-process `prepare --watch` workflow, automatic
 publication to the original destination and `pdk -p pdf` are not implemented.
 
 Qualification covers prepared content on the current Python-Markdown-based
