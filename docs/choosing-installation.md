@@ -252,7 +252,7 @@ order as the following sections.
 
 <div class="grid cards installation-route-grid" markdown>
 
--   :lucide-rocket:{ .lg .middle } __Adopt prodockit__
+-   :lucide-puzzle:{ .lg .middle } __Adopt prodockit__
 
     ---
 
@@ -265,7 +265,7 @@ order as the following sections.
 
     [:octicons-arrow-right-24: Open section 4](getting-started.md){ .md-button .md-button--primary .installation-route-button }
 
--   :lucide-rocket:{ .lg .middle } __Build a template site__
+-   :lucide-layout-template:{ .lg .middle } __Build a template site__
 
     ---
 
@@ -279,7 +279,7 @@ order as the following sections.
 
     [:octicons-arrow-right-24: Open section 5](devcons/bootstrap.md){ .md-button .md-button--primary .installation-route-button }
 
--   :lucide-book-open:{ .lg .middle } __Build site manually__
+-   :lucide-hammer:{ .lg .middle } __Build site manually__
 
     ---
 

@@ -1,5 +1,5 @@
 ---
-icon: lucide/package-plus
+icon: lucide/clipboard-check
 ---
 
 {{ pdk_heading_counter_reset(page) }}

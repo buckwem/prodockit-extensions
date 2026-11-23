@@ -1,5 +1,5 @@
 ---
-icon: lucide/wrench
+icon: lucide/life-buoy
 ---
 
 {{ pdk_heading_counter_reset(page) }}

@@ -1,5 +1,5 @@
 ---
-icon: lucide/book-open
+icon: lucide/hammer
 ---
 
 {{ pdk_heading_counter_reset(page) }}
