@@ -280,6 +280,20 @@ page. The full label in the prepared page replaces the chapter supplied by
 the ordinary build's CSS counters, including in list items. Site validation
 checks that the label, anchor and associated table or image survive rendering.
 
+### Build and preview recovery {: #coupling-portable-preview-recovery }
+
+The preview watches the captured input inventory, including paths and file
+content. Each candidate builds from the snapshot that triggered it. The
+active fingerprint advances only after the new server starts. During an
+invalid edit, rename or deletion, the last working generation stays available
+until the navigation and references resolve again. A successful replacement
+uses a fresh output directory, so the removed URLs disappear.
+
+If a replacement cannot launch, the supervisor restarts the previous
+generation. It backs off for five seconds before retrying the same rejected
+snapshot. Fresh inputs can bypass that delay. Failed builds and startup
+candidates are discarded, while successful builds can still be inspected.
+
 ## Migration progress {: #coupling-removed-dependencies }
 
 Issue #561 removed these undocumented dependencies from production code:

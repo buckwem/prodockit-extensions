@@ -58,6 +58,8 @@ from prodockit.project_config import (
 
 HEADING_AND_BIBLIOGRAPHY = {"prodockit.headings", "prodockit.refs", "prodockit.bibliography"}
 MIGRATED = HEADING_AND_BIBLIOGRAPHY | set(DEFINITION_EXTENSIONS.values())
+_PREVIEW_ERRORS = (OSError, ValueError, RuntimeError)
+_PREVIEW_RETRY_SECONDS = 5.0
 
 
 @dataclass(frozen=True)
@@ -179,11 +181,6 @@ def capture_inputs(config_file: Path) -> InputSnapshot:
     return InputSnapshot(config, MappingProxyType(files))
 
 
-def input_snapshot(config: ProjectConfig) -> tuple[dict[str, str], dict[str, str]]:
-    snapshot = capture_inputs(config.path)
-    return snapshot.hashes, snapshot.sources
-
-
 def _generated_config(config: ProjectConfig) -> dict[str, Any]:
     project = copy.deepcopy(config.project)
     project.update(docs_dir="docs", site_dir="site")
@@ -214,8 +211,7 @@ def _generated_config(config: ProjectConfig) -> dict[str, Any]:
     return {"project": project}
 
 
-def _prepare(config: ProjectConfig, *, pandoc: Path | None = None) -> Prepared:
-    snapshot = capture_inputs(config.path)
+def _prepare(snapshot: InputSnapshot, *, pandoc: Path | None = None) -> Prepared:
     config = snapshot.config
     pandoc = pandoc.resolve() if pandoc is not None else None
     compiler_toolchain = toolchain(pandoc)
@@ -273,7 +269,7 @@ def _prepare(config: ProjectConfig, *, pandoc: Path | None = None) -> Prepared:
 def prepare(config_file: str, *, pandoc: Path | None = None) -> Prepared:
     config = load_project_config(config_file)
     with workspace_lock(config):
-        return _prepare(config, pandoc=pandoc)
+        return _prepare(capture_inputs(config.path), pandoc=pandoc)
 
 
 def command(config: Path, action: str, *options: str) -> list[str]:
@@ -412,15 +408,17 @@ def _build(prepared: Prepared, *, clean: bool = False, strict: bool = True) -> N
     validate(prepared)
     version = subprocess.run(
         [sys.executable, "-m", "zensical", "--version"],
-        capture_output=True, text=True, encoding="utf-8", check=True,
-    ).stdout.strip()
+        capture_output=True, text=True, encoding="utf-8", check=False,
+    )
+    if version.returncode:
+        raise PortableError(f"Zensical version check failed with status {version.returncode}")
     (prepared.site / ".pdk-build.json").write_text(
         json.dumps(
             {
                 "mode": "portable",
                 "generation": prepared.config.parent.name,
                 "content_id": manifest["content_id"],
-                "zensical": version,
+                "zensical": version.stdout.strip(),
             }
         )
         + "\n",
@@ -428,13 +426,27 @@ def _build(prepared: Prepared, *, clean: bool = False, strict: bool = True) -> N
     )
 
 
+@contextmanager
+def _built_candidate(
+    snapshot: InputSnapshot, *, pandoc: Path | None, clean: bool = False, strict: bool = True
+) -> Iterator[Prepared]:
+    """Keep a generation only once its build and any caller's startup succeed."""
+    prepared = _prepare(snapshot, pandoc=pandoc)
+    try:
+        _build(prepared, clean=clean, strict=strict)
+        yield prepared
+    except BaseException:
+        shutil.rmtree(prepared.config.parent)
+        raise
+
+
 def build(
     config_file: str, *, pandoc: Path | None = None, clean: bool = False, strict: bool = True
 ) -> Prepared:
     config = load_project_config(config_file)
-    with workspace_lock(config):
-        prepared = _prepare(config, pandoc=pandoc)
-        _build(prepared, clean=clean, strict=strict)
+    with workspace_lock(config), _built_candidate(
+        capture_inputs(config.path), pandoc=pandoc, clean=clean, strict=strict
+    ) as prepared:
         return prepared
 
 
@@ -494,13 +506,14 @@ def serve(
     if not (config.docs_dir / "index.md").is_file():
         raise PortableError("supervised preview currently requires docs/index.md")
     with workspace_lock(config):
-        prepared = _prepare(config, pandoc=pandoc)
-        _build(prepared)
-        process = _start(prepared, address)
+        snapshot = capture_inputs(config.path)
+        active = snapshot.hashes
+        with _built_candidate(snapshot, pandoc=pandoc) as prepared:
+            process = _start(prepared, address)
         try:
             report(f"Portable preview: http://{address}/ (watching original sources)")
-            # A source edit while the server starts must trigger the next build.
-            last = json.loads(prepared.manifest.read_text(encoding="utf-8"))["input_hashes"]
+            rejected: dict[str, str] | None = None
+            retry_at = 0.0
             last_error = ""
             while True:
                 time.sleep(0.5)
@@ -508,26 +521,38 @@ def serve(
                     raise PortableError(
                         f"Zensical preview stopped with status {process.returncode}"
                     )
+                observed = None
                 try:
-                    current = load_project_config(config_file)
-                    fingerprint = input_snapshot(current)[0]
-                    if fingerprint == last:
+                    snapshot = capture_inputs(config.path)
+                    observed = snapshot.hashes
+                    if observed == active:
+                        rejected = None
+                        last_error = ""
                         continue
-                    last = fingerprint
-                    candidate = _prepare(current, pandoc=pandoc)
-                    _build(candidate)
-                    _stop(process)
-                    try:
-                        process = _start(candidate, address)
-                    except PortableError:
-                        process = _start(prepared, address)
-                        raise
-                    prepared = candidate
-                    report("Portable preview updated from a complete source generation.")
-                    last_error = ""
-                except (OSError, ValueError, RuntimeError) as error:
+                    if observed == rejected and time.monotonic() < retry_at:
+                        continue
+                    with _built_candidate(snapshot, pandoc=pandoc) as candidate:
+                        _stop(process)
+                        try:
+                            process = _start(candidate, address)
+                        except _PREVIEW_ERRORS:
+                            process = _start(prepared, address)
+                            raise
+                except _PREVIEW_ERRORS as error:
+                    if process.poll() is not None:
+                        raise PortableError(
+                            f"Could not restart the previous portable preview: {error}"
+                        ) from error
+                    rejected = observed
+                    retry_at = time.monotonic() + _PREVIEW_RETRY_SECONDS
                     if str(error) != last_error:
                         report(f"Keeping the previous preview: {error}")
                         last_error = str(error)
+                else:
+                    prepared = candidate
+                    active = observed
+                    rejected = None
+                    report("Portable preview updated from a complete source generation.")
+                    last_error = ""
         finally:
             _stop(process)

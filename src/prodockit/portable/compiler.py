@@ -227,7 +227,12 @@ def scan(
         end = next((i for i in range(1, len(lines)) if lines[i].strip() in {"---", "..."}), None)
         if end is None:
             raise PortableError(f"{source}: unclosed front matter")
-        value = yaml.safe_load("".join(lines[1:end]))
+        try:
+            value = yaml.safe_load("".join(lines[1:end]))
+        except yaml.YAMLError as error:
+            mark = getattr(error, "problem_mark", None)
+            line = mark.line + 2 if mark is not None else 2
+            raise PortableError(f"{source}:{line}: invalid YAML front matter") from error
         if value is not None and not isinstance(value, dict):
             raise PortableError(f"{source}: front matter must be a mapping")
         meta = value or {}
