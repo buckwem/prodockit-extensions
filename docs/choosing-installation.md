@@ -16,7 +16,7 @@ This concise path assumes that:
 
 1. Python 3.14 is installed.
 2. Zensical is installed in an activated project virtual environment and the
-   site has been initialized. Complete Zensical's
+   site has been initialised. Complete Zensical's
    [Get started](https://zensical.org/docs/get-started/){target="_blank" rel="noopener"}
    instructions first if that environment and site do not already exist.
 
@@ -24,7 +24,7 @@ This concise path assumes that:
 
 //// step | Install Prodockit
 
-With the initialized Zensical project's environment active, install Prodockit:
+With the Zensical project's environment active, install Prodockit.
 
 ```bash
 python -m pip install --upgrade prodockit
@@ -34,9 +34,9 @@ python -m pip install --upgrade prodockit
 
 //// step | Enable the authoring extensions
 
-Enable the Prodockit extensions your site uses in `zensical.toml`. Add these
-tables to the existing configuration, omitting any feature you do not use.
-The dotted extension names must be quoted:
+Enable the Markdown extensions your site uses in `zensical.toml`. Add only
+the tables you need. If a table already exists, edit it in place. Quote the
+dotted Prodockit extension names as shown.
 
 ```toml
 [project.markdown_extensions."prodockit.headings"]
@@ -55,35 +55,85 @@ types = [
 ]
 ```
 
-Add `prodockit.bibliography` only for bibliography files, or
-`prodockit.citations` only for inline citation definitions; these need their
-own configuration and a citation style. See [Configure Prodockit
-features](publishing.md#configure-prodockit-features).
+Keep any existing caption types when adding the three shown above.
+`prodockit.index` is for marking terms for a PDF index.
+
+For hand-written references, enable
+[`prodockit.citations`](extensions/citations.md#citations-enable). For
+BibTeX or BibLaTeX, use [`prodockit.bibliography`](extensions/bibliography.md)
+and configure a citation style.
+
+If you use [Prodockit macros](macros.md#macros-quick-start), add
+`"prodockit.zensical_macros"` to the existing Zensical macros `modules`
+list. For a site without a macros table, use this configuration.
+
+```toml
+[project.markdown_extensions.zensical.extensions.macros]
+modules = ["prodockit.zensical_macros"]
+on_error_fail = true
+```
+
+[Image hotspots](extensions/image-hotspots.md#enable-image-hotspots) use a
+SuperFences formatter. If you use hotspots, add this entry to the
+`custom_fences` list, keeping other entries such as Mermaid.
+
+```toml
+[project.markdown_extensions.pymdownx.superfences]
+custom_fences = [
+  { name = "image-hotspots", class = "image-hotspots", format = "prodockit.image_hotspots.format_hotspots" },
+]
+```
+
+For [card carousels](extensions/carousel.md#enable-the-carousel), enable
+`[project.markdown_extensions.md_in_html]` if it is missing and load the
+JavaScript described in Step 3. For the
+[festive overlay](extensions/festive.md#enable-the-festive-extension), follow
+its setup guide after the initial install.
 
 ////
 
-//// step | Add the website stylesheets
+//// step | Add the website assets
 
-Put this key in the **existing** `[project]` table (do not add a second table):
+Add `"stylesheets/pdk.css"` to `extra_css` in the existing `[project]`
+table. Keep the other entries. If you have your own `extra.css`, list it
+after `pdk.css` so it can override the default styles.
 
 ```toml
-extra_css = ["stylesheets/pdk.css", "stylesheets/extra.css"]
+extra_css = ["stylesheets/pdk.css"]
 ```
 
-From the project root, run the following command. It:
+Create `.prodockit-shared-files.toml` beside `zensical.toml`, or add the
+missing entry to your existing manifest. Keep any entries already there.
 
-- Creates `docs/stylesheets/` if it does not exist.
-- Copies Prodockit's bundled `pdk.css` into that directory, replacing any
-  existing copy with the version from the installed Prodockit release.
-- Creates an empty `extra.css` only if it is missing; it leaves an existing
-  `extra.css` and your custom styles untouched.
+```toml
+version = 1
+
+[[files]]
+source = "pdk.css"
+target = "docs/stylesheets/pdk.css"
+```
+
+From that folder, run the first command to copy the stylesheet from your
+installed Prodockit package. The second command checks the declared files.
 
 ```bash
-python -c "from pathlib import Path; from prodockit.shared_files import resource_bytes; p = Path('docs/stylesheets'); p.mkdir(parents=True, exist_ok=True); (p / 'pdk.css').write_bytes(resource_bytes('pdk.css')); (p / 'extra.css').touch(exist_ok=True)"
+pdk shared-files --apply
+pdk shared-files --check
 ```
 
-Put your own CSS in `extra.css`, not the release-managed `pdk.css`. The detailed
-[Adopt route](getting-started.md) can instead configure the full standard
+If you use carousels or the festive overlay, also add this entry to the
+same manifest and add `"javascripts/pdk.js"` to `extra_javascript` in the
+existing `[project]` table. Include the optional sleigh image entry from the
+[festive setup](extensions/festive.md#enable-the-festive-extension) if you
+want the sleigh. Rerun the commands above after changing the manifest.
+
+```toml
+[[files]]
+source = "pdk.js"
+target = "docs/javascripts/pdk.js"
+```
+
+The detailed [Adopt route](getting-started.md) can configure the standard
 integration for you.
 
 ////
@@ -94,7 +144,7 @@ For optional local PDF generation, run the block for the current platform.
 Skip this on Windows ARM64 and let the GitLab pipeline generate PDFs instead.
 `pdk pdf --prepare all` creates and registers the PDF stylesheets **before**
 preparing the renderer; an ordinary `pdk pdf` does the same before rendering.
-You do not need to add PDF stylesheets in step 3.
+Step 3 covers the website assets.
 Do not add `[project.markdown_extensions."prodockit.pdf"]` to `zensical.toml`:
 `prodockit.pdf` is the PDF command's renderer, not a Markdown extension.
 
@@ -158,9 +208,6 @@ Prodockit website. It deliberately leaves out machine preparation, repository
 and publishing setup, detailed PDF guidance, recovery guidance, and
 maintained-template integration. Choose one of the detailed installation paths
 below when you need those steps or want the setup checked as you proceed.
-
-For optional seasonal effects on your website, follow the
-[festive overlay installation steps](extensions/festive.md#enable-the-festive-extension).
 
 ## Choose an installation path
 
