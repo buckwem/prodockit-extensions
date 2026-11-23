@@ -30,8 +30,10 @@ from bs4 import BeautifulSoup
 
 from prodockit import __version__
 from prodockit._zensical_defaults import DOCUMENTED_MARKDOWN_DEFAULTS
+from prodockit.headings import PREPARED_CAPTION_NUMBER_ATTR, PREPARED_CAPTION_PREFIX
 from prodockit.pdf.site import output_path
 from prodockit.portable import PortableError
+from prodockit.portable.captions import CAPTION_EXTENSION
 from prodockit.portable.compiler import (
     BIBLIOGRAPHY_MARKERS,
     DEFINITION_EXTENSIONS,
@@ -105,7 +107,7 @@ def _check_config(config: ProjectConfig) -> None:
     if (config.project.get("theme") or {}).get("custom_dir"):
         raise PortableError("custom theme directories are outside the feasibility prototype")
     for name, options in config.markdown_extensions.items():
-        if name.startswith(
+        if name != CAPTION_EXTENSION and name.startswith(
             ("zensical.extensions.macros", "pymdownx.snippets", "pymdownx.blocks.")
         ):
             raise PortableError(
@@ -158,8 +160,11 @@ def capture_inputs(config_file: Path) -> InputSnapshot:
         if value:
             dependencies.add((config.root / str(value)).resolve())
     extensions = config.markdown_extensions.keys()
+    caption_options = config.markdown_extensions.get(CAPTION_EXTENSION)
     for source, text in sources.items():
-        for edit in scan(source, text, extensions=extensions).edits:
+        for edit in scan(
+            source, text, extensions=extensions, caption_options=caption_options
+        ).edits:
             if edit.kind == "cite" or edit.kind in BIBLIOGRAPHY_MARKERS:
                 dependencies.add(
                     (config.root / str(bib_options.get("bib_file", "references.bib"))).resolve()
@@ -187,6 +192,8 @@ def _generated_config(config: ProjectConfig) -> dict[str, Any]:
         extensions = copy.deepcopy(DOCUMENTED_MARKDOWN_DEFAULTS)
     for name in MIGRATED:
         extensions.pop(name, None)
+    if CAPTION_EXTENSION in extensions:
+        extensions["prodockit.headings:PreparedCaptionExtension"] = {}
     # Source diagnostics run before generation. Keep the table renderer and
     # the checks that operate on parsed tables and do not need the source path.
     old = "prodockit.tables"
@@ -314,6 +321,20 @@ def validate(prepared: Prepared, *, fresh: bool = True) -> None:
         article = soup.select_one("article.md-content__inner.md-typeset")
         if article is None:
             raise PortableError(f"{source}: cannot find the built article")
+        expected_captions = details.get("captions", [])
+        rendered_captions = article.select(f"figure[{PREPARED_CAPTION_NUMBER_ATTR}]")
+        if len(rendered_captions) != len(expected_captions):
+            raise PortableError(f"{source}: prepared captions did not survive rendering")
+        for caption, expected in zip(rendered_captions, expected_captions, strict=True):
+            prefix = caption.select_one(f"figcaption .{PREPARED_CAPTION_PREFIX}")
+            if (
+                prefix is None or prefix.get_text() != expected["number"] + "."
+                or (expected["id"] and caption.get("id") != expected["id"])
+            ):
+                raise PortableError(f"{source}: prepared caption anchor or number changed")
+            content = "table" if expected["kind"] == "table-caption" else "img"
+            if caption.select_one(content) is None:
+                raise PortableError(f"{source}: prepared caption could not attach to its {content}")
         if article.select_one(".prodockit-page-bibliography"):
             entries = Counter(str(entry["id"]) for entry in article.select(".csl-entry[id]"))
             collision = next((key for key, count in entries.items() if count > 1), None)

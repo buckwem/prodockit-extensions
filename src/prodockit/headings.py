@@ -42,6 +42,35 @@ CAPTION_KINDS = {
 }
 
 HEADING_TAGS = {"h1", "h2", "h3", "h4", "h5", "h6"}
+PREPARED_CAPTION_NUMBER_ATTR = "data-pdk-caption-number"
+PREPARED_CAPTION_PREFIX = "pdk-prepared-caption-prefix"
+
+
+class _PreparedCaptionTreeprocessor(Treeprocessor):
+    """Apply prepared labels and retain the figure-width formatting."""
+
+    def run(self, root: etree.Element) -> None:
+        for figure in root.iter("figure"):
+            label = figure.get(PREPARED_CAPTION_NUMBER_ATTR)
+            if label is None:
+                continue
+            prefix = figure.find("./figcaption//span[@class='caption-prefix']")
+            if prefix is None:
+                continue
+            # A full prepared label already includes the chapter and number.
+            # The normal prefix class adds a chapter using CSS counters.
+            prefix.set("class", PREPARED_CAPTION_PREFIX)
+            prefix.text = f"{label}."
+            _fit_figure_to_authored_image_width(figure)
+
+
+class PreparedCaptionExtension(Extension):
+    """Format prepared captions without discovering or numbering the page."""
+
+    def extendMarkdown(self, md: Markdown) -> None:
+        md.treeprocessors.register(
+            _PreparedCaptionTreeprocessor(md), "prodockit-prepared-captions", 3
+        )
 
 
 def _css_image_width(value: str) -> str | None:

@@ -176,9 +176,8 @@ responsibility of the respective adapters.
 This separates semantic rules from private page discovery without changing
 the default approach's collision policy or retiring its adapter. Portable
 preparation still rejects ambiguous cross-page IDs and unsupported constructs.
-Its current slice covers top-level ATX headings and references, global and
-page-local bibliographies, and image hotspots. Captions are covered by the shared rules
-and legacy regression checks, but portable caption parsing remains future work.
+Its current slice covers top-level ATX headings and references, figure and
+table captions, global and page-local bibliographies, and image hotspots.
 Generated content, portable PDF selection and
 qualification against a future Rust renderer also remain in the issue.
 
@@ -265,6 +264,21 @@ The generated bibliography follows the authored content and precedes website
 footnotes. A native Markdown heading immediately before the references
 section supplies the contents entry. The ordinary approach puts its heading
 inside the section. Portable validation checks both directions of the links.
+
+### Figure and table captions {: #coupling-portable-captions }
+
+Portable preparation recognises numbered figure and table caption blocks
+at the top level and in four-space-indented list items. It collects them
+in source order alongside headings, so forward links use the same chapter,
+appendix and caption counters as the ordinary build. Definitions without
+an explicit ID still advance the counter.
+
+The generated Markdown carries each label as a caption option. The existing
+PyMdown renderer lays out the figure or table, and a formatter applies the
+prepared label and existing figure-width rules without discovering the
+page. The full label in the prepared page replaces the chapter supplied by
+the ordinary build's CSS counters, including in list items. Site validation
+checks that the label, anchor and associated table or image survive rendering.
 
 ## Migration progress {: #coupling-removed-dependencies }
 
