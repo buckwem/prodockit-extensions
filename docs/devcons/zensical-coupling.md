@@ -176,8 +176,8 @@ responsibility of the respective adapters.
 This separates semantic rules from private page discovery without changing
 the default approach's collision policy or retiring its adapter. Portable
 preparation still rejects ambiguous cross-page IDs and unsupported constructs.
-Its current slice covers top-level ATX headings and references, global
-bibliographies and image hotspots. Captions are covered by the shared rules
+Its current slice covers top-level ATX headings and references, global and
+page-local bibliographies, and image hotspots. Captions are covered by the shared rules
 and legacy regression checks, but portable caption parsing remains future work.
 Generated content, portable PDF selection and
 qualification against a future Rust renderer also remain in the issue.
@@ -251,6 +251,20 @@ can serve both extensions with different display labels. The generated
 project retains each definition's ID and checks the rendered link targets
 and labels. Missing keys, duplicates and unsupported nested syntax report
 the original source location.
+
+### Page-local bibliographies {: #coupling-portable-page-bibliographies }
+
+For a top-level `\pagebibliography` marker, portable preparation gives the
+existing bibliography resolver an explicit source path and the citation and
+marker tokens for that page. Pandoc reads the captured bibliography and CSL
+files. This preserves file selection, citation scope, repeated occurrence
+IDs and optional return links without loading the bibliography extension
+inside Zensical.
+
+The generated bibliography follows the authored content and precedes website
+footnotes. A native Markdown heading immediately before the references
+section supplies the contents entry. The ordinary approach puts its heading
+inside the section. Portable validation checks both directions of the links.
 
 ## Migration progress {: #coupling-removed-dependencies }
 

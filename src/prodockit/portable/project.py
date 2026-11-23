@@ -32,7 +32,12 @@ from prodockit import __version__
 from prodockit._zensical_defaults import DOCUMENTED_MARKDOWN_DEFAULTS
 from prodockit.pdf.site import output_path
 from prodockit.portable import PortableError
-from prodockit.portable.compiler import DEFINITION_EXTENSIONS, compile_pages, scan
+from prodockit.portable.compiler import (
+    BIBLIOGRAPHY_MARKERS,
+    DEFINITION_EXTENSIONS,
+    compile_pages,
+    scan,
+)
 from prodockit.portable.inputs import InputSnapshot
 from prodockit.portable.manifest import (
     SCHEMA,
@@ -155,12 +160,12 @@ def capture_inputs(config_file: Path) -> InputSnapshot:
     extensions = config.markdown_extensions.keys()
     for source, text in sources.items():
         for edit in scan(source, text, extensions=extensions).edits:
-            if edit.kind in {"cite", "bibliography"}:
+            if edit.kind == "cite" or edit.kind in BIBLIOGRAPHY_MARKERS:
                 dependencies.add(
                     (config.root / str(bib_options.get("bib_file", "references.bib"))).resolve()
                 )
-            if edit.kind == "bibliography" and edit.key:
-                dependencies.add((config.root / edit.key).resolve())
+            if edit.kind in BIBLIOGRAPHY_MARKERS and edit.key.strip():
+                dependencies.add((config.root / edit.key.strip()).resolve())
     try:
         for path in sorted(dependencies - files.keys()):
             files[path] = path.read_bytes()
@@ -309,6 +314,11 @@ def validate(prepared: Prepared, *, fresh: bool = True) -> None:
         article = soup.select_one("article.md-content__inner.md-typeset")
         if article is None:
             raise PortableError(f"{source}: cannot find the built article")
+        if article.select_one(".prodockit-page-bibliography"):
+            entries = Counter(str(entry["id"]) for entry in article.select(".csl-entry[id]"))
+            collision = next((key for key, count in entries.items() if count > 1), None)
+            if collision is not None:
+                raise PortableError(f"{source}: duplicate bibliography entry anchor {collision!r}")
         for target in details["targets"]:
             heading = article.find(id=target["id"])
             if heading is None or heading.name not in {"h1", "h2", "h3", "h4", "h5", "h6"}:
@@ -329,7 +339,8 @@ def validate(prepared: Prepared, *, fresh: bool = True) -> None:
         actual: Counter[tuple[Path, str, str]] = Counter()
         for anchor in soups[source].select(
             "a.prodockit-ref, a.prodockit-autoref, a.prodockit-gls, "
-            ".prodockit-cite a, .prodockit-bib-cite a, a.pdk-hotspots-region"
+            ".prodockit-cite a, .prodockit-bib-cite a, "
+            "a.prodockit-bib-backlink, a.pdk-hotspots-region"
         ):
             parts = urlsplit(str(anchor.get("href", "")))
             if parts.scheme or parts.netloc:

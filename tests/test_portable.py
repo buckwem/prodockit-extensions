@@ -627,6 +627,162 @@ def test_bibliography_uses_citeproc_before_zensical_indexes(portable_project: Pa
     )
 
 
+@pytest.mark.skipif(shutil.which("pandoc") is None, reason="requires real Pandoc citeproc")
+@pytest.mark.parametrize(("backlinks", "numbered"), [(True, False), (True, True), (False, False)])
+def test_page_bibliographies_match_legacy_in_real_builds(
+    portable_project: Path, monkeypatch: pytest.MonkeyPatch, backlinks: bool, numbered: bool
+) -> None:
+    pandoc = shutil.which("pandoc")
+    assert pandoc
+    root = portable_project.parent
+    with portable_project.open("a", encoding="utf-8") as config:
+        config.write(
+            '\n[project.markdown_extensions.footnotes]\n'
+            '[project.markdown_extensions."prodockit.bibliography"]\n'
+            f'page_backlinks = {str(backlinks).lower()}\n'
+            f'page_backlink_numbers = {str(numbered).lower()}\n'
+        )
+    (root / "references.bib").write_text(
+        "@book{global, title={Global source}, author={Doe, Jane}, year={2025}}\n",
+        encoding="utf-8",
+    )
+    alternate = root / "background.bib"
+    alternate.write_text(
+        "@book{local, title={Local source}, author={Roe, John}, year={2024}}\n"
+        "@book{unused, title={Unused source}, author={Doe, Jane}, year={2023}}\n",
+        encoding="utf-8",
+    )
+    guide = root / "docs/guide/install.md"
+    guide.write_text(
+        guide.read_text()
+        + "\n\\pagebibliography{background.bib}{Sources & further reading}\n"
+        "\nSee \\cite{local}, \\cite{global} and \\cite{local} again. Unknown \\cite{missing}.\n"
+        "\n\\pagebibliography{ background.bib }{Duplicate title}\n"
+        "\nLast authored paragraph.[^end]\n\n[^end]: A footnote.\n",
+        encoding="utf-8",
+    )
+    index = root / "docs/index.md"
+    index.write_text(
+        index.read_text() + "\nSee \\cite{global}.\n\n\\pagebibliography{background.bib}\n",
+        encoding="utf-8",
+    )
+    references = root / "docs/references.md"
+    references.write_text(
+        references.read_text() + "\nA citation to a local-only entry \\cite{local}.\n"
+        "\n\\bibliography\n",
+        encoding="utf-8",
+    )
+    originals = {path: path.read_bytes() for path in (guide, index, references, alternate)}
+
+    guard = root / "runtime"
+    guard.mkdir()
+    startup = guard / "sitecustomize.py"
+    startup.write_text(
+        "from pathlib import Path\n"
+        "import prodockit.bibliography as bibliography\n"
+        f"bibliography._project_pandoc_executable = lambda: Path({pandoc!r})\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("PYTHONPATH", str(guard) + os.pathsep + os.environ["PYTHONPATH"])
+    result = CliRunner().invoke(
+        main, ["build", "-f", str(portable_project), "--strict", "--clean"]
+    )
+    assert result.exit_code == 0, result.output
+
+    def rendered(site: Path):
+        soup = _article(site / "guide/install/index.html")
+        title = soup.select_one("h2#sources-further-reading")
+        assert title is not None and title.get_text(strip=True).startswith(
+            "Sources & further reading"
+        )
+        assert soup.select_one('nav a[href="#sources-further-reading"]') is not None
+        assert len(soup.select(".prodockit-page-bibliography")) == 1
+        assert len(soup.select("#ref-local")) == 1 and soup.select_one("#ref-unused") is None
+        assert soup.select_one("#ref-global") is None
+        assert soup.select_one(".prodockit-bib-cite-unresolved").get_text() == "?"
+        article = soup.select_one("article.md-content__inner")
+        assert article.get_text().index("Last authored paragraph") < article.get_text().index(
+            "Sources & further reading"
+        ) < article.get_text().index("A footnote.")
+        other_page = _article(site / "index.html")
+        assert other_page.select_one(".prodockit-page-bibliography") is None
+        assert other_page.select_one('.prodockit-bib-cite a')["href"] == "references/#ref-global"
+        global_page = _article(site / "references/index.html")
+        unlinked = global_page.select_one(".prodockit-bib-cite")
+        assert unlinked is not None and "Roe 2024" in unlinked.get_text()
+        assert unlinked.a is None
+        assert global_page.select_one("#ref-local") is None
+        citations = [
+            (anchor.parent.get("id"), anchor["href"], anchor.get_text())
+            for anchor in soup.select(".prodockit-bib-cite a")
+        ]
+        returns = [
+            (anchor["href"], anchor.get_text(), anchor["aria-label"])
+            for anchor in soup.select("#ref-local a.prodockit-bib-backlink")
+        ]
+        return citations, returns
+
+    expected = rendered(root / "site")
+    assert [href for _, href, _ in expected[0]] == [
+        "#ref-local", "../../references/#ref-global", "#ref-local"
+    ]
+    assert len(expected[1]) == (2 if backlinks else 0)
+    if backlinks:
+        assert [href for href, _, _ in expected[1]] == [
+            "#" + expected[0][0][0], "#" + expected[0][2][0]
+        ]
+        assert [label for _, label, _ in expected[1]] == (["↩1", "↩2"] if numbered else ["↩", "↩"])
+    else:
+        assert all(occurrence is None for occurrence, _, _ in expected[0])
+    with startup.open("a", encoding="utf-8") as guard_file:
+        guard_file.write(
+            "def forbidden(*args, **kwargs):\n"
+            "    raise AssertionError('legacy bibliography adaptor was called')\n"
+            "bibliography.BibliographyExtension.extendMarkdown = forbidden\n"
+        )
+    prepared = build(str(portable_project), pandoc=Path(pandoc))
+    assert rendered(prepared.site) == expected
+    assert all(path.read_bytes() == data for path, data in originals.items())
+    manifest = read_manifest(prepared.manifest)
+    assert str(alternate) in manifest["captured_inputs"]
+    if backlinks:
+        built = prepared.site / "guide/install/index.html"
+        rendered_html = _article(built)
+        arrow = rendered_html.select_one("a.prodockit-bib-backlink")
+        assert arrow is not None
+        arrow.decompose()
+        built.write_text(str(rendered_html), encoding="utf-8")
+        with pytest.raises(PortableError, match=r"expected reference to guide/install.md#cite-"):
+            validate(prepared)
+
+
+@pytest.mark.skipif(shutil.which("pandoc") is None, reason="requires real Pandoc citeproc")
+def test_page_bibliography_uses_default_file_and_heading(portable_project: Path) -> None:
+    with portable_project.open("a", encoding="utf-8") as config:
+        config.write('\n[project.markdown_extensions."prodockit.bibliography"]\n')
+    root = portable_project.parent
+    (root / "references.bib").write_text(
+        "@book{example, title={Default source}, author={Doe, Jane}, year={2025}}\n",
+        encoding="utf-8",
+    )
+    source = root / "docs/index.md"
+    source.write_text(source.read_text() + "\n\\pagebibliography\n\nSee \\cite{example}.\n")
+    pandoc = shutil.which("pandoc")
+    assert pandoc
+    prepared = build(str(portable_project), pandoc=Path(pandoc))
+    soup = _article(prepared.site / "index.html")
+    assert soup.select_one("h2#references") is not None
+    assert soup.select_one(".prodockit-page-bibliography #ref-example") is not None
+    link = soup.select_one(".prodockit-bib-cite a")
+    assert link is not None and link["href"] == "#ref-example"
+    # With an overlapping global list on the same page, the local citation
+    # would otherwise link to whichever entry Zensical happens to emit first.
+    with source.open("a", encoding="utf-8") as page:
+        page.write("\n\\bibliography\n")
+    with pytest.raises(PortableError, match=r"index\.md: duplicate bibliography entry anchor"):
+        build(str(portable_project), pandoc=Path(pandoc))
+
+
 def test_default_wrapper_selects_nonstandard_configuration(
     portable_project: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -745,7 +901,7 @@ def test_cli_aliases_and_opt_in(portable_project: Path, prefix: list[str]) -> No
         "- A nested \\ref{target}.\n",
         "# Title\n\n{{ generated_heading() }}\n",
         '# Title\n\n--8<-- "snippet.md"\n',
-        "# Title\n\n\\pagebibliography\n",
+        "# Title\n\n- Nested \\pagebibliography\n",
         "# Title\n\n- Nested \\citeref{key}\n",
         "Setext\n======\n",
         "# Title\n\n!!! note\n    \\ref{target}\n",
