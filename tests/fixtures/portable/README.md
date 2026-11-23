@@ -157,12 +157,22 @@ The compiler preserves citation order and resolves links to definitions on
 the same page or a different page. A citation key and a glossary key can
 share the same name. Missing keys, duplicate citation keys and nested
 citation syntax produce an error at the original location. This syntax is
-separate from Pandoc's `\cite` and `\bibliography` commands.
+separate from Pandoc's `\cite` and bibliography commands.
+
+For a page-local Pandoc bibliography, put `\pagebibliography` on its own
+line in a top-level paragraph. The prepared build appends the heading and list
+after the authored content and before website footnotes. Use
+`\pagebibliography{background.bib}{Sources used on this page}` to choose a
+file and a plain-text heading. Empty lists produce no heading. Repeated
+citations have separate return destinations when `page_backlinks` is enabled.
+The heading is ordinary Markdown before the section so Zensical can include
+it in the contents. Put a global list with overlapping entries on a separate
+page, where its anchors cannot collide with the page-local ones.
 
 Unsupported cases fail explicitly: nested affected syntax, Setext headings,
 caption blocks, custom slugging, macros, snippets, generated navigation/plugins,
-custom theme directories, file-visibility settings, symlinked sources, YAML
-configuration and page-local bibliographies.
+custom theme directories, file-visibility settings, symlinked sources and
+YAML configuration.
 The prototype requires explicit `attr_list` and `toc`
 configuration when migrated extensions are enabled.
 

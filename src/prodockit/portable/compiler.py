@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import html
 import re
+import string
 import xml.etree.ElementTree as ET
 from collections.abc import Collection
 from dataclasses import dataclass, field
@@ -25,7 +26,7 @@ import yaml
 from bs4 import BeautifulSoup
 from markdown.extensions.attr_list import get_attrs_and_remainder
 
-from prodockit.bibliography import _BibliographyCache
+from prodockit.bibliography import BibliographyResolverTreeprocessor, _BibliographyCache
 from prodockit.image_hotspots import _render as render_hotspots
 from prodockit.portable import PortableError
 from prodockit.portable.inputs import MaterializedInputs
@@ -44,6 +45,8 @@ from prodockit.util import CitationRegistry, GlossaryRegistry, IdRegistry, cross
 _COMMAND = re.compile(
     r"\\(?P<name>autoref|ref|cite|gls)\{(?P<key>[^{}\s,]+)\}"
     r"|\\(?P<manual>citeref)\{(?P<keys>[^{}\n]+)\}"
+    r"|\\(?P<local>pagebibliography)(?!\w)(?:\{(?P<local_file>[^{}\n]*)\})?"
+    r"(?:\{(?P<heading>[^{}\n]*)\})?"
     r"|\\(?P<bib>bibliography)(?!\w)(?:\{(?P<file>[^{}]*)\})?"
     r"(?:\{(?P<cited>true|false)\})?"
 )
@@ -64,6 +67,7 @@ _DEFINITION_ATTRS = re.compile(
     r"""((?:"[^"\n]*"|'[^'\n]*'|[^"'{}\n])*)\}"""
 )
 _ATTR_TOKEN = re.compile(r"""[^\s=]+="[^"]*"|[^\s=]+='[^']*'|[^\s]+""")
+BIBLIOGRAPHY_MARKERS = {"bibliography", "pagebibliography"}
 
 
 @dataclass
@@ -74,6 +78,7 @@ class Edit:
     value: str
     key: str = ""
     cited: bool = False
+    heading: str = ""
 
 
 @dataclass(frozen=True)
@@ -125,9 +130,12 @@ def _tokenizer() -> Any:
             token.meta = {
                 "start": state.pos,
                 "end": match.end(),
-                "kind": match.group("name") or match.group("manual") or "bibliography",
-                "key": match.group("key") or match.group("keys") or match.group("file") or "",
+                "kind": match.group("name") or match.group("manual") or match.group("local")
+                or "bibliography",
+                "key": match.group("key") or match.group("keys") or match.group("file")
+                or match.group("local_file") or "",
                 "cited": match.group("cited") == "true",
+                "heading": (match.group("heading") or "").strip(),
                 "in_link": state.linkLevel > 0,
             }
         state.pos = match.end()
@@ -282,9 +290,11 @@ def scan(source: str, text: str, *, extensions: Collection[str] = ()) -> Page:
                 if item["in_link"]:
                     raise _error(page, start, "references inside links are outside the prototype")
                 a, b = start + at + item["start"], start + at + item["end"]
-                if item["kind"] == "bibliography" and text[a:b] != token.content:
+                if item["kind"] in BIBLIOGRAPHY_MARKERS and text[a:b] != token.content:
                     raise _error(page, a, "put the bibliography marker alone in its paragraph")
-                page.edits.append(Edit(a, b, item["kind"], "", item["key"], item["cited"]))
+                page.edits.append(
+                    Edit(a, b, item["kind"], "", item["key"], item["cited"], item["heading"])
+                )
     return page
 
 
@@ -299,6 +309,77 @@ def _parsed_headings(page: Page) -> list[ET.Element]:
     ):
         raise PortableError(f"{page.source}: heading tokenizers disagree")
     return headings
+
+
+def _render_page_bibliographies(
+    page: Page, cache: _BibliographyCache, options: dict[str, Any], links: list[dict[str, str]]
+) -> None:
+    """Reuse citeproc's resolver with only bibliography tokens and an explicit page."""
+    if not any(edit.kind in {"cite", "pagebibliography"} for edit in page.edits):
+        return
+    root = ET.Element("div")
+    citations: list[tuple[Edit, ET.Element]] = []
+    for edit in sorted(page.edits, key=lambda item: item.start):
+        if edit.kind == "cite":
+            node = ET.SubElement(root, "span", {"data-prodockit-bib-cite": edit.key})
+            citations.append((edit, node))
+        elif edit.kind == "pagebibliography":
+            ET.SubElement(
+                ET.SubElement(root, "p"),
+                "span",
+                {
+                    "data-prodockit-bibliography-file": edit.key,
+                    "data-prodockit-bibliography-scope": "page-cited",
+                    "data-prodockit-bibliography-heading": edit.heading or "References",
+                },
+            )
+    resolver = BibliographyResolverTreeprocessor(
+        markdown.Markdown(),
+        cache,
+        page.source,
+        str(options.get("unresolved", "?")),
+        bool(options.get("page_backlinks", True)),
+        bool(options.get("page_backlink_numbers", False)),
+    )
+    resolver.run(root)
+
+    for edit, node in citations:
+        edit.value = ET.tostring(node, encoding="unicode", method="html")
+        anchor = node.find("a")
+        if anchor is not None:
+            href = anchor.attrib["href"]
+            target = (
+                page.source if href.startswith("#") else resolver._link_target_for_key(edit.key)
+            )
+            assert target is not None
+            label = BeautifulSoup(edit.value, "html.parser").a
+            assert label is not None
+            links.append(
+                {"page": target, "id": f"ref-{edit.key}", "text": label.get_text(" ", strip=True)}
+            )
+
+    for section in root.findall("section"):
+        heading = section.find("h2")
+        assert heading is not None and heading.text
+        # A native Markdown heading participates in Zensical's ordinary ToC.
+        # Encode punctuation so a custom plain-text title cannot become Markdown.
+        title = "".join(
+            f"&#{ord(char)};" if char in string.punctuation else char for char in heading.text
+        )
+        section.remove(heading)
+        content = ET.tostring(section, encoding="unicode", method="html")
+        end = len(page.text)
+        block = f"\n\n## {title}\n\n{content}\n"
+        page.edits.append(Edit(end, end, "pagebibliography-output", block))
+        for backlink in section.iter("a"):
+            if backlink.get("class") == "prodockit-bib-backlink":
+                links.append(
+                    {
+                        "page": page.source,
+                        "id": backlink.attrib["href"].removeprefix("#"),
+                        "text": backlink.text or "",
+                    }
+                )
 
 
 def _heading_records(
@@ -401,7 +482,10 @@ def compile_pages(
     bib_options = config.markdown_extensions.get("prodockit.bibliography", {})
     default_bib = str(bib_options.get("bib_file", "references.bib"))
     style = str(bib_options.get("csl_style", ""))
-    bib_used = any(e.kind in {"cite", "bibliography"} for p in pages.values() for e in p.edits)
+    bib_used = any(
+        e.kind == "cite" or e.kind in BIBLIOGRAPHY_MARKERS
+        for p in pages.values() for e in p.edits
+    )
     if bib_used:
         default_bib = dependency(default_bib)
         style = dependency(style) if style else ""
@@ -415,19 +499,26 @@ def compile_pages(
             )
         for source in order:
             for edit in pages[source].edits:
-                if edit.kind == "bibliography":
-                    edit.key = dependency(edit.key) if edit.key else default_bib
+                if edit.kind in BIBLIOGRAPHY_MARKERS:
+                    file = edit.key.strip()
+                    edit.key = dependency(file) if file else default_bib
                     if edit.key not in cache.all_bib_files:
                         cache.all_bib_files.append(edit.key)
-                    cache.first_page_for_file.setdefault(edit.key, source)
+                    if edit.kind == "bibliography":
+                        cache.first_page_for_file.setdefault(edit.key, source)
                 elif edit.kind == "cite":
                     cache.all_cited_keys.add(edit.key)
 
+    local_bibliographies = any(
+        edit.kind == "pagebibliography" for page in pages.values() for edit in page.edits
+    )
     outputs: dict[str, str] = {}
     details: dict[str, Any] = {}
     for source in order:
         page = pages[source]
         links: list[dict[str, str]] = []
+        if local_bibliographies:
+            _render_page_bibliographies(page, cache, bib_options, links)
         for edit in page.edits:
             if edit.kind in {"ref", "autoref"}:
                 if "prodockit.refs" not in config.markdown_extensions:
@@ -491,7 +582,7 @@ def compile_pages(
                 edit.value = cache.bibliography_html(
                     edit.key, "site-cited" if edit.cited else "all"
                 )
-            elif edit.kind == "cite":
+            elif edit.kind == "cite" and not local_bibliographies:
                 formatted, resolved = cache.resolve_citation(edit.key)
                 if not resolved:
                     raise _error(page, edit.start, f"unresolved citation {edit.key!r}")
