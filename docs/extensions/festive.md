@@ -28,11 +28,13 @@ for the new schedule and test links.
 
 /// steps
 
-//// step | Install or refresh the website assets
+//// step | List the website assets to install
 
-Create `.prodockit-shared-files.toml` in the project root with the following
-contents. If the manifest already exists, add only the missing entries and
-keep its existing `version` and other entries.
+In the folder containing `zensical.toml`, create
+`.prodockit-shared-files.toml` with the following contents. This file tells
+Prodockit which bundled assets to copy and where to put them. If it already
+exists, add only the missing `[[files]]` entries and keep its existing
+`version` and other entries.
 
 ```toml
 version = 1
@@ -50,16 +52,33 @@ source = "pdk-sleigh.png"
 target = "docs/javascripts/pdk-sleigh.png"
 ```
 
-From the project root, with the project environment active, run:
+Keep the `pdk-sleigh.png` entry if you want the sleigh, including the
+Father Christmas test link. For snow without a sleigh or for fireworks
+alone, you can omit that entry and set `sleigh = false` in Step 3.
+
+////
+
+//// step | Copy the assets into your project
+
+With your project virtual environment active, open a terminal in the
+folder containing `zensical.toml`. Run this command to copy the files
+listed in Step 1 from the installed Prodockit package.
 
 ```bash
 pdk shared-files --apply
-pdk shared-files --check
 ```
 
-These commands use the assets bundled with the installed Prodockit version.
-The sleigh image is optional for snow without a sleigh or for fireworks
-alone. If you use the sleigh, keep the image beside `pdk.js`.
+Prodockit creates any missing folders and replaces outdated managed copies.
+With the manifest above, it installs `pdk.css` in `docs/stylesheets/` and
+copies `pdk.js` and `pdk-sleigh.png` into `docs/javascripts/`. The image is
+copied automatically when its entry is present.
+
+Run this check to confirm the declared files match the installed package.
+It reports `ok` for each matching file and makes no changes.
+
+```bash
+pdk shared-files --check
+```
 
 ////
 
@@ -102,7 +121,7 @@ sound is available. Set `sound = false` to hide the audio controls.
 
 //// step | Enable the overlay on your pages
 
-Choose one option. The settings from Step 2 control the effects in both cases.
+Choose one option. The settings from Step 3 control the effects in both cases.
 
 === "Selected pages"
 
@@ -131,7 +150,7 @@ Choose one option. The settings from Step 2 control the effects in both cases.
     ```
     {% endraw %}
 
-    In Step 4, open one of the pages where you added the macro.
+    In Step 5, open one of the pages where you added the macro.
 
 === "Whole site"
 
@@ -165,7 +184,7 @@ Choose one option. The settings from Step 2 control the effects in both cases.
     ```
     {% endraw %}
 
-    This is how the Prodockit reference site enables the overlay. In Step 4,
+    This is how the Prodockit reference site enables the overlay. In Step 5,
     open any page to test it.
 
 ////
