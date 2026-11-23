@@ -159,6 +159,9 @@ and publishing setup, detailed PDF guidance, recovery guidance, and
 maintained-template integration. Choose one of the detailed installation paths
 below when you need those steps or want the setup checked as you proceed.
 
+For optional seasonal effects on your website, follow the
+[festive overlay installation steps](extensions/festive.md#enable-the-festive-extension).
+
 ## Choose an installation path
 
 {% if is_surrey %}
