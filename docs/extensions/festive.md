@@ -123,35 +123,6 @@ sound is available. Set `sound = false` to hide the audio controls.
 
 Choose one option. The settings from Step 3 control the effects in both cases.
 
-=== "Selected pages"
-
-    Use this option to show the overlay on specific pages, such as your home
-    page or a seasonal announcement.
-
-    In `zensical.toml`, enable the Prodockit macros. If the macros table
-    already exists, add `"prodockit.zensical_macros"` to its existing
-    `modules` list. Keep any other modules and settings. See the
-    [macros quick start](../macros.md#macros-quick-start) for projects with
-    their own `macros.py`.
-
-    ```toml
-    [project.markdown_extensions.zensical.extensions.macros]
-    modules = ["prodockit.zensical_macros"]
-    on_error_fail = true
-    ```
-
-    Add this line on its own in each Markdown file that should show the
-    overlay, after any front matter. For example, add it to `docs/index.md`
-    to enable the overlay on the home page.
-
-    {% raw %}
-    ```markdown
-    {{ pdk_festive() }}
-    ```
-    {% endraw %}
-
-    In Step 5, open one of the pages where you added the macro.
-
 === "Whole site"
 
     Use this option to enable the overlay on every page, including new pages.
@@ -186,6 +157,35 @@ Choose one option. The settings from Step 3 control the effects in both cases.
 
     This is how the Prodockit reference site enables the overlay. In Step 5,
     open any page to test it.
+
+=== "Selected pages"
+
+    Use this option to show the overlay on specific pages, such as your home
+    page or a seasonal announcement.
+
+    In `zensical.toml`, enable the Prodockit macros. If the macros table
+    already exists, add `"prodockit.zensical_macros"` to its existing
+    `modules` list. Keep any other modules and settings. See the
+    [macros quick start](../macros.md#macros-quick-start) for projects with
+    their own `macros.py`.
+
+    ```toml
+    [project.markdown_extensions.zensical.extensions.macros]
+    modules = ["prodockit.zensical_macros"]
+    on_error_fail = true
+    ```
+
+    Add this line on its own in each Markdown file that should show the
+    overlay, after any front matter. For example, add it to `docs/index.md`
+    to enable the overlay on the home page.
+
+    {% raw %}
+    ```markdown
+    {{ pdk_festive() }}
+    ```
+    {% endraw %}
+
+    In Step 5, open one of the pages where you added the macro.
 
 ////
 
