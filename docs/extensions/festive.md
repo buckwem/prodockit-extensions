@@ -102,16 +102,71 @@ sound is available. Set `sound = false` to hide the audio controls.
 
 //// step | Enable the overlay on your pages
 
-With the [Prodockit macros](../macros.md#macros-quick-start) configured, add
-`{% raw %}{{ pdk_festive() }}{% endraw %}` to each Markdown page where you want
-the overlay. For shared content, put the call in a snippet included on those
-pages.
+Choose one option. The settings from Step 2 control the effects in both cases.
 
-For a site-wide overlay, use a Zensical theme override that emits the festive
-marker for every page. This reference website uses the `extrahead` block in
-[its theme override](https://github.com/buckwem/prodockit-extensions/blob/main/overrides/main.html)
-with `custom_dir = "overrides"` under `[project.theme]`. Use one of these
-approaches on each page.
+=== "Selected pages"
+
+    Use this option to show the overlay on specific pages, such as your home
+    page or a seasonal announcement.
+
+    In `zensical.toml`, enable the Prodockit macros. If the macros table
+    already exists, add `"prodockit.zensical_macros"` to its existing
+    `modules` list. Keep any other modules and settings. See the
+    [macros quick start](../macros.md#macros-quick-start) for projects with
+    their own `macros.py`.
+
+    ```toml
+    [project.markdown_extensions.zensical.extensions.macros]
+    modules = ["prodockit.zensical_macros"]
+    on_error_fail = true
+    ```
+
+    Add this line on its own in each Markdown file that should show the
+    overlay, after any front matter. For example, add it to `docs/index.md`
+    to enable the overlay on the home page.
+
+    {% raw %}
+    ```markdown
+    {{ pdk_festive() }}
+    ```
+    {% endraw %}
+
+    In Step 4, open one of the pages where you added the macro.
+
+=== "Whole site"
+
+    Use this option to enable the overlay on every page, including new pages.
+    Zensical's theme adds the festive marker automatically.
+
+    Add `custom_dir = "overrides"` to the existing `[project.theme]` table
+    in `zensical.toml`. If the site already has a different `custom_dir`,
+    use that directory for `main.html`.
+
+    ```toml
+    [project.theme]
+    custom_dir = "overrides"
+    ```
+
+    Create `overrides/main.html` in the project root with the contents
+    below. If `main.html` already exists, keep its contents and add the
+    `extrahead` block. If it already defines `extrahead`, add just the
+    `if` section inside that block.
+
+    {% raw %}
+    ```html
+    {% extends "base.html" %}
+
+    {% block extrahead %}
+      {{ super() }}
+      {% if config.extra.festive and config.extra.festive.enabled %}
+        <meta name="pdk-festive" data-pdk-festive='{{ config.extra.festive | tojson }}'>
+      {% endif %}
+    {% endblock %}
+    ```
+    {% endraw %}
+
+    This is how the Prodockit reference site enables the overlay. In Step 4,
+    open any page to test it.
 
 ////
 
