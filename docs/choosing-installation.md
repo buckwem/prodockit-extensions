@@ -6,19 +6,25 @@ icon: lucide/signpost
 
 # Choose your install
 
-Prodockit supports three installation paths. Choose the one that matches the
-document and level of automation you have; the paths are alternatives rather
-than stages to complete in sequence.
+Start with [section 2.1, A basic Prodockit install](#install-prodockit), if
+Python and Zensical are already installed and you have a working Zensical
+site. [Section 2.2](#choose-an-installation-path) covers three detailed
+routes that explain how to set up the prerequisites and install Prodockit
+for different projects.
 
-## Install Prodockit
+## A basic Prodockit install {: #install-prodockit }
 
-This concise path assumes that:
+Before you start, check that:
 
 1. Python 3.14 is installed.
-2. Zensical is installed in an activated project virtual environment and the
-   site has been initialised. Complete Zensical's
-   [Get started](https://zensical.org/docs/get-started/){target="_blank" rel="noopener"}
-   instructions first if that environment and site do not already exist.
+2. Zensical is installed in your project's virtual environment, and that
+   environment is active.
+3. Your Zensical site has been initialised and builds successfully.
+
+If you only need to create the Zensical site, follow
+[Zensical's Get started guide](https://zensical.org/docs/get-started/){target="_blank" rel="noopener"}
+first. For help setting up your machine, repository or project, choose a
+detailed route in [section 2.2](#choose-an-installation-path).
 
 /// steps
 
@@ -220,13 +226,12 @@ zensical serve
 
 ///
 
-This is the shortest path from a working Zensical site to a non-template
-Prodockit website. It deliberately leaves out machine preparation, repository
-and publishing setup, detailed PDF guidance, recovery guidance, and
-maintained-template integration. Choose one of the detailed installation paths
-below when you need those steps or want the setup checked as you proceed.
+## Detailed installation routes {: #choose-an-installation-path }
 
-## Choose an installation path
+Choose one route based on your starting point and how much setup you want
+Prodockit to handle. Start with the shared prerequisites in
+[section 3, Prepare to install](installation.md). Your chosen route then
+guides you through the project environment, installation and verification.
 
 {% if is_surrey %}
 !!! info "Coursework with a prepared repository"
@@ -247,8 +252,7 @@ adopting Prodockit for a new or existing Zensical site, and a manual installatio
 Choose the Prodockit installation approach
 ///
 
-The three routes below compare their starting points and results in the same
-order as the following sections.
+The cards show what each route starts with and where to find its instructions.
 
 <div class="grid cards installation-route-grid" markdown>
 
@@ -256,12 +260,11 @@ order as the following sections.
 
     ---
 
-    **Starting point:** an empty directory and no Zensical site.
+    **Starting point:** a new or existing Zensical site that will use its own
+    structure.
 
-    Create the Python environment, install Zensical, and prove that its local
-    preview and strict build work. Then use Adoption to add Prodockit's
-    authoring components and selected renderers without using the report
-    template. `pdk pdf` prepares PDF support if you use it later.
+    Create a new site or return to your existing project environment, then
+    use `pdk adopt` to configure Prodockit and verify the site.
 
     [:octicons-arrow-right-24: Open section 4](getting-started.md){ .md-button .md-button--primary .installation-route-button }
 
@@ -269,13 +272,12 @@ order as the following sections.
 
     ---
 
-    **Starting point:** a new computer, no existing site, or a project that
-    should use the maintained report template.
+    **Starting point:** a project that should use the maintained report
+    template, including a prepared coursework repository.
 
-    Bootstrap guides and verifies the machine setup, Git host, repository,
-    project environment, build tools, and publishing configuration. The
-    resulting site starts from `prodockit-template` and can later receive its
-    maintained template updates.
+    Use `pdk boot` to guide the machine, Git, project environment and
+    publishing setup. The project can receive updates from
+    `prodockit-template`.
 
     [:octicons-arrow-right-24: Open section 5](devcons/bootstrap.md){ .md-button .md-button--primary .installation-route-button }
 
@@ -283,23 +285,12 @@ order as the following sections.
 
     ---
 
-    **Starting point:** a project whose author wants direct control of every
-    installation decision and command.
+    **Starting point:** a project you want to set up and configure yourself.
 
-    Prepare and verify the machine, repository, editor, Python environment,
-    Zensical configuration, renderers, website, PDF, and source bundle
-    yourself. This manual installation route explains all dependencies but
-    does not use Bootstrap or Adoption to orchestrate them.
+    Follow the commands for the machine, repository, editor, Python
+    environment and Zensical configuration. Build and verify the outputs
+    you need.
 
     [:octicons-arrow-right-24: Open section 6](manual-install.md){ .md-button .md-button--primary .installation-route-button }
 
 </div>
-
-These routes are alternatives, not stages in a longer sequence. Choose only
-one. In particular, do not run Bootstrap merely because an adopted or manually
-built project later needs PDF support.
-
-Every route starts with [Prepare to install](installation.md). That shared
-preparation establishes the supported Python and a setup environment in the
-directory holding your repositories. Your chosen route then explains when to
-enter or create the project and activate its project-specific environment.
