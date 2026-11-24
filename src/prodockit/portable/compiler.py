@@ -309,7 +309,9 @@ def scan(
         elif token.type == "inline":
             top_level = token.level == 1 and tokens[index - 1].type == "paragraph_open"
             raw = text[start:end]
-            if top_level and start in macro_calls and "\n" not in raw.rstrip("\n"):
+            if start in macro_calls:
+                if not top_level or "\n" in raw.rstrip("\n"):
+                    raise _error(page, start, "put portable styling calls in a top-level paragraph")
                 if macro_calls.pop(start) in macros.HEADING_NAMES:
                     page.edits.append(Edit(start, end, "heading-counter-style", ""))
                 continue
