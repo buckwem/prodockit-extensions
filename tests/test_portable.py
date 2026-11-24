@@ -688,6 +688,128 @@ def test_site_receipt_must_match_generation(portable_project: Path) -> None:
         validate(prepared)
 
 
+@pytest.mark.parametrize("change", ["missing-receipt", "wrong-project", "stale", "site-files"])
+def test_portable_pdf_rejects_unverified_site(
+    portable_project: Path, change: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from prodockit.portable import project
+
+    built = build(str(portable_project))
+    args = ["-p", "pdf", "--manifest", str(built.manifest)]
+    if change == "missing-receipt":
+        (built.site / ".pdk-build.json").unlink()
+        message = "requires a completed pdk -p build"
+    elif change == "wrong-project":
+        other = portable_project.with_name("other.toml")
+        other.write_bytes(portable_project.read_bytes())
+        args += ["-f", str(other)]
+        message = "different original configuration"
+    elif change == "stale":
+        (portable_project.parent / "docs/references.md").write_text("# Changed\n")
+        message = "portable output is stale"
+    else:
+        (built.site / "assets/map.png").write_bytes(b"unexpected bytes")
+        message = "site files changed after build"
+    monkeypatch.setattr(
+        project, "render_portable_pdf", lambda *a, **k: pytest.fail("unverified site reached PDF")
+    )
+    result = CliRunner().invoke(main, args)
+    assert result.exit_code == 1 and message in result.output, result.output
+    assert not (built.manifest.parent / "pdf").exists()
+
+
+def test_portable_pdf_preserves_published_pdf_if_sources_change(
+    portable_project: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from prodockit.pdf import config
+
+    built = build(str(portable_project))
+    root = built.manifest.parent
+    previous = root / "pdf" / "site_documentation.pdf"
+    previous.parent.mkdir()
+    previous.write_bytes(b"previous PDF")
+
+    def render(_config, *, output_directory, **_kwargs):
+        output = output_directory / previous.name
+        output.write_bytes(b"replacement PDF")
+        (portable_project.parent / "docs/references.md").write_text("# Changed\n")
+        return str(output)
+
+    monkeypatch.setattr(config, "build_pdf_from_built_site", render)
+    result = CliRunner().invoke(main, ["-p", "pdf", "--manifest", str(built.manifest)])
+    assert result.exit_code == 1 and "portable output is stale" in result.output, result.output
+    assert previous.read_bytes() == b"previous PDF"
+    assert not list(root.glob(".pdf-*"))
+
+
+def test_ordinary_pdf_refuses_a_portable_site(portable_project: Path) -> None:
+    from prodockit.pdf.site import BuiltSiteError, validate_built_site
+    from prodockit.project_config import load_project_config
+
+    built = build(str(portable_project))
+    with pytest.raises(BuiltSiteError, match="portable site selected"):
+        validate_built_site(load_project_config(built.config), ["index.md"])
+
+
+@pytest.mark.skipif(
+    not shutil.which("pandoc") or not shutil.which("weasyprint"),
+    reason="requires real Pandoc and WeasyPrint",
+)
+def test_portable_pdf_uses_selected_site_and_matches_ordinary_pdf(
+    portable_project: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from prodockit.pdf import config
+
+    pymupdf = pytest.importorskip("pymupdf")
+    root = portable_project.parent
+    with (root / "docs/guide/install.md").open("a", encoding="utf-8") as guide:
+        guide.write("\n[Project website](https://example.com/project)\n")
+    monkeypatch.setattr(
+        config, "_prepare_pdf_build_runtime", lambda *_a, **_k: (shutil.which("pandoc"), "")
+    )
+    runner = CliRunner()
+    standard = runner.invoke(main, ["build", "--strict", "-f", str(portable_project)])
+    assert standard.exit_code == 0, standard.output
+    baseline = runner.invoke(main, ["pdf", "-f", str(portable_project)])
+    assert baseline.exit_code == 0, baseline.output
+    ordinary_pdf = root / "docs/site_documentation.pdf"
+    expected = ordinary_pdf.read_bytes()
+    portable = build(str(portable_project))
+    # Never fall back to the ordinary HTML or overwrite its PDF.
+    site = root / "site"
+    (site / "index.html").write_text("ordinary site sentinel", encoding="utf-8")
+    config_bytes = portable_project.read_bytes()
+    result = runner.invoke(main, ["-p", "pdf", "--manifest", str(portable.manifest)])
+    assert result.exit_code == 0, result.output
+    rendered = portable.manifest.parent / "pdf/site_documentation.pdf"
+    with (
+        pymupdf.open(stream=expected, filetype="pdf") as a,
+        pymupdf.open(rendered) as b,
+    ):
+        assert a.get_toc() == b.get_toc()
+        assert [page.get_text() for page in a] == [page.get_text() for page in b]
+        assert [page.rect for page in a] == [page.rect for page in b]
+        assert any("1.1 Installation" in page.get_text() for page in b)
+        assert any(
+            link.get("uri") == "https://example.com/project"
+            for page in b
+            for link in page.get_links()
+        )
+    assert ordinary_pdf.read_bytes() == expected
+    assert (site / "index.html").read_text() == "ordinary site sentinel"
+    assert (portable.site / rendered.name).read_bytes() == expected
+    assert portable_project.read_bytes() == config_bytes
+    validate(portable, require_receipt=True)
+
+    single = runner.invoke(
+        main, ["--portable", "pdf", "--manifest", str(portable.manifest), "-m", "guide/install.md"]
+    )
+    assert single.exit_code == 0, single.output
+    with pymupdf.open(portable.manifest.parent / "pdf/install.pdf") as document:
+        text = "".join(page.get_text() for page in document)
+        assert "Same page:" in text and "Unchanged table" not in text
+
+
 def test_build_without_private_context_and_switch_back(
     portable_project: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

@@ -178,8 +178,16 @@ the default approach's collision policy or retiring its adapter. Portable
 preparation still rejects ambiguous cross-page IDs and unsupported constructs.
 Its current slice covers top-level ATX headings and references, figure and
 table captions, global and page-local bibliographies, and image hotspots.
-Generated content, portable PDF selection and
-qualification against a future Rust renderer also remain in the issue.
+Generated content and qualification against a future Rust renderer remain in
+the issue.
+
+`pdk -p pdf --manifest PATH/TO/manifest.json` selects a completed `pdk -p build`.
+It checks the captured inputs and the website files against the build receipt.
+The existing PDF renderer consumes the selected HTML and reads page metadata
+and assets from the captured inputs. Git revision dates use the original
+source paths. Prodockit checks the generation again before moving the PDF into
+its `pdf/` directory. Ordinary `pdk pdf` uses the project's usual site
+directory and rejects a portable build receipt.
 
 Tests compare reference labels and destinations across both build approaches,
 check switching with unchanged authoring files, and run the semantic core with

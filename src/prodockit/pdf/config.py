@@ -14,6 +14,7 @@ import base64
 import os
 import re
 from collections.abc import Callable
+from dataclasses import replace
 from pathlib import Path
 
 from prodockit.pdf.build import Page, StageReporter, build_pdf, detect_renderer_requirements
@@ -46,7 +47,7 @@ from prodockit.pdf.site import (
 )
 from prodockit.pdf.source_bundle import build_source_bundle, discover_markdown_and_config_files
 from prodockit.pdf.weasyprint_runtime import executable_in_runtime
-from prodockit.project_config import load_project_config
+from prodockit.project_config import load_project_config, parse_project_config
 from prodockit.revision_dates import resolve_revision_dates
 from prodockit.settings import (
     flatten_nav,
@@ -214,6 +215,8 @@ def build_pdf_from_built_site(
     *,
     markdown_file: str | None = None,
     on_stage: StageReporter | None = None,
+    portable_site: Path | None = None,
+    output_directory: Path | None = None,
 ) -> str:
     """Build a PDF from a completed Zensical site and return its output path.
 
@@ -324,7 +327,20 @@ def build_pdf_from_built_site(
       exact same literal text Zensical's built-in config variable uses substitutes
       directly here too.
     """
-    project_config = load_project_config(config_path)
+    if portable_site is not None:
+        if output_directory is None:
+            raise ValueError("a portable site requires an isolated PDF output directory")
+        captured_inputs = portable_site.parent / ".inputs"
+        project_config = parse_project_config(
+            config_path, (captured_inputs / "config.toml").read_text(encoding="utf-8")
+        )
+        project_config = replace(
+            project_config, project={**project_config.project, "site_dir": str(portable_site)}
+        )
+        source_docs = captured_inputs / "docs"
+    else:
+        project_config = load_project_config(config_path)
+        source_docs = project_config.docs_dir
     config = project_config.as_resolved_mapping()
     # Preserve the command's user-facing relative output paths and build
     # arguments. The extractor itself uses ProjectConfig's resolved paths,
@@ -340,14 +356,15 @@ def build_pdf_from_built_site(
     admonition_icon_config = (theme.get("icon") or {}).get("admonition") or {}
 
     docs_dir = config.get("docs_dir") or "docs"
-    source_docs_dir = str(project_config.docs_dir)
+    source_docs_dir = str(source_docs)
     if markdown_file:
         nav_pages = [{"url": markdown_file}]
     else:
         nav_pages = flatten_nav(config.get("nav") or [])
         if not nav_pages:
             raise ValueError(f"No pages found in {config_path}'s nav - nothing to build")
-    validate_built_site(project_config, [str(page["url"]) for page in nav_pages])
+    site_options = {"portable": True} if portable_site is not None else {}
+    validate_built_site(project_config, [str(page["url"]) for page in nav_pages], **site_options)
 
     icon_dirs = discover_icon_dirs(source_docs_dir, project_root=project_config.root)
     icon_registry = build_icon_registry(icon_dirs)
@@ -371,7 +388,7 @@ def build_pdf_from_built_site(
             extra_css += _inline_css_urls(f.read(), os.path.dirname(full_css_path)) + "\n"
 
     page_objects: list[Page] = []
-    source_paths = [Path(source_docs_dir) / page["url"] for page in nav_pages]
+    source_paths = [project_config.docs_dir / page["url"] for page in nav_pages]
     revision_dates = resolve_revision_dates(project_config.root, source_paths)
     for nav_page in nav_pages:
         docs_rel_path = nav_page["url"]
@@ -396,7 +413,7 @@ def build_pdf_from_built_site(
                 revision_date=str(
                     meta.get("revision_date")
                     or meta.get("git_revision_date_localized")
-                    or revision_dates[Path(full_path)].updated
+                    or revision_dates[project_config.docs_dir / docs_rel_path].updated
                 ),
             )
         )
@@ -445,7 +462,7 @@ def build_pdf_from_built_site(
     render_mermaid: Callable[[str], str] | None = None
     if renderer_requirements.mermaid:
         mermaid_renderer = create_mermaid_renderer(
-            output_dir=os.path.join(source_docs_dir, ".prodockit-pdf-mermaid"),
+            output_dir=str((output_directory or source_docs) / ".prodockit-pdf-mermaid"),
             runtime_path=prepared["mermaid"].path,
         )
         render_mermaid = mermaid_renderer.render_source
@@ -460,6 +477,8 @@ def build_pdf_from_built_site(
             mathjax_runtime = str(mathjax_component_root(prepared_mathjax.path))
         math_dir = extra.get("pdf_math_dir")
         if math_dir:
+            if output_directory is not None:
+                math_dir = str(output_directory / "math")
             # build_lua_filter()'s math_dir "must already exist or be creatable
             # by the caller" - only relevant here for an explicitly configured
             # directory; the default (build_pdf()'s own work_dir) already
@@ -476,7 +495,12 @@ def build_pdf_from_built_site(
         cover = page_objects[0]
         cover_html = cover.html
         if "{WORDCOUNT}" in cover_html:
-            cover_html = cover_html.replace("{WORDCOUNT}", _compute_site_word_count(config))
+            word_count_config = (
+                {**config, "docs_dir": source_docs_dir} if portable_site is not None else config
+            )
+            cover_html = cover_html.replace(
+                "{WORDCOUNT}", _compute_site_word_count(word_count_config)
+            )
         if "{REPOURL}" in cover_html or "{RELEASE}" in cover_html:
             # Computed from the local git remote (like the website's own
             # {{ pdk_repo_url }} - see _get_repo_url()), not this function's
@@ -514,6 +538,8 @@ def build_pdf_from_built_site(
         output_path = os.path.join(docs_dir, f"{stem}.pdf")
     else:
         output_path = os.path.join(docs_dir, "site_documentation.pdf")
+    if output_directory is not None:
+        output_path = str(output_directory / Path(output_path).name)
     (
         reference_style,
         reference_spacing_european,
@@ -603,7 +629,8 @@ def build_pdf_from_built_site(
         if mermaid_renderer is not None:
             mermaid_renderer.close()
 
-    publish_pdf_to_built_site(project_config, build_output_path)
+    if portable_site is None:
+        publish_pdf_to_built_site(project_config, build_output_path)
 
     return output_path
 
