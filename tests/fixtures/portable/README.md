@@ -178,10 +178,21 @@ full caption number before rendering so the visible label and references
 agree. Manual caption numbers and other PyMdown block types are outside
 this slice.
 
+A project-local `theme.custom_dir` may contain templates, partials, icons
+and assets. Preparation captures those files and points the generated
+configuration at its private copy. Zensical continues to render the theme.
+Edits to overrides trigger a new portable preview generation.
+
+Portable builds retain the native `pymdownx.snippets` extension for whole-file,
+UTF-8 includes inside top-level fenced code blocks. Use a quoted path relative
+to the project root, for example `--8<-- "LICENSE.md"` inside a `text` fence.
+Only the referenced files are captured. An include that would introduce
+another directive or change the fence is rejected at its original location.
+
 Unsupported cases fail explicitly: other nested affected syntax, Setext headings,
-custom slugging, macros, snippets, generated navigation/plugins,
-custom theme directories, file-visibility settings, symlinked sources and
-YAML configuration.
+custom slugging, macros, snippets outside this fenced form, generated
+navigation and plugins, file-visibility settings, symlinked sources and YAML
+configuration.
 The prototype requires explicit `attr_list` and `toc`
 configuration when migrated extensions are enabled.
 

@@ -28,7 +28,7 @@ from markdown.extensions.attr_list import get_attrs_and_remainder
 
 from prodockit.bibliography import BibliographyResolverTreeprocessor, _BibliographyCache
 from prodockit.image_hotspots import _render as render_hotspots
-from prodockit.portable import PortableError
+from prodockit.portable import PortableError, snippets
 from prodockit.portable.captions import (
     CAPTION_EXTENSION,
     Caption,
@@ -107,6 +107,7 @@ class Page:
     captions: list[Caption] = field(default_factory=list)
     caption_targets: list[dict[str, str]] = field(default_factory=list)
     definitions: list[Definition] = field(default_factory=list)
+    snippets: dict[int, Path] = field(default_factory=dict)
 
 
 def _error(page: Page, offset: int, message: str) -> PortableError:
@@ -248,6 +249,22 @@ def scan(
     for line in body.splitlines(keepends=True):
         offsets.append(offsets[-1] + len(line))
     tokens = _tokenizer().parse(body)
+    if snippets.EXTENSION in extensions:
+        header_lines = text.count("\n", 0, body_start)
+        code_lines = {
+            line + header_lines
+            for token in tokens
+            if token.type == "fence" and token.level == 0
+            and token.info.strip() != "image-hotspots"
+            and token.map is not None
+            for line in range(token.map[0] + 1, token.map[1])
+        }
+        for index, line in enumerate(text.split("\n")):
+            name = snippets.directive(
+                line, location=f"{source}:{index + 1}", in_code=index in code_lines
+            )
+            if name is not None:
+                page.snippets[index + 1] = name
     for index, token in enumerate(tokens):
         if token.map is None:
             continue

@@ -32,7 +32,7 @@ from prodockit import __version__
 from prodockit._zensical_defaults import DOCUMENTED_MARKDOWN_DEFAULTS
 from prodockit.headings import PREPARED_CAPTION_NUMBER_ATTR, PREPARED_CAPTION_PREFIX
 from prodockit.pdf.site import output_path
-from prodockit.portable import PortableError
+from prodockit.portable import PortableError, snippets
 from prodockit.portable.captions import CAPTION_EXTENSION
 from prodockit.portable.compiler import (
     BIBLIOGRAPHY_MARKERS,
@@ -40,7 +40,7 @@ from prodockit.portable.compiler import (
     compile_pages,
     scan,
 )
-from prodockit.portable.inputs import InputSnapshot, digest
+from prodockit.portable.inputs import SNIPPETS_DIRECTORY, InputSnapshot, digest
 from prodockit.portable.manifest import (
     SCHEMA,
     generated_hashes,
@@ -106,11 +106,9 @@ def _check_config(config: ProjectConfig) -> None:
             raise PortableError(
                 f"{key} is outside the feasibility prototype; use the existing mode"
             )
-    if (config.project.get("theme") or {}).get("custom_dir"):
-        raise PortableError("custom theme directories are outside the feasibility prototype")
     for name, options in config.markdown_extensions.items():
         if name != CAPTION_EXTENSION and name.startswith(
-            ("zensical.extensions.macros", "pymdownx.snippets", "pymdownx.blocks.")
+            ("zensical.extensions.macros", "pymdownx.blocks.")
         ):
             raise PortableError(
                 f"{name} is outside the feasibility prototype; use the existing mode"
@@ -126,11 +124,54 @@ def _check_config(config: ProjectConfig) -> None:
                 raise PortableError("unsupported heading settings in the feasibility prototype")
         if name == "toc" and (options.get("slugify") or options.get("separator", "-") != "-"):
             raise PortableError("custom slugging is outside the feasibility prototype")
+    snippet_options = config.markdown_extensions.get(snippets.EXTENSION, {})
+    if snippet_options.get("base_path", ["."]) not in (".", ["."]) or (
+        snippet_options.keys() - {"base_path", "check_paths", "restrict_base_path", "encoding"}
+    ) or not snippet_options.get("restrict_base_path", True) or (
+        snippet_options.get("encoding", "utf-8") != "utf-8"
+    ):
+        raise PortableError("portable snippets require local UTF-8 files at the project root")
     names = config.markdown_extensions.keys()
     if names & DEFINITION_EXTENSIONS.values() and "attr_list" not in names:
         raise PortableError("portable glossary and citation definitions require explicit attr_list")
     if HEADING_AND_BIBLIOGRAPHY & names and not {"attr_list", "toc"} <= names:
         raise PortableError("the prototype requires explicit attr_list and toc configuration")
+
+
+def _theme_directory(config: ProjectConfig) -> Path | None:
+    value = (config.project.get("theme") or {}).get("custom_dir")
+    if not value:
+        return None
+    if not isinstance(value, str):
+        raise PortableError("portable theme.custom_dir must be a path")
+    directory = config.root / value
+    resolved = directory.resolve()
+    if (
+        not resolved.is_relative_to(config.root)
+        or (config.docs_dir.is_relative_to(resolved) and resolved != config.docs_dir)
+        or resolved.is_relative_to(config.root / ".git")
+        or resolved.is_relative_to(_workspace(config))
+        or _workspace(config).is_relative_to(resolved)
+        or resolved.is_relative_to(config.site_dir)
+        or config.site_dir.is_relative_to(resolved)
+        or not resolved.is_dir()
+    ):
+        raise PortableError("portable theme.custom_dir must be a project source directory")
+    if any(
+        path.is_symlink()
+        for path in (directory, *directory.parents)
+        if path.is_relative_to(config.root)
+    ):
+        raise PortableError(f"symlinked theme directory: {directory}")
+    return resolved
+
+
+def _capture_tree(directory: Path, files: dict[Path, bytes]) -> None:
+    for path in sorted(directory.rglob("*")):
+        if path.is_symlink():
+            raise PortableError(f"symlinked source is outside the feasibility prototype: {path}")
+        if path.is_file() and path not in files:
+            files[path] = path.read_bytes()
 
 
 def _decode(path: Path, data: bytes) -> str:
@@ -147,14 +188,15 @@ def capture_inputs(config_file: Path) -> InputSnapshot:
     files = {config_file: config_file.read_bytes()}
     config = parse_project_config(config_file, _decode(config_file, files[config_file]))
     _check_config(config)
-    sources: dict[str, str] = {}
-    for path in sorted(config.docs_dir.rglob("*")):
-        if path.is_symlink():
-            raise PortableError(f"symlinked source is outside the feasibility prototype: {path}")
-        if path.is_file():
-            files[path] = path.read_bytes()
-            if path.suffix.lower() == ".md":
-                sources[path.relative_to(config.docs_dir).as_posix()] = _decode(path, files[path])
+    theme = _theme_directory(config)
+    _capture_tree(config.docs_dir, files)
+    sources = {
+        path.relative_to(config.docs_dir).as_posix(): _decode(path, data)
+        for path, data in files.items()
+        if path.is_relative_to(config.docs_dir) and path.suffix.lower() == ".md"
+    }
+    if theme is not None:
+        _capture_tree(theme, files)
     bib_options = config.markdown_extensions.get("prodockit.bibliography", {})
     dependencies: set[Path] = set()
     for name in ("bib_file", "csl_style"):
@@ -163,10 +205,16 @@ def capture_inputs(config_file: Path) -> InputSnapshot:
             dependencies.add((config.root / str(value)).resolve())
     extensions = config.markdown_extensions.keys()
     caption_options = config.markdown_extensions.get(CAPTION_EXTENSION)
+    snippet_paths: set[Path] = set()
     for source, text in sources.items():
-        for edit in scan(
-            source, text, extensions=extensions, caption_options=caption_options
-        ).edits:
+        page = scan(source, text, extensions=extensions, caption_options=caption_options)
+        for line, snippet_name in page.snippets.items():
+            snippet_paths.add(
+                snippets.capture(
+                    config.root, snippet_name, location=f"{source}:{line}", files=files
+                )
+            )
+        for edit in page.edits:
             if edit.kind == "cite" or edit.kind in BIBLIOGRAPHY_MARKERS:
                 dependencies.add(
                     (config.root / str(bib_options.get("bib_file", "references.bib"))).resolve()
@@ -178,17 +226,21 @@ def capture_inputs(config_file: Path) -> InputSnapshot:
             files[path] = path.read_bytes()
     except OSError as error:
         raise PortableError(f"cannot read build input: {error}") from error
-    return InputSnapshot(config, MappingProxyType(files))
+    return InputSnapshot(config, MappingProxyType(files), theme, frozenset(snippet_paths))
 
 
-def _generated_config(config: ProjectConfig) -> dict[str, Any]:
+def _generated_config(config: ProjectConfig, theme: Path | None) -> dict[str, Any]:
     project = copy.deepcopy(config.project)
     project.update(docs_dir="docs", site_dir="site")
+    if theme is not None:
+        project["theme"]["custom_dir"] = theme.as_posix()
     extensions = copy.deepcopy(config.markdown_extensions)
     if "markdown_extensions" not in project:
         extensions = copy.deepcopy(DOCUMENTED_MARKDOWN_DEFAULTS)
     for name in MIGRATED:
         extensions.pop(name, None)
+    if snippets.EXTENSION in extensions:
+        extensions[snippets.EXTENSION]["base_path"] = [SNIPPETS_DIRECTORY]
     if CAPTION_EXTENSION in extensions:
         extensions["prodockit.headings:PreparedCaptionExtension"] = {}
     # Source diagnostics run before generation. Keep the table renderer and
@@ -229,7 +281,9 @@ def _prepare(snapshot: InputSnapshot, *, pandoc: Path | None = None) -> Prepared
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_bytes(output[name].encode("utf-8") if name in output else data)
         generated_config = generation / "zensical.toml"
-        generated_config.write_bytes(tomlkit.dumps(_generated_config(config)).encode("utf-8"))
+        generated_config.write_bytes(
+            tomlkit.dumps(_generated_config(config, inputs.theme_dir)).encode("utf-8")
+        )
         if snapshot.hashes != capture_inputs(config.path).hashes:
             raise PortableError(
                 "source inputs changed during preparation; retry with a stable snapshot"
