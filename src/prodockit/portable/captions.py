@@ -44,6 +44,7 @@ def register_caption_rule(parser: Any) -> None:
                 if not silent:
                     token = state.push("pdk_caption", "", 0)
                     token.map = [first, close + 1]
+                    token.markup = opening["fence"]
                     state.line = close + 1
                 return True
             close += 1

@@ -295,8 +295,11 @@ def scan(
             if token.meta["heading_title"]:
                 raise _error(page, start, "headings in collapsible titles are unsupported")
         elif token.type == "pdk_caption":
-            if container_depth:
+            step_fence = token.meta.get("step_body_fence")
+            if container_depth and step_fence is None:
                 raise _error(page, start, "numbered captions in native containers are unsupported")
+            if step_fence == token.markup:
+                raise _error(page, start, "a caption must use a different fence from its step")
             if caption_options is None:
                 raise _error(page, start, "caption blocks require pymdownx.blocks.caption")
             block = text[start:end]
@@ -344,7 +347,8 @@ def scan(
                 raise _error(page, start, "references inside headings are outside the prototype")
             page.headings.append((start, end, text[start:end].rstrip("\n")))
         elif token.type == "inline":
-            top_level = token.level == 1 and tokens[index - 1].type == "paragraph_open"
+            paragraph = tokens[index - 1].type == "paragraph_open"
+            top_level = token.level == 1 and paragraph
             raw = text[start:end]
             if start in macro_calls:
                 if not top_level or "\n" in raw.rstrip("\n"):
@@ -378,7 +382,12 @@ def scan(
             commands = [child.meta for child in children if child.type == "pdk_command"]
             if not commands:
                 continue
-            if not top_level:
+            step_references = (
+                paragraph
+                and "step_body_fence" in token.meta
+                and all(item["kind"] in {"ref", "autoref"} for item in commands)
+            )
+            if not top_level and not step_references:
                 raise _error(
                     page, start, "affected syntax in nested content is outside the prototype"
                 )
