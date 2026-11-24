@@ -344,8 +344,10 @@ Installation map.
         path.write_text(source, encoding="utf-8")
     python = environment_python(environment)
     pdk = str(environment_command(environment, "pdk"))
-    run([pdk, "pdf", "--prepare", "pandoc", "--prepare", "fonts", "--prepare", "weasyprint"],
-        project)
+    run(
+        [pdk, "pdf", "--prepare", "pandoc", "--prepare", "fonts", "--prepare", "weasyprint"],
+        project,
+    )
     originals = {path: path.read_bytes() for path in authored}
     run([pdk, "build", "--clean", "--strict"], project)
     run([pdk, "pdf"], project)
@@ -418,7 +420,7 @@ def main() -> None:
         default_mermaid_check = project / "default_mermaid_acceptance.py"
         default_mermaid_check.write_text(DEFAULT_MERMAID_CHECK, encoding="utf-8")
         run([str(python), str(default_mermaid_check)], project)
-        parity = check_pdf_parity(environment, root / "pdf parity")
+        parity = check_pdf_parity(environment, root / "pdf-parity")
 
     report = {
         "passed": True,
