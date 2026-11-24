@@ -1599,7 +1599,7 @@ macros.prescan = forbidden
 
 
 @pytest.mark.parametrize("template", [
-    "{{ make_heading() }}", "{% if is_surrey %}\n# Heading\n{% endif %}",
+    "{{ make_heading() }}", "{% for item in data %}\n# Heading\n{% endfor %}",
     "```jinja\n{{ pdk_heading_counter_reset(page) }}\n```",
     "Inline {{ pdk_heading_counter_reset(page) }}",
     "{{ pdk_heading_counter_reset(page) }}\nSame paragraph",
@@ -1609,6 +1609,94 @@ def test_portable_refuses_unqualified_macro_rendering(portable_project: Path, te
     page = portable_project.parent / "docs/index.md"
     page.write_text(f"# Home\n\n{template}\n", encoding="utf-8")
     with pytest.raises(PortableError, match=r"index\.md:[34]: (unsupported template|put portable)"):
+        prepare(str(portable_project))
+
+
+
+@pytest.mark.parametrize(("variant", "heading"), [
+    ("preview", "Preview installation"), ("stable", "Stable installation"),
+])
+def test_generic_capture_based_conditionals_match_native_output(
+    portable_project: Path, variant: str, heading: str,
+) -> None:
+    root = portable_project.parent
+    _configure_portable_macros(portable_project)
+    with portable_project.open("a", encoding="utf-8") as file:
+        file.write(
+            '\n[project.extra]\nvariant = "fallback"\n'
+            '[project.extra.features]\nready = true\n'
+        )
+    home = root / "docs/index.md"
+    home.write_text("# Home {: .unnumbered }\n\nSee \\ref{install}.\n", encoding="utf-8")
+    guide = root / "docs/guide/install.md"
+    body = """---
+variant: %s
+switch_label: off
+minimum_steps: 012
+---
+
+# Guide
+
+## {% if variant == "preview" and features.ready %}Preview{% elif variant in ["stable"] %}Stable{% else %}Unexpected{% endif %} installation {: #install }
+
+{% if extra.variant == "fallback" %}
+{% if not optional_feature and switch_label == "off" and minimum_steps == 12 %}
+See \\ref{install} from this branch.
+{% else %}
+A hidden \\ref{missing}.
+{% endif %}
+{% endif %}
+
+`{% raw %}{% if show_example %}{% endif %}{% endraw %}`
+""".replace("%s", variant)
+    authored = body.replace("\n", "\r\n")
+    guide.write_bytes(authored.encode("utf-8"))
+    args = ["build", "--strict", "--clean", "-f", str(portable_project)]
+    runner = CliRunner()
+    ordinary = runner.invoke(main, args)
+    assert ordinary.exit_code == 0, ordinary.output
+    prepared = build(str(portable_project))
+    for site in (root / "site", prepared.site):
+        page = _article(site / "guide/install/index.html")
+        assert page.select_one("h2#install").get_text().removesuffix("¶") == heading
+        assert page.select_one(".prodockit-ref").get_text() == f"1.1 {heading}"
+        assert page.select_one("code").get_text() == "{% if show_example %}{% endif %}"
+        assert "A hidden" not in page.select_one("article").get_text()
+    manifest = read_manifest(prepared.manifest)["pages"]["guide/install.md"]
+    span, = [span for span in manifest["source_map"] if span["kind"] == "ref"]
+    left, right = span["source_start"]["offset"], span["source_end"]["offset"]
+    assert authored[left:right] == r"\ref{install}"
+    assert guide.read_bytes() == authored.encode("utf-8")
+    validate(prepared, require_receipt=True)
+    switched = runner.invoke(main, args)
+    assert switched.exit_code == 0, switched.output
+
+
+@pytest.mark.parametrize(("conditional", "message"), [
+    ("{% if git.short_tag %}Text{% endif %}", "render-time variable 'git'"),
+    ("{% if generate() %}Text{% endif %}", "unsupported conditional expression"),
+    ("{% if feature %}Text", "invalid macro template"),
+    ("{% if false %}{{ broken( }}{% endif %}", "invalid macro template"),
+])
+def test_portable_conditionals_reject_unavailable_context(
+    portable_project: Path, conditional: str, message: str,
+) -> None:
+    _configure_portable_macros(portable_project)
+    page = portable_project.parent / "docs/index.md"
+    page.write_text("# Home\n\n" + conditional + "\n", encoding="utf-8")
+    with pytest.raises(PortableError, match=rf"index\.md:3: .*{message}"):
+        prepare(str(portable_project))
+
+
+def test_conditional_diagnostics_keep_original_line(portable_project: Path) -> None:
+    _configure_portable_macros(portable_project)
+    page = portable_project.parent / "docs/index.md"
+    page.write_text(
+        "# Home\n\n{% if optional %}\nA hidden line.\nAnother line.\n"
+        "{% else %}\nSee \\ref{missing}.\n{% endif %}\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(PortableError, match=r"index\.md:7: unresolved reference 'missing'"):
         prepare(str(portable_project))
 
 

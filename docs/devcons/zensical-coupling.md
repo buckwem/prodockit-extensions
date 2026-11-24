@@ -187,7 +187,9 @@ syntax that needs explicit page context. Direct step paragraphs can resolve
 references during preparation, and their figure and table captions use the
 page's numbering sequence. Other presentation macros use the native
 macro extension and a captured copy of the project's standard macro re-export.
-Project-specific macro initialisation, other generated content and future Rust
+Portable preparation selects conditional branches from captured configuration
+and page metadata before numbering headings or resolving references.
+Project-specific macro initialisation, render-time variables and future Rust
 renderer qualification remain in the issue.
 
 `pdk -p pdf --manifest PATH/TO/manifest.json` selects a completed `pdk -p build`.

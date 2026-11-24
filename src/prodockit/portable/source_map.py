@@ -40,6 +40,66 @@ class SourceText:
         return offset + bisect_right(self.crlf_ends, offset)
 
 
+@dataclass(frozen=True)
+class SourceProjection:
+    """Selected Markdown and the removed ranges in the normalised source."""
+
+    text: str
+    removed: tuple[tuple[int, int], ...]
+    boundaries: tuple[int, ...]
+
+    @classmethod
+    def select(cls, text: str, removed: Sequence[tuple[int, int]]) -> SourceProjection:
+        cursor = removed_length = 0
+        pieces: list[str] = []
+        boundaries: list[int] = []
+        for start, end in removed:
+            if not cursor <= start < end <= len(text):
+                raise PortableError("invalid conditional source ranges")
+            pieces.append(text[cursor:start])
+            boundaries.append(start - removed_length)
+            removed_length += end - start
+            cursor = end
+        pieces.append(text[cursor:])
+        return cls("".join(pieces), tuple(removed), tuple(boundaries))
+
+    def source_offset(self, offset: int) -> int:
+        position = bisect_right(self.boundaries, offset) - 1
+        if position < 0:
+            return offset
+        return offset + self.removed[position][1] - self.boundaries[position]
+
+
+@dataclass
+class _MappedEdit:
+    start: int
+    end: int
+    kind: str
+    value: str
+
+
+def _original_edits(
+    projection: SourceProjection, edits: Sequence[Replacement]
+) -> list[Replacement]:
+    """Map replacements to the source, including gaps spanned by a replacement."""
+    result: list[Replacement] = []
+    removals = iter(projection.removed)
+    removed = next(removals, None)
+    for edit in sorted(edits, key=lambda item: item.start):
+        start = projection.source_offset(edit.start)
+        end = projection.source_offset(edit.end - 1) + 1 if edit.end > edit.start else start
+        while removed is not None and removed[1] <= start:
+            result.append(_MappedEdit(*removed, "conditional", ""))
+            removed = next(removals, None)
+        while removed is not None and removed[0] < end:
+            removed = next(removals, None)
+        result.append(_MappedEdit(start, end, edit.kind, edit.value))
+    if removed is not None:
+        result.append(_MappedEdit(*removed, "conditional", ""))
+    result.extend(_MappedEdit(*gap, "conditional", "") for gap in removals)
+    return result
+
+
 def _line_starts(text: str) -> list[int]:
     return [0] + [index + 1 for index, character in enumerate(text) if character == "\n"]
 
@@ -56,7 +116,7 @@ def _position(
 
 
 def apply_edits(
-    source: SourceText, edits: Sequence[Replacement]
+    source: SourceText, edits: Sequence[Replacement], *, projection: SourceProjection | None = None
 ) -> tuple[str, list[dict[str, Any]]]:
     """Cover every generated character; source offsets count Unicode characters.
 
@@ -64,6 +124,8 @@ def apply_edits(
     span maps to the authored construct as a whole. Copies retain exact line
     and column correspondence after newline normalisation.
     """
+    if projection is not None and projection.removed:
+        edits = _original_edits(projection, edits)
     pieces: list[str] = []
     spans: list[tuple[str, int, int, int, int]] = []
     cursor = generated = 0

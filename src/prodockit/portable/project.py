@@ -214,8 +214,14 @@ def capture_inputs(config_file: Path) -> InputSnapshot:
     ).keys()
     caption_options = config.markdown_extensions.get(CAPTION_EXTENSION)
     snippet_paths: set[Path] = set()
+    macro_context = macros.ConditionalContext.from_config(
+        config.project, config.markdown_extensions
+    )
     for source, text in sources.items():
-        page = scan(source, text, extensions=extensions, caption_options=caption_options)
+        page = scan(
+            source, text, extensions=extensions, caption_options=caption_options,
+            macro_context=macro_context,
+        )
         for line, snippet_name in page.snippets.items():
             snippet_paths.add(
                 snippets.capture(

@@ -307,6 +307,9 @@ site_name = "Portable PDF acceptance"
 site_url = "https://example.test/manual/"
 nav = [{Home = "index.md"}, {Guide = "guide/install.md"}]
 
+[project.extra]
+release_ready = true
+
 [project.theme]
 font = false
 custom_dir = "theme"
@@ -348,7 +351,7 @@ See \\ref{installation} and \\autoref{map}.
 
 # Guide
 
-## Installation
+## {% if release_ready %}Installation{% else %}Draft installation{% endif %}
 
 Return to \\ref{home} or visit the [guide website](https://example.test/guide).
 

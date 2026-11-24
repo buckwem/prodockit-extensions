@@ -199,6 +199,15 @@ calls still run through native Zensical macros when used in their own
 top-level paragraphs. Use a Jinja raw block inside code to show a literal
 template example.
 
+Portable preparation selects `if`, `elif` and `else` branches before
+collecting headings and references. Conditions can use captured
+`project.extra` values and page front matter. Page values take precedence.
+Boolean operators, comparisons, mapping and list lookups, and `is defined`
+or `is undefined` are supported in nested and inline branches. Conditions
+using render-time variables such as `git`, macro calls, filters or external
+data require separate support. Use the `keep`, `silent` or `strict`
+undefined policy for portable conditions.
+
 Native admonitions, collapsible details and content tabs can contain ordinary
 Markdown, including nested admonitions, links, inline code and aligned, closed
 SuperFences blocks. Preparation leaves these containers in the Markdown for
@@ -221,7 +230,7 @@ reject affected syntax at the original source line.
 
 Unsupported cases fail explicitly: other nested affected syntax, containers
 inside lists and block quotes, Setext headings,
-custom slugging, project-specific macro modules and conditional templates,
+custom slugging, project-specific macro modules and other template syntax,
 snippets outside the fenced form, generated
 navigation and plugins, file-visibility settings, symlinked sources and YAML
 configuration.
