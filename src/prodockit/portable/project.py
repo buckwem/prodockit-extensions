@@ -208,7 +208,10 @@ def capture_inputs(config_file: Path) -> InputSnapshot:
         value = bib_options.get(name)
         if value:
             dependencies.add((config.root / str(value)).resolve())
-    extensions = config.markdown_extensions.keys()
+    extensions = (
+        config.markdown_extensions if "markdown_extensions" in config.project
+        else DOCUMENTED_MARKDOWN_DEFAULTS
+    ).keys()
     caption_options = config.markdown_extensions.get(CAPTION_EXTENSION)
     snippet_paths: set[Path] = set()
     for source, text in sources.items():

@@ -199,7 +199,16 @@ calls still run through native Zensical macros when used in their own
 top-level paragraphs. Use a Jinja raw block inside code to show a literal
 template example.
 
-Unsupported cases fail explicitly: other nested affected syntax, Setext headings,
+Native admonitions, collapsible details and content tabs can contain ordinary
+Markdown, including nested admonitions, links, inline code and aligned, closed
+SuperFences blocks. Preparation leaves these containers in the Markdown for
+Zensical to render. It checks their contents and reports affected syntax such
+as active Prodockit references, numbered headings, caption targets and
+definitions at the original source line. For literal examples of those
+constructs, use a code span or a closed fence.
+
+Unsupported cases fail explicitly: other nested affected syntax, containers
+inside lists and block quotes, Setext headings,
 custom slugging, project-specific macro modules and conditional templates,
 snippets outside the fenced form, generated
 navigation and plugins, file-visibility settings, symlinked sources and YAML
