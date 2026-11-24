@@ -1278,6 +1278,130 @@ def test_native_containers_report_affected_syntax(body: str, line: int, message:
 
 
 
+
+def test_steps_render_identically_after_portable_preparation(portable_project: Path) -> None:
+    root = portable_project.parent
+    with portable_project.open("a", encoding="utf-8") as file:
+        file.write(
+            '\n[project.markdown_extensions."prodockit.steps"]\n'
+            '[project.markdown_extensions.admonition]\n'
+            '[project.markdown_extensions.pymdownx.tabbed]\nalternate_style = true\n'
+        )
+    source = root / "docs/guide/install.md"
+    procedure = r"""
+/// steps
+    start: 9
+    attrs: {id: procedure, style: 'font-size: 1.2em'}
+
+//// step | Check **the environment**
+    attrs: {id: check}
+
+!!! note "Platforms"
+
+    Confirm the environment first.
+
+=== "macOS"
+
+    A [normal link](../index.md#home).
+
+=== "Example"
+
+    ```markdown
+    //// step | Literal step
+    \ref{literal}
+    ////
+    ```
+
+////
+
+//// step
+Continue with the next step.
+////
+
+///
+
+=== "Nested procedure"
+
+    /// steps
+
+    //// step | Check the result
+    This is a separate procedure.
+    ////
+
+    ///
+
+## After the procedure
+
+See \ref{installation}.
+"""
+    with source.open("a", encoding="utf-8") as page:
+        page.write(procedure)
+    originals = {path: path.read_bytes() for path in (portable_project, source)}
+    runner = CliRunner()
+    args = ["build", "--strict", "--clean", "-f", str(portable_project)]
+    ordinary = runner.invoke(main, args)
+    assert ordinary.exit_code == 0, ordinary.output
+    standard_page = root / "site/guide/install/index.html"
+    expected = _article(standard_page)
+    prepared = build(str(portable_project))
+    generated = (prepared.config.parent / "docs/guide/install.md").read_text(encoding="utf-8")
+    assert procedure.split("\n## After the procedure", maxsplit=1)[0] in generated
+    actual = _article(prepared.site / "guide/install/index.html")
+    wanted = expected.select("ol.prodockit-steps")
+    assert len(wanted) == 2
+    assert actual.select("ol.prodockit-steps") == wanted
+    assert wanted[0]["start"] == "9"
+    assert wanted[0]["style"] == "counter-reset: list-item 8; font-size: 1.2em"
+    assert wanted[0].select_one("#check strong").get_text() == "the environment"
+    assert "\\ref{literal}" in actual.select_one("ol.prodockit-steps pre").get_text()
+    assert actual.select_one("h2#after-the-procedure") is not None
+    validate(prepared, require_receipt=True)
+    assert all(path.read_bytes() == data for path, data in originals.items())
+    switched = runner.invoke(main, args)
+    assert switched.exit_code == 0, switched.output
+    assert _article(standard_page).select("ol.prodockit-steps") == wanted
+
+
+@pytest.mark.parametrize(
+    ("body", "line", "message"),
+    [
+        (r"See \ref{target}.", 5, "nested content"),
+        (r"\pagebibliography", 5, "nested content"),
+        ("## A heading", 5, "top-level ATX"),
+        ('Entry\n{: #term data-term="Term" }', 6, "top-level paragraph"),
+        ('Entry\n{: #ref data-cite-text="Citation" }', 6, "top-level paragraph"),
+        ("```image-hotspots\nimage: a.svg\n```", 5, "nested hotspots"),
+        ('=== "Tab"\n\n    See \\ref{target}.', 7, "unsupported syntax"),
+        ('![Image](a.svg)\n/// figure-caption | #figure\nCaption\n///', 6,
+         "numbered captions"),
+        ("```text\nNo closing fence", 4, "unclosed step block"),
+    ],
+)
+def test_steps_refuse_affected_body_syntax(body: str, line: int, message: str) -> None:
+    text = f"# Home\n\n/// steps\n//// step | Title\n{body}\n////\n///\n"
+    with pytest.raises(PortableError, match=rf"index\.md:{line}: .*{message}"):
+        scan("index.md", text, extensions={*_CONTAINER_EXTENSIONS, "prodockit.steps"})
+
+
+@pytest.mark.parametrize(
+    ("text", "line", "message"),
+    [
+        ("//// step\nText\n////\n", 1, "must be inside"),
+        ("/// steps\n//// step\nText\n///\n////\n", 4, "unmatched steps fence"),
+        ("/// steps\n    start: broken\n\n//// step\nText\n////\n///\n", 1, "invalid steps options"),
+        ("/// steps\n//// step\n    attrs: {data-term: Example}\n\nText\n////\n///\n", 2,
+         "affected syntax in step attributes"),
+        ("/// steps\n//// step | See \\ref{target}\nText\n////\n///\n", 2, "nested content"),
+        ("/// steps\nBody outside a step.\n///\n", 2, "put procedure content"),
+        ('=== "Tab"\n\n    /// steps\n\nHeading elsewhere\n', 3, "unclosed steps"),
+    ],
+)
+def test_steps_report_invalid_boundaries(text: str, line: int, message: str) -> None:
+    with pytest.raises(PortableError, match=rf"index\.md:{line}: .*{message}"):
+        scan("index.md", text, extensions={*_CONTAINER_EXTENSIONS, "prodockit.steps"})
+
+
+
 def _configure_portable_macros(config: Path) -> Path:
     with config.open("a", encoding="utf-8") as file:
         file.write(
