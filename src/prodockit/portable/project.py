@@ -32,7 +32,7 @@ from prodockit import __version__
 from prodockit._zensical_defaults import DOCUMENTED_MARKDOWN_DEFAULTS
 from prodockit.headings import PREPARED_CAPTION_NUMBER_ATTR, PREPARED_CAPTION_PREFIX
 from prodockit.pdf.site import output_path
-from prodockit.portable import PortableError, snippets
+from prodockit.portable import PortableError, macros, snippets
 from prodockit.portable.captions import CAPTION_EXTENSION
 from prodockit.portable.compiler import (
     BIBLIOGRAPHY_MARKERS,
@@ -107,8 +107,8 @@ def _check_config(config: ProjectConfig) -> None:
                 f"{key} is outside the feasibility prototype; use the existing mode"
             )
     for name, options in config.markdown_extensions.items():
-        if name != CAPTION_EXTENSION and name.startswith(
-            ("zensical.extensions.macros", "pymdownx.blocks.")
+        if name not in {CAPTION_EXTENSION, macros.EXTENSION} and name.startswith(
+            ("pymdownx.blocks.", macros.EXTENSION)
         ):
             raise PortableError(
                 f"{name} is outside the feasibility prototype; use the existing mode"
@@ -189,6 +189,11 @@ def capture_inputs(config_file: Path) -> InputSnapshot:
     config = parse_project_config(config_file, _decode(config_file, files[config_file]))
     _check_config(config)
     theme = _theme_directory(config)
+    macro_module = None
+    if macros.EXTENSION in config.markdown_extensions:
+        macro_module = macros.capture_module(
+            config.root, config.markdown_extensions[macros.EXTENSION], files
+        )
     _capture_tree(config.docs_dir, files)
     sources = {
         path.relative_to(config.docs_dir).as_posix(): _decode(path, data)
@@ -226,7 +231,9 @@ def capture_inputs(config_file: Path) -> InputSnapshot:
             files[path] = path.read_bytes()
     except OSError as error:
         raise PortableError(f"cannot read build input: {error}") from error
-    return InputSnapshot(config, MappingProxyType(files), theme, frozenset(snippet_paths))
+    return InputSnapshot(
+        config, MappingProxyType(files), theme, frozenset(snippet_paths), macro_module
+    )
 
 
 def _generated_config(config: ProjectConfig, theme: Path | None) -> dict[str, Any]:
@@ -241,6 +248,8 @@ def _generated_config(config: ProjectConfig, theme: Path | None) -> dict[str, An
         extensions.pop(name, None)
     if snippets.EXTENSION in extensions:
         extensions[snippets.EXTENSION]["base_path"] = [SNIPPETS_DIRECTORY]
+    if macros.EXTENSION in extensions:
+        extensions[macros.EXTENSION]["module_name"] = Path(macros.MODULE_FILENAME).stem
     if CAPTION_EXTENSION in extensions:
         extensions["prodockit.headings:PreparedCaptionExtension"] = {}
     # Source diagnostics run before generation. Keep the table renderer and
@@ -280,6 +289,10 @@ def _prepare(snapshot: InputSnapshot, *, pandoc: Path | None = None) -> Prepared
             target = generation / "docs" / name
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_bytes(output[name].encode("utf-8") if name in output else data)
+        if snapshot.macro_module is not None:
+            (generation / macros.MODULE_FILENAME).write_bytes(
+                snapshot.files[snapshot.macro_module]
+            )
         generated_config = generation / "zensical.toml"
         generated_config.write_bytes(
             tomlkit.dumps(_generated_config(config, inputs.theme_dir)).encode("utf-8")

@@ -1175,6 +1175,115 @@ def test_refuses_unproved_constructs(text: str) -> None:
         scan("guide/page.md", text)
 
 
+
+def _configure_portable_macros(config: Path) -> Path:
+    with config.open("a", encoding="utf-8") as file:
+        file.write(
+            '\n[project.markdown_extensions."zensical.extensions.macros"]\n'
+            'module_name = "local_macros"\non_error_fail = true\n'
+        )
+    module = config.parent / "local_macros.py"
+    module.write_text(
+        '"""Load the standard Prodockit macros."""\n'
+        'from prodockit.zensical_macros import define_env as define_env\n',
+        encoding="utf-8",
+    )
+    return module
+
+
+@pytest.mark.parametrize(
+    ("appendix", "enabled", "css"),
+    [(False, True, "counter-reset: h1-count 1"),
+     (True, True, 'content: "Appendix A. "'),
+     (False, False, 'content: "" !important')],
+)
+def test_portable_heading_counter_and_native_styling_match(
+    portable_project: Path, monkeypatch: pytest.MonkeyPatch, appendix: bool, enabled: bool, css: str
+) -> None:
+    root = portable_project.parent
+    module = _configure_portable_macros(portable_project)
+    with portable_project.open("a", encoding="utf-8") as file:
+        file.write(f'\n[project.extra]\nheading_numbering = {str(enabled).lower()}\n')
+    home = root / "docs/index.md"
+    home.write_text(
+        home.read_text(encoding="utf-8").replace("# Home {: #home .unnumbered }", "# Home {: #home }"),
+        encoding="utf-8",
+    )
+    source = root / "docs/guide/install.md"
+    source.write_text(
+        ("---\nis_appendix: true\n---\n\n" if appendix else "")
+        + "{{ heading_counter_reset(page) }}\n\n"
+        + "{{ pdk_reference_style() }}\n\n"
+        + "`{% raw %}{{ pdk_heading_counter_reset(page) }}{% endraw %}`\n\n"
+        + source.read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+    originals = {path: path.read_bytes() for path in (home, source, module, portable_project)}
+    runner = CliRunner()
+    args = ["build", "--clean", "--strict", "-f", str(portable_project)]
+    ordinary = runner.invoke(main, args)
+    assert ordinary.exit_code == 0, ordinary.output
+    path = "guide/install/index.html"
+    baseline = _article(root / "site" / path)
+    guard = root / "guard"
+    guard.mkdir()
+    (guard / "sitecustomize.py").write_text(
+        """import prodockit.zensical_macros as macros
+
+def forbidden(*args, **kwargs):
+    raise AssertionError("legacy macro pre-scan was called")
+
+macros.prescan = forbidden
+""",
+        encoding="utf-8",
+    )
+    with monkeypatch.context() as isolated:
+        isolated.setenv("PYTHONPATH", str(guard) + os.pathsep + os.environ["PYTHONPATH"])
+        prepared = build(str(portable_project))
+    portable = _article(prepared.site / path)
+    normal_styles = [node.get_text() for node in baseline.select("article > style")]
+    assert any(css in style for style in normal_styles)
+    assert any("p.reference + p.reference" in style for style in normal_styles)
+    assert [node.get_text() for node in portable.select("article > style")] == normal_styles
+    assert portable.find("code", string="{{ pdk_heading_counter_reset(page) }}") is not None
+    generated = (prepared.config.parent / "docs/guide/install.md").read_text(encoding="utf-8")
+    assert "{{ pdk_reference_style() }}" in generated
+    assert "{{ heading_counter_reset(page) }}" not in generated
+    assert read_manifest(prepared.manifest)["generated_hashes"]["macros.py"]
+    assert all(path.read_bytes() == data for path, data in originals.items())
+    validate(prepared, require_receipt=True)
+    switched = runner.invoke(main, args)
+    assert switched.exit_code == 0, switched.output
+    assert [node.get_text() for node in _article(root / "site" / path).select("article > style")] == (
+        normal_styles
+    )
+    (prepared.config.parent / "macros.py").write_text("changed", encoding="utf-8")
+    with pytest.raises(PortableError, match="prepared input changed"):
+        validate(prepared)
+
+
+@pytest.mark.parametrize("template", [
+    "{{ make_heading() }}", "{% if is_surrey %}\n# Heading\n{% endif %}",
+    "```jinja\n{{ pdk_heading_counter_reset(page) }}\n```",
+    "Inline {{ pdk_heading_counter_reset(page) }}",
+    "{{ pdk_heading_counter_reset(page) }}\nSame paragraph",
+])
+def test_portable_refuses_unqualified_macro_rendering(portable_project: Path, template: str) -> None:
+    _configure_portable_macros(portable_project)
+    page = portable_project.parent / "docs/index.md"
+    page.write_text(f"# Home\n\n{template}\n", encoding="utf-8")
+    with pytest.raises(PortableError, match=r"index\.md:[34]: (unsupported template|put portable)"):
+        prepare(str(portable_project))
+
+
+def test_portable_refuses_project_macro_initialisation(portable_project: Path) -> None:
+    module = _configure_portable_macros(portable_project)
+    with module.open("a", encoding="utf-8") as file:
+        file.write("\nprint('custom startup')\n")
+    with pytest.raises(PortableError, match="plain define_env re-export"):
+        prepare(str(portable_project))
+
+
 @pytest.mark.parametrize("theme_path", ["theme-overrides", "docs/theme-overrides"])
 def test_custom_theme_build_parity_and_freshness(portable_project: Path, theme_path: str) -> None:
     from prodockit.project_config import load_project_config

@@ -189,8 +189,19 @@ to the project root, for example `--8<-- "LICENSE.md"` inside a `text` fence.
 Only the referenced files are captured. An include that would introduce
 another directive or change the fence is rejected at its original location.
 
+Portable macro support accepts a local module that re-exports
+`prodockit.zensical_macros.define_env`. Put `{{ pdk_heading_counter_reset(page) }}`
+or its legacy alias in a top-level paragraph. Preparation inserts CSS from
+the same numbering plan as portable references. With website numbering
+enabled, use continuous numbering, explicit navigation and the default
+`is_appendix` flag. The reference, acronym, glossary and festive styling
+calls still run through native Zensical macros when used in their own
+top-level paragraphs. Use a Jinja raw block inside code to show a literal
+template example.
+
 Unsupported cases fail explicitly: other nested affected syntax, Setext headings,
-custom slugging, macros, snippets outside this fenced form, generated
+custom slugging, project-specific macro modules and conditional templates,
+snippets outside the fenced form, generated
 navigation and plugins, file-visibility settings, symlinked sources and YAML
 configuration.
 The prototype requires explicit `attr_list` and `toc`

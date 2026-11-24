@@ -28,7 +28,7 @@ from markdown.extensions.attr_list import get_attrs_and_remainder
 
 from prodockit.bibliography import BibliographyResolverTreeprocessor, _BibliographyCache
 from prodockit.image_hotspots import _render as render_hotspots
-from prodockit.portable import PortableError, snippets
+from prodockit.portable import PortableError, macros, snippets
 from prodockit.portable.captions import (
     CAPTION_EXTENSION,
     Caption,
@@ -47,6 +47,7 @@ from prodockit.semantics import (
 )
 from prodockit.tables import TableError, validate_table_attributes
 from prodockit.util import CitationRegistry, GlossaryRegistry, IdRegistry, cross_page_href
+from prodockit.zensical_macros import heading_counter_style
 
 _COMMAND = re.compile(
     r"\\(?P<name>autoref|ref|cite|gls)\{(?P<key>[^{}\s,]+)\}"
@@ -249,6 +250,14 @@ def scan(
     for line in body.splitlines(keepends=True):
         offsets.append(offsets[-1] + len(line))
     tokens = _tokenizer().parse(body)
+    macro_calls = {
+        body_start + offset: name
+        for offset, name in macros.styling_calls(
+            source, body, text.count("\n", 0, body_start) + 1
+        ).items()
+    } if macros.EXTENSION in extensions else {}
+    if macro_calls and meta.get("render_macros") is False:
+        raise _error(page, min(macro_calls), "portable styling calls require macro rendering")
     if snippets.EXTENSION in extensions:
         header_lines = text.count("\n", 0, body_start)
         code_lines = {
@@ -298,6 +307,14 @@ def scan(
                 raise _error(page, start, "references inside headings are outside the prototype")
             page.headings.append((start, end, text[start:end].rstrip("\n")))
         elif token.type == "inline":
+            top_level = token.level == 1 and tokens[index - 1].type == "paragraph_open"
+            raw = text[start:end]
+            if start in macro_calls:
+                if not top_level or "\n" in raw.rstrip("\n"):
+                    raise _error(page, start, "put portable styling calls in a top-level paragraph")
+                if macro_calls.pop(start) in macros.HEADING_NAMES:
+                    page.edits.append(Edit(start, end, "heading-counter-style", ""))
+                continue
             children = token.children or []
             for child in children:
                 if child.type == "pdk_unsupported":
@@ -316,8 +333,6 @@ def scan(
                     _DEFINITION_ASSIGNMENT.findall(child.content)
                 ):
                     raise _error(page, start, "definitions in HTML are unsupported")
-            top_level = token.level == 1 and tokens[index - 1].type == "paragraph_open"
-            raw = text[start:end]
             if active_attributes and any(
                 child.type == "text" and any(name in child.content for name in active_attributes)
                 for child in children
@@ -342,6 +357,8 @@ def scan(
                 page.edits.append(
                     Edit(a, b, item["kind"], "", item["key"], item["cited"], item["heading"])
                 )
+    if macro_calls:
+        raise _error(page, min(macro_calls), "put portable styling calls in a top-level paragraph")
     return page
 
 
@@ -537,6 +554,7 @@ def compile_pages(
         if sum(page.is_appendix for page in outlines) > 26:
             raise PortableError("the prototype supports at most 26 appendices")
         starts, appendices = continuous_numbering(outlines)
+    heading_style_enabled = bool((config.project.get("extra") or {}).get("heading_numbering", True))
     contexts = {
         source: PageContext(source, starts.get(source, 0), appendices.get(source))
         for source in order
@@ -595,7 +613,21 @@ def compile_pages(
         if local_bibliographies:
             _render_page_bibliographies(page, cache, bib_options, links)
         for edit in page.edits:
-            if edit.kind in {"ref", "autoref"}:
+            if edit.kind == "heading-counter-style":
+                if heading_style_enabled and (
+                    not continuous or heading_options.get("appendix_attr", "is_appendix")
+                    != "is_appendix"
+                ):
+                    raise _error(
+                        page, edit.start,
+                        "portable heading-counter styling requires continuous numbering "
+                        "and the default appendix flag",
+                    )
+                context = contexts[source]
+                edit.value = heading_counter_style(
+                    context.start_count, context.appendix_letter, enabled=heading_style_enabled
+                ) + ("\n" if page.text[edit.start:edit.end].endswith("\n") else "")
+            elif edit.kind in {"ref", "autoref"}:
                 if "prodockit.refs" not in config.markdown_extensions:
                     raise _error(
                         page, edit.start, "reference syntax requires prodockit.refs configuration"

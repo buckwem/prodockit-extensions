@@ -15,6 +15,7 @@ from typing import Any
 from prodockit import __version__
 from prodockit.portable import PortableError
 from prodockit.portable.inputs import digest
+from prodockit.portable.macros import MODULE_FILENAME
 from prodockit.portable.source_map import validate_source_map
 
 SCHEMA = 2
@@ -78,6 +79,9 @@ def relative_path(value: str) -> Path:
 
 def generated_hashes(root: Path) -> dict[str, str]:
     files = [root / "zensical.toml"]
+    module = root / MODULE_FILENAME
+    if module.exists() or module.is_symlink():
+        files.append(module)
     for name in ("docs", ".inputs"):
         directory = root / name
         if directory.is_symlink() or not directory.is_dir():

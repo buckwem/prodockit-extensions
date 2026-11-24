@@ -311,6 +311,9 @@ custom_dir = "theme"
 [project.markdown_extensions.attr_list]
 [project.markdown_extensions.toc]
 [project.markdown_extensions.pymdownx.snippets]
+[project.markdown_extensions."zensical.extensions.macros"]
+module_name = "macros"
+on_error_fail = true
 [project.markdown_extensions."prodockit.headings"]
 numbering = "continuous"
 [project.markdown_extensions."prodockit.refs"]
@@ -325,6 +328,7 @@ types = [
             '<meta name="pdk-parity-theme" content="captured">{% endblock %}'
         ),
         project / "example.txt": "Captured snippet\n",
+        project / "macros.py": "from prodockit.zensical_macros import define_env as define_env\n",
         project / "pdk-pdf.toml": """schema_version = 1
 
 [document]
@@ -334,7 +338,11 @@ output = "output/site_documentation.pdf"
 
 See \\ref{installation} and \\autoref{map}.
 """,
-        docs / "guide/install.md": """# Guide
+        docs / "guide/install.md": """{{ pdk_heading_counter_reset(page) }}
+
+{{ pdk_reference_style() }}
+
+# Guide
 
 ## Installation
 
@@ -381,6 +389,13 @@ Installation map.
         raise AcceptanceError(f"expected one portable manifest:\n{built.stdout}")
     manifest = Path(manifests[0])
     portable_html = (manifest.parent / "site/index.html").read_bytes()
+    guide = Path("guide/install/index.html")
+    for site in (project / "site", manifest.parent / "site"):
+        rendered = (site / guide).read_bytes()
+        if b"counter-reset: h1-count 0" not in rendered:
+            raise AcceptanceError("heading-counter styling missing from a build")
+        if b"p.reference + p.reference" not in rendered:
+            raise AcceptanceError("native reference styling missing from a build")
     theme = b'<meta name="pdk-parity-theme" content="captured">'
     if theme not in original_html or theme not in portable_html:
         raise AcceptanceError("custom theme marker missing from a build")
