@@ -1362,17 +1362,127 @@ See \ref{installation}.
     assert _article(standard_page).select("ol.prodockit-steps") == wanted
 
 
+
+@pytest.mark.parametrize("directory_urls", [True, False])
+def test_portable_step_references_and_caption_order(
+    portable_project: Path, directory_urls: bool,
+) -> None:
+    root = portable_project.parent
+    config = portable_project.read_text(encoding="utf-8").replace(
+        "[project]", f"[project]\nuse_directory_urls = {str(directory_urls).lower()}"
+    )
+    portable_project.write_text(config + """
+[project.markdown_extensions."prodockit.steps"]
+[project.markdown_extensions."pymdownx.blocks.caption"]
+types = [
+  { name = "figure-caption", prefix = "{}.", classes = "prodockit-figure-caption" },
+  { name = "table-caption", prefix = "{}.", classes = "prodockit-table-caption" },
+]
+""", encoding="utf-8")
+    home = root / "docs/index.md"
+    home.write_text(
+        r"# Home {: #home .unnumbered }" + "\n\n" + r"See \ref{map-in-step}." + "\n",
+        encoding="utf-8",
+    )
+    guide = root / "docs/guide/install.md"
+    body = r"""# Guide
+
+![Before](../assets/map.png)
+/// figure-caption
+Before the procedure
+///
+
+/// steps
+
+//// step | Inspect the map
+
+See \ref{map-in-step},
+then inspect \autoref{table-in-step} and \ref{map-after}.
+
+![Within](../assets/map.png){ width="65%" }
+/// figure-caption
+    attrs: {id: map-in-step}
+
+Inside the procedure
+///
+
+| Name | Value |
+| --- | --- |
+| Reading | 12 |
+/// table-caption | < #table-in-step
+Procedure results
+///
+
+```markdown
+\ref{untouched}
+/// figure-caption | #literal
+///
+```
+
+////
+
+///
+
+![After](../assets/map.png)
+/// figure-caption | #map-after
+After the procedure
+///
+"""
+    guide.write_text(body, encoding="utf-8")
+    originals = {path: path.read_bytes() for path in (portable_project, home, guide)}
+    args = ["build", "--strict", "--clean", "-f", str(portable_project)]
+    runner = CliRunner()
+    ordinary = runner.invoke(main, args)
+    assert ordinary.exit_code == 0, ordinary.output
+    prepared = build(str(portable_project))
+
+    def links(site: Path, page: str, selector: str) -> list[tuple[str, str]]:
+        return [(link["href"], link.get_text()) for link in _article(site / page).select(selector)]
+
+    chapter_links = [
+        ("#map-in-step", "Figure 1.2"), ("#table-in-step", "Table 1.1"),
+        ("#map-after", "Figure 1.3"),
+    ]
+    target = "guide/install/" if directory_urls else "guide/install.html"
+    for site in (root / "site", prepared.site):
+        assert links(site, "index.html", ".prodockit-ref") == [(target + "#map-in-step", "Figure 1.2")]
+        page = target + "index.html" if directory_urls else target
+        assert links(site, page, ".prodockit-steps :is(.prodockit-ref, .prodockit-autoref)") == (
+            chapter_links
+        )
+        soup = _article(site / page)
+        assert [figure["id"] for figure in soup.select(".prodockit-steps figure")] == [
+            "map-in-step", "table-in-step",
+        ]
+        assert soup.select_one("#map-in-step")["style"] == "width: 65%;"
+        assert soup.select_one("#table-in-step").find(recursive=False).name == "figcaption"
+        assert "\\ref{untouched}" in soup.select_one(".prodockit-steps pre").get_text()
+        assert soup.select_one("#literal") is None
+    assert [p.get_text() for p in soup.select(".pdk-prepared-caption-prefix")] == [
+        "Figure 1.1.", "Figure 1.2.", "Table 1.1.", "Figure 1.3.",
+    ]
+    manifest = read_manifest(prepared.manifest)["pages"]["guide/install.md"]
+    ref_spans = [span for span in manifest["source_map"] if span["kind"] in {"ref", "autoref"}]
+    assert [
+        body[span["source_start"]["offset"]:span["source_end"]["offset"]] for span in ref_spans
+    ] == [r"\ref{map-in-step}", r"\autoref{table-in-step}", r"\ref{map-after}"]
+    validate(prepared, require_receipt=True)
+    assert all(path.read_bytes() == data for path, data in originals.items())
+
+
 @pytest.mark.parametrize(
     ("body", "line", "message"),
     [
-        (r"See \ref{target}.", 5, "nested content"),
+        (r"See \cite{target}.", 5, "nested content"),
         (r"\pagebibliography", 5, "nested content"),
         ("## A heading", 5, "top-level ATX"),
         ('Entry\n{: #term data-term="Term" }', 6, "top-level paragraph"),
         ('Entry\n{: #ref data-cite-text="Citation" }', 6, "top-level paragraph"),
         ("```image-hotspots\nimage: a.svg\n```", 5, "nested hotspots"),
         ('=== "Tab"\n\n    See \\ref{target}.', 7, "unsupported syntax"),
-        ('![Image](a.svg)\n/// figure-caption | #figure\nCaption\n///', 6,
+        ('![Image](a.svg)\n//// figure-caption | #figure\nCaption\n////', 6,
+         "different fence"),
+        ('!!! note\n\n    ![Image](a.svg)\n    /// figure-caption\n    Caption\n    ///', 8,
          "numbered captions"),
         ("```text\nNo closing fence", 4, "unclosed step block"),
     ],

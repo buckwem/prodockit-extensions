@@ -352,15 +352,17 @@ See \\ref{installation} and \\autoref{map}.
 
 Return to \\ref{home} or visit the [guide website](https://example.test/guide).
 
-![Map](map.svg)
-/// figure-caption | #map
-Installation map.
-///
-
 /// steps
     start: 4
 
 //// step | Verify the environment
+
+Inspect \\ref{map} before continuing.
+
+![Map](map.svg)
+/// figure-caption | #map
+Installation map.
+///
 
 !!! note "Fixture note"
 

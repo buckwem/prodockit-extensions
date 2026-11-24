@@ -211,9 +211,13 @@ Portable preparation also recognises balanced `/// steps` and `//// step`
 blocks when `prodockit.steps` is enabled. The existing renderer still formats
 titles and honours `start` and `attrs`. A child block needs a longer slash
 fence than its parent, and each closing fence must match its opener. Ordinary
-Markdown and supported native containers can remain inside a step. Affected
-references, headings, captions, definitions and hotspots inside steps still
-report an error at the original source line.
+Markdown and supported native containers can remain inside a step.
+Direct step paragraphs support `\ref` and `\autoref` when their authored
+source spans can be mapped exactly. Figure and table captions directly
+inside a step share the page's numbering sequence with captions outside
+it. Give a caption a different slash fence from that of its step.
+Step titles, nested containers, headings, definitions and hotspots still
+reject affected syntax at the original source line.
 
 Unsupported cases fail explicitly: other nested affected syntax, containers
 inside lists and block quotes, Setext headings,

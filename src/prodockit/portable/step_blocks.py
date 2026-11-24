@@ -90,20 +90,24 @@ def qualify_steps(tokens: list[Any], source: str, first_line: int) -> None:
     blocks: list[StepBlock] = []
     for token in tokens:
         level = token.level
+        parent = blocks[-1] if blocks else None
         token.level += len(blocks)
         if token.type == "pdk_container_close":
             if blocks and blocks[-1].level > level:
                 raise PortableError(f"{blocks[-1].location}: unclosed {blocks[-1].kind} block")
             continue
         if token.type != "pdk_step_marker":
-            if blocks and blocks[-1].kind == "steps" and token.map is not None:
+            if parent is None or token.map is None:
+                continue
+            if parent.kind == "steps":
                 location = f"{source}:{first_line + token.map[0]}"
                 raise PortableError(f"{location}: put procedure content inside a step block")
+            if (token.type, level - parent.level) in {("inline", 1), ("pdk_caption", 0)}:
+                token.meta["step_body_fence"] = parent.fence
             continue
 
         location = f"{source}:{first_line + token.map[0]}"
         kind, fence = token.meta["kind"], token.meta["fence"]
-        parent = blocks[-1] if blocks else None
         if kind is None:
             if parent is None or fence != parent.fence or level != parent.level:
                 raise PortableError(f"{location}: unmatched steps fence")
