@@ -17,7 +17,6 @@ import string
 import xml.etree.ElementTree as ET
 from collections.abc import Collection
 from dataclasses import dataclass, field
-from functools import partial
 from pathlib import Path
 from typing import Any
 
@@ -38,7 +37,7 @@ from prodockit.portable.captions import (
 )
 from prodockit.portable.containers import is_aligned_fence, register_container_rule
 from prodockit.portable.inputs import MaterializedInputs
-from prodockit.portable.source_map import SourceText, apply_edits
+from prodockit.portable.source_map import SourceProjection, SourceText, apply_edits
 from prodockit.project_config import ProjectConfig
 from prodockit.semantics import (
     PageCollector,
@@ -104,6 +103,7 @@ class Page:
     text: str
     meta: dict[str, Any]
     original: SourceText
+    projection: SourceProjection
     edits: list[Edit] = field(default_factory=list)
     headings: list[tuple[int, int, str]] = field(default_factory=list)
     targets: list[dict[str, Any]] = field(default_factory=list)
@@ -113,9 +113,16 @@ class Page:
     snippets: dict[int, Path] = field(default_factory=dict)
 
 
+def _source_line(page: Page, offset: int) -> int:
+    return page.original.text.count("\n", 0, page.projection.source_offset(offset)) + 1
+
+
+def _location(page: Page, offset: int) -> str:
+    return f"{page.source}:{_source_line(page, offset)}"
+
+
 def _error(page: Page, offset: int, message: str) -> PortableError:
-    line = page.text.count("\n", 0, offset) + 1
-    return PortableError(f"{page.source}:{line}: {message}")
+    return PortableError(f"{_location(page, offset)}: {message}")
 
 
 def _tokenizer(extensions: Collection[str]) -> Any:
@@ -223,19 +230,22 @@ def scan(
     *,
     extensions: Collection[str] = (),
     caption_options: dict[str, Any] | None = None,
+    macro_context: macros.ConditionalContext | None = None,
 ) -> Page:
     """Retain original spans, protecting code with the tokenizer's own rules."""
     original = SourceText.read(text)
     text = original.text
     lines = text.splitlines(keepends=True)
     body_start = 0
+    front_matter = ""
     meta: dict[str, Any] = {}
     if lines and lines[0].strip() == "---":
         end = next((i for i in range(1, len(lines)) if lines[i].strip() in {"---", "..."}), None)
         if end is None:
             raise PortableError(f"{source}: unclosed front matter")
+        front_matter = "".join(lines[1:end])
         try:
-            value = yaml.safe_load("".join(lines[1:end]))
+            value = yaml.safe_load(front_matter)
         except yaml.YAMLError as error:
             mark = getattr(error, "problem_mark", None)
             line = mark.line + 2 if mark is not None else 2
@@ -244,7 +254,23 @@ def scan(
             raise PortableError(f"{source}: front matter must be a mapping")
         meta = value or {}
         body_start = sum(map(len, lines[: end + 1]))
-    page = Page(source, text, meta, original)
+    def source_location(offset: int) -> str:
+        return "{}:{}".format(source, text.count("\n", 0, body_start + offset) + 1)
+
+    removed = (
+        macros.conditional_removals(
+            text[body_start:],
+            macro_context or macros.ConditionalContext({}),
+            front_matter,
+            source_location,
+        )
+        if macros.EXTENSION in extensions else []
+    )
+    projection = SourceProjection.select(
+        text, [(body_start + start, body_start + end) for start, end in removed]
+    )
+    text = projection.text
+    page = Page(source, text, meta, original, projection)
     active_attributes = {
         name for name, extension in DEFINITION_EXTENSIONS.items() if extension in extensions
     }
@@ -255,13 +281,12 @@ def scan(
     for line in body.splitlines(keepends=True):
         offsets.append(offsets[-1] + len(line))
     tokens = _tokenizer(extensions).parse(body)
-    first_line = text.count("\n", 0, body_start) + 1
     if step_blocks.EXTENSION in extensions:
-        step_blocks.qualify_steps(tokens, source, first_line)
+        step_blocks.qualify_steps(tokens, lambda line: _location(page, offsets[line]))
     macro_calls = {
         body_start + offset: name
         for offset, name in macros.styling_calls(
-            source, body, first_line
+            body, lambda offset: _location(page, body_start + offset)
         ).items()
     } if macros.EXTENSION in extensions else {}
     if macro_calls and meta.get("render_macros") is False:
@@ -276,12 +301,16 @@ def scan(
             and token.map is not None
             for line in range(token.map[0] + 1, token.map[1])
         }
-        for index, line in enumerate(text.split("\n")):
-            name = snippets.directive(
-                line, location=f"{source}:{index + 1}", in_code=index in code_lines
-            )
-            if name is not None:
-                page.snippets[index + 1] = name
+        line_offset = 0
+        for index, line in enumerate(text.splitlines(keepends=True)):
+            if "8<-" in line:
+                name = snippets.directive(
+                    line.removesuffix("\n"), location=_location(page, line_offset),
+                    in_code=index in code_lines,
+                )
+                if name is not None:
+                    page.snippets[_source_line(page, line_offset)] = name
+            line_offset += len(line)
     container_depth = 0
     for index, token in enumerate(tokens):
         if token.type == "pdk_container_close":
@@ -307,7 +336,7 @@ def scan(
             if _UNSUPPORTED.search(interior) or re.search(r"(?m)^\s*#{1,6}\s", interior):
                 raise _error(page, start, "affected syntax inside captions is unsupported")
             page.captions.append(
-                read_caption(source, start, text.count("\n", 0, start) + 1, block, caption_options)
+                read_caption(source, start, _source_line(page, start), block, caption_options)
             )
         elif token.type == "fence":
             if container_depth and re.search(r"(?:^|[.\s])image-hotspots\b", token.info):
@@ -536,6 +565,16 @@ def _heading_records(
         caption = next(captions, None)
 
 
+def _validate_page_tables(page: Page) -> None:
+    line_starts = [0, *(match.end() for match in re.finditer("\n", page.text))]
+    try:
+        validate_table_attributes(
+            page.text.split("\n"), lambda line: _location(page, line_starts[line - 1])
+        )
+    except TableError as error:
+        raise PortableError(str(error)) from error
+
+
 def compile_pages(
     config: ProjectConfig,
     sources: dict[str, str],
@@ -544,24 +583,24 @@ def compile_pages(
     pandoc: Path | None = None,
 ) -> tuple[dict[str, str], dict[str, Any], set[Path]]:
     """Compile the supported slice with explicit ownership and two passes."""
-    if "prodockit.tables" in config.markdown_extensions:
-        for source, text in sources.items():
-            try:
-                validate_table_attributes(
-                    SourceText.read(text).text.split("\n"),
-                    partial("{}:{}".format, source),
-                )
-            except TableError as error:
-                raise PortableError(str(error)) from error
     extensions = (
         config.markdown_extensions if "markdown_extensions" in config.project
         else DOCUMENTED_MARKDOWN_DEFAULTS
     ).keys()
     caption_options = config.markdown_extensions.get(CAPTION_EXTENSION)
+    macro_context = macros.ConditionalContext.from_config(
+        config.project, config.markdown_extensions
+    )
     pages = {
-        source: scan(source, text, extensions=extensions, caption_options=caption_options)
+        source: scan(
+            source, text, extensions=extensions, caption_options=caption_options,
+            macro_context=macro_context,
+        )
         for source, text in sources.items()
     }
+    if "prodockit.tables" in extensions:
+        for page in pages.values():
+            _validate_page_tables(page)
     nav_order = list(dict.fromkeys(p.source_path for p in config.nav_pages))
     missing = set(nav_order) - pages.keys()
     if missing:
@@ -766,7 +805,7 @@ def compile_pages(
                         "text": BeautifulSoup(formatted, "html.parser").get_text(" ", strip=True),
                     }
                 )
-        output, source_map = apply_edits(page.original, page.edits)
+        output, source_map = apply_edits(page.original, page.edits, projection=page.projection)
         outputs[source] = output
         details[source] = {
             "targets": page.targets, "links": links, "source_map": source_map,

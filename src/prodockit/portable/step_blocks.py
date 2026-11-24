@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
@@ -85,7 +86,7 @@ class StepBlock:
     location: str
 
 
-def qualify_steps(tokens: list[Any], source: str, first_line: int) -> None:
+def qualify_steps(tokens: list[Any], source_location: Callable[[int], str]) -> None:
     """Give a balanced steps procedure the same token boundaries as other containers."""
     blocks: list[StepBlock] = []
     for token in tokens:
@@ -100,13 +101,13 @@ def qualify_steps(tokens: list[Any], source: str, first_line: int) -> None:
             if parent is None or token.map is None:
                 continue
             if parent.kind == "steps":
-                location = f"{source}:{first_line + token.map[0]}"
+                location = source_location(token.map[0])
                 raise PortableError(f"{location}: put procedure content inside a step block")
             if (token.type, level - parent.level) in {("inline", 1), ("pdk_caption", 0)}:
                 token.meta["step_body_fence"] = parent.fence
             continue
 
-        location = f"{source}:{first_line + token.map[0]}"
+        location = source_location(token.map[0])
         kind, fence = token.meta["kind"], token.meta["fence"]
         if kind is None:
             if parent is None or fence != parent.fence or level != parent.level:

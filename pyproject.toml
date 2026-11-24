@@ -120,6 +120,7 @@ pdk = "prodockit.cli:main"
 
 [project.optional-dependencies]
 portable = [
+  "jinja2>=3.1",
   "markdown-it-py>=4.0",
 ]
 dev = [
