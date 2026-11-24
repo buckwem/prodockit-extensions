@@ -278,6 +278,7 @@ with pymupdf.open(sys.argv[1]) as ordinary, pymupdf.open(sys.argv[2]) as candida
     assert "1.1 Installation" in text, "numbered section missing"
     assert "Figure 1.1" in text, "figure numbering or reference missing"
     assert "Captured snippet" in text, "fenced snippet missing"
+    assert "Rendered native note" in text, "admonition missing"
     assert any(
         link.get("uri") == "https://example.test/guide"
         for page in candidate for link in page.get_links()
@@ -308,6 +309,7 @@ nav = [{Home = "index.md"}, {Guide = "guide/install.md"}]
 [project.theme]
 font = false
 custom_dir = "theme"
+[project.markdown_extensions.admonition]
 [project.markdown_extensions.attr_list]
 [project.markdown_extensions.toc]
 [project.markdown_extensions.pymdownx.snippets]
@@ -353,6 +355,10 @@ Return to \\ref{home} or visit the [guide website](https://example.test/guide).
 Installation map.
 ///
 
+!!! note "Fixture note"
+
+    Rendered native note.
+
 ```text
 --8<-- "example.txt"
 ```
@@ -396,6 +402,8 @@ Installation map.
             raise AcceptanceError("heading-counter styling missing from a build")
         if b"p.reference + p.reference" not in rendered:
             raise AcceptanceError("native reference styling missing from a build")
+        if b'class="admonition note"' not in rendered:
+            raise AcceptanceError("native admonition missing from a build")
     theme = b'<meta name="pdk-parity-theme" content="captured">'
     if theme not in original_html or theme not in portable_html:
         raise AcceptanceError("custom theme marker missing from a build")

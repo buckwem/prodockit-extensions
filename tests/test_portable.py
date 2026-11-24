@@ -1176,6 +1176,108 @@ def test_refuses_unproved_constructs(text: str) -> None:
 
 
 
+
+_CONTAINER_EXTENSIONS = {
+    "admonition", "pymdownx.details", "pymdownx.tabbed",
+    "pymdownx.superfences", "prodockit.glossary", "prodockit.citations",
+}
+
+
+def test_native_containers_render_the_same_in_both_modes(portable_project: Path) -> None:
+    root = portable_project.parent
+    with portable_project.open("a", encoding="utf-8") as file:
+        file.write(
+            '\n[project.markdown_extensions.admonition]\n'
+            '[project.markdown_extensions.pymdownx.details]\n'
+            '[project.markdown_extensions.pymdownx.tabbed]\nalternate_style = true\n'
+        )
+    source = root / "docs/guide/install.md"
+    containers = r"""
+!!! warning "Native warning"
+
+    Ordinary **formatted content** and a [link](../index.md#home).
+
+    ???+ tip "Read more"
+
+        A nested paragraph.
+
+=== "macOS"
+
+    !!! note "Literal examples"
+
+        ```markdown
+        ## Literal heading
+        \ref{literal-reference}
+        ```
+
+=== "Ubuntu"
+
+    Prose with an inline `\ref{literal-reference}` example.
+
+## After containers
+
+See \ref{installation}.
+"""
+    with source.open("a", encoding="utf-8") as page:
+        page.write(containers)
+    originals = {path: path.read_bytes() for path in (portable_project, source)}
+    runner = CliRunner()
+    args = ["build", "--strict", "--clean", "-f", str(portable_project)]
+    normal = runner.invoke(main, args)
+    assert normal.exit_code == 0, normal.output
+    prepared = build(str(portable_project))
+    generated = (prepared.config.parent / "docs/guide/install.md").read_text(encoding="utf-8")
+    native = containers.split("\n## After containers", maxsplit=1)[0]
+    assert native in generated
+    expected = _article(root / "site/guide/install/index.html")
+    rendered = _article(prepared.site / "guide/install/index.html")
+    for selector in ("article > .admonition", "article > .tabbed-set"):
+        ordinary_container = expected.select_one(selector)
+        portable_container = rendered.select_one(selector)
+        assert ordinary_container is not None and portable_container == ordinary_container
+    assert rendered.select_one("details[open] summary").get_text(strip=True) == "Read more"
+    assert "\\ref{literal-reference}" in rendered.select_one(".tabbed-set pre").get_text()
+    assert [heading["id"] for heading in rendered.select("article h2")] == [
+        "installation", "after-containers",
+    ]
+    validate(prepared, require_receipt=True)
+    assert all(path.read_bytes() == data for path, data in originals.items())
+    switched = runner.invoke(main, args)
+    assert switched.exit_code == 0, switched.output
+    assert _article(root / "site/guide/install/index.html").select_one("article") == (
+        expected.select_one("article")
+    )
+
+
+@pytest.mark.parametrize(
+    ("body", "line", "message"),
+    [
+        ("!!! note\n\n    See \\ref{topic}.", 5, "nested content"),
+        ('!!! note "See \\ref{topic}"\n\n    Text.', 3, "nested content"),
+        ('=== "Tab"\n\n    !!! note\n\n        \\pagebibliography', 7, "nested content"),
+        ('???+ note "Summary"\n\n    ## New heading', 5, "top-level ATX"),
+        ('??? note "# Summary"\n\n    Text.', 3, "headings in collapsible titles"),
+        ('=== "Tab"\n\n    Entry\n    {: #term data-term="Term" }', 5,
+         "top-level paragraph"),
+        ('=== "Tab"\n\n    Entry\n    {: #ref data-cite-text="Author" }', 5,
+         "top-level paragraph"),
+        ('!!! note\n\n    ```image-hotspots\n    image: map.svg\n    ```', 5, "nested hotspots"),
+        ('!!! note\n\n    ```markdown\n    \\ref{topic}', 5, "aligned, closed SuperFences"),
+        ('!!! note\n\n    ```markdown\n    \\ref{topic}\n     ```', 5,
+         "aligned, closed SuperFences"),
+        ('!!! note\n\n        \\ref{topic}', 5, "use a closed fence"),
+        ('!!! note\n\n    ![Map](map.svg)\n    /// figure-caption\n    Map\n    ///', 6,
+         "numbered captions in native containers"),
+        ('!!! note\n\n    <div markdown="1">\n    ## Generated heading\n    </div>', 5,
+         "affected syntax in HTML"),
+    ],
+)
+def test_native_containers_report_affected_syntax(body: str, line: int, message: str) -> None:
+    with pytest.raises(PortableError, match=rf"index\.md:{line}: .*{message}"):
+        scan("index.md", f"# Home\n\n{body}\n", extensions=_CONTAINER_EXTENSIONS)
+
+
+
 def _configure_portable_macros(config: Path) -> Path:
     with config.open("a", encoding="utf-8") as file:
         file.write(

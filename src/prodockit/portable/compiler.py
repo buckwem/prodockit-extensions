@@ -26,6 +26,7 @@ import yaml
 from bs4 import BeautifulSoup
 from markdown.extensions.attr_list import get_attrs_and_remainder
 
+from prodockit._zensical_defaults import DOCUMENTED_MARKDOWN_DEFAULTS
 from prodockit.bibliography import BibliographyResolverTreeprocessor, _BibliographyCache
 from prodockit.image_hotspots import _render as render_hotspots
 from prodockit.portable import PortableError, macros, snippets
@@ -35,6 +36,7 @@ from prodockit.portable.captions import (
     read_caption,
     register_caption_rule,
 )
+from prodockit.portable.containers import is_aligned_fence, register_container_rule
 from prodockit.portable.inputs import MaterializedInputs
 from prodockit.portable.source_map import SourceText, apply_edits
 from prodockit.project_config import ProjectConfig
@@ -116,7 +118,7 @@ def _error(page: Page, offset: int, message: str) -> PortableError:
     return PortableError(f"{page.source}:{line}: {message}")
 
 
-def _tokenizer() -> Any:
+def _tokenizer(extensions: Collection[str]) -> Any:
     try:
         from markdown_it import MarkdownIt
     except ImportError as error:
@@ -153,6 +155,7 @@ def _tokenizer() -> Any:
 
     parser = MarkdownIt("commonmark")
     register_caption_rule(parser)
+    register_container_rule(parser, extensions)
     parser.core.ruler.disable(["text_join"])
     parser.inline.ruler.before("escape", "pdk_command", command)
     return parser
@@ -249,7 +252,7 @@ def scan(
     offsets = [body_start]
     for line in body.splitlines(keepends=True):
         offsets.append(offsets[-1] + len(line))
-    tokens = _tokenizer().parse(body)
+    tokens = _tokenizer(extensions).parse(body)
     macro_calls = {
         body_start + offset: name
         for offset, name in macros.styling_calls(
@@ -274,11 +277,21 @@ def scan(
             )
             if name is not None:
                 page.snippets[index + 1] = name
+    container_depth = 0
     for index, token in enumerate(tokens):
+        if token.type == "pdk_container_close":
+            container_depth -= 1
+            continue
         if token.map is None:
             continue
         start, end = (offsets[n] for n in token.map)
-        if token.type == "pdk_caption":
+        if token.type == "pdk_container_open":
+            container_depth += 1
+            if token.meta["heading_title"]:
+                raise _error(page, start, "headings in collapsible titles are unsupported")
+        elif token.type == "pdk_caption":
+            if container_depth:
+                raise _error(page, start, "numbered captions in native containers are unsupported")
             if caption_options is None:
                 raise _error(page, start, "caption blocks require pymdownx.blocks.caption")
             block = text[start:end]
@@ -288,13 +301,32 @@ def scan(
             page.captions.append(
                 read_caption(source, start, text.count("\n", 0, start) + 1, block, caption_options)
             )
-        elif token.type == "fence" and token.info.strip() == "image-hotspots":
-            if token.level != 0:
+        elif token.type == "fence":
+            if container_depth and re.search(r"(?:^|[.\s])image-hotspots\b", token.info):
                 raise _error(page, start, "nested hotspots are outside the portable prototype")
-            page.edits.append(Edit(start, end, "hotspots", token.content))
+            if token.info.strip() == "image-hotspots":
+                if token.level != 0:
+                    raise _error(page, start, "nested hotspots are outside the portable prototype")
+                page.edits.append(Edit(start, end, "hotspots", token.content))
+            elif container_depth and (
+                "pymdownx.superfences" not in extensions
+                or not is_aligned_fence(text[start:end], token.markup, token.info)
+            ):
+                raise _error(
+                    page, start, "nested code requires an aligned, closed SuperFences block"
+                )
+        elif container_depth and token.type == "code_block" and (
+            _UNSUPPORTED.search(token.content)
+            or re.search(r"(?m)^\s*#", token.content)
+            or active_attributes.intersection(_DEFINITION_ASSIGNMENT.findall(token.content))
+        ):
+            raise _error(page, start, "use a closed fence for affected syntax in nested code")
         elif token.type == "html_block" and (
             _UNSUPPORTED.search(token.content)
             or active_attributes.intersection(_DEFINITION_ASSIGNMENT.findall(token.content))
+            or (container_depth and re.search(
+                r"<h[1-6]\b|\bmarkdown[ \t]*=", token.content, re.IGNORECASE
+            ))
         ):
             raise _error(page, start, "affected syntax in HTML is outside the portable prototype")
         elif token.type == "heading_open":
@@ -507,7 +539,10 @@ def compile_pages(
                 )
             except TableError as error:
                 raise PortableError(str(error)) from error
-    extensions = config.markdown_extensions.keys()
+    extensions = (
+        config.markdown_extensions if "markdown_extensions" in config.project
+        else DOCUMENTED_MARKDOWN_DEFAULTS
+    ).keys()
     caption_options = config.markdown_extensions.get(CAPTION_EXTENSION)
     pages = {
         source: scan(source, text, extensions=extensions, caption_options=caption_options)

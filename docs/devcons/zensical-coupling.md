@@ -180,7 +180,9 @@ Its current slice covers top-level ATX headings and references, figure and
 table captions, global and page-local bibliographies, and image hotspots.
 Portable preparation can replace standalone heading-counter macro calls with
 CSS from the same numbering plan. The normal macro and preparation share the
-CSS formatter. Other supported presentation macros still use the native
+CSS formatter. Ordinary admonitions, collapsible details and content tabs pass
+through for native rendering after their nested content has been checked for
+syntax that still needs explicit page context. Other presentation macros use the native
 macro extension and a captured copy of the project's standard macro re-export.
 Project-specific macro initialisation, other generated content and future Rust
 renderer qualification remain in the issue.
