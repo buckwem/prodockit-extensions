@@ -106,8 +106,6 @@ def _check_config(config: ProjectConfig) -> None:
             raise PortableError(
                 f"{key} is outside the feasibility prototype; use the existing mode"
             )
-    if (config.project.get("theme") or {}).get("custom_dir"):
-        raise PortableError("custom theme directories are outside the feasibility prototype")
     for name, options in config.markdown_extensions.items():
         if name != CAPTION_EXTENSION and name.startswith(
             ("zensical.extensions.macros", "pymdownx.snippets", "pymdownx.blocks.")
@@ -133,6 +131,42 @@ def _check_config(config: ProjectConfig) -> None:
         raise PortableError("the prototype requires explicit attr_list and toc configuration")
 
 
+def _theme_directory(config: ProjectConfig) -> Path | None:
+    value = (config.project.get("theme") or {}).get("custom_dir")
+    if not value:
+        return None
+    if not isinstance(value, str):
+        raise PortableError("portable theme.custom_dir must be a path")
+    directory = config.root / value
+    resolved = directory.resolve()
+    if (
+        not resolved.is_relative_to(config.root)
+        or (config.docs_dir.is_relative_to(resolved) and resolved != config.docs_dir)
+        or resolved.is_relative_to(config.root / ".git")
+        or resolved.is_relative_to(_workspace(config))
+        or _workspace(config).is_relative_to(resolved)
+        or resolved.is_relative_to(config.site_dir)
+        or config.site_dir.is_relative_to(resolved)
+        or not resolved.is_dir()
+    ):
+        raise PortableError("portable theme.custom_dir must be a project source directory")
+    if any(
+        path.is_symlink()
+        for path in (directory, *directory.parents)
+        if path.is_relative_to(config.root)
+    ):
+        raise PortableError(f"symlinked theme directory: {directory}")
+    return resolved
+
+
+def _capture_tree(directory: Path, files: dict[Path, bytes]) -> None:
+    for path in sorted(directory.rglob("*")):
+        if path.is_symlink():
+            raise PortableError(f"symlinked source is outside the feasibility prototype: {path}")
+        if path.is_file() and path not in files:
+            files[path] = path.read_bytes()
+
+
 def _decode(path: Path, data: bytes) -> str:
     try:
         return data.decode("utf-8")
@@ -147,14 +181,15 @@ def capture_inputs(config_file: Path) -> InputSnapshot:
     files = {config_file: config_file.read_bytes()}
     config = parse_project_config(config_file, _decode(config_file, files[config_file]))
     _check_config(config)
-    sources: dict[str, str] = {}
-    for path in sorted(config.docs_dir.rglob("*")):
-        if path.is_symlink():
-            raise PortableError(f"symlinked source is outside the feasibility prototype: {path}")
-        if path.is_file():
-            files[path] = path.read_bytes()
-            if path.suffix.lower() == ".md":
-                sources[path.relative_to(config.docs_dir).as_posix()] = _decode(path, files[path])
+    theme = _theme_directory(config)
+    _capture_tree(config.docs_dir, files)
+    sources = {
+        path.relative_to(config.docs_dir).as_posix(): _decode(path, data)
+        for path, data in files.items()
+        if path.is_relative_to(config.docs_dir) and path.suffix.lower() == ".md"
+    }
+    if theme is not None:
+        _capture_tree(theme, files)
     bib_options = config.markdown_extensions.get("prodockit.bibliography", {})
     dependencies: set[Path] = set()
     for name in ("bib_file", "csl_style"):
@@ -178,12 +213,14 @@ def capture_inputs(config_file: Path) -> InputSnapshot:
             files[path] = path.read_bytes()
     except OSError as error:
         raise PortableError(f"cannot read build input: {error}") from error
-    return InputSnapshot(config, MappingProxyType(files))
+    return InputSnapshot(config, MappingProxyType(files), theme)
 
 
-def _generated_config(config: ProjectConfig) -> dict[str, Any]:
+def _generated_config(config: ProjectConfig, theme: Path | None) -> dict[str, Any]:
     project = copy.deepcopy(config.project)
     project.update(docs_dir="docs", site_dir="site")
+    if theme is not None:
+        project["theme"]["custom_dir"] = theme.as_posix()
     extensions = copy.deepcopy(config.markdown_extensions)
     if "markdown_extensions" not in project:
         extensions = copy.deepcopy(DOCUMENTED_MARKDOWN_DEFAULTS)
@@ -229,7 +266,9 @@ def _prepare(snapshot: InputSnapshot, *, pandoc: Path | None = None) -> Prepared
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_bytes(output[name].encode("utf-8") if name in output else data)
         generated_config = generation / "zensical.toml"
-        generated_config.write_bytes(tomlkit.dumps(_generated_config(config)).encode("utf-8"))
+        generated_config.write_bytes(
+            tomlkit.dumps(_generated_config(config, inputs.theme_dir)).encode("utf-8")
+        )
         if snapshot.hashes != capture_inputs(config.path).hashes:
             raise PortableError(
                 "source inputs changed during preparation; retry with a stable snapshot"

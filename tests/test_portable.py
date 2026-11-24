@@ -1175,6 +1175,73 @@ def test_refuses_unproved_constructs(text: str) -> None:
         scan("guide/page.md", text)
 
 
+@pytest.mark.parametrize("theme_path", ["theme-overrides", "docs/theme-overrides"])
+def test_custom_theme_build_parity_and_freshness(portable_project: Path, theme_path: str) -> None:
+    from prodockit.project_config import load_project_config
+
+    root = portable_project.parent
+    config = portable_project.read_text(encoding="utf-8").replace(
+        "[project.theme]", f'[project.theme]\ncustom_dir = "{theme_path}"'
+    )
+    portable_project.write_text(config, encoding="utf-8")
+    overrides = root / theme_path
+    (overrides / "partials").mkdir(parents=True)
+    (overrides / "main.html").write_text(
+        '{% extends "base.html" %}\n'
+        '{% block extrahead %}{{ super() }}\n'
+        '{% include "partials/portable-marker.html" %}\n'
+        '{% endblock %}',
+        encoding="utf-8",
+    )
+    marker = '<meta name="portable-theme" content="original">'
+    partial = overrides / "partials/portable-marker.html"
+    partial.write_text(marker, encoding="utf-8")
+
+    runner = CliRunner()
+    ordinary = runner.invoke(main, ["build", "--strict", "-f", str(portable_project)])
+    assert ordinary.exit_code == 0, ordinary.output
+    prepared = build(str(portable_project))
+    generation = prepared.config.parent
+    prepared_data = load_project_config(prepared.config).project
+    captured = generation / prepared_data["theme"]["custom_dir"]
+    assert captured.is_relative_to(generation / ".inputs")
+    assert marker in (root / "site/index.html").read_text(encoding="utf-8")
+    assert marker in (prepared.site / "index.html").read_text(encoding="utf-8")
+    assert read_manifest(prepared.manifest)["captured_inputs"][str(partial)] == (
+        captured.relative_to(generation) / "partials/portable-marker.html"
+    ).as_posix()
+    validate(prepared, require_receipt=True)
+    assert portable_project.read_text(encoding="utf-8") == config
+    assert partial.read_text(encoding="utf-8") == marker
+
+    partial.write_text(marker.replace("original", "revised"), encoding="utf-8")
+    with pytest.raises(PortableError, match="stale"):
+        validate(prepared)
+    updated = build(str(portable_project))
+    assert 'content="revised"' in (updated.site / "index.html").read_text(encoding="utf-8")
+    assert marker in (prepared.site / "index.html").read_text(encoding="utf-8")
+    (captured / "partials/portable-marker.html").write_text("tampered", encoding="utf-8")
+    with pytest.raises(PortableError, match="prepared input changed"):
+        validate(prepared, fresh=False)
+
+
+def test_custom_theme_rejects_symlinked_template(portable_project: Path) -> None:
+    root = portable_project.parent
+    source = portable_project.read_text(encoding="utf-8").replace(
+        "[project.theme]", '[project.theme]\ncustom_dir = "overrides"'
+    )
+    portable_project.write_text(source, encoding="utf-8")
+    theme = root / "overrides"
+    theme.mkdir()
+    try:
+        (theme / "main.html").symlink_to(root / "docs/index.md")
+    except OSError as error:
+        pytest.skip(f"cannot create a symlink: {error}")
+    with pytest.raises(PortableError, match="symlinked source"):
+        prepare(str(portable_project))
+
+
+
 def test_stale_inputs_and_missing_output_are_detected(portable_project: Path) -> None:
     prepared = build(str(portable_project))
     (prepared.site / "guide/install/index.html").unlink()
