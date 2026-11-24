@@ -10,6 +10,7 @@ invokes Zensical nor imports its Python package internals.
 
 from __future__ import annotations
 
+import json
 import os
 import shutil
 import tempfile
@@ -26,7 +27,21 @@ class BuiltSiteError(RuntimeError):
     """A documented Zensical build or its output cannot be consumed."""
 
 
-def validate_built_site(config: ProjectConfig, source_paths: list[str]) -> None:
+def reject_portable_site(site_dir: Path) -> None:
+    """Prevent ordinary PDF commands from consuming a portable generation."""
+    receipt = site_dir / ".pdk-build.json"
+    if receipt.is_file():
+        try:
+            provenance = json.loads(receipt.read_text(encoding="utf-8"))
+        except (ValueError, OSError) as error:
+            raise BuiltSiteError(f"invalid built-site receipt: {receipt}") from error
+        if isinstance(provenance, dict) and provenance.get("mode") == "portable":
+            raise BuiltSiteError("portable site selected; use pdk -p pdf --manifest MANIFEST")
+
+
+def validate_built_site(
+    config: ProjectConfig, source_paths: list[str], *, portable: bool = False
+) -> None:
     """Validate the completed Zensical output needed by a PDF build.
 
     This deliberately checks existence and structure, not freshness. A macro
@@ -36,6 +51,8 @@ def validate_built_site(config: ProjectConfig, source_paths: list[str]) -> None:
     instruction = "run `zensical build --clean --strict` first"
     if not config.site_dir.is_dir():
         raise BuiltSiteError(f"built site not found: {config.site_dir}; {instruction}")
+    if not portable:
+        reject_portable_site(config.site_dir)
 
     directory_urls = bool(config.project.get("use_directory_urls", True))
     missing = []

@@ -32,11 +32,14 @@ import time
 from collections.abc import Callable, Sequence
 from dataclasses import replace
 from pathlib import Path
-from typing import Any, Literal, ParamSpec, TypeVar
+from typing import TYPE_CHECKING, Any, Literal, ParamSpec, TypeVar
 
 import click
 
 import prodockit
+
+if TYPE_CHECKING:
+    from prodockit.portable.project import Prepared
 from prodockit import __version__
 from prodockit.adopt import (
     MANIFEST as ADOPT_MANIFEST,
@@ -120,7 +123,7 @@ from prodockit.pdf.runtime_prepare import (
     prepare_runtime_components,
 )
 from prodockit.pdf.runtime_store import RuntimeStoreError
-from prodockit.pdf.site import BuiltSiteError
+from prodockit.pdf.site import BuiltSiteError, reject_portable_site
 from prodockit.pdf.source_bundle import SourceBundleError
 from prodockit.portable.cli import register_commands
 from prodockit.project_config import ProjectConfigError, load_project_config
@@ -396,7 +399,7 @@ def _echo_captured_stderr(error: Exception) -> None:
 @click.version_option(__version__, "--version", message="%(version)s")
 @click.option(
     "--portable", "-p", is_flag=True,
-    help="Use experimental source preparation for build/serve.",
+    help="Use experimental source preparation and generation outputs.",
 )
 @click.pass_context
 def main(ctx: click.Context, portable: bool = False) -> None:
@@ -404,9 +407,9 @@ def main(ctx: click.Context, portable: bool = False) -> None:
     academic documentation."""
     ctx.ensure_object(dict)
     ctx.obj["portable"] = portable
-    if portable and ctx.invoked_subcommand not in {"prepare", "build", "serve", "validate"}:
+    if portable and ctx.invoked_subcommand not in {"prepare", "build", "serve", "validate", "pdf"}:
         raise click.UsageError(
-            "--portable/-p currently supports prepare, build, serve and validate only; "
+            "--portable/-p currently supports prepare, build, serve, validate and pdf only; "
             "omit it for the existing approach."
         )
 
@@ -2776,6 +2779,8 @@ def _report_pdf_project_files(config_file: str) -> None:
 def _run_pdf_command(
     config_file: str,
     markdown_file: str | None,
+    *,
+    portable: Prepared | None = None,
 ) -> None:
     """Run the supported built-site PDF renderer with CLI presentation."""
     if markdown_file:
@@ -2817,8 +2822,11 @@ def _run_pdf_command(
                         f"  found {name}() in {relative}",
                         err=True,
                     )
+    built_site = None
     try:
-        built_site = load_project_config(config_file).site_dir
+        built_site = (
+            portable.site if portable is not None else load_project_config(config_file).site_dir
+        )
         try:
             built_site_label = built_site.relative_to(Path.cwd())
         except ValueError:
@@ -2838,13 +2846,20 @@ def _run_pdf_command(
 
     started = time.monotonic()
     try:
-        if Path(config_file).is_file():
-            _report_pdf_project_files(config_file)
-        output_path = build_pdf_from_built_site(
-            config_file,
-            markdown_file=markdown_file,
-            on_stage=say,
-        )
+        if portable is None:
+            if built_site is not None:
+                reject_portable_site(built_site)
+            if Path(config_file).is_file():
+                _report_pdf_project_files(config_file)
+            output_path = build_pdf_from_built_site(
+                config_file, markdown_file=markdown_file, on_stage=say
+            )
+        else:
+            from prodockit.portable.project import render_portable_pdf
+
+            output_path = render_portable_pdf(
+                config_file, portable, markdown_file=markdown_file, on_stage=say
+            )
     except (
         BuiltSiteError,
         PdfBuildError,
@@ -2912,14 +2927,26 @@ def _windows_arm64_local_pdf_error() -> str | None:
     ),
 )
 @_pdf_options
+@click.option(
+    "--manifest",
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+    help="Select a completed portable build for pdk -p pdf.",
+)
 def pdf(
     config_file: str,
     markdown_file: str | None,
     prepare_components: tuple[str, ...],
+    manifest: Path | None,
 ) -> None:
     """Check built website markup and maths, then build a PDF from the
     completed Zensical site. CONFIG_FILE supplies nav, docs directory, fonts,
     page size, and other PDF settings."""
+    ctx = click.get_current_context()
+    portable = bool(ctx.find_root().obj.get("portable"))
+    if portable and (manifest is None or prepare_components):
+        raise click.UsageError("use pdk -p pdf --manifest MANIFEST without --prepare")
+    if manifest is not None and not portable:
+        raise click.UsageError("--manifest requires pdk --portable (or pdk -p)")
     if prepare_components:
         try:
             requested = {component.lower() for component in prepare_components}
@@ -2972,6 +2999,23 @@ def pdf(
         return
     if unsupported := _windows_arm64_local_pdf_error():
         raise click.ClickException(unsupported)
+    if manifest is not None:
+        from prodockit.portable.project import portable_pdf_generation
+
+        selected_config = (
+            None
+            if ctx.get_parameter_source("config_file") is click.core.ParameterSource.DEFAULT
+            else config_file
+        )
+        try:
+            with portable_pdf_generation(manifest, selected_config, markdown_file) as (
+                original, generation
+            ):
+                check_pdf_environment(original)
+                _run_pdf_command(str(original), markdown_file, portable=generation)
+        except (OSError, ValueError, RuntimeError) as error:
+            raise click.ClickException(str(error)) from error
+        return
     try:
         check_pdf_environment(config_file)
     except BuildEnvironmentError as error:

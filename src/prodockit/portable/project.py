@@ -40,7 +40,7 @@ from prodockit.portable.compiler import (
     compile_pages,
     scan,
 )
-from prodockit.portable.inputs import InputSnapshot
+from prodockit.portable.inputs import InputSnapshot, digest
 from prodockit.portable.manifest import (
     SCHEMA,
     generated_hashes,
@@ -296,9 +296,25 @@ def _validate_prepared(prepared: Prepared, *, fresh: bool = True) -> dict[str, A
     return manifest
 
 
-def validate(prepared: Prepared, *, fresh: bool = True) -> None:
+_BUILD_RECEIPT = ".pdk-build.json"
+
+
+def _site_hash(site: Path) -> str:
+    files = {}
+    for path in sorted(site.rglob("*")):
+        relative = path.relative_to(site).as_posix()
+        if path.is_symlink():
+            raise PortableError(f"symlinked portable site output: {relative}")
+        if path.is_file() and relative != _BUILD_RECEIPT:
+            files[relative] = digest(path.read_bytes())
+    return digest(json.dumps(files, sort_keys=True).encode("utf-8"))
+
+
+def validate(
+    prepared: Prepared, *, fresh: bool = True, require_receipt: bool = False
+) -> None:
     manifest = _validate_prepared(prepared, fresh=fresh)
-    receipt = prepared.site / ".pdk-build.json"
+    receipt = prepared.site / _BUILD_RECEIPT
     if receipt.exists():
         try:
             provenance = json.loads(receipt.read_text(encoding="utf-8"))
@@ -308,6 +324,13 @@ def validate(prepared: Prepared, *, fresh: bool = True) -> None:
                 raise ValueError("build identity differs")
         except (KeyError, TypeError, ValueError) as error:
             raise PortableError("site receipt does not match its prepared generation") from error
+        site_hash = provenance.get("site_hash")
+        if require_receipt and not isinstance(site_hash, str):
+            raise PortableError("portable PDF requires a site fingerprint; run pdk -p build")
+    elif require_receipt:
+        raise PortableError("portable PDF requires a completed pdk -p build")
+    else:
+        site_hash = None
     soups: dict[str, BeautifulSoup] = {}
     for source, details in manifest["pages"].items():
         path = output_path(source, prepared.site, directory_urls=manifest["directory_urls"])
@@ -392,6 +415,8 @@ def validate(prepared: Prepared, *, fresh: bool = True) -> None:
             target = (current.parent / unquote(urlsplit(str(image.get("src", ""))).path)).resolve()
             if not target.is_file():
                 raise PortableError(f"{source}: hotspot image did not survive the build")
+    if site_hash is not None and site_hash != _site_hash(prepared.site):
+        raise PortableError("portable site files changed after build; run pdk -p build")
 
 
 def _build(prepared: Prepared, *, clean: bool = False, strict: bool = True) -> None:
@@ -412,18 +437,72 @@ def _build(prepared: Prepared, *, clean: bool = False, strict: bool = True) -> N
     )
     if version.returncode:
         raise PortableError(f"Zensical version check failed with status {version.returncode}")
-    (prepared.site / ".pdk-build.json").write_text(
+    (prepared.site / _BUILD_RECEIPT).write_text(
         json.dumps(
             {
                 "mode": "portable",
                 "generation": prepared.config.parent.name,
                 "content_id": manifest["content_id"],
                 "zensical": version.stdout.strip(),
+                "site_hash": _site_hash(prepared.site),
             }
         )
         + "\n",
         encoding="utf-8",
     )
+
+
+@contextmanager
+def portable_pdf_generation(
+    manifest_file: Path, config_file: str | None, markdown_file: str | None
+) -> Iterator[tuple[Path, Prepared]]:
+    """Select an explicit, current generation and hold its project lock."""
+    manifest_file = manifest_file.resolve()
+    manifest = read_manifest(manifest_file)
+    original = Path(manifest["original_config"]).resolve()
+    if config_file is not None and Path(config_file).resolve() != original:
+        raise PortableError("portable manifest belongs to a different original configuration")
+    config = load_project_config(original)
+    generation = manifest_file.parent
+    if generation.parent != _workspace(config) / "generations":
+        raise PortableError("portable PDF requires a generation in its original project workspace")
+    prepared = Prepared(generation / "zensical.toml", manifest_file, generation / "site")
+    with workspace_lock(config):
+        validate(prepared, require_receipt=True)
+        if markdown_file is not None and markdown_file not in manifest["pages"]:
+            raise PortableError(f"page is absent from the portable manifest: {markdown_file}")
+        yield original, prepared
+
+
+def render_portable_pdf(
+    config_file: str,
+    prepared: Prepared,
+    *,
+    markdown_file: str | None,
+    on_stage: Callable[[int, int, str], None],
+) -> str:
+    """Render into scratch space and publish beside the selected site."""
+    from prodockit.pdf.config import build_pdf_from_built_site
+
+    generation = prepared.manifest.parent
+    with tempfile.TemporaryDirectory(prefix=".pdf-", dir=generation) as work:
+        output = Path(
+            build_pdf_from_built_site(
+                config_file,
+                markdown_file=markdown_file,
+                on_stage=on_stage,
+                portable_site=prepared.site,
+                output_directory=Path(work),
+            )
+        )
+        validate(prepared, require_receipt=True)
+        directory = generation / "pdf"
+        if directory.is_symlink():
+            raise PortableError("portable PDF output directory must not be symlinked")
+        directory.mkdir(exist_ok=True)
+        destination = directory / output.name
+        os.replace(output, destination)
+        return str(destination)
 
 
 @contextmanager

@@ -194,8 +194,23 @@ previous successful generation and retries an unchanged candidate after five
 seconds. A new edit can trigger a retry straight away. Rename or delete a page
 and update its navigation and references to replace the previous preview.
 Once the replacement is serving, removed URLs are no longer available.
-The two-process `prepare --watch` workflow, automatic
-publication to the original destination and `pdk -p pdf` are not implemented.
+
+Use the manifest printed by `pdk -p build` to render a PDF from that generation.
+
+```sh
+pdk -p pdf --manifest PATH/TO/manifest.json
+pdk -p pdf --manifest PATH/TO/manifest.json -m guide/install.md
+```
+
+The PDF command uses the existing renderer and the original project's PDF
+settings. It reads the generated HTML and captured Markdown and assets, and
+writes to the generation's `pdf/` directory. Rebuild with `pdk -p build` if
+the source inputs or site files have changed, or if you created the site with
+a direct Zensical command or an older portable build. Use `pdk pdf` for the
+ordinary website and its usual PDF output.
+
+The two-process `prepare --watch` workflow and automatic publication to the
+original destination remain open.
 
 Qualification covers prepared content on the current Python-Markdown-based
 Zensical CLI. It does not establish compatibility with an unreleased Rust
