@@ -13,6 +13,8 @@ from pathlib import Path
 from prodockit.portable import PortableError
 from prodockit.project_config import ProjectConfig
 
+SNIPPETS_DIRECTORY = ".inputs/snippets"
+
 
 def digest(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
@@ -36,6 +38,7 @@ class InputSnapshot:
     config: ProjectConfig
     files: Mapping[Path, bytes]
     theme_dir: Path | None = None
+    snippets: frozenset[Path] = frozenset()
 
     @property
     def hashes(self) -> dict[str, str]:
@@ -67,6 +70,10 @@ class InputSnapshot:
                 theme = Path(".inputs/docs") / self.theme_dir.relative_to(self.config.docs_dir)
             (root / theme).mkdir(parents=True, exist_ok=True)
         for index, (original, data) in enumerate(sorted(self.files.items())):
+            snippet = (
+                Path(SNIPPETS_DIRECTORY) / original.relative_to(self.config.root)
+                if original in self.snippets else None
+            )
             if original == self.config.path:
                 relative = Path(".inputs/config.toml")
             elif original.is_relative_to(self.config.docs_dir):
@@ -75,12 +82,18 @@ class InputSnapshot:
                 self.theme_dir
             ):
                 relative = theme / original.relative_to(self.theme_dir)
+            elif snippet is not None:
+                relative = snippet
             else:
                 relative = Path(".inputs/dependencies") / str(index) / original.name
             target = root / relative
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_bytes(data)
             paths[original] = target
+            if snippet is not None and snippet != relative:
+                copy = root / snippet
+                copy.parent.mkdir(parents=True, exist_ok=True)
+                copy.write_bytes(data)
         # Empty documentation directories still have a well-defined capture.
         docs = root / ".inputs/docs"
         docs.mkdir(parents=True, exist_ok=True)

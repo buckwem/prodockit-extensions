@@ -32,7 +32,7 @@ from prodockit import __version__
 from prodockit._zensical_defaults import DOCUMENTED_MARKDOWN_DEFAULTS
 from prodockit.headings import PREPARED_CAPTION_NUMBER_ATTR, PREPARED_CAPTION_PREFIX
 from prodockit.pdf.site import output_path
-from prodockit.portable import PortableError
+from prodockit.portable import PortableError, snippets
 from prodockit.portable.captions import CAPTION_EXTENSION
 from prodockit.portable.compiler import (
     BIBLIOGRAPHY_MARKERS,
@@ -40,7 +40,7 @@ from prodockit.portable.compiler import (
     compile_pages,
     scan,
 )
-from prodockit.portable.inputs import InputSnapshot, digest
+from prodockit.portable.inputs import SNIPPETS_DIRECTORY, InputSnapshot, digest
 from prodockit.portable.manifest import (
     SCHEMA,
     generated_hashes,
@@ -108,7 +108,7 @@ def _check_config(config: ProjectConfig) -> None:
             )
     for name, options in config.markdown_extensions.items():
         if name != CAPTION_EXTENSION and name.startswith(
-            ("zensical.extensions.macros", "pymdownx.snippets", "pymdownx.blocks.")
+            ("zensical.extensions.macros", "pymdownx.blocks.")
         ):
             raise PortableError(
                 f"{name} is outside the feasibility prototype; use the existing mode"
@@ -124,6 +124,13 @@ def _check_config(config: ProjectConfig) -> None:
                 raise PortableError("unsupported heading settings in the feasibility prototype")
         if name == "toc" and (options.get("slugify") or options.get("separator", "-") != "-"):
             raise PortableError("custom slugging is outside the feasibility prototype")
+    snippet_options = config.markdown_extensions.get(snippets.EXTENSION, {})
+    if snippet_options.get("base_path", ["."]) not in (".", ["."]) or (
+        snippet_options.keys() - {"base_path", "check_paths", "restrict_base_path", "encoding"}
+    ) or not snippet_options.get("restrict_base_path", True) or (
+        snippet_options.get("encoding", "utf-8") != "utf-8"
+    ):
+        raise PortableError("portable snippets require local UTF-8 files at the project root")
     names = config.markdown_extensions.keys()
     if names & DEFINITION_EXTENSIONS.values() and "attr_list" not in names:
         raise PortableError("portable glossary and citation definitions require explicit attr_list")
@@ -198,10 +205,16 @@ def capture_inputs(config_file: Path) -> InputSnapshot:
             dependencies.add((config.root / str(value)).resolve())
     extensions = config.markdown_extensions.keys()
     caption_options = config.markdown_extensions.get(CAPTION_EXTENSION)
+    snippet_paths: set[Path] = set()
     for source, text in sources.items():
-        for edit in scan(
-            source, text, extensions=extensions, caption_options=caption_options
-        ).edits:
+        page = scan(source, text, extensions=extensions, caption_options=caption_options)
+        for line, snippet_name in page.snippets.items():
+            snippet_paths.add(
+                snippets.capture(
+                    config.root, snippet_name, location=f"{source}:{line}", files=files
+                )
+            )
+        for edit in page.edits:
             if edit.kind == "cite" or edit.kind in BIBLIOGRAPHY_MARKERS:
                 dependencies.add(
                     (config.root / str(bib_options.get("bib_file", "references.bib"))).resolve()
@@ -213,7 +226,7 @@ def capture_inputs(config_file: Path) -> InputSnapshot:
             files[path] = path.read_bytes()
     except OSError as error:
         raise PortableError(f"cannot read build input: {error}") from error
-    return InputSnapshot(config, MappingProxyType(files), theme)
+    return InputSnapshot(config, MappingProxyType(files), theme, frozenset(snippet_paths))
 
 
 def _generated_config(config: ProjectConfig, theme: Path | None) -> dict[str, Any]:
@@ -226,6 +239,8 @@ def _generated_config(config: ProjectConfig, theme: Path | None) -> dict[str, An
         extensions = copy.deepcopy(DOCUMENTED_MARKDOWN_DEFAULTS)
     for name in MIGRATED:
         extensions.pop(name, None)
+    if snippets.EXTENSION in extensions:
+        extensions[snippets.EXTENSION]["base_path"] = [SNIPPETS_DIRECTORY]
     if CAPTION_EXTENSION in extensions:
         extensions["prodockit.headings:PreparedCaptionExtension"] = {}
     # Source diagnostics run before generation. Keep the table renderer and

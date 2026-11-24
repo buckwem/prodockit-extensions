@@ -198,7 +198,10 @@ private context access and legacy heading-treeprocessor execution fail.
 
 Portable preparation reads configuration, Markdown, assets and bibliography/CSL
 dependencies into a captured input set. Configuration parsing, hotspot sizing
-and bibliography formatting consume those same bytes. The original paths remain
+and bibliography formatting consume those same bytes. For project-local theme
+overrides and whole-file includes inside fenced code, preparation captures the
+referenced files and updates the generated paths. Zensical renders the theme
+and PyMdown expands the includes. The original paths remain
 the source identity; captured dependencies live in a private `.inputs` directory
 beside the generated `docs` tree. They are not added to the publishable site.
 Preparation checks the original inputs again before completing the generation.

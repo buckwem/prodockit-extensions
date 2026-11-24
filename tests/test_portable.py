@@ -1242,6 +1242,64 @@ def test_custom_theme_rejects_symlinked_template(portable_project: Path) -> None
 
 
 
+@pytest.mark.parametrize("name", ["legal/LICENCE.txt", "docs/assets/example.txt"])
+def test_native_fenced_snippet_parity(portable_project: Path, name: str) -> None:
+    root = portable_project.parent
+    with portable_project.open("a", encoding="utf-8") as config:
+        config.write('\n[project.markdown_extensions.pymdownx.snippets]\n')
+    source = root / "docs/index.md"
+    with source.open("a", encoding="utf-8") as page:
+        page.write(f'\n```text\n--8<-- "{name}"\n```\n')
+    included = root / name
+    included.parent.mkdir(parents=True, exist_ok=True)
+    included.write_text("Licence example\n# Still code\n\\ref{also-code}\n", encoding="utf-8")
+
+    runner = CliRunner()
+    ordinary = runner.invoke(main, ["build", "--strict", "-f", str(portable_project)])
+    assert ordinary.exit_code == 0, ordinary.output
+    prepared = build(str(portable_project))
+    assert str(included) in read_manifest(prepared.manifest)["input_hashes"]
+    assert f'--8<-- "{name}"' in (prepared.config.parent / "docs/index.md").read_text(
+        encoding="utf-8"
+    )
+    standard_blocks = _article(root / "site/index.html").select("pre")
+    prepared_blocks = _article(prepared.site / "index.html").select("pre")
+    assert [block.get_text() for block in standard_blocks] == [
+        block.get_text() for block in prepared_blocks
+    ]
+    assert any("# Still code" in block.get_text() for block in prepared_blocks)
+    validate(prepared, require_receipt=True)
+    included.write_text("Updated licence\n", encoding="utf-8")
+    with pytest.raises(PortableError, match="stale"):
+        validate(prepared)
+    updated = build(str(portable_project))
+    assert "Updated licence" in (updated.site / "index.html").read_text(encoding="utf-8")
+    assert "Licence example" in (prepared.site / "index.html").read_text(encoding="utf-8")
+
+
+@pytest.mark.parametrize(
+    ("directive", "body", "message"),
+    [
+        ('--8<-- "example.txt"', "Text", "whole-file includes in fences"),
+        ('```text\n--8<-- "example.txt"\n```', "```\n# Heading",
+         "introduce a fence or an include"),
+        ('```text\n--8<-- "example.txt:1"\n```', "Text", "project-relative file path"),
+        ('```text\n--8<-- "../example.txt"\n```', "Text", "project-relative file path"),
+    ],
+)
+def test_portable_snippets_reject_unproved_expansion(
+    portable_project: Path, directive: str, body: str, message: str,
+) -> None:
+    with portable_project.open("a", encoding="utf-8") as config:
+        config.write('\n[project.markdown_extensions.pymdownx.snippets]\n')
+    root = portable_project.parent
+    (root / "docs/index.md").write_text(f"# Home\n\n{directive}\n", encoding="utf-8")
+    (root / "example.txt").write_text(body, encoding="utf-8")
+    with pytest.raises(PortableError, match=rf"index\.md:[34]: .*{message}"):
+        prepare(str(portable_project))
+
+
+
 def test_stale_inputs_and_missing_output_are_detected(portable_project: Path) -> None:
     prepared = build(str(portable_project))
     (prepared.site / "guide/install/index.html").unlink()

@@ -277,6 +277,7 @@ with pymupdf.open(sys.argv[1]) as ordinary, pymupdf.open(sys.argv[2]) as candida
     text = "".join(page.get_text() for page in candidate)
     assert "1.1 Installation" in text, "numbered section missing"
     assert "Figure 1.1" in text, "figure numbering or reference missing"
+    assert "Captured snippet" in text, "fenced snippet missing"
     assert any(
         link.get("uri") == "https://example.test/guide"
         for page in candidate for link in page.get_links()
@@ -297,6 +298,7 @@ def check_pdf_parity(environment: Path, project: Path) -> dict[str, object]:
     docs = project / "docs"
     (docs / "guide").mkdir(parents=True)
     (project / "output").mkdir()
+    (project / "theme").mkdir()
     authored = {
         project / "zensical.toml": """[project]
 site_name = "Portable PDF acceptance"
@@ -305,8 +307,10 @@ nav = [{Home = "index.md"}, {Guide = "guide/install.md"}]
 
 [project.theme]
 font = false
+custom_dir = "theme"
 [project.markdown_extensions.attr_list]
 [project.markdown_extensions.toc]
+[project.markdown_extensions.pymdownx.snippets]
 [project.markdown_extensions."prodockit.headings"]
 numbering = "continuous"
 [project.markdown_extensions."prodockit.refs"]
@@ -315,6 +319,12 @@ types = [
   { name = "figure-caption", prefix = "{}.", classes = "prodockit-figure-caption" },
 ]
 """,
+        project / "theme/main.html": (
+            '{% extends "base.html" %}'
+            '{% block extrahead %}{{ super() }}'
+            '<meta name="pdk-parity-theme" content="captured">{% endblock %}'
+        ),
+        project / "example.txt": "Captured snippet\n",
         project / "pdk-pdf.toml": """schema_version = 1
 
 [document]
@@ -334,6 +344,10 @@ Return to \\ref{home} or visit the [guide website](https://example.test/guide).
 /// figure-caption | #map
 Installation map.
 ///
+
+```text
+--8<-- "example.txt"
+```
 """,
         docs / "guide/map.svg": (
             '<svg xmlns="http://www.w3.org/2000/svg" width="80" height="30">'
@@ -366,6 +380,10 @@ Installation map.
     if len(manifests) != 1:
         raise AcceptanceError(f"expected one portable manifest:\n{built.stdout}")
     manifest = Path(manifests[0])
+    portable_html = (manifest.parent / "site/index.html").read_bytes()
+    theme = b'<meta name="pdk-parity-theme" content="captured">'
+    if theme not in original_html or theme not in portable_html:
+        raise AcceptanceError("custom theme marker missing from a build")
     run([pdk, "-p", "pdf", "--manifest", str(manifest)], project)
     portable = manifest.parent / "pdf/site_documentation.pdf"
     if ordinary.read_bytes() != baseline.read_bytes() or (
