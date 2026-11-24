@@ -62,6 +62,13 @@ jobs:
           architecture: ${{ matrix.architecture }}
           cache: pip
           cache-dependency-path: pyproject.toml
+      - name: Install Ubuntu PDF libraries
+        if: runner.os == 'Linux'
+        timeout-minutes: 5
+        run: >-
+          sudo apt-get -o Acquire::http::Timeout=10 update &&
+          sudo apt-get -o Acquire::http::Timeout=10 install -y
+          libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz-subset0
       - name: Install macOS PDF libraries
         if: runner.os == 'macOS'
         run: |
