@@ -178,8 +178,12 @@ the default approach's collision policy or retiring its adapter. Portable
 preparation still rejects ambiguous cross-page IDs and unsupported constructs.
 Its current slice covers top-level ATX headings and references, figure and
 table captions, global and page-local bibliographies, and image hotspots.
-Generated content and qualification against a future Rust renderer remain in
-the issue.
+Portable preparation can replace standalone heading-counter macro calls with
+CSS from the same numbering plan. The normal macro and preparation share the
+CSS formatter. Other supported presentation macros still use the native
+macro extension and a captured copy of the project's standard macro re-export.
+Project-specific macro initialisation, other generated content and future Rust
+renderer qualification remain in the issue.
 
 `pdk -p pdf --manifest PATH/TO/manifest.json` selects a completed `pdk -p build`.
 It checks the captured inputs and the website files against the build receipt.

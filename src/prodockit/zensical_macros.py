@@ -250,6 +250,47 @@ def _warn_if_release_lost_to_a_shallow_clone(release: str) -> bool:
     return True
 
 
+def heading_counter_style(
+    start_count: int = 0, letter: str | None = None, *, enabled: bool = True
+) -> str:
+    """Render the website numbering rules from an explicit page count."""
+    if not enabled:
+        return (
+            "<style>\n"
+            "  .md-typeset h1::before,\n"
+            "  .md-typeset h2::before,\n"
+            "  .md-typeset h3::before,\n"
+            "  .md-nav--secondary > .md-nav__list > .md-nav__item > .md-nav__link .md-ellipsis::before,\n"
+            "  .md-nav--secondary > .md-nav__list > .md-nav__item .md-nav__list > .md-nav__item > .md-nav__link .md-ellipsis::before {\n"
+            '    content: "" !important;\n'
+            "  }\n"
+            '  .prodockit-figure-caption .caption-prefix::before { content: "Figure " !important; }\n'
+            '  .prodockit-table-caption .caption-prefix::before { content: "Table " !important; }\n'
+            "</style>"
+        )
+    if letter:
+        return (
+            "<style>\n"
+            f'  .md-typeset h1::before {{ content: "Appendix {letter}. " !important; }}\n'
+            f'  .md-typeset h2::before {{ content: "{letter}." counter(h2-count) " " !important; }}\n'
+            f'  .md-typeset h3::before {{ content: "{letter}." counter(h2-count) "." counter(h3-count) " " !important; }}\n'
+            f'  .md-nav--secondary > .md-nav__list > .md-nav__item > .md-nav__link .md-ellipsis::before {{ content: "{letter}." counter(toc2) " " !important; }}\n'
+            f'  .md-nav--secondary > .md-nav__list > .md-nav__item .md-nav__list > .md-nav__item > .md-nav__link .md-ellipsis::before {{ content: "{letter}." counter(toc2) "." counter(toc3) " " !important; }}\n'
+            f'  .prodockit-figure-caption .caption-prefix::before {{ content: "Figure {letter}." !important; }}\n'
+            f'  .prodockit-table-caption .caption-prefix::before {{ content: "Table {letter}." !important; }}\n'
+            "</style>"
+        )
+    return (
+        "<style>\n"
+        f"  .md-typeset {{ counter-reset: h1-count {start_count} !important; }}\n"
+        "  .md-nav--primary,\n"
+        "  .md-nav--secondary {\n"
+        f"    counter-reset: toc1 {start_count + 1} !important;\n"
+        "  }\n"
+        "</style>"
+    )
+
+
 def define_env(env: Any) -> None:
     """Registers this module's variables/macros on `env` - see the module
     docstring for how to wire this into `zensical.toml`."""
@@ -317,45 +358,11 @@ def define_env(env: Any) -> None:
         """
         extra = config.get("extra") or {}
         if not bool(extra.get("heading_numbering", True)):
-            return (
-                "<style>\n"
-                "  .md-typeset h1::before,\n"
-                "  .md-typeset h2::before,\n"
-                "  .md-typeset h3::before,\n"
-                "  .md-nav--secondary > .md-nav__list > .md-nav__item > .md-nav__link .md-ellipsis::before,\n"
-                "  .md-nav--secondary > .md-nav__list > .md-nav__item .md-nav__list > .md-nav__item > .md-nav__link .md-ellipsis::before {\n"
-                '    content: "" !important;\n'
-                "  }\n"
-                '  .prodockit-figure-caption .caption-prefix::before { content: "Figure " !important; }\n'
-                '  .prodockit-table-caption .caption-prefix::before { content: "Table " !important; }\n'
-                "</style>"
-            )
+            return heading_counter_style(enabled=False)
         page_path = getattr(page, "path", "")
         result = prescan()
         start_counts, appendix_letters = result if result is not None else ({}, {})
-        letter = appendix_letters.get(page_path)
-        if letter:
-            return (
-                "<style>\n"
-                f'  .md-typeset h1::before {{ content: "Appendix {letter}. " !important; }}\n'
-                f'  .md-typeset h2::before {{ content: "{letter}." counter(h2-count) " " !important; }}\n'
-                f'  .md-typeset h3::before {{ content: "{letter}." counter(h2-count) "." counter(h3-count) " " !important; }}\n'
-                f'  .md-nav--secondary > .md-nav__list > .md-nav__item > .md-nav__link .md-ellipsis::before {{ content: "{letter}." counter(toc2) " " !important; }}\n'
-                f'  .md-nav--secondary > .md-nav__list > .md-nav__item .md-nav__list > .md-nav__item > .md-nav__link .md-ellipsis::before {{ content: "{letter}." counter(toc2) "." counter(toc3) " " !important; }}\n'
-                f'  .prodockit-figure-caption .caption-prefix::before {{ content: "Figure {letter}." !important; }}\n'
-                f'  .prodockit-table-caption .caption-prefix::before {{ content: "Table {letter}." !important; }}\n'
-                "</style>"
-            )
-        n = start_counts.get(page_path, 0)
-        return (
-            "<style>\n"
-            f"  .md-typeset {{ counter-reset: h1-count {n} !important; }}\n"
-            "  .md-nav--primary,\n"
-            "  .md-nav--secondary {\n"
-            f"    counter-reset: toc1 {n + 1} !important;\n"
-            "  }\n"
-            "</style>"
-        )
+        return heading_counter_style(start_counts.get(page_path, 0), appendix_letters.get(page_path))
 
     @env.macro  # type: ignore[untyped-decorator]
     def pdk_reference_style() -> str:

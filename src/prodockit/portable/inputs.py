@@ -39,6 +39,7 @@ class InputSnapshot:
     files: Mapping[Path, bytes]
     theme_dir: Path | None = None
     snippets: frozenset[Path] = frozenset()
+    macro_module: Path | None = None
 
     @property
     def hashes(self) -> dict[str, str]:
