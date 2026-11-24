@@ -88,6 +88,7 @@ _ALL_RUNTIME_FILES = {
     "src/prodockit/portable/source_map.py",
     "src/prodockit/portable/captions.py",
     "src/prodockit/portable/containers.py",
+    "src/prodockit/portable/step_blocks.py",
     "src/prodockit/portable/snippets.py",
     "src/prodockit/portable/macros.py",
     "src/prodockit/diagnostics.py",

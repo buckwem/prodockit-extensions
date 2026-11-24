@@ -29,7 +29,7 @@ from markdown.extensions.attr_list import get_attrs_and_remainder
 from prodockit._zensical_defaults import DOCUMENTED_MARKDOWN_DEFAULTS
 from prodockit.bibliography import BibliographyResolverTreeprocessor, _BibliographyCache
 from prodockit.image_hotspots import _render as render_hotspots
-from prodockit.portable import PortableError, macros, snippets
+from prodockit.portable import PortableError, macros, snippets, step_blocks
 from prodockit.portable.captions import (
     CAPTION_EXTENSION,
     Caption,
@@ -156,6 +156,8 @@ def _tokenizer(extensions: Collection[str]) -> Any:
     parser = MarkdownIt("commonmark")
     register_caption_rule(parser)
     register_container_rule(parser, extensions)
+    if step_blocks.EXTENSION in extensions:
+        step_blocks.register_step_rule(parser)
     parser.core.ruler.disable(["text_join"])
     parser.inline.ruler.before("escape", "pdk_command", command)
     return parser
@@ -253,10 +255,13 @@ def scan(
     for line in body.splitlines(keepends=True):
         offsets.append(offsets[-1] + len(line))
     tokens = _tokenizer(extensions).parse(body)
+    first_line = text.count("\n", 0, body_start) + 1
+    if step_blocks.EXTENSION in extensions:
+        step_blocks.qualify_steps(tokens, source, first_line)
     macro_calls = {
         body_start + offset: name
         for offset, name in macros.styling_calls(
-            source, body, text.count("\n", 0, body_start) + 1
+            source, body, first_line
         ).items()
     } if macros.EXTENSION in extensions else {}
     if macro_calls and meta.get("render_macros") is False:

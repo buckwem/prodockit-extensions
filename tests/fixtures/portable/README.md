@@ -207,6 +207,14 @@ as active Prodockit references, numbered headings, caption targets and
 definitions at the original source line. For literal examples of those
 constructs, use a code span or a closed fence.
 
+Portable preparation also recognises balanced `/// steps` and `//// step`
+blocks when `prodockit.steps` is enabled. The existing renderer still formats
+titles and honours `start` and `attrs`. A child block needs a longer slash
+fence than its parent, and each closing fence must match its opener. Ordinary
+Markdown and supported native containers can remain inside a step. Affected
+references, headings, captions, definitions and hotspots inside steps still
+report an error at the original source line.
+
 Unsupported cases fail explicitly: other nested affected syntax, containers
 inside lists and block quotes, Setext headings,
 custom slugging, project-specific macro modules and conditional templates,
