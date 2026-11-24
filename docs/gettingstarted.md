@@ -1,5 +1,5 @@
 ---
-icon: lucide/signpost
+icon: lucide/compass
 ---
 
 {{ pdk_heading_counter_reset(page) }}

@@ -1,5 +1,5 @@
 ---
-icon: lucide/rocket
+icon: lucide/puzzle
 ---
 
 {{ pdk_heading_counter_reset(page) }}

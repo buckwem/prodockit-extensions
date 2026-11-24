@@ -6,25 +6,31 @@ icon: lucide/signpost
 
 # Choose your install
 
-Prodockit supports three installation paths. Choose the one that matches the
-document and level of automation you have; the paths are alternatives rather
-than stages to complete in sequence.
+Start with [section 2.1, A basic Prodockit install](#install-prodockit), if
+Python and Zensical are already installed and you have a working Zensical
+site. [Section 2.2](#choose-an-installation-path) covers three detailed
+routes that explain how to set up the prerequisites and install Prodockit
+for different projects.
 
-## Install Prodockit
+## A basic Prodockit install {: #install-prodockit }
 
-This concise path assumes that:
+Before you start, check that:
 
 1. Python 3.14 is installed.
-2. Zensical is installed in an activated project virtual environment and the
-   site has been initialized. Complete Zensical's
-   [Get started](https://zensical.org/docs/get-started/){target="_blank" rel="noopener"}
-   instructions first if that environment and site do not already exist.
+2. Zensical is installed in your project's virtual environment, and that
+   environment is active.
+3. Your Zensical site has been initialised and builds successfully.
+
+If you only need to create the Zensical site, follow
+[Zensical's Get started guide](https://zensical.org/docs/get-started/){target="_blank" rel="noopener"}
+first. For help setting up your machine, repository or project, choose a
+detailed route in [section 2.2](#choose-an-installation-path).
 
 /// steps
 
 //// step | Install Prodockit
 
-With the initialized Zensical project's environment active, install Prodockit:
+With the Zensical project's environment active, install Prodockit.
 
 ```bash
 python -m pip install --upgrade prodockit
@@ -32,11 +38,11 @@ python -m pip install --upgrade prodockit
 
 ////
 
-//// step | Enable the authoring extensions
+//// step | Enable the Markdown extensions
 
-Enable the Prodockit extensions your site uses in `zensical.toml`. Add these
-tables to the existing configuration, omitting any feature you do not use.
-The dotted extension names must be quoted:
+Enable the Markdown extensions your site uses in `zensical.toml`. Add only
+the tables you need. If a table already exists, edit it in place. Quote the
+dotted Prodockit extension names as shown.
 
 ```toml
 [project.markdown_extensions."prodockit.headings"]
@@ -55,36 +61,104 @@ types = [
 ]
 ```
 
-Add `prodockit.bibliography` only for bibliography files, or
-`prodockit.citations` only for inline citation definitions; these need their
-own configuration and a citation style. See [Configure Prodockit
-features](publishing.md#configure-prodockit-features).
+Keep any existing caption types when adding the three shown above.
+`prodockit.index` is for marking terms for a PDF index.
+
+For hand-written references, enable
+[`prodockit.citations`](extensions/citations.md#citations-enable). For
+BibTeX or BibLaTeX, use [`prodockit.bibliography`](extensions/bibliography.md)
+and configure a citation style.
 
 ////
 
-//// step | Add the website stylesheets
+//// step | Register the website stylesheet
 
-Put this key in the **existing** `[project]` table (do not add a second table):
+Add `"stylesheets/pdk.css"` to `extra_css` in the existing `[project]`
+table. Keep the other entries. If you have your own `extra.css`, list it
+after `pdk.css` so it can override the default styles.
 
 ```toml
-extra_css = ["stylesheets/pdk.css", "stylesheets/extra.css"]
+extra_css = ["stylesheets/pdk.css"]
 ```
 
-From the project root, run the following command. It:
+Create `.prodockit-shared-files.toml` beside `zensical.toml`, or add the
+missing entry to your existing manifest. Keep its existing version and entries.
 
-- Creates `docs/stylesheets/` if it does not exist.
-- Copies Prodockit's bundled `pdk.css` into that directory, replacing any
-  existing copy with the version from the installed Prodockit release.
-- Creates an empty `extra.css` only if it is missing; it leaves an existing
-  `extra.css` and your custom styles untouched.
+```toml
+version = 1
+
+[[files]]
+source = "pdk.css"
+target = "docs/stylesheets/pdk.css"
+```
+
+////
+
+//// step | Enable Prodockit macros **Optional**{: .bg-green}
+
+If you use [Prodockit macros](macros.md#macros-quick-start), add
+`"prodockit.zensical_macros"` to the existing Zensical macros `modules`
+list. For a site without a macros table, use this configuration.
+
+```toml
+[project.markdown_extensions.zensical.extensions.macros]
+modules = ["prodockit.zensical_macros"]
+on_error_fail = true
+```
+
+////
+
+//// step | Enable image hotspots **Optional**{: .bg-green}
+
+[Image hotspots](extensions/image-hotspots.md#enable-image-hotspots) use a
+SuperFences formatter. If you use hotspots, add this entry to the
+`custom_fences` list, keeping other entries such as Mermaid.
+
+```toml
+[project.markdown_extensions.pymdownx.superfences]
+custom_fences = [
+  { name = "image-hotspots", class = "image-hotspots", format = "prodockit.image_hotspots.format_hotspots" },
+]
+```
+
+////
+
+//// step | Register JavaScript for carousels or festive effects **Optional**{: .bg-green}
+
+If you plan to use [card carousels](extensions/carousel.md#enable-the-carousel)
+or the [festive overlay](extensions/festive.md#enable-the-festive-extension),
+add `"javascripts/pdk.js"` to `extra_javascript` in the existing `[project]`
+table. Keep any other entries.
+
+```toml
+extra_javascript = ["javascripts/pdk.js"]
+```
+
+Add this entry to `.prodockit-shared-files.toml` if it is missing.
+
+```toml
+[[files]]
+source = "pdk.js"
+target = "docs/javascripts/pdk.js"
+```
+
+For card carousels, also enable `[project.markdown_extensions.md_in_html]`
+if it is missing. For the festive overlay, follow its setup guide after your
+site builds. That guide includes the optional sleigh image.
+
+////
+
+//// step | Copy and check the website assets
+
+From the folder containing `zensical.toml`, copy the files listed in the
+manifest from your installed Prodockit package, then check them.
 
 ```bash
-python -c "from pathlib import Path; from prodockit.shared_files import resource_bytes; p = Path('docs/stylesheets'); p.mkdir(parents=True, exist_ok=True); (p / 'pdk.css').write_bytes(resource_bytes('pdk.css')); (p / 'extra.css').touch(exist_ok=True)"
+pdk shared-files --apply
+pdk shared-files --check
 ```
 
-Put your own CSS in `extra.css`, not the release-managed `pdk.css`. The detailed
-[Adopt route](getting-started.md) can instead configure the full standard
-integration for you.
+Rerun these commands after upgrading Prodockit or editing the manifest.
 
 ////
 
@@ -94,7 +168,6 @@ For optional local PDF generation, run the block for the current platform.
 Skip this on Windows ARM64 and let the GitLab pipeline generate PDFs instead.
 `pdk pdf --prepare all` creates and registers the PDF stylesheets **before**
 preparing the renderer; an ordinary `pdk pdf` does the same before rendering.
-You do not need to add PDF stylesheets in step 3.
 Do not add `[project.markdown_extensions."prodockit.pdf"]` to `zensical.toml`:
 `prodockit.pdf` is the PDF command's renderer, not a Markdown extension.
 
@@ -153,16 +226,12 @@ zensical serve
 
 ///
 
-This is the shortest path from a working Zensical site to a non-template
-Prodockit website. It deliberately leaves out machine preparation, repository
-and publishing setup, detailed PDF guidance, recovery guidance, and
-maintained-template integration. Choose one of the detailed installation paths
-below when you need those steps or want the setup checked as you proceed.
+## Detailed installation routes {: #choose-an-installation-path }
 
-For optional seasonal effects on your website, follow the
-[festive overlay installation steps](extensions/festive.md#enable-the-festive-extension).
-
-## Choose an installation path
+Choose one route based on your starting point and how much setup you want
+Prodockit to handle. Start with the shared prerequisites in section 3,
+[Prepare to install](installation.md). Your chosen route then
+guides you through the project environment, installation and verification.
 
 {% if is_surrey %}
 !!! info "Coursework with a prepared repository"
@@ -183,59 +252,45 @@ adopting Prodockit for a new or existing Zensical site, and a manual installatio
 Choose the Prodockit installation approach
 ///
 
-The three routes below compare their starting points and results in the same
-order as the following sections.
+The cards show what each route starts with and where to find its instructions.
 
 <div class="grid cards installation-route-grid" markdown>
 
--   :lucide-rocket:{ .lg .middle } __Adopt prodockit__
+-   :lucide-puzzle:{ .lg .middle } __Adopt prodockit__
 
     ---
 
-    **Starting point:** an empty directory and no Zensical site.
+    **Starting point:** a new or existing Zensical site that will use its own
+    structure.
 
-    Create the Python environment, install Zensical, and prove that its local
-    preview and strict build work. Then use Adoption to add Prodockit's
-    authoring components and selected renderers without using the report
-    template. `pdk pdf` prepares PDF support if you use it later.
+    Create a new site or return to your existing project environment, then
+    use Adoption (`pdk adopt`) to configure Prodockit and verify the site.
 
     [:octicons-arrow-right-24: Open section 4](getting-started.md){ .md-button .md-button--primary .installation-route-button }
 
--   :lucide-rocket:{ .lg .middle } __Build a template site__
+-   :lucide-layout-template:{ .lg .middle } __Build a template site__
 
     ---
 
-    **Starting point:** a new computer, no existing site, or a project that
-    should use the maintained report template.
+    **Starting point:** a project that should use the maintained report
+    template, including a prepared coursework repository.
 
-    Bootstrap guides and verifies the machine setup, Git host, repository,
-    project environment, build tools, and publishing configuration. The
-    resulting site starts from `prodockit-template` and can later receive its
-    maintained template updates.
+    Use `pdk boot` to guide the machine, Git, project environment and
+    publishing setup. The project can receive updates from
+    `prodockit-template`.
 
     [:octicons-arrow-right-24: Open section 5](devcons/bootstrap.md){ .md-button .md-button--primary .installation-route-button }
 
--   :lucide-book-open:{ .lg .middle } __Build site manually__
+-   :lucide-hammer:{ .lg .middle } __Build site manually__
 
     ---
 
-    **Starting point:** a project whose author wants direct control of every
-    installation decision and command.
+    **Starting point:** a project you want to set up and configure yourself.
 
-    Prepare and verify the machine, repository, editor, Python environment,
-    Zensical configuration, renderers, website, PDF, and source bundle
-    yourself. This manual installation route explains all dependencies but
-    does not use Bootstrap or Adoption to orchestrate them.
+    Follow the commands for the machine, repository, editor, Python
+    environment and Zensical configuration. Build and verify the outputs
+    you need.
 
     [:octicons-arrow-right-24: Open section 6](manual-install.md){ .md-button .md-button--primary .installation-route-button }
 
 </div>
-
-These routes are alternatives, not stages in a longer sequence. Choose only
-one. In particular, do not run Bootstrap merely because an adopted or manually
-built project later needs PDF support.
-
-Every route starts with [Prepare to install](installation.md). That shared
-preparation establishes the supported Python and a setup environment in the
-directory holding your repositories. Your chosen route then explains when to
-enter or create the project and activate its project-specific environment.
