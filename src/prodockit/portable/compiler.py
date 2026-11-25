@@ -340,7 +340,7 @@ def scan(
                 raise _error(page, match.start(), "affected syntax in tree content is unsupported")
         elif token.type == "pdk_caption":
             step_fence = token.meta.get("step_body_fence")
-            if container_depth and step_fence is None:
+            if container_depth and step_fence is None and "admonition_indent" not in token.meta:
                 raise _error(page, start, "numbered captions in native containers are unsupported")
             if step_fence == token.markup:
                 raise _error(page, start, "a caption must use a different fence from its step")
@@ -431,22 +431,25 @@ def scan(
             commands = [child.meta for child in children if child.type == "pdk_command"]
             if not commands:
                 continue
-            step_references = (
+            nested_references = (
                 paragraph
-                and "step_body_fence" in token.meta
+                and ("step_body_fence" in token.meta or "admonition_indent" in token.meta)
                 and all(item["kind"] in {"ref", "autoref"} for item in commands)
             )
-            if not top_level and not step_references:
+            if not top_level and not nested_references:
                 raise _error(
                     page, start, "affected syntax in nested content is outside the prototype"
                 )
-            at = raw.find(token.content)
-            if at < 0 or raw.strip() != token.content:
+            indentation = token.meta.get("admonition_indent", 0)
+            projected = _paragraph_source(raw, indentation)
+            at = projected.text.find(token.content)
+            if at < 0 or projected.text.strip() != token.content:
                 raise _error(page, start, "cannot map the affected content to an exact source span")
             for item in commands:
                 if item["in_link"]:
                     raise _error(page, start, "references inside links are outside the prototype")
-                a, b = start + at + item["start"], start + at + item["end"]
+                a = start + projected.source_offset(at + item["start"])
+                b = start + projected.source_offset(at + item["end"] - 1) + 1
                 if item["kind"] in BIBLIOGRAPHY_MARKERS and text[a:b] != token.content:
                     raise _error(page, a, "put the bibliography marker alone in its paragraph")
                 page.edits.append(
@@ -455,6 +458,22 @@ def scan(
     if macro_calls:
         raise _error(page, min(macro_calls), "put portable styling calls in a top-level paragraph")
     return page
+
+
+def _paragraph_source(raw: str, indentation: int) -> SourceProjection:
+    """Map a direct admonition paragraph through its authored indentation."""
+    if not indentation:
+        return SourceProjection.select(raw, [])
+    prefix = " " * indentation
+    removed: list[tuple[int, int]] = []
+    offset = 0
+    for line in raw.splitlines(keepends=True):
+        if not line.startswith(prefix):
+            # The caller's exact-content check rejects ambiguous indentation.
+            return SourceProjection.select(raw, [])
+        removed.append((offset, offset + indentation))
+        offset += len(line)
+    return SourceProjection.select(raw, removed)
 
 
 def _parsed_headings(page: Page) -> list[ET.Element]:
