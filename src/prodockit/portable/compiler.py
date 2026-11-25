@@ -37,6 +37,7 @@ from prodockit.portable.captions import (
 )
 from prodockit.portable.containers import is_aligned_fence, register_container_rule
 from prodockit.portable.inputs import MaterializedInputs
+from prodockit.portable.literal_html import mask_literal_text
 from prodockit.portable.source_map import SourceProjection, SourceText, apply_edits
 from prodockit.project_config import ProjectConfig
 from prodockit.semantics import (
@@ -58,11 +59,14 @@ _COMMAND = re.compile(
     r"|\\(?P<bib>bibliography)(?!\w)(?:\{(?P<file>[^{}]*)\})?"
     r"(?:\{(?P<cited>true|false)\})?"
 )
-_UNSUPPORTED = re.compile(
+_AFFECTED_SYNTAX = (
     r"\\(?:pagebibliography|citeref|gls|cite|ref|autoref|bibliography)\b"
-    r"|\{[{%]|--8<--|^\s*(?:!!!|\?\?\?|===|///)",
-    re.MULTILINE,
+    r"|\{[{%]|--8<--"
 )
+_CONTAINER_MARKER = r"^\s*(?:!!!|\?\?\?|===|///)"
+_UNSUPPORTED = re.compile(_AFFECTED_SYNTAX + "|" + _CONTAINER_MARKER, re.MULTILINE)
+_HTML_AFFECTED = re.compile(_AFFECTED_SYNTAX)
+_HTML_CONTAINER_MARKER = re.compile(_CONTAINER_MARKER, re.MULTILINE)
 _ATTRS = re.compile(r"\s+\{(?::\s*)?([^{}]*)\}\s*$")
 DEFINITION_EXTENSIONS = {
     "data-term": "prodockit.glossary",
@@ -358,14 +362,19 @@ def scan(
             or active_attributes.intersection(_DEFINITION_ASSIGNMENT.findall(token.content))
         ):
             raise _error(page, start, "use a closed fence for affected syntax in nested code")
-        elif token.type == "html_block" and (
-            _UNSUPPORTED.search(token.content)
-            or active_attributes.intersection(_DEFINITION_ASSIGNMENT.findall(token.content))
-            or (container_depth and re.search(
-                r"<h[1-6]\b|\bmarkdown[ \t]*=", token.content, re.IGNORECASE
-            ))
-        ):
-            raise _error(page, start, "affected syntax in HTML is outside the portable prototype")
+        elif token.type == "html_block":
+            content = mask_literal_text(token.content)
+            if (
+                _HTML_AFFECTED.search(token.content)
+                or _HTML_CONTAINER_MARKER.search(content)
+                or active_attributes.intersection(_DEFINITION_ASSIGNMENT.findall(content))
+                or (container_depth and re.search(
+                    r"<h[1-6]\b|\bmarkdown[ \t]*=", content, re.IGNORECASE
+                ))
+            ):
+                raise _error(
+                    page, start, "affected syntax in HTML is outside the portable prototype"
+                )
         elif token.type == "heading_open":
             if token.level != 0 or not token.markup.startswith("#"):
                 raise _error(

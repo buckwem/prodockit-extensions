@@ -1183,6 +1183,65 @@ _CONTAINER_EXTENSIONS = {
 }
 
 
+
+def test_literal_html_blocks_render_identically(portable_project: Path) -> None:
+    root = portable_project.parent
+    with portable_project.open("a", encoding="utf-8") as config:
+        config.write(
+            "\n[project.markdown_extensions.admonition]\n"
+            "[project.markdown_extensions.md_in_html]\n"
+        )
+    guide = root / "docs/guide/install.md"
+    literal = r"""
+!!! note "Restart message"
+
+    <pre style="white-space: pre-wrap;">========================
+    RESTART YOUR TERMINAL
+    ========================
+    <code>Literal &lt;example&gt;</code>
+    </pre>
+
+<div class="literal-example">
+<code>
+=== "Literal"
+////
+data-term="literal"
+</code>
+</div>
+
+Read \ref{installation} after the examples.
+"""
+    authored = guide.read_bytes() + literal.encode("utf-8")
+    guide.write_bytes(authored)
+    ordinary = CliRunner().invoke(main, ["build", "--strict", "-f", str(portable_project)])
+    assert ordinary.exit_code == 0, ordinary.output
+    prepared = build(str(portable_project))
+    original = _article(root / "site/guide/install/index.html")
+    portable = _article(prepared.site / "guide/install/index.html")
+    assert original.select(".admonition pre, .literal-example") == portable.select(
+        ".admonition pre, .literal-example"
+    )
+    assert "Literal <example>" in portable.select_one(".admonition pre").get_text()
+    assert '=== "Literal"' in portable.select_one(".literal-example").get_text()
+    assert portable.select(".prodockit-ref") == original.select(".prodockit-ref")
+    assert guide.read_bytes() == authored
+    validate(prepared, require_receipt=True)
+
+
+@pytest.mark.parametrize("html", [
+    "<pre>\\ref{inside}</pre>\\ref{outside}",
+    "<pre>\\ref{inside}</pre>",
+    "<pre>\\ref{unclosed}",
+    "<div>\n<code>\\ref{inside}</code>\n\\ref{outside}\n</div>",
+    '<div markdown="1">\n<pre>\\ref{ambiguous}</pre>\n</div>',
+    '<pre data-term="active">\\ref{inside}</pre>',
+    "<hr>\n<code>\\ref{not-in-block}</code>",
+])
+def test_literal_html_keeps_affected_syntax_checks(html: str) -> None:
+    with pytest.raises(PortableError, match=r"index\.md:3: affected syntax in HTML"):
+        scan("index.md", f"# Home\n\n{html}\n", extensions={"prodockit.glossary"})
+
+
 def test_native_containers_render_the_same_in_both_modes(portable_project: Path) -> None:
     root = portable_project.parent
     with portable_project.open("a", encoding="utf-8") as file:

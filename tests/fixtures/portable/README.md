@@ -214,7 +214,11 @@ SuperFences blocks. Preparation leaves these containers in the Markdown for
 Zensical to render. It checks their contents and reports affected syntax such
 as active Prodockit references, numbered headings, caption targets and
 definitions at the original source line. For literal examples of those
-constructs, use a code span or a closed fence.
+constructs, use a code span or a closed fence. Balanced `<pre>` and
+`<code>` elements in raw HTML can also contain literal delimiter lines,
+such as rows of equals signs. Explicit commands still receive the affected
+syntax checks because an HTML code element can contain active inline
+Markdown. Markdown-enabled HTML receives the normal checks.
 
 Portable preparation also recognises balanced `/// steps` and `//// step`
 blocks when `prodockit.steps` is enabled. The existing renderer still formats
