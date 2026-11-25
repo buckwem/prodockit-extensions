@@ -1331,6 +1331,63 @@ def test_portable_tree_boundaries_and_diagnostics(body: str, line: int, message:
         scan("index.md", f"# Home\n\n{body}\n", extensions={"prodockit.steps", "prodockit.tree"})
 
 
+
+def test_admonition_references_and_caption_render_in_both_modes(portable_project: Path) -> None:
+    root = portable_project.parent
+    with portable_project.open("a", encoding="utf-8") as file:
+        file.write("""
+[project.markdown_extensions.admonition]
+[project.markdown_extensions."pymdownx.blocks.caption"]
+types = [{name = "table-caption", prefix = "{}.", classes = "prodockit-table-caption"}]
+""")
+    guide = root / "docs/guide/install.md"
+    authored = r"""# Guide
+
+## Installation
+
+!!! note "Results"
+
+    Start with the recorded values.
+    See \ref{results} and \autoref{home} for context.
+
+    | Name | Value |
+    | --- | --- |
+    | Reading | 12 |
+    /// table-caption | <
+        attrs: {id: results}
+
+    Results table
+    ///
+
+See \ref{results} again.
+""".replace("\n", "\r\n")
+    guide.write_bytes(authored.encode("utf-8"))
+    runner = CliRunner()
+    args = ["build", "--clean", "--strict", "-f", str(portable_project)]
+    ordinary = runner.invoke(main, args)
+    assert ordinary.exit_code == 0, ordinary.output
+    prepared = build(str(portable_project))
+    expected, actual = (
+        _article(site / "guide/install/index.html") for site in (root / "site", prepared.site)
+    )
+    selector = ".admonition :is(.prodockit-ref, .prodockit-autoref)"
+    assert actual.select(selector) == expected.select(selector)
+    assert [link.get_text() for link in actual.select(selector)] == ["Table 1.1", "Home"]
+    assert actual.select_one(".admonition #results figcaption").get_text(strip=True) == (
+        "Table 1.1.Results table"
+    )
+    assert actual.select_one(".admonition #results table") is not None
+    assert actual.select_one("#results").find(recursive=False).name == "figcaption"
+    assert actual.select("article > p .prodockit-ref") == expected.select("article > p .prodockit-ref")
+    details = read_manifest(prepared.manifest)["pages"]["guide/install.md"]
+    spans = [span for span in details["source_map"] if span["kind"] in {"ref", "autoref"}]
+    assert [
+        authored[span["source_start"]["offset"]:span["source_end"]["offset"]] for span in spans
+    ] == [r"\ref{results}", r"\autoref{home}", r"\ref{results}"]
+    validate(prepared, require_receipt=True)
+    assert guide.read_bytes() == authored.encode("utf-8")
+
+
 def test_native_containers_render_the_same_in_both_modes(portable_project: Path) -> None:
     root = portable_project.parent
     with portable_project.open("a", encoding="utf-8") as file:
@@ -1400,7 +1457,7 @@ See \ref{installation}.
 @pytest.mark.parametrize(
     ("body", "line", "message"),
     [
-        ("!!! note\n\n    See \\ref{topic}.", 5, "nested content"),
+        ("??? note\n\n    See \\ref{topic}.", 5, "nested content"),
         ('!!! note "See \\ref{topic}"\n\n    Text.', 3, "nested content"),
         ('=== "Tab"\n\n    !!! note\n\n        \\pagebibliography', 7, "nested content"),
         ('???+ note "Summary"\n\n    ## New heading', 5, "top-level ATX"),
@@ -1414,7 +1471,7 @@ See \ref{installation}.
         ('!!! note\n\n    ```markdown\n    \\ref{topic}\n     ```', 5,
          "aligned, closed SuperFences"),
         ('!!! note\n\n        \\ref{topic}', 5, "use a closed fence"),
-        ('!!! note\n\n    ![Map](map.svg)\n    /// figure-caption\n    Map\n    ///', 6,
+        ('??? note\n\n    ![Map](map.svg)\n    /// figure-caption\n    Map\n    ///', 6,
          "numbered captions in native containers"),
         ('!!! note\n\n    <div markdown="1">\n    ## Generated heading\n    </div>', 5,
          "affected syntax in HTML"),
@@ -1630,7 +1687,7 @@ After the procedure
         ('=== "Tab"\n\n    See \\ref{target}.', 7, "unsupported syntax"),
         ('![Image](a.svg)\n//// figure-caption | #figure\nCaption\n////', 6,
          "different fence"),
-        ('!!! note\n\n    ![Image](a.svg)\n    /// figure-caption\n    Caption\n    ///', 8,
+        ('??? note\n\n    ![Image](a.svg)\n    /// figure-caption\n    Caption\n    ///', 8,
          "numbered captions"),
         ("```text\nNo closing fence", 4, "unclosed step block"),
     ],

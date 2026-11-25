@@ -211,9 +211,8 @@ undefined policy for portable conditions.
 Native admonitions, collapsible details and content tabs can contain ordinary
 Markdown, including nested admonitions, links, inline code and aligned, closed
 SuperFences blocks. Preparation leaves these containers in the Markdown for
-Zensical to render. It checks their contents and reports affected syntax such
-as active Prodockit references, numbered headings, caption targets and
-definitions at the original source line. For literal examples of those
+Zensical to render. It checks their contents and reports unsupported affected
+syntax at the original source line. For literal examples of those
 constructs, use a code span or a closed fence. Balanced `<pre>` and
 `<code>` elements in raw HTML can also contain literal delimiter lines,
 such as rows of equals signs. Explicit commands still receive the affected
@@ -231,6 +230,11 @@ inside a step share the page's numbering sequence with captions outside
 it. Give a caption a different slash fence from that of its step.
 Step titles, nested containers, headings, definitions and hotspots still
 reject affected syntax at the original source line.
+
+Direct paragraphs of native admonitions also support heading and caption references.
+Figure and table captions at the same level inside an admonition use the
+page's numbering sequence. A reference keeps its original source location
+across the admonition's indentation, including in a multi-line paragraph.
 
 Balanced `/// tree` blocks pass through to the existing tree renderer.
 Preparation preserves the listing, options and attributes and checks for

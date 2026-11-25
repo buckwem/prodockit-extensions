@@ -37,6 +37,7 @@ def register_container_rule(parser: Any, extensions: Collection[str]) -> None:
         for extension, pattern in openings:
             match = pattern.fullmatch(line)
             if match is not None:
+                is_admonition = extension == "admonition"
                 heading_title = extension == "pymdownx.details" and (
                     match["title"] or ""
                 ).startswith("#")
@@ -62,11 +63,18 @@ def register_container_rule(parser: Any, extensions: Collection[str]) -> None:
         parent_type = state.parentType
         state.parentType = "pdk_container"
         state.blkIndent = indent + 4
+        body_start = len(state.tokens)
         try:
             state.md.block.tokenize(state, first + 1, last)
         finally:
             state.blkIndent = indent
             state.parentType = parent_type
+        if is_admonition:
+            for token in state.tokens[body_start:]:
+                if (token.type, token.level - opening.level) in {
+                    ("inline", 2), ("pdk_caption", 1),
+                }:
+                    token.meta["admonition_indent"] = indent + 4
         state.push("pdk_container_close", "", -1)
         state.line = last
         return True

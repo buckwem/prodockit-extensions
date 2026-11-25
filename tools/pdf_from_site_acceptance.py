@@ -372,7 +372,7 @@ Installation map.
 
 !!! note "Fixture note"
 
-    Rendered native note.
+    Rendered native note. See \\ref{map}.
 
     <pre>=======================
     Literal HTML example
