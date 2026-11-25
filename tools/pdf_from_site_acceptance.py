@@ -363,7 +363,8 @@ Return to \\ref{home} or visit the [guide website](https://example.test/guide).
 
 //// step | Verify the environment
 
-Inspect \\ref{map} before continuing.
+- Verify the list item
+  and inspect \\ref{map} before continuing.
 
 ![Map](map.svg)
 /// figure-caption | #map

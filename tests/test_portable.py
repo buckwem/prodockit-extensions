@@ -1161,7 +1161,7 @@ def test_cli_aliases_and_opt_in(portable_project: Path, prefix: list[str]) -> No
 @pytest.mark.parametrize(
     "text",
     [
-        "- A nested \\ref{target}.\n",
+        "- A nested \\cite{target}.\n",
         "# Title\n\n{{ generated_heading() }}\n",
         '# Title\n\n--8<-- "snippet.md"\n',
         "# Title\n\n- Nested \\pagebibliography\n",
@@ -1386,6 +1386,62 @@ See \ref{results} again.
     ] == [r"\ref{results}", r"\autoref{home}", r"\ref{results}"]
     validate(prepared, require_receipt=True)
     assert guide.read_bytes() == authored.encode("utf-8")
+
+
+
+def test_wrapped_list_references_match_both_build_modes(portable_project: Path) -> None:
+    root = portable_project.parent
+    guide = root / "docs/guide/install.md"
+    authored = r"""# Guide
+
+## Installation
+
+- Read the installation section
+  and then see \ref{home}.
+
+    See \autoref{installation} in a separate paragraph.
+
+    1. A nested item mentions \ref{installation}
+       and \autoref{home}.
+
+- A literal example: `\ref{not-a-target}`.
+
+After the list, see \ref{home}.
+""".replace("\n", "\r\n")
+    guide.write_bytes(authored.encode("utf-8"))
+    runner = CliRunner()
+    args = ["build", "--clean", "--strict", "-f", str(portable_project)]
+    ordinary = runner.invoke(main, args)
+    assert ordinary.exit_code == 0, ordinary.output
+    prepared = build(str(portable_project))
+    expected, actual = (
+        _article(site / "guide/install/index.html") for site in (root / "site", prepared.site)
+    )
+    selector = "article > ul"
+    assert actual.select_one(selector) == expected.select_one(selector)
+    assert [
+        link.get_text() for link in actual.select(f"{selector} :is(.prodockit-ref, .prodockit-autoref)")
+    ] == ["Home", "1.1 Installation", "1.1 Installation", "Home"]
+    assert actual.select_one("article ul ol li") is not None
+    assert actual.select_one(f"{selector} code").get_text() == r"\ref{not-a-target}"
+    details = read_manifest(prepared.manifest)["pages"]["guide/install.md"]
+    spans = [span for span in details["source_map"] if span["kind"] in {"ref", "autoref"}]
+    assert [
+        authored[span["source_start"]["offset"]:span["source_end"]["offset"]] for span in spans
+    ] == [r"\ref{home}", r"\autoref{installation}", r"\ref{installation}", r"\autoref{home}",
+          r"\ref{home}"]
+    validate(prepared, require_receipt=True)
+    assert guide.read_bytes() == authored.encode("utf-8")
+
+
+@pytest.mark.parametrize(("text", "message"), [
+    ("1) See \\ref{target}.", "cannot map the list marker"),
+    ("- [See \\ref{target}](https://example.test).", "references inside links"),
+    ("- A citation \\cite{target}.", "affected syntax in nested content"),
+])
+def test_list_reference_scope(text: str, message: str) -> None:
+    with pytest.raises(PortableError, match=rf"index\.md:3: .*{message}"):
+        scan("index.md", f"# Home\n\n{text}\n")
 
 
 def test_native_containers_render_the_same_in_both_modes(portable_project: Path) -> None:

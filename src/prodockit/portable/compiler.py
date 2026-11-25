@@ -67,6 +67,7 @@ _CONTAINER_MARKER = r"^\s*(?:!!!|\?\?\?|===|///)"
 _UNSUPPORTED = re.compile(_AFFECTED_SYNTAX + "|" + _CONTAINER_MARKER, re.MULTILINE)
 _EXPLICIT_AFFECTED = re.compile(_AFFECTED_SYNTAX)
 _HTML_CONTAINER_MARKER = re.compile(_CONTAINER_MARKER, re.MULTILINE)
+_LIST_MARKER = re.compile(r" *(?:[-+*]|[0-9]+\.)(?: {1,4}(?! )|(?=\n|$))")
 _ATTRS = re.compile(r"\s+\{(?::\s*)?([^{}]*)\}\s*$")
 DEFINITION_EXTENSIONS = {
     "data-term": "prodockit.glossary",
@@ -318,7 +319,12 @@ def scan(
                     page.snippets[_source_line(page, line_offset)] = name
             line_offset += len(line)
     container_depth = 0
+    list_items = []
     for index, token in enumerate(tokens):
+        if token.type == "list_item_open":
+            list_items.append(token)
+        elif token.type == "list_item_close":
+            list_items.pop()
         if token.type == "pdk_container_close":
             container_depth -= 1
             continue
@@ -431,17 +437,32 @@ def scan(
             commands = [child.meta for child in children if child.type == "pdk_command"]
             if not commands:
                 continue
+            list_item = (
+                list_items[-1]
+                if paragraph and list_items and token.level == list_items[-1].level + 2
+                else None
+            )
             nested_references = (
                 paragraph
-                and ("step_body_fence" in token.meta or "admonition_indent" in token.meta)
+                and (
+                    list_item is not None
+                    or "step_body_fence" in token.meta
+                    or "admonition_indent" in token.meta
+                )
                 and all(item["kind"] in {"ref", "autoref"} for item in commands)
             )
             if not top_level and not nested_references:
                 raise _error(
                     page, start, "affected syntax in nested content is outside the prototype"
                 )
-            indentation = token.meta.get("admonition_indent", 0)
-            projected = _paragraph_source(raw, indentation)
+            if list_item is not None:
+                first_line = list_item.map[0]
+                opening = text[offsets[first_line]:offsets[first_line + 1]]
+                projected = _list_paragraph_source(raw, opening, first_line == token.map[0])
+            else:
+                projected = _paragraph_source(raw, token.meta.get("admonition_indent", 0))
+            if projected is None:
+                raise _error(page, start, "cannot map the list marker to an exact source span")
             at = projected.text.find(token.content)
             if at < 0 or projected.text.strip() != token.content:
                 raise _error(page, start, "cannot map the affected content to an exact source span")
@@ -472,6 +493,28 @@ def _paragraph_source(raw: str, indentation: int) -> SourceProjection:
             # The caller's exact-content check rejects ambiguous indentation.
             return SourceProjection.select(raw, [])
         removed.append((offset, offset + indentation))
+        offset += len(line)
+    return SourceProjection.select(raw, removed)
+
+
+def _list_paragraph_source(
+    raw: str, opening: str, starts_item: bool
+) -> SourceProjection | None:
+    """Map a list paragraph after removing its marker and continuation indentation."""
+    marker = _LIST_MARKER.match(opening)
+    if marker is None:
+        return None
+    indentation = marker.end() + (1 if opening[marker.end():].startswith("\n") else 0)
+    removed: list[tuple[int, int]] = []
+    offset = 0
+    for line in raw.splitlines(keepends=True):
+        prefix = (
+            marker.end()
+            if starts_item and offset == 0
+            else min(indentation, len(line) - len(line.lstrip(" ")))
+        )
+        if prefix:
+            removed.append((offset, offset + prefix))
         offset += len(line)
     return SourceProjection.select(raw, removed)
 
