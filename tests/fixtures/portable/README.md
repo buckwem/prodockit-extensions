@@ -236,6 +236,10 @@ Figure and table captions at the same level inside an admonition use the
 page's numbering sequence. A reference keeps its original source location
 across the admonition's indentation, including in a multi-line paragraph.
 
+Bullet and period-numbered list paragraphs support `\ref` and `\autoref`,
+including wrapped lines and separate paragraphs in an item. Preparation keeps
+each marker and its indentation and replaces the reference's exact source span.
+
 Balanced `/// tree` blocks pass through to the existing tree renderer.
 Preparation preserves the listing, options and attributes and checks for
 affected syntax inside the block. A tree directly inside a step needs a
