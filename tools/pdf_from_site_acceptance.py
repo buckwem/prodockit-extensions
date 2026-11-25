@@ -279,6 +279,7 @@ with pymupdf.open(sys.argv[1]) as ordinary, pymupdf.open(sys.argv[2]) as candida
     assert "Figure 1.1" in text, "figure numbering or reference missing"
     assert "Captured snippet" in text, "fenced snippet missing"
     assert "Rendered native note" in text, "admonition missing"
+    assert "Literal HTML example" in text, "preformatted HTML missing"
     assert "Verify the environment" in text, "step title missing"
     assert any(
         link.get("uri") == "https://example.test/guide"
@@ -370,6 +371,10 @@ Installation map.
 !!! note "Fixture note"
 
     Rendered native note.
+
+    <pre>=======================
+    Literal HTML example
+    =======================</pre>
 
 ////
 
