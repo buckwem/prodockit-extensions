@@ -15,7 +15,7 @@ import html
 import re
 import string
 import xml.etree.ElementTree as ET
-from collections.abc import Collection
+from collections.abc import Collection, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -235,7 +235,7 @@ def scan(
     source: str,
     text: str,
     *,
-    extensions: Collection[str] = (),
+    extensions: Collection[str] | Mapping[str, dict[str, Any]] = (),
     caption_options: dict[str, Any] | None = None,
     macro_context: macros.ConditionalContext | None = None,
 ) -> Page:
@@ -318,6 +318,11 @@ def scan(
                 if name is not None:
                     page.snippets[_source_line(page, line_offset)] = name
             line_offset += len(line)
+    highlight = extensions.get("pymdownx.highlight", {}) if isinstance(extensions, Mapping) else {}
+    allow_fence_title = (
+        highlight.get("use_pygments", True) is True
+        and highlight.get("title_mode", "text") == "text"
+    )
     container_depth = 0
     list_items = []
     for index, token in enumerate(tokens):
@@ -360,7 +365,9 @@ def scan(
                 read_caption(source, start, _source_line(page, start), block, caption_options)
             )
         elif token.type == "fence":
-            if container_depth and re.search(r"(?:^|[.\s])image-hotspots\b", token.info):
+            if container_depth and re.match(
+                r"\s*(?:\{\s*)?\.?image-hotspots(?=\s|}|$)", token.info,
+            ):
                 raise _error(page, start, "nested hotspots are outside the portable prototype")
             if token.info.strip() == "image-hotspots":
                 if token.level != 0:
@@ -368,7 +375,9 @@ def scan(
                 page.edits.append(Edit(start, end, "hotspots", token.content))
             elif container_depth and (
                 "pymdownx.superfences" not in extensions
-                or not is_aligned_fence(text[start:end], token.markup, token.info)
+                or not is_aligned_fence(
+                    text[start:end], token.markup, token.info, allow_title=allow_fence_title,
+                )
             ):
                 raise _error(
                     page, start, "nested code requires an aligned, closed SuperFences block"
@@ -668,7 +677,7 @@ def compile_pages(
     extensions = (
         config.markdown_extensions if "markdown_extensions" in config.project
         else DOCUMENTED_MARKDOWN_DEFAULTS
-    ).keys()
+    )
     caption_options = config.markdown_extensions.get(CAPTION_EXTENSION)
     macro_context = macros.ConditionalContext.from_config(
         config.project, config.markdown_extensions

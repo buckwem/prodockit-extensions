@@ -224,6 +224,9 @@ blocks when `prodockit.steps` is enabled. The existing renderer still formats
 titles and honours `start` and `attrs`. A child block needs a longer slash
 fence than its parent, and each closing fence must match its opener. Ordinary
 Markdown and supported native containers can remain inside a step.
+Aligned, closed SuperFences code blocks can have a quoted `title` when
+Pygments and text titles are enabled. The fixture compares native titles
+and highlighting between the two build modes and leaves the code literal.
 Direct step paragraphs support `\ref` and `\autoref` when their authored
 source spans can be mapped exactly. Figure and table captions directly
 inside a step share the page's numbering sequence with captions outside

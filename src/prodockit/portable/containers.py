@@ -9,6 +9,9 @@ import re
 from collections.abc import Collection
 from typing import Any
 
+_FENCE_INFO = re.compile(r"[\w+#.-]*")
+_TITLED_FENCE_INFO = re.compile(r"""[\w+#.-]+[ \t]+title=(?:"[^"]*"|'[^']*')""")
+
 _CLASSES = r"[\w-]+(?: +[\w-]+)*"
 _OPENINGS = {
     "admonition": re.compile(rf'!!! ?{_CLASSES}(?: +"(?P<title>.*?)")? *'),
@@ -82,14 +85,18 @@ def register_container_rule(parser: Any, extensions: Collection[str]) -> None:
     parser.block.ruler.before("paragraph", "pdk_container", container, {"alt": ["paragraph"]})
 
 
-def is_aligned_fence(raw: str, marker: str, info: str) -> bool:
+def is_aligned_fence(raw: str, marker: str, info: str, *, allow_title: bool) -> bool:
     """Recognise a closed literal fence that SuperFences also consumes."""
     lines = raw.splitlines()
     indent = lines[0].partition(marker)[0]
+    info = info.strip()
+    literal_header = _FENCE_INFO.fullmatch(info) is not None or (
+        allow_title and _TITLED_FENCE_INFO.fullmatch(info) is not None
+    )
     return (
         len(lines) >= 2
         and not indent.strip(" ")
-        and re.fullmatch(r"[\w+#.-]*", info.strip()) is not None
+        and literal_header
         and lines[-1].rstrip(" \t") == indent + marker
         and all(not line.strip() or line.startswith(indent) for line in lines[1:-1])
     )

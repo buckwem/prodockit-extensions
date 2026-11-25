@@ -211,7 +211,7 @@ def capture_inputs(config_file: Path) -> InputSnapshot:
     extensions = (
         config.markdown_extensions if "markdown_extensions" in config.project
         else DOCUMENTED_MARKDOWN_DEFAULTS
-    ).keys()
+    )
     caption_options = config.markdown_extensions.get(CAPTION_EXTENSION)
     snippet_paths: set[Path] = set()
     macro_context = macros.ConditionalContext.from_config(
