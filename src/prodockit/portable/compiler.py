@@ -28,7 +28,7 @@ from markdown.extensions.attr_list import get_attrs_and_remainder
 from prodockit._zensical_defaults import DOCUMENTED_MARKDOWN_DEFAULTS
 from prodockit.bibliography import BibliographyResolverTreeprocessor, _BibliographyCache
 from prodockit.image_hotspots import _render as render_hotspots
-from prodockit.portable import PortableError, macros, snippets, step_blocks
+from prodockit.portable import PortableError, macros, snippets, step_blocks, tree_blocks
 from prodockit.portable.captions import (
     CAPTION_EXTENSION,
     Caption,
@@ -65,7 +65,7 @@ _AFFECTED_SYNTAX = (
 )
 _CONTAINER_MARKER = r"^\s*(?:!!!|\?\?\?|===|///)"
 _UNSUPPORTED = re.compile(_AFFECTED_SYNTAX + "|" + _CONTAINER_MARKER, re.MULTILINE)
-_HTML_AFFECTED = re.compile(_AFFECTED_SYNTAX)
+_EXPLICIT_AFFECTED = re.compile(_AFFECTED_SYNTAX)
 _HTML_CONTAINER_MARKER = re.compile(_CONTAINER_MARKER, re.MULTILINE)
 _ATTRS = re.compile(r"\s+\{(?::\s*)?([^{}]*)\}\s*$")
 DEFINITION_EXTENSIONS = {
@@ -167,6 +167,8 @@ def _tokenizer(extensions: Collection[str]) -> Any:
     parser = MarkdownIt("commonmark")
     register_caption_rule(parser)
     register_container_rule(parser, extensions)
+    if tree_blocks.EXTENSION in extensions:
+        tree_blocks.register_tree_rule(parser)
     if step_blocks.EXTENSION in extensions:
         step_blocks.register_step_rule(parser)
     parser.core.ruler.disable(["text_join"])
@@ -327,6 +329,15 @@ def scan(
             container_depth += 1
             if token.meta["heading_title"]:
                 raise _error(page, start, "headings in collapsible titles are unsupported")
+        elif token.type == "pdk_tree":
+            if not token.meta["closed"]:
+                raise _error(page, start, "unclosed tree block")
+            if token.meta.get("step_body_fence") == token.markup:
+                raise _error(page, start, "a tree must use a different fence from its step")
+            tree_blocks.check_options(token.meta["options"], _location(page, start))
+            match = _EXPLICIT_AFFECTED.search(text, start, end)
+            if match is not None:
+                raise _error(page, match.start(), "affected syntax in tree content is unsupported")
         elif token.type == "pdk_caption":
             step_fence = token.meta.get("step_body_fence")
             if container_depth and step_fence is None:
@@ -365,7 +376,7 @@ def scan(
         elif token.type == "html_block":
             content = mask_literal_text(token.content)
             if (
-                _HTML_AFFECTED.search(token.content)
+                _EXPLICIT_AFFECTED.search(token.content)
                 or _HTML_CONTAINER_MARKER.search(content)
                 or active_attributes.intersection(_DEFINITION_ASSIGNMENT.findall(content))
                 or (container_depth and re.search(

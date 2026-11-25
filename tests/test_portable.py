@@ -1242,6 +1242,95 @@ def test_literal_html_keeps_affected_syntax_checks(html: str) -> None:
         scan("index.md", f"# Home\n\n{html}\n", extensions={"prodockit.glossary"})
 
 
+
+def test_portable_tree_blocks_preserve_the_native_renderer(portable_project: Path) -> None:
+    root = portable_project.parent
+    with portable_project.open("a", encoding="utf-8") as file:
+        file.write(
+            '\n[project.markdown_extensions."prodockit.tree"]\n'
+            '[project.markdown_extensions."prodockit.steps"]\n'
+            '[project.markdown_extensions.pymdownx.tabbed]\nalternate_style = true\n'
+        )
+    source = root / "docs/guide/install.md"
+    example = """
+/// tree
+    attrs: {id: example-tree}
+    indent: 4
+
+docs/ - The documentation
+    pages/
+        index.md - **Home**
+///
+
+=== "Result"
+
+    /// tree
+    src/
+      main.py
+    ///
+
+/// steps
+
+//// step | Check files
+
+/// tree
+assets/
+  map.png
+///
+
+////
+
+///
+
+```markdown
+/// tree
+example/
+///
+```
+
+## After the trees
+
+See \\ref{installation}.
+"""
+    with source.open("a", encoding="utf-8") as file:
+        file.write(example)
+    authored = source.read_bytes()
+    runner = CliRunner()
+    args = ["build", "--clean", "--strict", "-f", str(portable_project)]
+    ordinary = runner.invoke(main, args)
+    assert ordinary.exit_code == 0, ordinary.output
+    prepared = build(str(portable_project))
+    page = "guide/install/index.html"
+    expected = _article(root / "site" / page)
+    actual = _article(prepared.site / page)
+    trees = actual.select(".prodockit-tree")
+    assert len(trees) == 3
+    assert trees == expected.select(".prodockit-tree")
+    assert trees[0]["id"] == "example-tree"
+    assert trees[0].select_one("li li li .tree-name").get_text() == "index.md"
+    assert actual.select_one(".tabbed-set .prodockit-tree") == trees[1]
+    assert actual.select_one(".prodockit-steps .prodockit-tree") == trees[2]
+    assert any("/// tree" in block.get_text() for block in actual.select("pre"))
+    assert actual.select_one("h2#after-the-trees") is not None
+    assert actual.select(".prodockit-ref") == expected.select(".prodockit-ref")
+    assert source.read_bytes() == authored
+    validate(prepared, require_receipt=True)
+
+
+@pytest.mark.parametrize(("body", "line", "message"), [
+    ("/// tree\ndocs/\n", 3, "unclosed tree block"),
+    ("/// tree\ndocs/ - \\ref{target}\n///\n", 4, "affected syntax in tree content"),
+    ("/// tree\n    indent: 0\n\ndocs/\n///", 3, "invalid tree options"),
+    ("/// tree\n    attrs: {data-term: Example}\n\ndocs/\n///", 3,
+     "affected syntax in tree attributes"),
+    ("/// steps\n//// step\n//// tree\ndocs/\n////\n////\n///", 5,
+     "different fence from its step"),
+])
+def test_portable_tree_boundaries_and_diagnostics(body: str, line: int, message: str) -> None:
+    with pytest.raises(PortableError, match=rf"index\.md:{line}: .*{message}"):
+        scan("index.md", f"# Home\n\n{body}\n", extensions={"prodockit.steps", "prodockit.tree"})
+
+
 def test_native_containers_render_the_same_in_both_modes(portable_project: Path) -> None:
     root = portable_project.parent
     with portable_project.open("a", encoding="utf-8") as file:

@@ -103,7 +103,9 @@ def qualify_steps(tokens: list[Any], source_location: Callable[[int], str]) -> N
             if parent.kind == "steps":
                 location = source_location(token.map[0])
                 raise PortableError(f"{location}: put procedure content inside a step block")
-            if (token.type, level - parent.level) in {("inline", 1), ("pdk_caption", 0)}:
+            if (token.type, level - parent.level) in {
+                ("inline", 1), ("pdk_caption", 0), ("pdk_tree", 0),
+            }:
                 token.meta["step_body_fence"] = parent.fence
             continue
 

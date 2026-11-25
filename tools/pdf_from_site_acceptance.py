@@ -280,6 +280,7 @@ with pymupdf.open(sys.argv[1]) as ordinary, pymupdf.open(sys.argv[2]) as candida
     assert "Captured snippet" in text, "fenced snippet missing"
     assert "Rendered native note" in text, "admonition missing"
     assert "Literal HTML example" in text, "preformatted HTML missing"
+    assert "fixture-tree.txt" in text, "tree listing missing"
     assert "Verify the environment" in text, "step title missing"
     assert any(
         link.get("uri") == "https://example.test/guide"
@@ -316,6 +317,7 @@ font = false
 custom_dir = "theme"
 [project.markdown_extensions.admonition]
 [project.markdown_extensions."prodockit.steps"]
+[project.markdown_extensions."prodockit.tree"]
 [project.markdown_extensions.attr_list]
 [project.markdown_extensions.toc]
 [project.markdown_extensions.pymdownx.snippets]
@@ -375,6 +377,11 @@ Installation map.
     <pre>=======================
     Literal HTML example
     =======================</pre>
+
+/// tree
+docs/
+  fixture-tree.txt
+///
 
 ////
 
