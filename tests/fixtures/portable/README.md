@@ -232,6 +232,11 @@ it. Give a caption a different slash fence from that of its step.
 Step titles, nested containers, headings, definitions and hotspots still
 reject affected syntax at the original source line.
 
+Balanced `/// tree` blocks pass through to the existing tree renderer.
+Preparation preserves the listing, options and attributes and checks for
+affected syntax inside the block. A tree directly inside a step needs a
+different slash fence from the step's own fence.
+
 Unsupported cases fail explicitly: other nested affected syntax, containers
 inside lists and block quotes, Setext headings,
 custom slugging, project-specific macro modules and other template syntax,

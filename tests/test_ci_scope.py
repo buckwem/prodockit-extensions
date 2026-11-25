@@ -124,6 +124,7 @@ def test_shared_packaging_and_command_files_select_every_matrix() -> None:
         "src/prodockit/portable/source_map.py",
         "src/prodockit/portable/captions.py",
         "src/prodockit/portable/containers.py",
+        "src/prodockit/portable/tree_blocks.py",
         "src/prodockit/portable/literal_html.py",
         "src/prodockit/portable/step_blocks.py",
         "src/prodockit/portable/snippets.py",
