@@ -1567,7 +1567,7 @@ def test_steps_render_identically_after_portable_preparation(portable_project: P
 
 === "Example"
 
-    ```markdown
+    ```markdown title='Literal step example'
     //// step | Literal step
     \ref{literal}
     ////
@@ -1577,6 +1577,11 @@ def test_steps_render_identically_after_portable_preparation(portable_project: P
 
 //// step
 Continue with the next step.
+
+```python title="An image-hotspots example.py"
+print(r"\ref{also-literal}")
+```
+
 ////
 
 ///
@@ -1615,6 +1620,10 @@ See \ref{installation}.
     assert wanted[0]["style"] == "counter-reset: list-item 8; font-size: 1.2em"
     assert wanted[0].select_one("#check strong").get_text() == "the environment"
     assert "\\ref{literal}" in actual.select_one("ol.prodockit-steps pre").get_text()
+    assert [title.get_text() for title in actual.select("ol.prodockit-steps .filename")] == [
+        "Literal step example", "An image-hotspots example.py",
+    ]
+    assert r"\ref{also-literal}" in actual.select("ol.prodockit-steps pre")[1].get_text()
     assert actual.select_one("h2#after-the-procedure") is not None
     validate(prepared, require_receipt=True)
     assert all(path.read_bytes() == data for path, data in originals.items())
@@ -1745,6 +1754,7 @@ After the procedure
          "different fence"),
         ('??? note\n\n    ![Image](a.svg)\n    /// figure-caption\n    Caption\n    ///', 8,
          "numbered captions"),
+        ('```text title=Example\n\\ref{literal}\n```', 5, "aligned, closed SuperFences"),
         ("```text\nNo closing fence", 4, "unclosed step block"),
     ],
 )
@@ -1752,6 +1762,19 @@ def test_steps_refuse_affected_body_syntax(body: str, line: int, message: str) -
     text = f"# Home\n\n/// steps\n//// step | Title\n{body}\n////\n///\n"
     with pytest.raises(PortableError, match=rf"index\.md:{line}: .*{message}"):
         scan("index.md", text, extensions={*_CONTAINER_EXTENSIONS, "prodockit.steps"})
+
+
+@pytest.mark.parametrize("highlight", [{"use_pygments": False}, {"title_mode": "html"}])
+def test_titled_nested_fence_requires_literal_highlighting(highlight: dict[str, str | bool]) -> None:
+    body = r"""!!! note
+
+    ```markdown title="Example"
+    \ref{literal}
+    ```
+"""
+    extensions = {name: {} for name in _CONTAINER_EXTENSIONS} | {"pymdownx.highlight": highlight}
+    with pytest.raises(PortableError, match=r"index\.md:3: .*aligned, closed SuperFences"):
+        scan("index.md", body, extensions=extensions)
 
 
 @pytest.mark.parametrize(

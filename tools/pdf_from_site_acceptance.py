@@ -321,6 +321,7 @@ custom_dir = "theme"
 [project.markdown_extensions.attr_list]
 [project.markdown_extensions.toc]
 [project.markdown_extensions.pymdownx.snippets]
+[project.markdown_extensions.pymdownx.superfences]
 [project.markdown_extensions."zensical.extensions.macros"]
 module_name = "macros"
 on_error_fail = true
@@ -365,6 +366,10 @@ Return to \\ref{home} or visit the [guide website](https://example.test/guide).
 
 - Verify the list item
   and inspect \\ref{map} before continuing.
+
+```text title="Example command"
+\\ref{literal-code-example}
+```
 
 ![Map](map.svg)
 /// figure-caption | #map
@@ -435,6 +440,8 @@ docs/
             raise AcceptanceError("native admonition missing from a build")
         if b'class="prodockit-steps" start="4"' not in rendered:
             raise AcceptanceError("continued step numbering missing from a build")
+        if b'class="filename">Example command<' not in rendered:
+            raise AcceptanceError("native code title missing from a build")
     theme = b'<meta name="pdk-parity-theme" content="captured">'
     if theme not in original_html or theme not in portable_html:
         raise AcceptanceError("custom theme marker missing from a build")
